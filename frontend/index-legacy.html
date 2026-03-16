@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SwiftEye</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#08090d;--bgP:#0e1117;--bgC:#161b22;--bgH:#1c2333;--bd:#21262d;--bdL:#30363d;--tx:#e6edf3;--txM:#8b949e;--txD:#484f58;--ac:#58a6ff;--acG:#3fb950;--acO:#d29922;--acR:#f85149;--acP:#bc8cff;--fn:'JetBrains Mono','Fira Code',monospace;--fd:'Outfit',sans-serif;--r:8px;--rs:5px}
+.light{--bg:#f6f8fa;--bgP:#ffffff;--bgC:#f0f2f5;--bgH:#e8ebef;--bd:#d0d7de;--bdL:#bbc0c7;--tx:#1f2328;--txM:#656d76;--txD:#8b949e;--ac:#0969da;--acG:#1a7f37;--acO:#9a6700;--acR:#cf222e;--acP:#8250df}
+body{background:var(--bg);color:var(--tx);font-family:var(--fn);overflow:hidden;height:100vh;transition:background .3s,color .3s}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}*{scrollbar-width:thin;scrollbar-color:var(--bd) transparent}
+input[type=range]{-webkit-appearance:none;background:var(--bd);height:3px;border-radius:2px;outline:none}input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--ac);cursor:pointer;border:2px solid var(--bgP)}
+.inp{background:var(--bgC);border:1px solid var(--bd);border-radius:var(--rs);color:var(--tx);padding:6px 10px;font-size:11px;outline:none;font-family:var(--fn);transition:border-color .2s}.inp:focus{border-color:var(--ac);box-shadow:0 0 0 2px rgba(88,166,255,.12)}
+.btn{background:var(--bgC);border:1px solid var(--bd);border-radius:var(--rs);color:var(--txM);padding:4px 10px;font-size:10px;cursor:pointer;font-family:var(--fn);font-weight:500;transition:all .15s}.btn:hover{border-color:var(--bdL)}.btn.on{background:rgba(88,166,255,.1);border-color:rgba(88,166,255,.35);color:var(--ac)}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;font-family:var(--fn)}.tag-s{padding:1px 5px;font-size:9px}
+.hr:hover{background:var(--bgH)!important}.fi{animation:fi .25s ease forwards}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}@keyframes scan{0%{background-position:0% 0%}100%{background-position:200% 0%}}
+.sh{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--txM);font-family:var(--fn);margin-bottom:8px}
+.sc{padding:10px 12px;background:var(--bgC);border-radius:var(--rs);border:1px solid var(--bd)}
+.rw{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--bd);font-size:11px}.rl{color:var(--txM)}.rv{color:var(--tx);text-align:right;max-width:65%;word-break:break-all}
+.ch{cursor:pointer;display:flex;align-items:center;gap:4px;user-select:none}.ch:hover{color:var(--ac)}
+</style></head><body><div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef,useCallback,useMemo}=React;
+const API="";
+async function api(p,o){const r=await fetch(API+p,o);if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||e.error||"Failed")}return r.json()}
+function fB(b){if(b==null)return"0 B";if(b<1024)return b+" B";if(b<1048576)return(b/1024).toFixed(1)+" KB";if(b<1073741824)return(b/1048576).toFixed(1)+" MB";return(b/1073741824).toFixed(2)+" GB"}
+function fD(s){if(!s||s<.001)return"0ms";if(s<1)return(s*1000).toFixed(0)+"ms";if(s<60)return s.toFixed(1)+"s";if(s<3600)return Math.floor(s/60)+"m "+Math.floor(s%60)+"s";return Math.floor(s/3600)+"h "+Math.floor((s%3600)/60)+"m"}
+function fN(n){return typeof n==="number"?n.toLocaleString():String(n||"")}
+function fT(ts){return ts?new Date(ts*1000).toLocaleTimeString():""}
+
+// ── Micro components ──────────────────────────────────────────────
+function Tag({children,color,small,tip}){return <span className={"tag"+(small?" tag-s":"")} style={{background:color+"18",color,border:"1px solid "+color+"33",cursor:tip?"help":"default"}} title={tip||""}>{children}</span>}
+const FC={SYN:"#3fb950",ACK:"#58a6ff",FIN:"#d29922",RST:"#f85149",PSH:"#bc8cff",URG:"#f97316",ECE:"#22d3ee",CWR:"#94a3b8"};
+const FTip={SYN:"Connection initiation request",ACK:"Acknowledgment",FIN:"Connection termination (graceful close)",RST:"Connection reset (abrupt termination)",PSH:"Push - deliver data immediately",URG:"Urgent data pointer active",ECE:"ECN-Echo congestion notification",CWR:"Congestion Window Reduced",HS:"TCP Handshake completed (SYN→SYN+ACK→ACK)"};
+function FB({f}){return <Tag color={FC[f]||"#8b949e"} small tip={FTip[f]}>{f}</Tag>}
+function Collapse({title,children,open:dOpen=false}){
+  const[o,setO]=useState(dOpen);
+  return <div style={{marginBottom:8}}><div className="ch" onClick={()=>setO(!o)} style={{fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".1em",color:"var(--txM)",marginBottom:o?6:0}}><span style={{display:"inline-block",transform:o?"rotate(90deg)":"rotate(0)",transition:"transform .15s",fontSize:8}}>▶</span> {title}</div>{o&&<div className="fi">{children}</div>}</div>;
+}
+function Row({l,v}){return <div className="rw"><span className="rl">{l}</span><span className="rv">{v}</span></div>}
+
+// OS fingerprinting is now handled by backend plugin (os_fingerprint.py)
+
+// ── Protocol Hierarchy ────────────────────────────────────────────
+function buildProtoTree(stats){
+  if(!stats?.protocols)return[];
+  const tree=[];const byTransport={TCP:{children:{},pkts:0,bytes:0},UDP:{children:{},pkts:0,bytes:0},ICMP:{children:{},pkts:0,bytes:0},ARP:{children:{},pkts:0,bytes:0},OTHER:{children:{},pkts:0,bytes:0}};
+  for(const[proto,d]of Object.entries(stats.protocols)){
+    const tc=stats.transport_counts||{};
+    let parent="OTHER";
+    if(["HTTP","HTTPS","SSH","FTP","FTP-DATA","SMTP","SMTP-SUB","SMTPS","TELNET","SMB","RDP","MySQL","PostgreSQL","IMAPS","POP3S","VNC","Redis","MongoDB","TLS","MSSQL","Oracle","Elasticsearch","NTP","DHCP"].includes(proto)){
+      parent=["DNS","NTP","DHCP","SNMP","SYSLOG"].includes(proto)?"UDP":"TCP";
+    }
+    if(proto==="DNS")parent="UDP";if(proto==="ICMP")parent="ICMP";if(proto==="ARP")parent="ARP";if(proto==="TCP")parent="TCP";if(proto==="UDP")parent="UDP";if(proto==="ICMPv6")parent="ICMP";
+    if(!byTransport[parent])byTransport[parent]={children:{},pkts:0,bytes:0};
+    byTransport[parent].pkts+=d.packets;byTransport[parent].bytes+=d.bytes;
+    if(proto!==parent)byTransport[parent].children[proto]=d;
+  }
+  return Object.entries(byTransport).filter(([,v])=>v.pkts>0).sort((a,b)=>b[1].bytes-a[1].bytes).map(([name,v])=>({name,pkts:v.pkts,bytes:v.bytes,children:Object.entries(v.children).sort((a,b)=>b[1].bytes-a[1].bytes).map(([n,d])=>({name:n,pkts:d.packets,bytes:d.bytes}))}));
+}
+
+// ── Sparkline ─────────────────────────────────────────────────────
+function Sparkline({data,width,height,activeRange}){
+  const ref=useRef(null);
+  useEffect(()=>{
+    const c=ref.current;if(!c||!data.length)return;const ctx=c.getContext("2d");const dpr=window.devicePixelRatio||1;
+    c.width=width*dpr;c.height=height*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,width,height);
+    const max=Math.max(...data.map(d=>d.packet_count),1);const bw=Math.max(1,width/data.length-.8);
+    for(let i=0;i<data.length;i++){const x=(i/data.length)*width;const h=(data[i].packet_count/max)*(height-6);const inR=i>=activeRange[0]&&i<=activeRange[1];
+      ctx.fillStyle=inR?"#58a6ff":"rgba(128,128,128,0.15)";ctx.fillRect(x,height-2-h,bw,h)}
+  },[data,width,height,activeRange]);
+  return <canvas ref={ref} style={{width,height,display:"block"}}/>;
+}
+
+// ── Connection Timeline ───────────────────────────────────────────
+function Timeline({sessions,pColors,onSelect,width}){
+  const ref=useRef(null);const h=Math.max(200,Math.min(sessions.length*6+40,500));
+  useEffect(()=>{
+    const c=ref.current;if(!c||!sessions.length)return;
+    const ctx=c.getContext("2d");const dpr=window.devicePixelRatio||1;
+    c.width=width*dpr;c.height=h*dpr;ctx.scale(dpr,dpr);
+    ctx.fillStyle=getComputedStyle(document.body).getPropertyValue("--bgC").trim()||"#161b22";ctx.fillRect(0,0,width,h);
+    const sorted=[...sessions].sort((a,b)=>a.start_time-b.start_time);
+    const minT=sorted[0]?.start_time||0;const maxT=sorted[sorted.length-1]?.end_time||minT+1;
+    const range=maxT-minT||1;const pad=40;const barH=Math.max(3,Math.min(5,(h-pad*2)/sorted.length-1));
+    // Time axis
+    ctx.strokeStyle="rgba(128,128,128,0.2)";ctx.lineWidth=1;
+    for(let i=0;i<=4;i++){const x=pad+(width-pad*2)*(i/4);ctx.beginPath();ctx.moveTo(x,pad-10);ctx.lineTo(x,h-10);ctx.stroke();
+      ctx.fillStyle=getComputedStyle(document.body).getPropertyValue("--txD").trim()||"#484f58";ctx.font="9px JetBrains Mono";ctx.textAlign="center";ctx.fillText(fT(minT+range*(i/4)),x,pad-14)}
+    // Bars
+    sorted.forEach((s,i)=>{
+      const x1=pad+(s.start_time-minT)/range*(width-pad*2);const x2=pad+((s.end_time||s.start_time)-minT)/range*(width-pad*2);
+      const y=pad+i*(barH+1);const w2=Math.max(2,x2-x1);
+      ctx.fillStyle=pColors[s.protocol]||"#64748b";ctx.globalAlpha=.8;ctx.fillRect(x1,y,w2,barH);ctx.globalAlpha=1;
+    });
+  },[sessions,width,h,pColors]);
+  return <div style={{overflowY:"auto",maxHeight:500}}>
+    <canvas ref={ref} style={{width,height:h,display:"block",cursor:"pointer"}} onClick={e=>{
+      const c=ref.current;if(!c)return;const rect=c.getBoundingClientRect();const y=e.clientY-rect.top;
+      const sorted=[...sessions].sort((a,b)=>a.start_time-b.start_time);
+      const pad=40;const barH=Math.max(3,Math.min(5,(h-pad*2)/sorted.length-1));
+      const idx=Math.floor((y-pad)/(barH+1));if(idx>=0&&idx<sorted.length)onSelect(sorted[idx]);
+    }}/>
+  </div>;
+}
+
+// ── Graph Canvas ──────────────────────────────────────────────────
+function GraphCanvas({nodes,edges,onSelect,selectedNodes,selectedEdge,width,height,pColors}){
+  const cRef=useRef(null),simRef=useRef(null),nRef=useRef([]),eRef=useRef([]),tRef=useRef(d3.zoomIdentity),hRef=useRef(null);
+  const selNRef=useRef(new Set()),selERef=useRef(null),pcRef=useRef(pColors),onSelRef=useRef(onSelect),renRef=useRef(null),rafRef=useRef(null);
+  useEffect(()=>{selNRef.current=new Set(selectedNodes)},[selectedNodes]);
+  useEffect(()=>{selERef.current=selectedEdge},[selectedEdge]);
+  useEffect(()=>{pcRef.current=pColors},[pColors]);
+  useEffect(()=>{onSelRef.current=onSelect},[onSelect]);
+  useEffect(()=>{if(renRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=requestAnimationFrame(renRef.current)}},[selectedNodes,selectedEdge]);
+  useEffect(()=>{if(simRef.current){simRef.current.force("center",d3.forceCenter(width/2,height/2).strength(.04));simRef.current.alpha(.01).restart()}else if(renRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=requestAnimationFrame(renRef.current)}},[width,height]);
+  useEffect(()=>{
+    if(!nodes.length){const c=cRef.current;if(c){const x=c.getContext("2d"),d=window.devicePixelRatio||1;c.width=width*d;c.height=height*d;c.style.width=width+"px";c.style.height=height+"px";x.scale(d,d);x.fillStyle=document.body.classList.contains("light")?"#f6f8fa":"#08090d";x.fillRect(0,0,width,height)}if(simRef.current)simRef.current.stop();nRef.current=[];eRef.current=[];return}
+    const em=new Map();for(const n of nRef.current)em.set(n.id,n);
+    const nn=nodes.map(n=>{const e=em.get(n.id);return{...n,x:e?.x??width/2+(Math.random()-.5)*300,y:e?.y??height/2+(Math.random()-.5)*300,vx:e?.vx??0,vy:e?.vy??0,fx:e?.fx??null,fy:e?.fy??null}});
+    const ids=new Set(nn.map(n=>n.id));const ne=edges.filter(e=>ids.has(e.source?.id||e.source)&&ids.has(e.target?.id||e.target)).map(e=>({...e,source:e.source?.id||e.source,target:e.target?.id||e.target}));
+    nRef.current=nn;eRef.current=ne;if(simRef.current)simRef.current.stop();
+    const sim=d3.forceSimulation(nn).force("charge",d3.forceManyBody().strength(-350).distanceMax(450)).force("link",d3.forceLink(ne).id(d=>d.id).distance(130).strength(.4)).force("center",d3.forceCenter(width/2,height/2).strength(.04)).force("collision",d3.forceCollide().radius(d=>gR(d)+10)).force("x",d3.forceX(width/2).strength(.015)).force("y",d3.forceY(height/2).strength(.015)).alphaDecay(.02).on("tick",render);
+    simRef.current=sim;
+    function gR(n){return Math.max(5,Math.min(28,Math.sqrt(n.packet_count)*2+3))}
+    function render(){
+      const c=cRef.current;if(!c)return;const ctx=c.getContext("2d"),dpr=window.devicePixelRatio||1;
+      c.width=width*dpr;c.height=height*dpr;c.style.width=width+"px";c.style.height=height+"px";ctx.scale(dpr,dpr);
+      const t=tRef.current,ss=selNRef.current,hs=ss.size>0,se=selERef.current,pc=pcRef.current;
+      ctx.fillStyle=document.body.classList.contains("light")?"#f6f8fa":"#08090d";ctx.fillRect(0,0,width,height);
+      ctx.save();ctx.translate(t.x,t.y);ctx.scale(t.k,t.k);
+      if(t.k>.3){const gs=60,sx=-t.x/t.k,sy=-t.y/t.k,ex=sx+width/t.k,ey=sy+height/t.k;ctx.strokeStyle="rgba(128,128,128,0.04)";ctx.lineWidth=1/t.k;for(let x=Math.floor(sx/gs)*gs;x<ex;x+=gs){ctx.beginPath();ctx.moveTo(x,sy);ctx.lineTo(x,ey);ctx.stroke()}for(let y=Math.floor(sy/gs)*gs;y<ey;y+=gs){ctx.beginPath();ctx.moveTo(sx,y);ctx.lineTo(ex,y);ctx.stroke()}}
+      const meb=Math.max(...eRef.current.map(e=>e.total_bytes),1);
+      for(const edge of eRef.current){const src=typeof edge.source==="object"?edge.source:nRef.current.find(n=>n.id===edge.source);const tgt=typeof edge.target==="object"?edge.target:nRef.current.find(n=>n.id===edge.target);if(!src||!tgt)continue;
+        const isSel=se?.id===edge.id,w=Math.max(.6,(edge.total_bytes/meb)*10),col=pc[edge.protocol]||"#64748b",sId=typeof src==="object"?src.id:src,tId=typeof tgt==="object"?tgt.id:tgt,con=hs&&(ss.has(sId)||ss.has(tId));
+        ctx.globalAlpha=isSel?1:hs?(con?.85:.15):.6;ctx.beginPath();ctx.moveTo(src.x,src.y);ctx.lineTo(tgt.x,tgt.y);ctx.strokeStyle=isSel?"#fff":col;ctx.lineWidth=isSel?w+2:w;ctx.stroke();if(isSel){ctx.strokeStyle=col+"55";ctx.lineWidth=w+6;ctx.stroke()}ctx.globalAlpha=1}
+      for(const node of nRef.current){const r=gR(node),isSel=ss.has(node.id),isH=hRef.current===node.id,isC=hs&&eRef.current.some(e=>{const s=typeof e.source==="object"?e.source.id:e.source,t2=typeof e.target==="object"?e.target.id:e.target;return(ss.has(s)&&t2===node.id)||(ss.has(t2)&&s===node.id)});
+        ctx.globalAlpha=hs?(isSel||isC?1:.3):1;
+        if(isSel||isH){const gl=ctx.createRadialGradient(node.x,node.y,r,node.x,node.y,r*3);gl.addColorStop(0,(isSel?"#58a6ff":"#3fb950")+"44");gl.addColorStop(1,"transparent");ctx.fillStyle=gl;ctx.fillRect(node.x-r*3,node.y-r*3,r*6,r*6)}
+        if(node.is_subnet){const s=r*1.7;ctx.beginPath();ctx.rect(node.x-s/2,node.y-s/2,s,s);ctx.fillStyle=isSel?"#58a6ff33":"#1e2833";ctx.fill();ctx.strokeStyle=isSel?"#58a6ff":isH?"#3fb950":"#3a5060";ctx.lineWidth=isSel?2.5:1.5;ctx.stroke()}
+        else{ctx.beginPath();ctx.arc(node.x,node.y,r,0,Math.PI*2);const p=node.is_private;ctx.fillStyle=isSel?"#58a6ff33":p?"#1e3045":"#35204a";ctx.fill();ctx.strokeStyle=isSel?"#58a6ff":isH?"#3fb950":p?"#4080b0":"#8040b0";ctx.lineWidth=isSel||isH?2.5:1.5;ctx.stroke()}
+        if(t.k>.45){const fs=Math.max(8,10/t.k);ctx.font=`500 ${fs}px JetBrains Mono,monospace`;ctx.textAlign="center";ctx.textBaseline="top";const lb=node.id.length>22?node.id.slice(0,20)+"…":node.id;ctx.fillStyle="rgba(0,0,0,0.7)";ctx.fillText(lb,node.x+.5,node.y+r+5.5);ctx.fillStyle=isSel?"#58a6ff":isH?"#e6edf3":"#b0b8c4";ctx.fillText(lb,node.x,node.y+r+5)}
+        ctx.globalAlpha=1}ctx.restore()}
+    renRef.current=render;return()=>sim.stop()},[nodes,edges,width,height]);
+  useEffect(()=>{
+    const c=cRef.current;if(!c)return;
+    let dn=null,didDrag=false,zoomEnabled=true;
+    const zoom=d3.zoom().scaleExtent([.08,10]).filter(e=>{
+      // Disable zoom when dragging a node
+      if(!zoomEnabled)return false;
+      return true;
+    }).on("zoom",e=>{tRef.current=e.transform;if(renRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=requestAnimationFrame(renRef.current)}});
+    d3.select(c).call(zoom);
+    function gR(n){return Math.max(5,Math.min(28,Math.sqrt(n.packet_count)*2+3))}
+    function gN(mx,my){const t=tRef.current,x=(mx-t.x)/t.k,y=(my-t.y)/t.k;for(let i=nRef.current.length-1;i>=0;i--){const n=nRef.current[i];if(Math.hypot(n.x-x,n.y-y)<gR(n)+5)return n}return null}
+    function gE(mx,my){const t=tRef.current,x=(mx-t.x)/t.k,y=(my-t.y)/t.k;for(const e of eRef.current){const s=typeof e.source==="object"?e.source:nRef.current.find(n=>n.id===e.source),tg=typeof e.target==="object"?e.target:nRef.current.find(n=>n.id===e.target);if(!s||!tg)continue;const dx=tg.x-s.x,dy=tg.y-s.y,l2=dx*dx+dy*dy;if(l2===0)continue;let t2=((x-s.x)*dx+(y-s.y)*dy)/l2;t2=Math.max(0,Math.min(1,t2));if(Math.hypot(x-(s.x+t2*dx),y-(s.y+t2*dy))<8)return e}return null}
+    // Hover
+    c.addEventListener("mousemove",e=>{
+      if(dn)return; // skip hover detection during drag
+      const r=c.getBoundingClientRect(),prev=hRef.current;hRef.current=gN(e.clientX-r.left,e.clientY-r.top)?.id||null;c.style.cursor=hRef.current?"grab":"default";if(prev!==hRef.current&&renRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=requestAnimationFrame(renRef.current)}
+    });
+    // Drag start
+    c.addEventListener("pointerdown",e=>{
+      if(e.button!==0)return;
+      const r=c.getBoundingClientRect(),n=gN(e.clientX-r.left,e.clientY-r.top);
+      if(n){dn=n;didDrag=false;zoomEnabled=false;c.setPointerCapture(e.pointerId);c.style.cursor="grabbing";e.preventDefault();e.stopPropagation()}
+    });
+    // Drag move
+    c.addEventListener("pointermove",e=>{
+      if(!dn)return;
+      didDrag=true;const r=c.getBoundingClientRect(),t=tRef.current;
+      dn.fx=(e.clientX-r.left-t.x)/t.k;dn.fy=(e.clientY-r.top-t.y)/t.k;
+      if(simRef.current)simRef.current.alpha(.1).restart();
+    });
+    // Drag end
+    c.addEventListener("pointerup",e=>{
+      if(dn){c.releasePointerCapture(e.pointerId);dn=null;zoomEnabled=true;c.style.cursor="default";
+        if(didDrag){didDrag=false;return}}
+    });
+    // Click (only if not drag)
+    c.addEventListener("click",e=>{
+      if(didDrag){didDrag=false;return}
+      const r=c.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+      const n=gN(mx,my);if(n){onSelRef.current("node",n.id,e.shiftKey);return}
+      const ed=gE(mx,my);if(ed){onSelRef.current("edge",ed,false);return}
+      onSelRef.current("clear",null,false);
+    });
+    // Double click to unpin
+    c.addEventListener("dblclick",e=>{const r=c.getBoundingClientRect(),n=gN(e.clientX-r.left,e.clientY-r.top);if(n){n.fx=null;n.fy=null;if(simRef.current)simRef.current.alpha(.3).restart()}});
+    return()=>{}
+  },[]);
+  return <canvas ref={cRef} style={{width:"100%",height:"100%",display:"block"}}/>}
+
+// ── Stats Panel ───────────────────────────────────────────────────
+function StatsPanel({stats,pColors,onSelectNode,pluginResults}){
+  if(!stats)return null;
+  const tree=useMemo(()=>buildProtoTree(stats),[stats]);
+  const flagsData=pluginResults?.tcp_flags?.tcp_flags_detail;
+  return <div className="fi" style={{padding:16,overflowY:"auto",height:"100%"}}>
+    <div className="sh">Capture Overview</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:16}}>
+      <div className="sc"><div style={{fontSize:9,color:"var(--txM)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:2}}>Packets</div><div style={{fontSize:17,fontWeight:600,fontFamily:"var(--fd)"}}>{fN(stats.total_packets)}</div><div style={{fontSize:9,color:"var(--txD)"}}>{stats.packets_per_second} pps</div></div>
+      <div className="sc"><div style={{fontSize:9,color:"var(--txM)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:2}}>Data</div><div style={{fontSize:17,fontWeight:600,fontFamily:"var(--fd)"}}>{fB(stats.total_bytes)}</div><div style={{fontSize:9,color:"var(--txD)"}}>avg {fB(stats.avg_packet_size)}/pkt</div></div>
+      <div className="sc"><div style={{fontSize:9,color:"var(--txM)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:2}}>Endpoints</div><div style={{fontSize:17,fontWeight:600,fontFamily:"var(--fd)"}}>{stats.unique_ips}</div><div style={{fontSize:9,color:"var(--txD)"}}>{stats.unique_macs} MACs</div></div>
+      <div className="sc"><div style={{fontSize:9,color:"var(--txM)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:2}}>Sessions</div><div style={{fontSize:17,fontWeight:600,fontFamily:"var(--fd)"}}>{fN(stats.total_sessions)}</div><div style={{fontSize:9,color:"var(--txD)"}}>{fD(stats.duration)}</div></div>
+    </div>
+    <Collapse title="TCP Connections" open={true}>
+      {flagsData?.summary?flagsData.summary.filter(s=>s.count>0).map(s=><div key={s.label} style={{marginBottom:8}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:3}}><span style={{fontWeight:500}}>{s.label}</span><Tag color={FC[s.flag?.split("+")[0]]||"#8b949e"} tip={FTip[s.flag?.split("+")[0]]}>{fN(s.count)}</Tag></div>
+        {s.senders?.length>0&&<div style={{paddingLeft:8}}>{s.senders.slice(0,5).map(([ip,cnt])=><div key={ip} className="hr" onClick={()=>onSelectNode&&onSelectNode(ip)} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"2px 4px",borderBottom:"1px solid var(--bd)",cursor:"pointer",borderRadius:3}}><span style={{color:"var(--txM)"}}>{ip}</span><span style={{color:"var(--txD)"}}>{cnt}×</span></div>)}</div>}
+      </div>)
+      :<div style={{display:"flex",flexWrap:"wrap",gap:6}}>{Object.entries(stats.flag_stats||{}).filter(([,v])=>v>0).map(([f,c])=><div key={f} style={{background:"var(--bgC)",border:"1px solid var(--bd)",borderRadius:"var(--rs)",padding:"6px 10px",display:"flex",alignItems:"center",gap:6}}><FB f={f}/><span style={{fontSize:12,fontWeight:600,fontFamily:"var(--fd)"}}>{fN(c)}</span></div>)}</div>}
+    </Collapse>
+    <Collapse title="Protocol Hierarchy" open={true}>{tree.map(t=><div key={t.name} style={{marginBottom:4}}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0"}}><span style={{fontWeight:600}}>{t.name}</span><span style={{color:"var(--txM)"}}>{fN(t.pkts)} pkts · {fB(t.bytes)}</span></div>{t.children.map(ch=><div key={ch.name} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"2px 0 2px 16px",color:"var(--txM)"}}><span>└ {ch.name}</span><span>{fN(ch.pkts)} · {fB(ch.bytes)}</span></div>)}</div>)}</Collapse>
+    <Collapse title="Top Talkers" open={true}>{(stats.top_talkers||[]).map((t,i)=><div key={t.ip} className="hr" onClick={()=>onSelectNode&&onSelectNode(t.ip)} style={{display:"flex",justifyContent:"space-between",padding:"5px 4px",borderBottom:"1px solid var(--bd)",fontSize:11,borderRadius:3,cursor:"pointer"}}><span><span style={{color:"var(--txD)",marginRight:6,fontSize:9}}>{i+1}</span>{t.ip}</span><span style={{color:"var(--txM)"}}>{fB(t.bytes)}</span></div>)}</Collapse>
+    <Collapse title="Top Ports">{(stats.top_ports||[]).map((p,i)=><div key={p.port} className="hr" style={{display:"flex",justifyContent:"space-between",padding:"5px 4px",borderBottom:"1px solid var(--bd)",fontSize:11,borderRadius:3}}><span><span style={{color:"var(--txD)",marginRight:6,fontSize:9}}>{i+1}</span>{p.port}{p.service&&<span style={{color:"var(--txD)",marginLeft:6}}>({p.service})</span>}</span><span style={{color:"var(--txM)"}}>{fN(p.count)}</span></div>)}</Collapse>
+  </div>}
+
+// ── Edge Detail with Session Browser ──────────────────────────────
+function EdgeDetail({edge:e,pColors,onClear,sessions,onSelectSession}){
+  if(!e)return null;
+  const src=typeof e.source==="object"?e.source.id:e.source,tgt=typeof e.target==="object"?e.target.id:e.target;
+  const edgeSessions=useMemo(()=>(sessions||[]).filter(s=>{const ips=new Set([s.src_ip,s.dst_ip]);return ips.has(src)&&ips.has(tgt)&&s.protocol===e.protocol}),[sessions,src,tgt,e.protocol]);
+  const hasTLS=e.tls_snis?.length>0||e.tls_versions?.length>0||e.tls_ciphers?.length>0;
+  const hasDNS=e.dns_queries?.length>0;const hasHTTP=e.http_hosts?.length>0;
+  return <div className="fi" style={{padding:16,overflowY:"auto",height:"100%"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div className="sh" style={{marginBottom:0}}>Edge Detail</div><button className="btn" onClick={onClear}>✕</button></div>
+    <Tag color={pColors[e.protocol]||"#64748b"}>{e.protocol}</Tag>
+    <div style={{marginTop:10}}><Row l="Source" v={src}/><Row l="Target" v={tgt}/><Row l="Packets" v={fN(e.packet_count)}/><Row l="Traffic volume" v={fB(e.total_bytes)}/>{e.first_seen&&<Row l="Time range" v={fT(e.first_seen)+" — "+fT(e.last_seen)}/>}{e.ports?.length>0&&<Row l="Ports" v={e.ports.slice(0,10).join(", ")+(e.ports.length>10?"…":"")}/>}</div>
+    {hasTLS&&<Collapse title={"TLS Details ("+((e.tls_snis||[]).length)+" SNIs)"} open={true}>{e.tls_snis?.length>0&&<div style={{marginBottom:6}}><div style={{fontSize:10,color:"var(--txM)",marginBottom:3}}>SNI (Server Name)</div>{e.tls_snis.map(s=><div key={s} style={{fontSize:11,padding:"2px 0"}}>{s}</div>)}</div>}{e.tls_versions?.length>0&&<div style={{marginBottom:6}}><div style={{fontSize:10,color:"var(--txM)",marginBottom:3}}>TLS Versions</div><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{e.tls_versions.map(v=><Tag key={v} color="#2dd4bf" small>{v}</Tag>)}</div></div>}{e.tls_selected_ciphers?.length>0&&<div style={{marginBottom:6}}><div style={{fontSize:10,color:"var(--txM)",marginBottom:3}}>Selected Cipher</div>{e.tls_selected_ciphers.map(c=><div key={c} style={{fontSize:10,color:"var(--acG)",padding:"2px 0"}}>{c}</div>)}</div>}{e.tls_ciphers?.length>0&&<Collapse title={"Offered Ciphers ("+e.tls_ciphers.length+")"}>{e.tls_ciphers.map(c=><div key={c} style={{fontSize:10,color:"var(--txM)",padding:"1px 0"}}>{c}</div>)}</Collapse>}</Collapse>}
+    {hasHTTP&&<Collapse title="HTTP Hosts" open>{e.http_hosts.map(h=><div key={h} style={{fontSize:11,padding:"2px 0"}}>{h}</div>)}</Collapse>}
+    {hasDNS&&<Collapse title={"DNS Queries ("+e.dns_queries.length+")"} open>{e.dns_queries.slice(0,20).map(q=><div key={q} style={{fontSize:10,padding:"2px 0",color:"var(--txM)"}}>{q}</div>)}</Collapse>}
+    <Collapse title={"Sessions on this edge ("+edgeSessions.length+")"} open={true}>
+      {edgeSessions.length===0&&<div style={{fontSize:10,color:"var(--txD)"}}>No sessions found</div>}
+      {edgeSessions.map((s,i)=><div key={i} className="hr" onClick={()=>onSelectSession&&onSelectSession(s)} style={{padding:"6px 4px",borderBottom:"1px solid var(--bd)",cursor:"pointer",borderRadius:3}}>
+        <div style={{fontSize:10,fontWeight:500}}>{s.initiator_ip||s.src_ip}:{s.initiator_port||s.src_port} → {s.responder_ip||s.dst_ip}:{s.responder_port||s.dst_port}</div>
+        <div style={{display:"flex",gap:4,marginTop:3,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:9,color:"var(--txM)"}}>{fN(s.packet_count)} pkts · {fB(s.total_bytes)} · {fD(s.duration)}</span>
+          {s.has_handshake&&<Tag color="#3fb950" small tip="TCP Handshake completed (SYN→SYN+ACK→ACK)">HS</Tag>}{s.has_reset&&<Tag color="#f85149" small tip="Connection reset (abrupt termination)">RST</Tag>}{s.has_fin&&<Tag color="#d29922" small tip="Connection finished (graceful close)">FIN</Tag>}
+        </div>
+      </div>)}
+    </Collapse>
+  </div>}
+
+// ── Node Detail with OS fingerprint ───────────────────────────────
+function NodeDetail({nodeId,nodes,edges,sessions,pColors,onClear,onSelectEdge,onSelectSession,pluginResults}){
+  const node=nodes.find(n=>n.id===nodeId);if(!node)return null;
+  const ce=edges.filter(e=>{const s=typeof e.source==="object"?e.source.id:e.source,t=typeof e.target==="object"?e.target.id:e.target;return s===nodeId||t===nodeId});
+  // Get OS fingerprint from plugin results
+  const osFps=pluginResults?.os_fingerprint?.os_fingerprint||{};
+  const osFp=osFps[nodeId]||(node.ips||[]).reduce((a,ip)=>a||osFps[ip],null);
+  return <div className="fi" style={{padding:16,overflowY:"auto",height:"100%"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div className="sh" style={{marginBottom:0}}>Node Detail</div><button className="btn" onClick={onClear}>✕</button></div>
+    <div style={{fontSize:14,fontWeight:600,marginBottom:8,wordBreak:"break-all"}}>{node.id}</div>
+    <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>{node.is_subnet&&<Tag color="#bc8cff">Subnet</Tag>}{!node.is_subnet&&<Tag color={node.is_private?"#3fb950":"#d29922"}>{node.is_private?"Private":"External"}</Tag>}{(node.protocols||[]).map(p=><Tag key={p} color={pColors[p]||"#64748b"}>{p}</Tag>)}</div>
+    <Row l="IPs" v={(node.ips||[]).join(", ")}/>{node.macs?.length>0&&<Row l="MACs" v={node.macs.join(", ")}/>}<Row l="Packets" v={fN(node.packet_count)}/><Row l="Traffic volume" v={fB(node.total_bytes)}/>
+    {node.ttls_out?.length>0&&<Row l="TTL outgoing" v={node.ttls_out.join(", ")}/>}{node.ttls_in?.length>0&&<Row l="TTL incoming" v={node.ttls_in.join(", ")}/>}
+    {osFp&&<Collapse title={"OS Fingerprint: "+(osFp.guess||"Unknown")} open={true}><Row l="Guess" v={osFp.guess||"Unknown"}/>{osFp.confidence!=null&&<Row l="Confidence" v={osFp.confidence+"%"}/>}{osFp.ttl&&<Row l="Initial TTL" v={String(osFp.ttl)}/>}{osFp.window_size&&<Row l="Window size" v={fN(osFp.window_size)}/>}{osFp.mss&&<Row l="MSS" v={String(osFp.mss)}/>}{osFp.wscale!=null&&<Row l="Window Scale" v={String(osFp.wscale)}/>}{osFp.tcp_options?.length>0&&<Row l="TCP Options" v={osFp.tcp_options.join(", ")}/>}<div style={{fontSize:9,color:"var(--txD)",marginTop:4}}>Based on first SYN packet from this host</div></Collapse>}
+    <Collapse title={"Connections ("+ce.length+")"} open={true}>{ce.slice(0,25).map((e,i)=>{const s=typeof e.source==="object"?e.source.id:e.source,t=typeof e.target==="object"?e.target.id:e.target,other=s===nodeId?t:s;return <div key={i} className="hr" onClick={()=>onSelectEdge(e)} style={{fontSize:10,padding:"4px 2px",borderBottom:"1px solid var(--bd)",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:3,cursor:"pointer"}}><Tag color={pColors[e.protocol]||"#64748b"} small>{e.protocol}</Tag><span style={{color:"var(--txM)",flex:1,marginLeft:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{other}</span><span style={{color:"var(--txD)",marginLeft:4}}>{fB(e.total_bytes)}</span></div>})}</Collapse>
+  </div>}
+
+// ── Sessions Table ────────────────────────────────────────────────
+function SessionsTable({sessions,pColors,onSelect}){
+  const[sortBy,setSortBy]=useState("bytes");
+  const sorted=useMemo(()=>{let s=[...sessions];if(sortBy==="packets")s.sort((a,b)=>b.packet_count-a.packet_count);else if(sortBy==="duration")s.sort((a,b)=>b.duration-a.duration);return s},[sessions,sortBy]);
+  return <div style={{overflowY:"auto",height:"100%",padding:16}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><div className="sh" style={{marginBottom:0}}>Sessions ({fN(sessions.length)})</div><div style={{display:"flex",gap:3}}>{["bytes","packets","duration"].map(s=><button key={s} className={"btn"+(sortBy===s?" on":"")} onClick={()=>setSortBy(s)} style={{padding:"2px 8px",fontSize:9}}>{s}</button>)}</div></div>
+    {sorted.map((s,i)=><div key={i} className="hr" onClick={()=>onSelect(s)} style={{padding:"8px 6px",borderBottom:"1px solid var(--bd)",cursor:"pointer",borderRadius:3,transition:"background .15s"}}>
+      <div style={{fontSize:11}}>{s.initiator_ip?<><span style={{color:"var(--acG)"}}>{s.initiator_ip}:{s.initiator_port}</span> → {s.responder_ip}:{s.responder_port}</>:<>{s.src_ip}:{s.src_port} ↔ {s.dst_ip}:{s.dst_port}</>}</div>
+      <div style={{display:"flex",gap:4,marginTop:4,alignItems:"center",flexWrap:"wrap"}}><Tag color={pColors[s.protocol]||"#64748b"} small>{s.protocol}</Tag><span style={{fontSize:10,color:"var(--txM)"}}>{fN(s.packet_count)} pkts</span><span style={{fontSize:10,color:"var(--txM)"}}>{fB(s.total_bytes)}</span><span style={{fontSize:10,color:"var(--txD)"}}>{fD(s.duration)}</span>{s.has_handshake&&<Tag color="#3fb950" small tip="TCP Handshake completed (SYN→SYN+ACK→ACK)">HS</Tag>}{s.has_reset&&<Tag color="#f85149" small tip="Connection reset (abrupt termination)">RST</Tag>}{s.has_fin&&<Tag color="#d29922" small tip="Connection finished (graceful close)">FIN</Tag>}</div>
+    </div>)}
+  </div>}
+
+// ── Session Detail ────────────────────────────────────────────────
+function SessionDetail({session:s,onBack,pColors}){
+  const[tab,setTab]=useState("overview");const[pkts,setPkts]=useState([]);const[ld,setLd]=useState(false);
+  const loadP=useCallback(async()=>{if(ld||pkts.length)return;setLd(true);try{const d=await api("/api/session_detail?session_id="+encodeURIComponent(s.id)+"&packet_limit=200");setPkts(d.packets||[])}catch(e){console.error("Session detail error:",e)}setLd(false)},[s.id,ld,pkts.length]);
+  useEffect(()=>{if(tab==="packets")loadP()},[tab,loadP]);
+  return <div className="fi" style={{padding:16,overflowY:"auto",height:"100%"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><div className="sh" style={{marginBottom:0}}>Session Detail</div><button className="btn" onClick={onBack}>✕</button></div>
+    <div style={{fontSize:12,fontWeight:500,marginBottom:4,wordBreak:"break-all"}}>{s.initiator_ip?<><span style={{color:"var(--acG)"}}>{s.initiator_ip}:{s.initiator_port}</span> → {s.responder_ip}:{s.responder_port}</>:<>{s.src_ip}:{s.src_port} ↔ {s.dst_ip}:{s.dst_port}</>}</div>
+    <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:12}}><Tag color={pColors[s.protocol]||"#64748b"}>{s.protocol}</Tag><Tag color="#8b949e">{s.transport}</Tag>{s.has_handshake&&<Tag color="#3fb950">Handshake</Tag>}{s.has_fin&&<Tag color="#d29922">FIN</Tag>}{s.has_reset&&<Tag color="#f85149">RST</Tag>}</div>
+    <div style={{display:"flex",gap:2,marginBottom:12,borderBottom:"1px solid var(--bd)",paddingBottom:6}}>{["overview","flags","packets"].map(t=><button key={t} className={"btn"+(tab===t?" on":"")} onClick={()=>setTab(t)} style={{textTransform:"uppercase",letterSpacing:".05em"}}>{t}</button>)}</div>
+    {tab==="overview"&&<div><Row l="Packets" v={fN(s.packet_count)}/><Row l="Total Bytes" v={fB(s.total_bytes)}/><Row l="Payload Bytes" v={fB(s.payload_bytes)}/><Row l="Duration" v={fD(s.duration)}/>
+      {s.initiator_ip&&<Row l="Initiator" v={s.initiator_ip+":"+s.initiator_port}/>}{s.responder_ip&&<Row l="Responder" v={s.responder_ip+":"+s.responder_port}/>}
+      <Row l="Forward" v={fN(s.fwd_packets)+" pkts / "+fB(s.fwd_bytes)}/><Row l="Reverse" v={fN(s.rev_packets)+" pkts / "+fB(s.rev_bytes)}/>
+      {s.ttls?.length>0&&<Collapse title="TTL"><Row l="Values" v={s.ttls.join(", ")}/><Row l="Min / Max" v={s.ttl_min+" / "+s.ttl_max}/></Collapse>}
+      {s.window_avg>0&&<Collapse title="Window Size"><Row l="Avg" v={fN(s.window_avg)}/><Row l="Min / Max" v={fN(s.window_min)+" / "+fN(s.window_max)}/></Collapse>}
+      {s.tcp_options_seen?.length>0&&<Collapse title="TCP Options"><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{s.tcp_options_seen.map(o=><Tag key={o} color="#bc8cff">{o}</Tag>)}</div></Collapse>}
+      {s.seq_first>0&&<Collapse title="Seq/Ack"><Row l="First Seq" v={fN(s.seq_first)}/><Row l="Last Seq" v={fN(s.seq_last)}/><Row l="First Ack" v={fN(s.ack_first)}/><Row l="Last Ack" v={fN(s.ack_last)}/></Collapse>}
+      {s.dns_queries?.length>0&&<Collapse title={"DNS Queries ("+s.dns_queries.length+")"} open>{s.dns_queries.slice(0,20).map((q,i)=><div key={i} style={{fontSize:10,padding:"3px 0",borderBottom:"1px solid var(--bd)"}}><span style={{color:"#fbbf24"}}>{q.qr}</span> {q.query}{q.answers?.length>0&&<span style={{color:"var(--txD)",marginLeft:4}}>→ {q.answers.join(", ")}</span>}</div>)}</Collapse>}
+    </div>}
+    {tab==="flags"&&<div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:16}}>{Object.entries(s.flag_counts||{}).filter(([,v])=>v>0).map(([f,c])=><div key={f} style={{background:"var(--bgC)",border:"1px solid var(--bd)",borderRadius:"var(--rs)",padding:"8px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><FB f={f}/><span style={{fontSize:14,fontWeight:600,fontFamily:"var(--fd)"}}>{c}</span></div>)}</div></div>}
+    {tab==="packets"&&<div style={{maxHeight:500,overflowY:"auto"}}>{ld&&<div style={{color:"var(--txD)",fontSize:11,padding:10}}>Loading...</div>}{pkts.map((p,i)=><div key={i} className="hr" style={{fontSize:10,padding:"5px 2px",borderBottom:"1px solid var(--bd)",borderRadius:3}}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--txD)"}}>#{i+1}</span><span>{p.src_ip}:{p.src_port} → {p.dst_ip}:{p.dst_port}</span><span style={{color:"var(--txD)"}}>{p.length}B</span></div><div style={{display:"flex",gap:4,marginTop:2,alignItems:"center",flexWrap:"wrap"}}>{(p.tcp_flags_list||[]).map(f=><FB key={f} f={f}/>)}{p.ttl>0&&<span style={{color:"var(--txD)"}}>TTL:{p.ttl}</span>}{p.window_size>0&&<span style={{color:"var(--txD)"}}>Win:{fN(p.window_size)}</span>}{p.seq_num>0&&<span style={{color:"var(--txD)"}}>Seq:{fN(p.seq_num)}</span>}{p.ack_num>0&&<span style={{color:"var(--txD)"}}>Ack:{fN(p.ack_num)}</span>}{p.payload_len>0&&<span style={{color:"var(--txD)"}}>PL:{p.payload_len}B</span>}</div></div>)}</div>}
+  </div>}
+
+// ── Logs Panel ────────────────────────────────────────────────────
+function LogsPanel(){
+  const[logs,setLogs]=useState([]);const[auto,setAuto]=useState(true);const ref=useRef(null);
+  useEffect(()=>{
+    // Initial fetch
+    api("/api/logs?last=80").then(d=>setLogs(d.logs||[])).catch(e=>console.error("Logs fetch error:",e));
+    if(!auto)return;const iv=setInterval(()=>{api("/api/logs?last=80").then(d=>setLogs(d.logs||[])).catch(()=>{})},2000);return()=>clearInterval(iv)
+  },[auto]);
+  useEffect(()=>{if(ref.current)ref.current.scrollTop=ref.current.scrollHeight},[logs]);
+  return <div style={{padding:16,height:"100%",display:"flex",flexDirection:"column"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div className="sh" style={{marginBottom:0}}>Server Logs</div><button className={"btn"+(auto?" on":"")} onClick={()=>setAuto(!auto)} style={{fontSize:9}}>{auto?"Auto ●":"Paused"}</button></div>
+    <div ref={ref} style={{flex:1,overflowY:"auto",background:"var(--bgC)",border:"1px solid var(--bd)",borderRadius:"var(--rs)",padding:8,fontSize:10,lineHeight:1.6,color:"var(--txM)"}}>
+      {logs.length===0&&<div style={{color:"var(--txD)"}}>No logs yet. Logs appear after server activity.</div>}
+      {logs.map((l,i)=><div key={i} style={{padding:"1px 0",borderBottom:"1px solid var(--bd)",color:l.includes("ERROR")||l.includes("error")?"var(--acR)":l.includes("WARNING")?"var(--acO)":"var(--txM)"}}>{l}</div>)}
+    </div>
+  </div>}
+
+// ── Connection Timeline Panel ─────────────────────────────────────
+function TimelinePanel({sessions,pColors,onSelect,width}){
+  return <div style={{padding:16,height:"100%",overflowY:"auto"}}>
+    <div className="sh">Connection Timeline</div>
+    <div style={{fontSize:10,color:"var(--txD)",marginBottom:8}}>{sessions.length} sessions · click a bar to inspect</div>
+    <Timeline sessions={sessions} pColors={pColors} onSelect={onSelect} width={Math.max(200,width-52)}/>
+  </div>}
+
+// ── Main App ──────────────────────────────────────────────────────
+function App(){
+  const[loaded,setLoaded]=useState(false);const[loading,setLoading]=useState(false);const[loadMsg,setLoadMsg]=useState("");const[error,setError]=useState("");
+  const[stats,setStats]=useState(null);const[timeline,setTimeline]=useState([]);const[graph,setGraph]=useState({nodes:[],edges:[]});const[sessions,setSessions]=useState([]);
+  const[protocols,setProtocols]=useState([]);const[pColors,setPColors]=useState({});const[fileName,setFileName]=useState("");
+  const[timeRange,setTimeRange]=useState([0,0]);const[enabledP,setEnabledP]=useState(new Set());const[search,setSearch]=useState("");const[ipF,setIpF]=useState("");const[portF,setPortF]=useState("");
+  const[bucketSec,setBucketSec]=useState(15);
+  const[subnetG,setSubnetG]=useState(false);const[darkMode,setDarkMode]=useState(true);
+  const[selNodes,setSelNodes]=useState([]);const[selEdge,setSelEdge]=useState(null);const[selSession,setSelSession]=useState(null);const[rPanel,setRPanel]=useState("stats");
+  const[gSize,setGS]=useState({width:800,height:600});const gRef=useRef(null);
+  const[pluginResults,setPluginResults]=useState({});
+
+  useEffect(()=>{document.body.classList.toggle("light",!darkMode)},[darkMode]);
+  useEffect(()=>{const ro=new ResizeObserver(es=>{for(const e of es)setGS({width:e.contentRect.width,height:e.contentRect.height})});if(gRef.current)ro.observe(gRef.current);return()=>ro.disconnect()},[]);
+  useEffect(()=>{api("/api/status").then(d=>{if(d.capture_loaded){setFileName(d.file_name);loadAll()}}).catch(()=>{})},[]);
+  useEffect(()=>{const h=e=>{if(e.key==="Escape")clearSel()};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[]);
+  useEffect(()=>{if(!loaded)return;api("/api/timeline?bucket_seconds="+bucketSec).then(d=>{setTimeline(d.buckets);setTimeRange([0,d.buckets.length-1])}).catch(()=>{})},[bucketSec,loaded]);
+
+  async function loadAll(){const[sd,td,pd,ss,pr]=await Promise.all([api("/api/stats"),api("/api/timeline"),api("/api/protocols"),api("/api/sessions?limit=1000"),api("/api/plugins/results").catch(()=>({results:{}}))]);setStats(sd.stats);setTimeline(td.buckets);setTimeRange([0,td.buckets.length-1]);setProtocols(pd.protocols);setPColors(pd.colors);setEnabledP(new Set(pd.protocols));setSessions(ss.sessions);setPluginResults(pr.results||{});setLoaded(true)}
+
+  useEffect(()=>{
+    if(!loaded||!timeline.length)return;const ts=timeline[timeRange[0]]?.start_time,te=timeline[timeRange[1]]?.end_time;
+    const p=new URLSearchParams();if(ts!=null)p.set("time_start",ts);if(te!=null)p.set("time_end",te);
+    if(enabledP.size<protocols.length&&enabledP.size>0)p.set("protocols",Array.from(enabledP).join(","));
+    if(ipF)p.set("ip_filter",ipF);if(portF)p.set("port_filter",portF);if(search)p.set("search",search);if(subnetG){p.set("subnet_grouping","true");p.set("subnet_prefix","24")}
+    const ctrl=new AbortController();api("/api/graph?"+p,{signal:ctrl.signal}).then(d=>setGraph(d)).catch(e=>{if(e.name!=="AbortError")console.error(e)});return()=>ctrl.abort()
+  },[loaded,timeRange,enabledP,ipF,portF,search,subnetG,timeline,protocols]);
+
+  async function handleUpload(file){setLoading(true);setError("");setLoadMsg("Uploading...");try{const form=new FormData();form.append("file",file);setLoadMsg("Parsing pcap...");const res=await api("/api/upload",{method:"POST",body:form});setFileName(res.file_name);setLoadMsg("Loading...");await loadAll();setLoading(false)}catch(err){setError(err.message);setLoading(false)}}
+  function handleDrop(e){e.preventDefault();const f=e.dataTransfer.files[0];if(f)handleUpload(f)}
+  function handleFileInput(e){const f=e.target.files?.[0];if(f)handleUpload(f)}
+  function clearSel(){setSelNodes([]);setSelEdge(null);setSelSession(null)}
+  function handleGSel(type,data,shift){
+    if(type==="node"){if(shift){setSelNodes(p=>p.includes(data)?p.filter(n=>n!==data):[...p,data]);setSelEdge(null);setSelSession(null);setRPanel("detail")}else{setSelNodes([data]);setSelEdge(null);setSelSession(null);setRPanel("detail")}}
+    else if(type==="edge"){setSelEdge(data);setSelNodes([]);setSelSession(null);setRPanel("edge")}
+    else{clearSel()}
+  }
+  function selectSession(s){setSelSession(s);setSelNodes([]);setSelEdge(null);setRPanel("session")}
+  function selectNodePanel(id){setSelNodes([id]);setSelEdge(null);setSelSession(null);setRPanel("detail")}
+  function switchPanel(k){clearSel();setRPanel(k)}
+
+  const timeLabel=useMemo(()=>{if(!timeline.length)return"";const s=timeline[timeRange[0]],e=timeline[timeRange[1]];return s&&e?fT(s.start_time)+" — "+fT(e.end_time):""},[timeline,timeRange]);
+
+  if(!loaded)return <div style={{width:"100%",height:"100vh",background:"var(--bg)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}>
+    {loading?<div style={{textAlign:"center"}}><div style={{width:48,height:48,margin:"0 auto 16px",borderRadius:12,background:"rgba(88,166,255,.07)",border:"1px solid rgba(88,166,255,.2)",display:"flex",alignItems:"center",justifyContent:"center",animation:"pulse 1.5s ease infinite"}}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div><div style={{fontSize:12,letterSpacing:".1em",color:"var(--ac)"}}>{loadMsg}</div></div>
+    :<div style={{border:"1.5px dashed var(--bd)",borderRadius:16,padding:"70px 100px",textAlign:"center",cursor:"pointer",transition:"all .3s",background:"rgba(88,166,255,.02)",position:"relative",overflow:"hidden"}} onDrop={handleDrop} onDragOver={e=>e.preventDefault()} onClick={()=>document.getElementById("pcap-up").click()}>
+      <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,rgba(88,166,255,.3),transparent)",animation:"scan 3s linear infinite",backgroundSize:"200% 100%"}}/>
+      <div style={{fontSize:36,fontWeight:800,fontFamily:"var(--fd)",letterSpacing:"-0.02em",marginBottom:4}}><span style={{color:"var(--ac)"}}>Swift</span>Eye</div>
+      <div style={{fontSize:11,color:"var(--txM)",marginBottom:32,letterSpacing:".15em",textTransform:"uppercase"}}>Network Traffic Visualization</div>
+      <div style={{width:48,height:48,margin:"0 auto 20px",borderRadius:12,background:"rgba(88,166,255,.07)",border:"1px solid rgba(88,166,255,.2)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+      <div style={{fontSize:13,color:"var(--txM)"}}>Drop a <span style={{color:"var(--ac)"}}>.pcap</span> or <span style={{color:"var(--ac)"}}>.pcapng</span> file</div>
+      <div style={{fontSize:11,color:"var(--txD)",marginTop:6}}>or click to browse · max 100MB</div>
+      {error&&<div style={{marginTop:16,color:"var(--acR)",fontSize:12}}>{error}</div>}
+      <input id="pcap-up" type="file" accept=".pcap,.pcapng,.cap" onChange={handleFileInput} style={{display:"none"}}/>
+    </div>}
+  </div>;
+
+  // ── Determine right panel content ────────────────────────────────
+  let rightContent;
+  if(selSession) rightContent=<SessionDetail session={selSession} onBack={()=>{setSelSession(null)}} pColors={pColors}/>;
+  else if(selEdge) rightContent=<EdgeDetail edge={selEdge} pColors={pColors} onClear={()=>setSelEdge(null)} sessions={sessions} onSelectSession={selectSession}/>;
+  else if(selNodes.length===1) rightContent=<NodeDetail nodeId={selNodes[0]} nodes={graph.nodes||[]} edges={graph.edges||[]} sessions={sessions} pColors={pColors} onClear={()=>setSelNodes([])} onSelectEdge={e=>handleGSel("edge",e,false)} onSelectSession={selectSession} pluginResults={pluginResults}/>;
+  else if(rPanel==="sessions") rightContent=<SessionsTable sessions={sessions} pColors={pColors} onSelect={selectSession}/>;
+  else if(rPanel==="logs") rightContent=<LogsPanel/>;
+  else if(rPanel==="timeline") rightContent=<TimelinePanel sessions={sessions} pColors={pColors} onSelect={selectSession} width={330}/>;
+  else rightContent=<StatsPanel stats={stats} pColors={pColors} onSelectNode={selectNodePanel} pluginResults={pluginResults}/>;
+
+  return <div style={{width:"100%",height:"100vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    {/* TOP BAR */}
+    <div style={{height:46,background:"var(--bgP)",borderBottom:"1px solid var(--bd)",display:"flex",alignItems:"center",padding:"0 14px",gap:10,flexShrink:0}}>
+      <span style={{fontSize:15,fontWeight:700,fontFamily:"var(--fd)"}}><span style={{color:"var(--ac)"}}>Swift</span>Eye</span>
+      <div style={{width:1,height:20,background:"var(--bd)"}}/>
+      <span style={{fontSize:11,color:"var(--txM)",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fileName}</span>
+      <Tag color="var(--ac)">{fN(stats?.total_packets)} pkts</Tag>
+      <div style={{flex:1}}/>
+      <div style={{position:"relative"}}><svg style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)"}} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--txD)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input className="inp" placeholder="Search IPs, MACs, protocols, flags..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:260,paddingLeft:28}}/></div>
+      <input className="inp" placeholder="Filter IP" value={ipF} onChange={e=>setIpF(e.target.value)} style={{width:100}}/>
+      <input className="inp" placeholder="Port" value={portF} onChange={e=>setPortF(e.target.value)} style={{width:65}}/>
+      <button className={"btn"+(subnetG?" on":"")} onClick={()=>setSubnetG(!subnetG)}>Subnet /24</button>
+      <button className="btn" onClick={()=>setDarkMode(!darkMode)} title="Toggle theme">{darkMode?"☀":"☾"}</button>
+      <button className="btn" onClick={()=>document.getElementById("pcap-re").click()} style={{display:"flex",alignItems:"center",gap:4}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>NEW</button>
+      <input id="pcap-re" type="file" accept=".pcap,.pcapng,.cap" onChange={handleFileInput} style={{display:"none"}}/>
+    </div>
+    <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+      {/* LEFT */}
+      <div style={{width:170,background:"var(--bgP)",borderRight:"1px solid var(--bd)",overflowY:"auto",flexShrink:0,padding:"10px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div className="sh" style={{marginBottom:0}}>Protocols</div><div style={{display:"flex",gap:2}}><button className="btn" style={{padding:"1px 6px",fontSize:9}} onClick={()=>setEnabledP(new Set(protocols))}>All</button><button className="btn" style={{padding:"1px 6px",fontSize:9}} onClick={()=>setEnabledP(new Set())}>None</button></div></div>
+        {protocols.map(p=>{const on=enabledP.has(p),col=pColors[p]||"#64748b";return <div key={p} onClick={()=>{const n=new Set(enabledP);if(n.has(p))n.delete(p);else n.add(p);setEnabledP(n)}} style={{display:"flex",alignItems:"center",gap:7,padding:"4px",borderRadius:3,cursor:"pointer",opacity:on?1:.3,fontSize:11,transition:"all .15s"}}><span style={{width:10,height:10,borderRadius:3,background:on?col:"transparent",border:"1.5px solid "+col,flexShrink:0}}/><span style={{fontWeight:on?500:400}}>{p}</span><span style={{marginLeft:"auto",color:"var(--txD)",fontSize:9}}>{stats?.protocols?.[p]?.packets||0}</span></div>})}
+        <div style={{borderTop:"1px solid var(--bd)",marginTop:10,paddingTop:10}}><div className="sh">Panel</div>
+          {[["stats","Statistics"],["sessions","Sessions"],["timeline","Timeline"],["logs","Server Logs"]].map(([k,l])=><div key={k} onClick={()=>switchPanel(k)} style={{padding:"5px 6px",borderRadius:"var(--rs)",cursor:"pointer",fontSize:11,background:rPanel===k&&!selNodes.length&&!selEdge&&!selSession?"rgba(88,166,255,.08)":"transparent",color:rPanel===k&&!selNodes.length&&!selEdge&&!selSession?"var(--ac)":"var(--txM)",marginBottom:2}}>{l}</div>)}</div>
+        <div style={{borderTop:"1px solid var(--bd)",marginTop:10,paddingTop:10}}><div className="sh">View Info</div><div style={{fontSize:10,color:"var(--txD)",lineHeight:1.7}}>Nodes: {graph.nodes?.length||0}<br/>Edges: {graph.edges?.length||0}<br/>Packets in view: {fN(graph.filtered_count||0)}<br/>{graph.filtered_bytes>0&&<>Data in view: {fB(graph.filtered_bytes)}</>}</div></div>
+        {selNodes.length>1&&<div style={{borderTop:"1px solid var(--bd)",marginTop:10,paddingTop:10}}><div className="sh">Multi-select</div><div style={{fontSize:10,color:"var(--txD)"}}>{selNodes.length} nodes selected<br/><span style={{fontSize:9,color:"var(--txM)"}}>Shift+click to add/remove</span></div><button className="btn" onClick={clearSel} style={{marginTop:6,fontSize:9}}>Clear all</button></div>}
+      </div>
+      {/* CENTER */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+        <div ref={gRef} style={{flex:1,position:"relative",overflow:"hidden",background:"var(--bg)"}}>
+          <GraphCanvas nodes={graph.nodes||[]} edges={graph.edges||[]} onSelect={handleGSel} selectedNodes={selNodes} selectedEdge={selEdge} width={gSize.width} height={gSize.height} pColors={pColors}/>
+          {(!graph.nodes||graph.nodes.length===0)&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",color:"var(--txD)",fontSize:12}}>No data matches filters</div>}
+          <div style={{position:"absolute",bottom:10,left:10,background:"var(--bgP)",border:"1px solid var(--bd)",borderRadius:"var(--r)",padding:"6px 10px",display:"flex",flexWrap:"wrap",gap:7,maxWidth:500,opacity:.9}}>
+            <span style={{display:"flex",alignItems:"center",gap:4,fontSize:9}}><span style={{width:10,height:10,borderRadius:"50%",border:"1.5px solid #4080b0",display:"inline-block",background:"#1e3045"}}/><span style={{color:"var(--txM)"}}>Private</span></span>
+            <span style={{display:"flex",alignItems:"center",gap:4,fontSize:9}}><span style={{width:10,height:10,borderRadius:"50%",border:"1.5px solid #8040b0",display:"inline-block",background:"#35204a"}}/><span style={{color:"var(--txM)"}}>External</span></span>
+            <span style={{display:"flex",alignItems:"center",gap:4,fontSize:9}}><span style={{width:10,height:10,borderRadius:2,border:"1.5px solid #3a5060",display:"inline-block",background:"#1e2833"}}/><span style={{color:"var(--txM)"}}>Subnet</span></span>
+            <span style={{color:"var(--txD)",fontSize:9}}>|</span>
+            {Array.from(enabledP).slice(0,8).map(p=><span key={p} style={{display:"flex",alignItems:"center",gap:3,fontSize:9}}><span style={{width:10,height:2.5,background:pColors[p]||"#64748b",display:"inline-block",borderRadius:1}}/><span style={{color:"var(--txM)"}}>{p}</span></span>)}
+          </div>
+        </div>
+        {timeline.length>1&&<div style={{height:92,background:"var(--bgP)",borderTop:"1px solid var(--bd)",padding:"6px 16px",flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+            <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:9,color:"var(--txM)",textTransform:"uppercase",letterSpacing:".06em"}}>Timeline</span>{[5,15,30,60].map(s=><button key={s} className={"btn"+(bucketSec===s?" on":"")} onClick={()=>setBucketSec(s)} style={{padding:"1px 5px",fontSize:8}}>{s}s</button>)}</div>
+            <span style={{fontSize:10,color:"var(--txD)"}}>{timeLabel}</span>
+          </div>
+          <Sparkline data={timeline} width={gSize.width-32} height={26} activeRange={timeRange}/>
+          <div style={{display:"flex",gap:6,alignItems:"center",marginTop:4}}><span style={{fontSize:9,color:"var(--txD)",minWidth:30}}>Start</span><input type="range" min={0} max={timeline.length-1} value={timeRange[0]} onChange={e=>{const v=+e.target.value;setTimeRange([v,Math.max(v,timeRange[1])])}} style={{flex:1}}/><span style={{fontSize:9,color:"var(--txD)",minWidth:20,textAlign:"center"}}>{timeRange[0]}</span></div>
+          <div style={{display:"flex",gap:6,alignItems:"center",marginTop:2}}><span style={{fontSize:9,color:"var(--txD)",minWidth:30}}>End</span><input type="range" min={0} max={timeline.length-1} value={timeRange[1]} onChange={e=>{const v=+e.target.value;setTimeRange([Math.min(timeRange[0],v),v])}} style={{flex:1}}/><span style={{fontSize:9,color:"var(--txD)",minWidth:20,textAlign:"center"}}>{timeRange[1]}</span></div>
+        </div>}
+      </div>
+      {/* RIGHT */}
+      <div style={{width:330,background:"var(--bgP)",borderLeft:"1px solid var(--bd)",flexShrink:0,overflow:"hidden"}}>{rightContent}</div>
+    </div>
+  </div>}
+ReactDOM.render(<App/>,document.getElementById("root"));
+</script></body></html>

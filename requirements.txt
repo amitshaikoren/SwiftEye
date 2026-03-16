@@ -1,0 +1,16 @@
+fastapi>=0.104.0
+uvicorn>=0.24.0
+scapy>=2.5.0
+dpkt>=1.9.8
+python-multipart>=0.0.6
+orjson>=3.9.0
+
+# Optional but strongly recommended:
+# cryptography enables scapy's TLS dissector for richer ClientHello/ServerHello parsing.
+# Without it, the manual fallback parser still works but scapy-layer TLS dissection is unavailable.
+cryptography>=41.0.0
+
+# plotly is not imported by the core server — research charts build figure dicts manually
+# so Plotly.js on the frontend can render them without a Python dependency.
+# Install if you want to write new research charts using plotly.graph_objects:
+# plotly>=5.0.0

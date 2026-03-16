@@ -1,0 +1,440 @@
+/**
+ * App.jsx — pure layout and routing.
+ * All state/logic lives in useCapture(). This file only renders.
+ */
+
+import React, { useState, useEffect, useRef } from 'react';
+import { useCapture } from './hooks/useCapture';
+import { useSettings } from './hooks/useSettings';
+import logoFullData from './logoFullData.js';
+import TopBar from './components/TopBar';
+import FilterBar from './components/FilterBar';
+import LeftPanel from './components/LeftPanel';
+import GraphCanvas from './components/GraphCanvas';
+import TimelineStrip from './components/TimelineStrip';
+import StatsPanel from './components/StatsPanel';
+import EdgeDetail from './components/EdgeDetail';
+import NodeDetail from './components/NodeDetail';
+import SessionsTable from './components/SessionsTable';
+import SessionDetail from './components/SessionDetail';
+import LogsPanel from './components/LogsPanel';
+import TimelinePanel from './components/TimelinePanel';
+import MultiSelectPanel from './components/MultiSelectPanel';
+import ResearchPage from './components/ResearchPage';
+import HelpPanel from './components/HelpPanel';
+import SettingsPanel from './components/SettingsPanel';
+import AnalysisPage from './components/AnalysisPage';
+import InvestigationPage from './components/InvestigationPage';
+import VisualizePage from './components/VisualizePage';
+
+export default function App() {
+  const c = useCapture();
+  const { settings, setSetting } = useSettings();
+  const [showSettings, setShowSettings] = useState(false);
+
+  // ── Graph container size (for Sparkline width) ───────────────────
+  const graphContainerRef = useRef(null);
+  const [gSize, setGS] = useState({ width: 800, height: 600 });
+  useEffect(() => {
+    const el = graphContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(es => {
+      for (const e of es) setGS({ width: e.contentRect.width, height: e.contentRect.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // ── Upload / loading screen ──────────────────────────────────────
+  if (!c.loaded && c.rPanel !== 'visualize') {
+    return (
+      <div style={{ width: '100%', height: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {c.loading ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 40, height: 40, border: '3px solid var(--bd)', borderTopColor: 'var(--ac)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+            <div style={{ color: 'var(--txM)', fontSize: 13 }}>{c.loadMsg}</div>
+          </div>
+        ) : (
+          <div
+            onDrop={c.handleDrop} onDragOver={e => e.preventDefault()}
+            onClick={() => document.getElementById('pcap-up').click()}
+            style={{
+              textAlign: 'center', padding: '64px 80px',
+              border: '1.5px dashed rgba(88,166,255,.3)', borderRadius: 20,
+              cursor: 'pointer', minWidth: 460,
+              background: 'rgba(88,166,255,.02)',
+            }}
+          >
+            <img src={logoFullData} alt="SwiftEye" style={{ height: 120, marginBottom: 40, opacity: 0.95 }} />
+            <div style={{
+              width: 64, height: 64, margin: '0 auto 24px', borderRadius: 16,
+              background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="1.5">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+              </svg>
+            </div>
+            <div style={{ fontSize: 16, color: 'var(--txM)', marginBottom: 10 }}>
+              Drop <span style={{ color: 'var(--ac)' }}>.pcap</span> / <span style={{ color: 'var(--ac)' }}>.pcapng</span> files here
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--txD)' }}>or click to browse · multiple files merge by timestamp · max 500MB each</div>
+            {c.error && <div style={{ marginTop: 20, color: 'var(--acR)', fontSize: 13 }}>{c.error}</div>}
+            <input id="pcap-up" type="file" accept=".pcap,.pcapng,.cap" multiple onChange={c.handleFileInput} style={{ display: 'none' }} />
+          </div>
+        )}
+        <div style={{ position: 'absolute', bottom: 24, display: 'flex', gap: 12 }}>
+          <button className="btn" onClick={e => { e.stopPropagation(); c.switchPanel('visualize'); }}
+            style={{ fontSize: 11, padding: '6px 16px', opacity: 0.7 }}>
+            📂 Visualize custom data
+          </button>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  // ── Standalone Visualize (no capture needed) ─────────────────────
+  if (!c.loaded && c.rPanel === 'visualize') {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <button className="btn" onClick={() => c.switchPanel('stats')}
+            style={{ fontSize: 10, padding: '3px 10px' }}>← Back to upload</button>
+          <span style={{ fontSize: 12, color: 'var(--txD)' }}>No capture loaded — Visualize mode only</span>
+        </div>
+        <VisualizePage />
+      </div>
+    );
+  }
+
+  // ── Right panel content (non-full-width panels) ──────────────────
+  let rightContent;
+  if (c.selSession) {
+    rightContent = (
+      <SessionDetail
+        session={c.selSession}
+        siblings={c.selSessionSiblings}
+        onNavigate={c.selectSessionWithContext}
+        onOpenSeqAck={id => { c.setSeqAckSessionId(id); c.switchPanel('research'); }}
+        onBack={c.clearSel}
+        pColors={c.pColors}
+        onTabChange={tab => {
+          if (tab === 'charts' && c.panelWidth < 500) c.setPanelWidth(500);
+        }}
+      />
+    );
+  } else if (c.selEdge) {
+    rightContent = (
+      <EdgeDetail
+        edge={c.selEdge} pColors={c.pColors}
+        onClear={c.clearSel}
+        sessions={c.sessions} nodes={c.visibleNodes}
+        onSelectSession={c.selectSessionWithContext}
+      />
+    );
+  } else if (c.selNodes.length === 1) {
+    rightContent = (
+      <NodeDetail
+        nodeId={c.selNodes[0]} nodes={c.graph.nodes || []} edges={c.graph.edges || []}
+        sessions={c.sessions} pColors={c.pColors}
+        onClear={c.clearSel}
+        onSelectEdge={e => c.handleGSel('edge', e, false)}
+        onSelectSession={c.selectSession}
+        pluginResults={c.pluginResults} uiSlots={c.pluginSlots}
+        annotations={c.annotations}
+        onSaveNote={c.handleSaveNote}
+        onUpdateSynthetic={c.handleUpdateSyntheticNode}
+      />
+    );
+  } else if (c.selNodes.length > 1) {
+    rightContent = (
+      <MultiSelectPanel
+        selectedNodes={c.selNodes} nodes={c.graph.nodes || []} edges={c.graph.edges || []}
+        sessions={c.sessions} pColors={c.pColors} onClear={c.clearSel}
+        onSelectNode={c.selectNodePanel}
+        onSelectEdge={e => c.handleGSel('edge', e, false)}
+        onSelectSession={c.selectSession}
+      />
+    );
+  } else if (c.rPanel === 'sessions') {
+    rightContent = <SessionsTable sessions={c.sessions} pColors={c.pColors} onSelect={c.selectSession} />;
+  } else if (c.rPanel === 'logs') {
+    rightContent = <LogsPanel />;
+  } else if (c.rPanel === 'help') {
+    rightContent = <HelpPanel />;
+  } else {
+    rightContent = (
+      <StatsPanel
+        stats={c.stats} pColors={c.pColors}
+        onSelectNode={c.selectNodePanel}
+        pluginResults={c.pluginResults} uiSlots={c.pluginSlots}
+      />
+    );
+  }
+
+  // ── Main layout ──────────────────────────────────────────────────
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <TopBar
+        fileName={c.fileName}
+        sourceFiles={c.sourceFiles}
+        stats={c.stats}
+        search={c.search} setSearch={c.setSearch}
+        onNewFile={() => document.getElementById('pcap-re').click()}
+        onMetadataFile={() => document.getElementById('meta-up').click()}
+        onSettings={() => setShowSettings(true)}
+      />
+      <FilterBar
+        value={c.dfExpr}
+        onChange={c.setDfExpr}
+        onApply={c.handleDfApply}
+        onClear={c.handleDfClear}
+        matchCount={c.dfResult?.matchCount ?? null}
+        error={c.dfError}
+        isActive={!!c.dfApplied && !c.dfError}
+        osGuesses={c.osGuesses}
+        activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
+      />
+
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* LEFT PANEL — always visible */}
+        <LeftPanel
+          protocols={c.protocols} pColors={c.pColors}
+          enabledP={c.enabledP} setEnabledP={c.setEnabledP}
+          graph={c.graph} stats={c.stats}
+          rPanel={c.rPanel} switchPanel={c.switchPanel}
+          sessionTotal={c.sessionTotal} sessionFiltered={c.sessions.length} activeSearch={c.search}
+          selNodes={c.selNodes} clearSel={c.clearSel}
+          selEdge={c.selEdge} selSession={c.selSession}
+          subnetG={c.subnetG} setSubnetG={c.setSubnetG} toggleSubnetG={c.toggleSubnetG}
+          labelThreshold={c.labelThreshold} setLabelThreshold={c.setLabelThreshold}
+          subnetPrefix={c.subnetPrefix} setSubnetPrefix={c.setSubnetPrefix}
+          mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
+          includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
+          showHostnames={c.showHostnames} setShowHostnames={c.setShowHostnames}
+          onApplyDisplayFilter={expr => { c.setDfExpr(expr); c.handleDfApply(expr); }}
+          activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
+          osGuesses={c.osGuesses}
+        />
+
+        {c.rPanel === 'research' ? (
+          /* RESEARCH PAGE — full width, replaces graph + right panel */
+          <ResearchPage
+            investigatedIp={c.investigatedIp}
+            seqAckSessionId={c.seqAckSessionId}
+            searchIp={/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(c.search.trim()) ? c.search.trim() : ''}
+            availableIps={c.availableIps}
+            timeline={c.timeline}
+            timeRange={c.timeRange} setTimeRange={c.setTimeRange}
+            bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
+          />
+        ) : c.rPanel === 'timeline' ? (
+          /* TIMELINE PAGE — full width, replaces graph + right panel */
+          <TimelinePanel
+            sessions={c.sessions}
+            timeline={c.timeline}
+            timeRange={c.timeRange} setTimeRange={c.setTimeRange}
+            bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
+            filterProtocols={c.enabledP.size < c.protocols.length && c.enabledP.size > 0 ? Array.from(c.enabledP).join(',') : ''}
+            filterSearch={c.search}
+            filterIncludeIPv6={c.includeIPv6}
+          />
+        ) : c.rPanel === 'analysis' ? (
+          /* ANALYSIS PAGE — full width, replaces graph + right panel */
+          <AnalysisPage
+            nodes={c.visibleNodes}
+            edges={c.visibleEdges}
+            sessions={c.sessions}
+            pColors={c.pColors}
+            onSelectNode={c.selectNodePanel}
+          />
+        ) : c.rPanel === 'investigation' ? (
+          /* INVESTIGATION PAGE — markdown notebook */
+          <InvestigationPage />
+        ) : c.rPanel === 'visualize' ? (
+          /* VISUALIZE PAGE — full width, custom data graph */
+          <VisualizePage />
+        ) : (
+          <>
+            {/* CENTER — graph + timeline strip */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              {/* Graph area */}
+              <div ref={graphContainerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg)' }}>
+
+                {/* Export pcap button */}
+                {c.loaded && (
+                  <a href={c.getSlicePcapUrl()} download style={{
+                    position: 'absolute', bottom: 12, right: 12, zIndex: 10,
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    background: 'rgba(14,17,23,.85)', border: '1px solid var(--bdL)',
+                    borderRadius: 6, padding: '5px 10px', fontSize: 10,
+                    color: 'var(--txM)', textDecoration: 'none', fontFamily: 'var(--fn)',
+                  }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Export pcap
+                  </a>
+                )}
+
+                {/* Hidden nodes badge */}
+                {c.hiddenNodes.size > 0 && (
+                  <div style={{
+                    position: 'absolute', top: 8, right: 8, zIndex: 10,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)',
+                    borderRadius: 6, padding: '4px 10px', fontSize: 10,
+                  }}>
+                    <span style={{ color: '#f85149' }}>{c.hiddenNodes.size} node{c.hiddenNodes.size > 1 ? 's' : ''} hidden</span>
+                    <button className="btn" onClick={c.handleUnhideAll}
+                      style={{ fontSize: 9, padding: '1px 6px', borderColor: 'rgba(248,81,73,.4)', color: '#f85149' }}>Unhide all</button>
+                  </div>
+                )}
+
+                {/* Investigation banner */}
+                {c.investigatedIp && (
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+                    background: 'rgba(88,166,255,.12)', borderBottom: '1px solid rgba(88,166,255,.3)',
+                    padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2">
+                      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#58a6ff', fontFamily: 'var(--fn)' }}>
+                      Investigating: <strong>{c.investigatedIp}</strong>
+                      {c.investigationNodes && (
+                        <span style={{ color: '#484f58', fontWeight: 400 }}> — {c.investigationNodes.size} nodes in component</span>
+                      )}
+                    </span>
+                    <button onClick={c.exitInvestigation} style={{
+                      marginLeft: 'auto', fontSize: 10, color: '#8b949e',
+                      background: 'none', border: '1px solid #30363d', borderRadius: 4,
+                      padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--fn)',
+                    }}>Exit</button>
+                  </div>
+                )}
+
+                <GraphCanvas
+                  nodes={c.visibleNodes}
+                  edges={c.visibleEdges}
+                  onSelect={c.handleGSel}
+                  onInvestigate={c.handleInvestigate}
+                  onInvestigateNeighbours={c.handleInvestigateNeighbours}
+                  onHideNode={c.handleHideNode}
+                  investigationNodes={c.investigationNodes}
+                  displayFilterNodes={c.dfResult?.nodes ?? null}
+                  displayFilterEdges={c.dfResult?.edges ?? null}
+                  selectedNodes={c.selNodes}
+                  selectedEdge={c.selEdge}
+                  pColors={c.pColors}
+                  containerRef={graphContainerRef}
+                  theme={settings.theme}
+                  annotations={c.annotations}
+                  onAddAnnotation={c.handleAddAnnotation}
+                  onUpdateAnnotation={c.handleUpdateAnnotation}
+                  onDeleteAnnotation={c.handleDeleteAnnotation}
+                  onAddNodeAnnotation={c.handleAddNodeAnnotation}
+                  onAddEdgeAnnotation={c.handleAddEdgeAnnotation}
+                  onAddSyntheticNode={c.handleAddSyntheticNode}
+                  onAddSyntheticEdge={c.handleAddSyntheticEdge}
+                  onDeleteSynthetic={c.handleDeleteSynthetic}
+                  onUnclusterSubnet={c.handleUnclusterSubnet}
+                  onCreateSyntheticCluster={c.handleCreateSyntheticCluster}
+                  labelThreshold={c.labelThreshold}
+                />
+
+                {(!c.graph.nodes || c.graph.nodes.length === 0) && (
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', color: 'var(--txD)', fontSize: 12 }}>
+                    No data matches filters
+                  </div>
+                )}
+
+                {/* Legend */}
+                <div style={{
+                  position: 'absolute', bottom: 10, left: 10, background: 'var(--bgP)',
+                  border: '1px solid var(--bd)', borderRadius: 'var(--r)', padding: '6px 10px',
+                  display: 'flex', flexWrap: 'wrap', gap: 7, maxWidth: 500, opacity: 0.9,
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid var(--node-private-s)', display: 'inline-block', background: 'var(--node-private)' }} />
+                    <span style={{ color: 'var(--txM)' }}>Private</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid var(--node-external-s)', display: 'inline-block', background: 'var(--node-external)' }} />
+                    <span style={{ color: 'var(--txM)' }}>External</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, border: '1.5px solid var(--node-subnet-s)', display: 'inline-block', background: 'var(--node-subnet)' }} />
+                    <span style={{ color: 'var(--txM)' }}>Subnet</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                    <span style={{
+                      width: 10, height: 10, display: 'inline-block',
+                      background: 'var(--node-gateway)', border: '1.5px solid var(--node-gateway-s)',
+                      transform: 'rotate(45deg)', borderRadius: 1,
+                    }} />
+                    <span style={{ color: 'var(--txM)' }}>Gateway</span>
+                  </span>
+                  <span style={{ color: 'var(--txD)', fontSize: 9 }}>|</span>
+                  {Array.from(c.enabledP).slice(0, 8).map(p => (
+                    <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9 }}>
+                      <span style={{ width: 10, height: 2.5, background: c.pColors[p] || '#64748b', display: 'inline-block', borderRadius: 1 }} />
+                      <span style={{ color: 'var(--txM)' }}>{p}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timeline strip */}
+              {c.timeline.length > 1 && (
+                <TimelineStrip
+                  timeline={c.timeline}
+                  timeRange={c.timeRange}
+                  setTimeRange={c.setTimeRange}
+                  bucketSec={c.bucketSec}
+                  setBucketSec={c.setBucketSec}
+                  width={gSize.width - 32}
+                />
+              )}
+            </div>
+            {/* END CENTER */}
+
+            {/* RIGHT PANEL */}
+            <div style={{ width: c.panelWidth, background: 'var(--bgP)', borderLeft: '1px solid var(--bd)', flexShrink: 0, overflow: 'hidden', position: 'relative', display: 'flex' }}>
+              {/* Drag handle */}
+              <div
+                onPointerDown={c.handlePanelDragStart}
+                style={{
+                  position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
+                  cursor: 'ew-resize', zIndex: 10, background: 'transparent', transition: 'background .15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(88,166,255,.25)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                title="Drag to resize panel"
+              />
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                {rightContent}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Hidden file inputs (always in DOM so getElementById always finds them) */}
+      <input id="pcap-re" type="file" accept=".pcap,.pcapng,.cap" multiple onChange={c.handleFileInput} style={{ display: 'none' }} />
+      <input id="meta-up" type="file" accept=".json" onChange={c.handleMetadataInput} style={{ display: 'none' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* Settings panel overlay */}
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          setSetting={setSetting}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+    </div>
+  );
+}
