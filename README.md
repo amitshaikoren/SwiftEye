@@ -17,11 +17,6 @@ Drop a `.pcap` or `.pcapng` file, get an interactive force-directed graph of who
 cd swifteye
 pip install -r requirements.txt
 
-cd frontend
-npm install
-npm run build
-cd ..
-
 cd backend
 python server.py
 ```
