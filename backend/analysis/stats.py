@@ -17,7 +17,7 @@ def compute_global_stats(packets: List[PacketRecord], sessions: List[Dict]) -> D
     total_bytes = sum(p.orig_len for p in packets)
     unique_ips = set()
     unique_macs = set()
-    proto_breakdown = defaultdict(lambda: {"packets": 0, "bytes": 0, "transport": ""})
+    proto_breakdown = defaultdict(lambda: {"packets": 0, "bytes": 0, "transport": "", "ipv4": 0, "ipv6": 0})
     talker_bytes = defaultdict(int)
     port_counts = Counter()
     flag_counts = defaultdict(int)
@@ -36,6 +36,10 @@ def compute_global_stats(packets: List[PacketRecord], sessions: List[Dict]) -> D
         proto_breakdown[p.protocol]["bytes"] += p.orig_len
         if not proto_breakdown[p.protocol]["transport"]:
             proto_breakdown[p.protocol]["transport"] = p.transport
+        if p.ip_version == 6:
+            proto_breakdown[p.protocol]["ipv6"] += 1
+        else:
+            proto_breakdown[p.protocol]["ipv4"] += 1
         
         talker_bytes[p.src_ip] += p.orig_len
         talker_bytes[p.dst_ip] += p.orig_len

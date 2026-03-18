@@ -52,6 +52,7 @@ export function useCapture() {
   const [timeRange, setTimeRange]   = useState([0, 0]);
   const [enabledP, setEnabledP]     = useState(new Set());
   const [search, setSearch]         = useState('');
+  const [searchResult, setSearchResult] = useState(null); // {nodes: Set, edges: Set, matchedNodes, matchedEdges} or null
   const [bucketSec, setBucketSec]   = useState(15);
   const [subnetG, setSubnetG]       = useState(false);
   const [labelThreshold, setLabelThreshold] = useState(0); // hide labels below this bytes value (0 = show all)
@@ -79,15 +80,81 @@ export function useCapture() {
   const [selSessionSiblings, setSelSessionSiblings] = useState([]);  // sorted sibling sessions from edge
   const [rPanel, setRPanel]       = useState('stats');
 
+  // ── Navigation history (back/forward) ──────────────────────────
+  const navHistoryRef = useRef([]);   // array of snapshots
+  const navIndexRef = useRef(-1);     // current position in history
+  const navRestoringRef = useRef(false); // flag to prevent pushing while restoring
+
+  // Refs that always hold the latest state values (for snapshot accuracy)
+  const latestRef = useRef({});
+  latestRef.current = { selNodes, selEdge, selSession, selSessionSiblings, rPanel, search };
+
+  function _navSnapshot() {
+    const s = latestRef.current;
+    return { selNodes: [...s.selNodes], selEdge: s.selEdge, selSession: s.selSession, selSessionSiblings: [...s.selSessionSiblings], rPanel: s.rPanel, search: s.search };
+  }
+  function _navPush() {
+    if (navRestoringRef.current) return;
+    const snap = _navSnapshot();
+    // Trim forward history if we navigated back then went somewhere new
+    navHistoryRef.current = navHistoryRef.current.slice(0, navIndexRef.current + 1);
+    navHistoryRef.current.push(snap);
+    // Cap at 50 entries
+    if (navHistoryRef.current.length > 50) navHistoryRef.current.shift();
+    navIndexRef.current = navHistoryRef.current.length - 1;
+  }
+  function _navRestore(snap) {
+    navRestoringRef.current = true;
+    setSelNodes(snap.selNodes);
+    setSelEdge(snap.selEdge);
+    setSelSession(snap.selSession);
+    setSelSessionSiblings(snap.selSessionSiblings);
+    setRPanel(snap.rPanel);
+    setSearch(snap.search);
+    // Clear restoring flag after React processes the state updates
+    setTimeout(() => { navRestoringRef.current = false; }, 0);
+  }
+  function navBack() {
+    if (navIndexRef.current <= 0) return;
+    // Save current state as the "forward" entry if we're at the end
+    if (navIndexRef.current === navHistoryRef.current.length - 1) {
+      const snap = _navSnapshot();
+      navHistoryRef.current.push(snap);
+    }
+    navIndexRef.current--;
+    _navRestore(navHistoryRef.current[navIndexRef.current]);
+  }
+  function navForward() {
+    if (navIndexRef.current >= navHistoryRef.current.length - 1) return;
+    navIndexRef.current++;
+    _navRestore(navHistoryRef.current[navIndexRef.current]);
+  }
+  const canGoBack = navHistoryRef.current.length > 0 && navIndexRef.current > 0;
+  const canGoForward = navIndexRef.current < navHistoryRef.current.length - 1;
+
   // ── Investigation & hidden nodes ─────────────────────────────────
   const [investigatedIp, setInvestigatedIp]       = useState('');
   const [investigationNodes, setInvestigationNodes] = useState(null);
   const [hiddenNodes, setHiddenNodes]             = useState(new Set());
   const [seqAckSessionId, setSeqAckSessionId]     = useState('');
 
+  // Per-session collapse state memory: Map<sessionId, Set<title>>
+  // Persists which sections the user opened, so navigating back restores them.
+  const collapseStatesRef = useRef(new Map());
+
   // ── Panel resize ─────────────────────────────────────────────────
   const [panelWidth, setPanelWidth] = useState(330);
   const panelDragRef = useRef(null);
+
+  // Clear selection when search text changes — prevents old selection
+  // persisting when user searches something new
+  const prevSearchRef = useRef('');
+  useEffect(() => {
+    if (prevSearchRef.current && prevSearchRef.current !== search) {
+      setSelNodes([]); setSelEdge(null); setSelSession(null);
+    }
+    prevSearchRef.current = search;
+  }, [search]);
 
   // ── Derived: visible nodes/edges (memoised for stable references) ─
   const visibleNodes = useMemo(
@@ -131,9 +198,9 @@ export function useCapture() {
     }).catch(() => {});
   }, []);
 
-  // Escape to deselect
+  // Escape to deselect + clear search
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') clearSel(); };
+    const h = e => { if (e.key === 'Escape') clearAll(); };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, []);
@@ -147,15 +214,15 @@ export function useCapture() {
     }).catch(() => {});
   }, [bucketSec, loaded]);
 
-  // Re-fetch sessions when search or time range changes
+  // Re-fetch sessions when time range changes
   useEffect(() => {
     if (!loaded || !timeline.length) return;
     const ts = timeline[timeRange[0]]?.start_time;
     const te = timeline[timeRange[1]]?.end_time;
-    fetchSessions(1000, search, ts != null && te != null ? { timeStart: ts, timeEnd: te } : {})
+    fetchSessions(1000, '', ts != null && te != null ? { timeStart: ts, timeEnd: te } : {})
       .then(d => { setSessions(d.sessions || []); setSessionTotal(d.total ?? d.sessions?.length ?? 0); })
       .catch(() => {});
-  }, [search, loaded, timeRange, timeline]);
+  }, [loaded, timeRange, timeline]);
 
   // Re-fetch stats when time range changes
   useEffect(() => {
@@ -175,9 +242,30 @@ export function useCapture() {
     const params = {};
     if (ts != null) params.timeStart = ts;
     if (te != null) params.timeEnd = te;
-    if (enabledP.size < protocols.length && enabledP.size > 0)
-      params.protocols = Array.from(enabledP).join(',');
-    if (search) params.search = search;
+    // Send composite protocol filter keys (e.g. "4/TCP/HTTPS,6/UDP/DNS")
+    if (enabledP.size > 0) {
+      // Compute allKeys from stats to check if everything is enabled
+      const sp = stats?.protocols || {};
+      const allKeys = [];
+      const _nonIp = new Set(['ARP', 'OTHER']);
+      for (const pName of protocols) {
+        if (!pName || !pName.trim()) continue;
+        const info = sp[pName] || {};
+        const transport = info.transport || pName;
+        const v4 = info.ipv4 || 0;
+        const v6 = info.ipv6 || 0;
+        const total = info.packets || 0;
+        if (_nonIp.has(transport)) {
+          allKeys.push(`0/${transport}/${pName}`);
+        } else {
+          if (v4 > 0 || (v6 === 0 && total > 0)) allKeys.push(`4/${transport}/${pName}`);
+          if (v6 > 0) allKeys.push(`6/${transport}/${pName}`);
+        }
+      }
+      // Only send filter if not all keys are enabled
+      if (enabledP.size < allKeys.length)
+        params.protocolFilters = Array.from(enabledP).join(',');
+    }
     if (subnetG) { params.subnetGrouping = true; params.subnetPrefix = subnetPrefix; }
     if (mergeByMac)   params.mergeByMac = true;
     if (!includeIPv6) params.includeIPv6 = false;
@@ -189,7 +277,7 @@ export function useCapture() {
       if (e.name !== 'AbortError') console.error(e);
     });
     return () => ctrl.abort();
-  }, [loaded, timeRange, enabledP, search, subnetG, subnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, timeline, protocols]);
+  }, [loaded, timeRange, enabledP, stats, subnetG, subnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, timeline, protocols]);
 
   // Re-evaluate display filter when graph data changes
   useEffect(() => {
@@ -198,6 +286,140 @@ export function useCapture() {
     if (result?.error) { setDfError(result.error); setDfResult(null); }
     else { setDfResult(result); setDfError(null); }
   }, [graph, dfApplied]);
+
+  // Client-side search: match query against all node/edge/session fields, produce Sets for dimming + details for dropdown
+  useEffect(() => {
+    if (!search) { setSearchResult(null); return; }
+    const q = search.toLowerCase();
+    const nodes = graph.nodes || [];
+    const edges = graph.edges || [];
+
+    const matchNode = n => {
+      for (const ip of (n.ips || [])) { if (ip.toLowerCase().includes(q)) return 'ip'; }
+      for (const mac of (n.macs || [])) { if (mac.toLowerCase().includes(q)) return 'mac'; }
+      for (const v of (n.mac_vendors || [])) { if (v && v.toLowerCase().includes(q)) return 'vendor'; }
+      for (const h of (n.hostnames || [])) { if (h.toLowerCase().includes(q)) return 'hostname'; }
+      if (n.os_guess && n.os_guess.toLowerCase().includes(q)) return 'os';
+      if (n.id && n.id.toLowerCase().includes(q)) return 'id';
+      if (n.metadata) {
+        for (const [mk, mv] of Object.entries(n.metadata)) { if (mv && String(mv).toLowerCase().includes(q)) return 'metadata: ' + mk; }
+      }
+      return null;
+    };
+
+    const matchEdge = e => {
+      if (e.protocol && e.protocol.toLowerCase().includes(q)) return 'protocol';
+      for (const s of (e.tls_snis || [])) { if (s.toLowerCase().includes(q)) return 'tls_sni'; }
+      for (const h of (e.http_hosts || [])) { if (h.toLowerCase().includes(q)) return 'http_host'; }
+      for (const j of (e.ja3_hashes || [])) { if (j.toLowerCase().includes(q)) return 'ja3'; }
+      for (const j of (e.ja4_hashes || [])) { if (j.toLowerCase().includes(q)) return 'ja4'; }
+      for (const v of (e.tls_versions || [])) { if (v.toLowerCase().includes(q)) return 'tls_version'; }
+      for (const c of (e.tls_selected_ciphers || [])) { if (c.toLowerCase().includes(q)) return 'cipher'; }
+      const src = e.source?.id || e.source || '';
+      const tgt = e.target?.id || e.target || '';
+      if (src.toLowerCase().includes(q) || tgt.toLowerCase().includes(q)) return 'endpoint';
+      if (e.ja3_hashes?.length && 'ja3'.includes(q))   return 'has ja3';
+      if (e.ja4_hashes?.length && 'ja4'.includes(q))   return 'has ja4';
+      if ((e.tls_snis?.length || e.tls_versions?.length) && 'tls'.includes(q)) return 'has tls';
+      if (e.tls_snis?.length && 'sni'.includes(q))     return 'has sni';
+      if ((e.tls_ciphers?.length || e.tls_selected_ciphers?.length) && 'cipher'.includes(q)) return 'has cipher';
+      if (e.http_hosts?.length && 'http'.includes(q))   return 'has http';
+      if (e.dns_queries?.length && 'dns'.includes(q))   return 'has dns';
+      if (e.protocol_conflict && 'conflict'.includes(q)) return 'protocol conflict';
+      return null;
+    };
+
+    // Generic session field search — matches string/array values on session objects
+    // so that fields like user_agents, URIs, SSH banners, Kerberos principals, LDAP DNs
+    // are all searchable without hardcoding each field name.
+    const _SKIP_SESSION_KEYS = new Set([
+      'id', 'session_key', 'src_ip', 'dst_ip', 'src_port', 'dst_port',
+      'initiator_ip', 'responder_ip', 'initiator_port', 'responder_port',
+      'packet_count', 'total_bytes', 'duration', 'start_time', 'end_time',
+      'bytes_to_initiator', 'bytes_to_responder', 'packets_to_initiator',
+      'packets_to_responder', 'ip_version', 'transport',
+    ]);
+    const matchSession = sess => {
+      for (const [key, val] of Object.entries(sess)) {
+        if (_SKIP_SESSION_KEYS.has(key)) continue;
+        if (typeof val === 'string' && val.toLowerCase().includes(q)) return key;
+        if (Array.isArray(val)) {
+          for (const item of val) {
+            if (typeof item === 'string' && item.toLowerCase().includes(q)) return key;
+            if (item && typeof item === 'object') {
+              for (const v of Object.values(item)) {
+                if (typeof v === 'string' && v.toLowerCase().includes(q)) return key;
+              }
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    const directNodes = [];
+    const directEdges = [];
+    const directNodeIds = new Set();
+    const directEdgeIds = new Set();
+    for (const n of nodes) {
+      const reason = matchNode(n);
+      if (reason) { directNodes.push({ node: n, reason }); directNodeIds.add(n.id); }
+    }
+    for (const e of edges) {
+      const reason = matchEdge(e);
+      if (reason) { directEdges.push({ edge: e, reason }); directEdgeIds.add(e.id); }
+    }
+
+    // Search sessions and map matches back to edges + nodes
+    if (sessions.length > 0) {
+      // Build a lookup: for each edge, collect its source+target node IPs for matching
+      const nodeIpSets = {};
+      for (const n of nodes) {
+        nodeIpSets[n.id] = new Set(n.ips || [n.id]);
+      }
+      for (const sess of sessions) {
+        if (matchSession(sess)) {
+          // Find matching edge(s) for this session
+          for (const e of edges) {
+            if (directEdgeIds.has(e.id)) continue;
+            const eSrc = e.source?.id || e.source;
+            const eTgt = e.target?.id || e.target;
+            const srcIps = nodeIpSets[eSrc] || new Set([eSrc]);
+            const tgtIps = nodeIpSets[eTgt] || new Set([eTgt]);
+            const sessProto = (sess.protocol || '').toLowerCase();
+            const edgeProto = (e.protocol || '').toLowerCase();
+            if (sessProto === edgeProto &&
+                ((srcIps.has(sess.src_ip) && tgtIps.has(sess.dst_ip)) ||
+                 (srcIps.has(sess.dst_ip) && tgtIps.has(sess.src_ip)))) {
+              directEdges.push({ edge: e, reason: 'session match' });
+              directEdgeIds.add(e.id);
+              // Also include the endpoint nodes
+              if (!directNodeIds.has(eSrc)) { directNodeIds.add(eSrc); }
+              if (!directNodeIds.has(eTgt)) { directNodeIds.add(eTgt); }
+            }
+          }
+        }
+      }
+    }
+
+    const matchedNodeIds = new Set(directNodeIds);
+    const matchedEdgeIds = new Set(directEdgeIds);
+    for (const e of edges) {
+      const src = e.source?.id || e.source;
+      const tgt = e.target?.id || e.target;
+      if (directNodeIds.has(src) || directNodeIds.has(tgt)) {
+        matchedEdgeIds.add(e.id);
+      }
+    }
+
+    setSearchResult({
+      nodes: matchedNodeIds, edges: matchedEdgeIds,
+      matchedNodes: directNodes.slice(0, 20),
+      matchedEdges: directEdges.slice(0, 20),
+      totalNodes: directNodes.length,
+      totalEdges: directEdges.length,
+    });
+  }, [search, graph, sessions]);
 
   // ── Data loading ──────────────────────────────────────────────────
 
@@ -212,7 +434,25 @@ export function useCapture() {
     setTimeRange([0, td.buckets.length - 1]);
     setProtocols(pd.protocols);
     setPColors(pd.colors);
-    setEnabledP(new Set(pd.protocols));
+    // Build composite keys "ipv/transport/protocol" for the protocol tree
+    const sp = sd.stats?.protocols || {};
+    const initKeys = [];
+    const nonIpTransports = new Set(['ARP', 'OTHER']);
+    for (const pName of pd.protocols) {
+      if (!pName || !pName.trim()) continue;
+      const info = sp[pName] || {};
+      const transport = info.transport || pName;
+      const v4 = info.ipv4 || 0;
+      const v6 = info.ipv6 || 0;
+      const total = info.packets || 0;
+      if (nonIpTransports.has(transport)) {
+        initKeys.push(`0/${transport}/${pName}`);
+      } else {
+        if (v4 > 0 || (v6 === 0 && total > 0)) initKeys.push(`4/${transport}/${pName}`);
+        if (v6 > 0) initKeys.push(`6/${transport}/${pName}`);
+      }
+    }
+    setEnabledP(new Set(initKeys));
     setSessions(ss.sessions || []);
     setSessionTotal(ss.total ?? ss.sessions?.length ?? 0);
     setPluginResults(pr.results || {});
@@ -269,9 +509,11 @@ export function useCapture() {
   // ── Selection handlers ────────────────────────────────────────────
 
   function clearSel() { setSelNodes([]); setSelEdge(null); setSelSession(null); }
+  function clearAll() { _navPush(); clearSel(); setSearch(''); } // escape + canvas bg click
 
   function handleGSel(type, data, shift) {
     if (type === 'node') {
+      _navPush();
       if (shift) {
         setSelNodes(p => p.includes(data) ? p.filter(n => n !== data) : [...p, data]);
         setSelEdge(null); setSelSession(null); setRPanel('detail');
@@ -279,14 +521,17 @@ export function useCapture() {
         setSelNodes([data]); setSelEdge(null); setSelSession(null); setRPanel('detail');
       }
     } else if (type === 'edge') {
+      _navPush();
       setSelEdge(data); setSelNodes([]); setSelSession(null); setRPanel('edge');
     } else {
-      clearSel();
+      // Canvas background click — clearAll handles its own _navPush
+      clearAll();
     }
   }
 
-  function selectSession(s)     { setSelSession(s); setSelSessionSiblings([]); setSelNodes([]); setSelEdge(null); setRPanel('session'); }
+  function selectSession(s)     { _navPush(); setSelSession(s); setSelSessionSiblings([]); setSelNodes([]); setSelEdge(null); setRPanel('session'); }
   function selectSessionWithContext(s, siblings) {
+    _navPush();
     const sorted = [...(siblings || [])].sort((a, b) => (a.start_time || 0) - (b.start_time || 0));
     setSelSession(s);
     setSelSessionSiblings(sorted);
@@ -294,8 +539,8 @@ export function useCapture() {
     setSelEdge(null);
     setRPanel('session');
   }
-  function selectNodePanel(id)  { setSelNodes([id]); setSelEdge(null); setSelSession(null); setRPanel('detail'); }
-  function switchPanel(k)       { clearSel(); setRPanel(k); }
+  function selectNodePanel(id)  { _navPush(); setSelNodes([id]); setSelEdge(null); setSelSession(null); setRPanel('detail'); }
+  function switchPanel(k)       { _navPush(); clearSel(); setRPanel(k); }
 
   // ── Investigation ─────────────────────────────────────────────────
 
@@ -505,9 +750,9 @@ export function useCapture() {
     try { await updateSynthetic(id, updates); } catch (e) { console.error(e); }
   }
 
-  async function handleSaveNote(nodeId, text, existingId) {
+  async function handleSaveNote(targetId, text, existingId, targetType = 'node_id') {
     const id = existingId || crypto.randomUUID();
-    const ann = { id, annotation_type: 'note', node_id: nodeId, label: '', text, x: 0, y: 0 };
+    const ann = { id, annotation_type: 'note', [targetType]: targetId, label: '', text, x: 0, y: 0 };
     if (existingId) {
       setAnnotations(prev => prev.map(a => a.id === id ? { ...a, text } : a));
       try { await updateAnnotation(id, { text }); } catch (e) { console.error(e); }
@@ -591,7 +836,8 @@ export function useCapture() {
     // Filters
     timeRange, setTimeRange,
     enabledP, setEnabledP,
-    search, setSearch,
+    search, setSearch, searchResult,
+    collapseStatesRef,
     bucketSec, setBucketSec,
     subnetG, setSubnetG, toggleSubnetG,
     labelThreshold, setLabelThreshold,
@@ -618,7 +864,8 @@ export function useCapture() {
 
     // Selection
     selNodes, selEdge, selSession, selSessionSiblings, rPanel,
-    handleGSel, selectSession, selectSessionWithContext, selectNodePanel, switchPanel, clearSel,
+    handleGSel, selectSession, selectSessionWithContext, selectNodePanel, switchPanel, clearSel, clearAll,
+    navBack, navForward, canGoBack, canGoForward,
     handleInvestigate, handleInvestigateNeighbours, exitInvestigation,
 
     // Investigation & hidden

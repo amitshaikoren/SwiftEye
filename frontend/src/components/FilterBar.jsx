@@ -247,6 +247,7 @@ export default function FilterBar({ value, onChange, onApply, onClear, matchCoun
               borderRadius: 6, marginTop: 4, width: 340, padding: '12px 14px',
               boxShadow: '0 8px 32px rgba(0,0,0,.5)',
               fontSize: 11, color: 'var(--txM)', lineHeight: 1.6,
+              maxHeight: 'calc(100vh - 100px)', overflowY: 'auto',
             }}>
               <div style={{ fontWeight: 600, color: 'var(--tx)', marginBottom: 8, fontSize: 12 }}>
                 Display Filter Syntax

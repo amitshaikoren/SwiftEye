@@ -38,6 +38,7 @@ export async function fetchGraph(params = {}, signal) {
   if (params.timeStart != null) p.set('time_start', params.timeStart);
   if (params.timeEnd != null) p.set('time_end', params.timeEnd);
   if (params.protocols) p.set('protocols', params.protocols);
+  if (params.protocolFilters) p.set('protocol_filters', params.protocolFilters);
   if (params.ipFilter) p.set('ip_filter', params.ipFilter);
   if (params.portFilter) p.set('port_filter', params.portFilter);
   if (params.search) p.set('search', params.search);

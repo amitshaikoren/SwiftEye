@@ -84,4 +84,11 @@ from . import dissect_ssh      # noqa: F401
 from . import dissect_ftp      # noqa: F401
 from . import dissect_dhcp     # noqa: F401
 from . import dissect_smb      # noqa: F401
+from . import dissect_kerberos # noqa: F401
+from . import dissect_ldap     # noqa: F401
+from . import dissect_smtp     # noqa: F401
+from . import dissect_mdns     # noqa: F401
+from . import dissect_ssdp     # noqa: F401
+from . import dissect_llmnr    # noqa: F401
+from . import dissect_dcerpc   # noqa: F401
 from . import signatures       # noqa: F401

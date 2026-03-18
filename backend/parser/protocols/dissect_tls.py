@@ -72,13 +72,41 @@ def _extract_scapy(pkt) -> Dict[str, Any]:
                         v = cs.val if hasattr(cs, "val") else cs
                         suites.append(CIPHER_SUITES.get(v, f"0x{v:04x}"))
                     info["tls_cipher_suites"] = suites
+                if hasattr(layer, "comp") and layer.comp:
+                    info["tls_compression_methods"] = [c if isinstance(c, int) else getattr(c, 'val', 0) for c in layer.comp]
                 if hasattr(layer, "ext") and layer.ext:
+                    ext_types = []
                     for ext in layer.ext:
+                        # Extension type number
+                        if hasattr(ext, "type"):
+                            ext_types.append(ext.type if isinstance(ext.type, int) else getattr(ext.type, 'val', 0))
+                        # SNI
                         if isinstance(ext, TLS_Ext_ServerName):
                             for sn in (ext.servernames or []):
                                 if hasattr(sn, "servername"):
                                     info["tls_sni"] = sn.servername.decode(errors="replace")
                                     break
+                        # ALPN
+                        ename = ext.__class__.__name__
+                        if 'ALPN' in ename and hasattr(ext, 'protocols'):
+                            try:
+                                info["tls_alpn_offered"] = [p.protocol.decode(errors="replace") if isinstance(p.protocol, bytes) else str(p) for p in ext.protocols]
+                            except Exception:
+                                pass
+                        # Supported versions
+                        if 'SupportedVersion' in ename and hasattr(ext, 'versions'):
+                            try:
+                                info["tls_supported_versions"] = [_ver(v.val if hasattr(v, 'val') else v) for v in ext.versions]
+                            except Exception:
+                                pass
+                        # Supported groups / named curves
+                        if 'SupportedGroup' in ename and hasattr(ext, 'groups'):
+                            try:
+                                info["tls_supported_groups"] = [g.val if hasattr(g, 'val') else g for g in ext.groups]
+                            except Exception:
+                                pass
+                    if ext_types:
+                        info["tls_extensions"] = ext_types
 
             elif isinstance(layer, TLSServerHello):
                 info["tls_msg_type"] = "ServerHello"
@@ -87,18 +115,64 @@ def _extract_scapy(pkt) -> Dict[str, Any]:
                 if hasattr(layer, "cipher"):
                     v = layer.cipher.val if hasattr(layer.cipher, "val") else layer.cipher
                     info["tls_selected_cipher"] = CIPHER_SUITES.get(v, f"0x{v:04x}")
+                # Check for session resumption
+                if hasattr(layer, "sid") and layer.sid:
+                    sid = bytes(layer.sid) if not isinstance(layer.sid, bytes) else layer.sid
+                    if len(sid) > 0 and sid != b'\x00' * len(sid):
+                        info["tls_session_resumption"] = "session_id"
+                if hasattr(layer, "ext") and layer.ext:
+                    for ext in layer.ext:
+                        ename = ext.__class__.__name__
+                        # ALPN selected
+                        if 'ALPN' in ename and hasattr(ext, 'protocols'):
+                            try:
+                                protos = ext.protocols
+                                if protos:
+                                    p = protos[0]
+                                    info["tls_alpn_selected"] = p.protocol.decode(errors="replace") if hasattr(p, 'protocol') and isinstance(p.protocol, bytes) else str(p)
+                            except Exception:
+                                pass
+                        # Supported versions (server selected)
+                        if 'SupportedVersion' in ename:
+                            try:
+                                if hasattr(ext, 'version'):
+                                    info["tls_selected_version"] = _ver(ext.version.val if hasattr(ext.version, 'val') else ext.version)
+                                elif hasattr(ext, 'versions') and ext.versions:
+                                    info["tls_selected_version"] = _ver(ext.versions[0].val if hasattr(ext.versions[0], 'val') else ext.versions[0])
+                            except Exception:
+                                pass
+                        # Key share (tells us the group used)
+                        if 'KeyShare' in ename:
+                            try:
+                                if hasattr(ext, 'server_share') and hasattr(ext.server_share, 'group'):
+                                    info["tls_key_exchange_group"] = ext.server_share.group
+                            except Exception:
+                                pass
 
             elif isinstance(layer, TLSCertificate):
-                if "tls_cert" not in info:   # only take the first (leaf) cert
-                    try:
-                        certs = layer.certs if hasattr(layer, "certs") else []
-                        if certs:
-                            raw_cert = bytes(certs[0][1]) if isinstance(certs[0], tuple) else bytes(certs[0])
-                            cert_info = _parse_cert(raw_cert)
-                            if cert_info:
-                                info["tls_cert"] = cert_info
-                    except Exception:
-                        pass
+                try:
+                    certs = layer.certs if hasattr(layer, "certs") else []
+                    if certs:
+                        # Leaf cert (first)
+                        raw_cert = bytes(certs[0][1]) if isinstance(certs[0], tuple) else bytes(certs[0])
+                        cert_info = _parse_cert(raw_cert)
+                        if cert_info:
+                            info["tls_cert"] = cert_info
+                        # Full chain
+                        if len(certs) > 1:
+                            chain = []
+                            for c in certs[1:5]:  # up to 4 intermediates
+                                try:
+                                    raw = bytes(c[1]) if isinstance(c, tuple) else bytes(c)
+                                    ci = _parse_cert(raw)
+                                    if ci:
+                                        chain.append({"subject_cn": ci.get("subject_cn", ""), "issuer": ci.get("issuer", ""), "serial": ci.get("serial", "")})
+                                except Exception:
+                                    pass
+                            if chain:
+                                info["tls_cert_chain"] = chain
+                except Exception:
+                    pass
 
             layer = layer.payload if hasattr(layer, "payload") else None
 

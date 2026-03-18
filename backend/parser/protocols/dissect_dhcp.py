@@ -77,6 +77,7 @@ def _extract(payload: bytes) -> Dict[str, Any]:
             info["dhcp_server_ip"] = ".".join(str(b) for b in siaddr)
 
         # Parse options
+        options_seen = []
         off = 240
         while off + 1 < len(payload):
             opt = payload[off]
@@ -90,6 +91,7 @@ def _extract(payload: bytes) -> Dict[str, Any]:
             length = payload[off + 1]
             val = payload[off + 2: off + 2 + length]
             off += 2 + length
+            options_seen.append(opt)
 
             if opt == 53 and length == 1:  # Message Type
                 info["dhcp_msg_type"] = _DHCP_MSG_TYPES.get(val[0], f"Type{val[0]}")
@@ -105,6 +107,26 @@ def _extract(payload: bytes) -> Dict[str, Any]:
                 info["dhcp_domain"] = val.decode(errors="replace").strip()
             elif opt == 67:  # Bootfile Name
                 info["dhcp_bootfile"] = val.decode(errors="replace").strip()
+            elif opt == 51 and length == 4:  # Lease Time
+                info["dhcp_lease_time"] = struct.unpack("!I", val)[0]
+            elif opt == 54 and length == 4:  # Server Identifier
+                info["dhcp_server_id"] = ".".join(str(b) for b in val)
+            elif opt == 1 and length == 4:  # Subnet Mask
+                info["dhcp_subnet_mask"] = ".".join(str(b) for b in val)
+            elif opt == 3 and length >= 4:  # Router
+                info["dhcp_router"] = ".".join(str(b) for b in val[:4])
+            elif opt == 6 and length >= 4:  # DNS Servers
+                dns_servers = []
+                for i in range(0, min(length, 16), 4):
+                    dns_servers.append(".".join(str(b) for b in val[i:i+4]))
+                info["dhcp_dns_servers"] = dns_servers
+            elif opt == 82 and length > 0:  # Relay Agent Information
+                info["dhcp_relay_agent"] = val.hex()
+            elif opt == 61 and length > 1:  # Client Identifier
+                info["dhcp_client_id"] = val[1:].hex() if val[0] == 1 else val.hex()
+
+        if options_seen:
+            info["dhcp_options_seen"] = options_seen
 
     except Exception:
         pass

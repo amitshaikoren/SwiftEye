@@ -114,11 +114,14 @@ export default function App() {
     rightContent = (
       <SessionDetail
         session={c.selSession}
+        collapseStates={c.collapseStatesRef}
         siblings={c.selSessionSiblings}
         onNavigate={c.selectSessionWithContext}
         onOpenSeqAck={id => { c.setSeqAckSessionId(id); c.switchPanel('research'); }}
         onBack={c.clearSel}
         pColors={c.pColors}
+        annotations={c.annotations}
+        onSaveNote={c.handleSaveNote}
         onTabChange={tab => {
           if (tab === 'charts' && c.panelWidth < 500) c.setPanelWidth(500);
         }}
@@ -131,6 +134,8 @@ export default function App() {
         onClear={c.clearSel}
         sessions={c.sessions} nodes={c.visibleNodes}
         onSelectSession={c.selectSessionWithContext}
+        annotations={c.annotations}
+        onSaveNote={c.handleSaveNote}
       />
     );
   } else if (c.selNodes.length === 1) {
@@ -181,6 +186,9 @@ export default function App() {
         sourceFiles={c.sourceFiles}
         stats={c.stats}
         search={c.search} setSearch={c.setSearch}
+        searchResult={c.searchResult}
+        onSelectNode={id => c.handleGSel('node', id, false)}
+        onSelectEdge={e => c.handleGSel('edge', e, false)}
         onNewFile={() => document.getElementById('pcap-re').click()}
         onMetadataFile={() => document.getElementById('meta-up').click()}
         onSettings={() => setShowSettings(true)}
@@ -324,8 +332,18 @@ export default function App() {
                   onInvestigateNeighbours={c.handleInvestigateNeighbours}
                   onHideNode={c.handleHideNode}
                   investigationNodes={c.investigationNodes}
-                  displayFilterNodes={c.dfResult?.nodes ?? null}
-                  displayFilterEdges={c.dfResult?.edges ?? null}
+                  displayFilterNodes={(() => {
+                    const df = c.dfResult?.nodes ?? null;
+                    const sr = c.searchResult?.nodes ?? null;
+                    if (df && sr) return new Set([...df].filter(x => sr.has(x)));
+                    return df || sr;
+                  })()}
+                  displayFilterEdges={(() => {
+                    const df = c.dfResult?.edges ?? null;
+                    const sr = c.searchResult?.edges ?? null;
+                    if (df && sr) return new Set([...df].filter(x => sr.has(x)));
+                    return df || sr;
+                  })()}
                   selectedNodes={c.selNodes}
                   selectedEdge={c.selEdge}
                   pColors={c.pColors}
@@ -378,12 +396,22 @@ export default function App() {
                     <span style={{ color: 'var(--txM)' }}>Gateway</span>
                   </span>
                   <span style={{ color: 'var(--txD)', fontSize: 9 }}>|</span>
-                  {Array.from(c.enabledP).slice(0, 8).map(p => (
-                    <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9 }}>
-                      <span style={{ width: 10, height: 2.5, background: c.pColors[p] || '#64748b', display: 'inline-block', borderRadius: 1 }} />
-                      <span style={{ color: 'var(--txM)' }}>{p}</span>
-                    </span>
-                  ))}
+                  {(() => {
+                    // Extract unique protocol names from composite keys like "4/TCP/HTTPS"
+                    const seen = new Set();
+                    const protos = [];
+                    for (const key of c.enabledP) {
+                      const parts = key.split('/');
+                      const name = parts.length === 3 ? parts[2] : key;
+                      if (!seen.has(name)) { seen.add(name); protos.push(name); }
+                    }
+                    return protos.slice(0, 8).map(p => (
+                      <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9 }}>
+                        <span style={{ width: 10, height: 2.5, background: c.pColors[p] || '#64748b', display: 'inline-block', borderRadius: 1 }} />
+                        <span style={{ color: 'var(--txM)' }}>{p}</span>
+                      </span>
+                    ));
+                  })()}
                 </div>
               </div>
 
@@ -414,8 +442,24 @@ export default function App() {
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 title="Drag to resize panel"
               />
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                {rightContent}
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {/* Back / Forward navigation */}
+                {(c.canGoBack || c.canGoForward) && (
+                  <div style={{
+                    display: 'flex', gap: 2, padding: '4px 8px',
+                    borderBottom: '1px solid var(--bd)', flexShrink: 0,
+                  }}>
+                    <button className="btn" onClick={c.navBack} disabled={!c.canGoBack}
+                      title="Go back"
+                      style={{ fontSize: 11, padding: '1px 8px', opacity: c.canGoBack ? 1 : 0.3 }}>←</button>
+                    <button className="btn" onClick={c.navForward} disabled={!c.canGoForward}
+                      title="Go forward"
+                      style={{ fontSize: 11, padding: '1px 8px', opacity: c.canGoForward ? 1 : 0.3 }}>→</button>
+                  </div>
+                )}
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  {rightContent}
+                </div>
               </div>
             </div>
           </>

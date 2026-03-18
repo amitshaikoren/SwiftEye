@@ -124,11 +124,31 @@ def _extract_icmpv4_scapy(icmp) -> Dict[str, Any]:
 
     if icmp_type == 3:
         info["icmp_code_name"] = ICMP_DEST_UNREACH_CODES.get(icmp_code, f"Code {icmp_code}")
+        # Extract original destination from embedded IP header
+        try:
+            if hasattr(icmp, 'payload') and hasattr(icmp.payload, 'dst'):
+                info["icmp_orig_dst"] = str(icmp.payload.dst)
+        except Exception:
+            pass
     elif icmp_type == 11:
         info["icmp_code_name"] = "TTL Exceeded in Transit" if icmp_code == 0 else "Fragment Reassembly Exceeded"
+        # Extract original destination from embedded IP header
+        try:
+            if hasattr(icmp, 'payload') and hasattr(icmp.payload, 'dst'):
+                info["icmp_orig_dst"] = str(icmp.payload.dst)
+            if hasattr(icmp, 'payload') and hasattr(icmp.payload, 'ttl'):
+                info["icmp_orig_ttl"] = icmp.payload.ttl
+        except Exception:
+            pass
     elif icmp_type == 5:
         redirect = {0: "Network", 1: "Host", 2: "ToS+Network", 3: "ToS+Host"}
         info["icmp_code_name"] = f"Redirect for {redirect.get(icmp_code, 'Unknown')}"
+        # Extract gateway address
+        try:
+            if hasattr(icmp, 'gw'):
+                info["icmp_redirect_gw"] = str(icmp.gw)
+        except Exception:
+            pass
     elif icmp_type == 12:
         pointer = {0: "Version/IHL", 8: "TTL", 9: "Protocol", 10: "Header Checksum"}
         info["icmp_code_name"] = pointer.get(icmp_code, f"Pointer={icmp_code}")
@@ -136,6 +156,17 @@ def _extract_icmpv4_scapy(icmp) -> Dict[str, Any]:
     if icmp_type in (0, 8):
         info["icmp_id"]  = icmp.id
         info["icmp_seq"] = icmp.seq
+
+    # Extract ICMP payload (data portion after header)
+    try:
+        from scapy.packet import Raw
+        if icmp.haslayer(Raw):
+            raw = bytes(icmp[Raw].load)
+            if raw:
+                info["icmp_payload_size"] = len(raw)
+                info["icmp_payload_hex"] = raw[:64].hex()
+    except Exception:
+        pass
 
     return info
 
@@ -153,4 +184,9 @@ def _extract_icmpv4_manual(payload: bytes) -> Dict[str, Any]:
         import struct
         info["icmp_id"]  = struct.unpack_from("!H", payload, 4)[0]
         info["icmp_seq"] = struct.unpack_from("!H", payload, 6)[0]
+        # ICMP echo payload starts after 8-byte header
+        if len(payload) > 8:
+            icmp_data = payload[8:]
+            info["icmp_payload_size"] = len(icmp_data)
+            info["icmp_payload_hex"] = icmp_data[:64].hex()
     return info

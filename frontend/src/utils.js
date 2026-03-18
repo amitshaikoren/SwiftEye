@@ -61,6 +61,20 @@ export const FLAG_TIPS = {
   HS: 'TCP Handshake completed (SYN→SYN+ACK→ACK)',
 };
 
+/** Compute a 16-char hex reference hash for a session (FNV-1a inspired).
+ *  Used as the user-facing session identifier instead of the raw internal key.
+ */
+export function sessionRefHash(session) {
+  const str = (session.id || '') + '|' + (session.start_time || 0) + '|' + (session.packet_count || 0);
+  let h1 = 0x811c9dc5, h2 = 0xcbf29ce4;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193);
+    h2 = Math.imul(h2 ^ c, 0x01000193);
+  }
+  return (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
+}
+
 /** Build protocol hierarchy tree from stats.
  *  Uses the transport field provided by the backend on each protocol entry,
  *  so the frontend doesn't need to know which protocols run over TCP vs UDP.

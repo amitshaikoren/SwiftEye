@@ -124,6 +124,7 @@ def filter_packets(
     packets: List[PacketRecord],
     time_range: Optional[tuple] = None,
     protocols: Optional[Set[str]] = None,
+    protocol_filters: Optional[Set[str]] = None,
     ip_filter: str = "",
     port_filter: str = "",
     search_query: str = "",
@@ -138,6 +139,10 @@ def filter_packets(
     Args:
         time_range:    (start_ts, end_ts) Unix seconds, or None for no filter.
         protocols:     Set of protocol names to include, or None for all.
+                       Legacy flat filter — used when protocol_filters is not set.
+        protocol_filters: Set of composite keys "ipv/transport/protocol" e.g.
+                       "4/TCP/HTTPS", "6/UDP/DNS". When set, overrides `protocols`.
+                       Each packet must match at least one key to be included.
         ip_filter:     Substring match against src_ip or dst_ip only.
         port_filter:   Integer port string to match src_port or dst_port.
         search_query:  Broad substring match — src_ip, dst_ip, src_mac, dst_mac,
@@ -154,7 +159,24 @@ def filter_packets(
         t_start, t_end = time_range
         filtered = [p for p in filtered if t_start <= p.timestamp <= t_end]
 
-    if protocols:
+    if protocol_filters:
+        # Composite filter: each key is "ipv/transport/protocol"
+        # ip_version 0 is a wildcard (matches any ip_version — used for non-IP protocols like ARP)
+        pf_set = set()
+        pf_wildcard = set()  # (transport, protocol) tuples where ipv=0
+        for key in protocol_filters:
+            parts = key.split("/")
+            if len(parts) == 3:
+                ipv = int(parts[0])
+                if ipv == 0:
+                    pf_wildcard.add((parts[1], parts[2]))
+                else:
+                    pf_set.add((ipv, parts[1], parts[2]))
+        if pf_set or pf_wildcard:
+            filtered = [p for p in filtered if
+                (p.ip_version, p.transport, p.protocol) in pf_set or
+                (p.transport, p.protocol) in pf_wildcard]
+    elif protocols:
         filtered = [p for p in filtered if p.protocol in protocols]
 
     if ip_filter:
@@ -234,6 +256,7 @@ def build_graph(
     packets: List[PacketRecord],
     time_range: Optional[tuple] = None,
     protocols: Optional[Set[str]] = None,
+    protocol_filters: Optional[Set[str]] = None,
     ip_filter: str = "",
     port_filter: str = "",
     flag_filter: str = "",
@@ -287,6 +310,7 @@ def build_graph(
             pre_ipv6_filtered,
             time_range=time_range,
             protocols=protocols,
+            protocol_filters=protocol_filters,
             ip_filter=ip_filter,
             port_filter=port_filter,
             include_ipv6=True,   # already handled above
@@ -296,6 +320,7 @@ def build_graph(
             packets,
             time_range=time_range,
             protocols=protocols,
+            protocol_filters=protocol_filters,
             ip_filter=ip_filter,
             port_filter=port_filter,
             include_ipv6=include_ipv6,
@@ -511,6 +536,19 @@ def build_graph(
             edge_data["protocol_by_payload"] = sorted(e["protocol_by_payload"])
         edges.append(edge_data)
     
+    # ── Post-filter: remove external IPv6 nodes when include_ipv6=False ──
+    # The packet-level IPv6 filter (above) keeps packets where at least one
+    # resolved endpoint is IPv4 — this is correct for preserving merged
+    # dual-stack traffic. But it leaves behind graph nodes for external IPv6
+    # addresses (e.g. 2606:4700::) that the user intended to hide with the
+    # "Show IPv6" toggle. Remove those nodes and their edges.
+    if not include_ipv6 and _em:
+        ipv6_node_ids = {n["id"] for n in nodes if ":" in n["id"]}
+        if ipv6_node_ids:
+            nodes = [n for n in nodes if n["id"] not in ipv6_node_ids]
+            edges = [e for e in edges if e["source"] not in ipv6_node_ids
+                     and e["target"] not in ipv6_node_ids]
+
     return {
         "nodes": nodes,
         "edges": edges,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Tag from './Tag';
 import { fN } from '../utils';
 import logoIconData from '../logoIconData.js';
@@ -7,10 +7,37 @@ import { VERSION } from '../version.js';
 
 export default function TopBar({
   fileName, sourceFiles = [], stats, search, setSearch,
+  searchResult, onSelectNode, onSelectEdge,
   onNewFile, onMetadataFile, onSettings,
 }) {
   const isMulti = sourceFiles.length > 1;
   const fileTitle = isMulti ? sourceFiles.join('\n') : fileName;
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropRef = useRef(null);
+
+  const searchInputRef = useRef(null);
+
+  // Open dropdown when search has results AND the input is focused (user is typing)
+  useEffect(() => {
+    const isFocused = document.activeElement === searchInputRef.current;
+    if (isFocused && search && searchResult && (searchResult.totalNodes > 0 || searchResult.totalEdges > 0)) {
+      setDropdownOpen(true);
+    } else if (!search) {
+      setDropdownOpen(false);
+    }
+  }, [search, searchResult]);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = e => { if (dropRef.current && !dropRef.current.contains(e.target)) setDropdownOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [dropdownOpen]);
+
+  const sr = searchResult || {};
+  const mNodes = sr.matchedNodes || [];
+  const mEdges = sr.matchedEdges || [];
 
   return (
     <div style={{
@@ -37,18 +64,111 @@ export default function TopBar({
       <Tag color="var(--ac)">{fN(stats?.total_packets)} pkts</Tag>
       <div style={{ flex: 1 }} />
 
-      {/* Search */}
-      <div style={{ position: 'relative' }}>
-        <svg style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }}
+      {/* Search with dropdown */}
+      <div style={{ position: 'relative' }} ref={dropRef}>
+        <svg style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 1 }}
           width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--txD)" strokeWidth="2">
           <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
         </svg>
-        <input className="inp" placeholder="Search — IPs, MACs, hostnames, protocols, ports, flags…"
-          value={search} onChange={e => setSearch(e.target.value)} style={{ width: 340, paddingLeft: 28 }} />
+        <input ref={searchInputRef} className="inp" placeholder="Search — IPs, MACs, hostnames, JA3, TLS, DNS…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          onFocus={() => { if (search && searchResult) setDropdownOpen(true); }}
+          style={{ width: 340, paddingLeft: 28, paddingRight: search ? 26 : 8 }} />
+        {search && (
+          <button onClick={() => { setSearch(''); setDropdownOpen(false); }}
+            style={{
+              position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', zIndex: 1,
+              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
+              color: 'var(--txD)', fontSize: 14, lineHeight: 1, fontFamily: 'var(--fn)',
+            }}
+            title="Clear search">×</button>
+        )}
+
+        {/* Dropdown */}
+        {dropdownOpen && (mNodes.length > 0 || mEdges.length > 0) && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 200,
+            background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 6,
+            boxShadow: '0 8px 24px rgba(0,0,0,.4)', maxHeight: 320, overflowY: 'auto',
+          }}>
+            {/* Nodes */}
+            {mNodes.length > 0 && (
+              <>
+                <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.08em', background: 'var(--bgC)' }}>
+                  Nodes ({sr.totalNodes})
+                </div>
+                {mNodes.map(({ node: n, reason }) => (
+                  <div key={n.id}
+                    onClick={() => { onSelectNode?.(n.id); setDropdownOpen(false); }}
+                    style={{
+                      padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid var(--bd)',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      transition: 'background .1s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(88,166,255,.06)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: n.is_private ? 'var(--node-private)' : 'var(--node-external)', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: 'var(--txM)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {n.hostnames?.[0] || n.id}
+                      </div>
+                      {n.hostnames?.[0] && n.id !== n.hostnames[0] && (
+                        <div style={{ fontSize: 9, color: 'var(--txD)', fontFamily: 'var(--fn)' }}>{n.id}</div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 9, color: 'var(--acG)', flexShrink: 0 }}>{reason}</span>
+                  </div>
+                ))}
+                {sr.totalNodes > 20 && (
+                  <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--txD)', textAlign: 'center' }}>
+                    +{sr.totalNodes - 20} more nodes
+                  </div>
+                )}
+              </>
+            )}
+            {/* Edges */}
+            {mEdges.length > 0 && (
+              <>
+                <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.08em', background: 'var(--bgC)' }}>
+                  Edges ({sr.totalEdges})
+                </div>
+                {mEdges.map(({ edge: e, reason }) => {
+                  const src = e.source?.id || e.source;
+                  const tgt = e.target?.id || e.target;
+                  return (
+                    <div key={e.id}
+                      onClick={() => { onSelectEdge?.(e); setDropdownOpen(false); }}
+                      style={{
+                        padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid var(--bd)',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        transition: 'background .1s',
+                      }}
+                      onMouseEnter={ev => ev.currentTarget.style.background = 'rgba(88,166,255,.06)'}
+                      onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
+                    >
+                      <span style={{ width: 14, height: 2, background: 'var(--ac)', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 11, color: 'var(--txM)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {src} → {tgt}
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--txD)' }}>{e.protocol}</div>
+                      </div>
+                      <span style={{ fontSize: 9, color: 'var(--acG)', flexShrink: 0 }}>{reason}</span>
+                    </div>
+                  );
+                })}
+                {sr.totalEdges > 20 && (
+                  <div style={{ padding: '4px 10px', fontSize: 9, color: 'var(--txD)', textAlign: 'center' }}>
+                    +{sr.totalEdges - 20} more edges
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
-
-
-
 
       <button className="btn" onClick={onSettings} title="Settings"
         style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

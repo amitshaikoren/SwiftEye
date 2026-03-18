@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import Tag from './Tag';
 import Collapse from './Collapse';
 import Row from './Row';
@@ -26,9 +26,23 @@ function JA3Badge({ hash, apps = [] }) {
   );
 }
 
-export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes = [], onSelectSession }) {
+export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes = [], onSelectSession, annotations = [], onSaveNote }) {
   const src = e ? (typeof e.source === 'object' ? e.source.id : e.source) : '';
   const tgt = e ? (typeof e.target === 'object' ? e.target.id : e.target) : '';
+  const edgeId = e?.id || '';
+
+  // Notes
+  const [noteText, setNoteText] = useState('');
+  const [noteSaved, setNoteSaved] = useState(false);
+  const existingNote = annotations.find(a => a.annotation_type === 'note' && a.edge_id === edgeId);
+  useEffect(() => { setNoteText(existingNote?.text || ''); setNoteSaved(false); }, [edgeId, annotations]);
+  const saveNote = useCallback(async () => {
+    if (onSaveNote) {
+      await onSaveNote(edgeId, noteText, existingNote?.id, 'edge_id');
+      setNoteSaved(true);
+      setTimeout(() => setNoteSaved(false), 1500);
+    }
+  }, [edgeId, noteText, existingNote, onSaveNote]);
 
   const nodeIpsMap = useMemo(() => {
     const m = new Map();
@@ -191,6 +205,30 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
             </div>
           </div>
         ))}
+      </Collapse>
+
+      {/* Notes */}
+      <Collapse title="Notes" open={!!noteText}>
+        <textarea
+          value={noteText}
+          onChange={e => setNoteText(e.target.value)}
+          placeholder="Add investigation notes…"
+          rows={3}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'var(--bgC)', border: '1px solid var(--bd)', borderRadius: 4,
+            padding: '6px 8px', fontSize: 10, color: 'var(--txM)',
+            fontFamily: 'inherit', resize: 'vertical', outline: 'none',
+            lineHeight: 1.5,
+          }}
+        />
+        <button className="btn" onClick={saveNote}
+          style={{ fontSize: 9, padding: '2px 12px', marginTop: 5, width: '100%',
+            background: noteSaved ? 'rgba(63,185,80,.15)' : undefined,
+            color: noteSaved ? 'var(--acG)' : undefined,
+            borderColor: noteSaved ? 'var(--acG)' : undefined }}>
+          {noteSaved ? '✓ Saved' : 'Save note'}
+        </button>
       </Collapse>
     </div>
   );

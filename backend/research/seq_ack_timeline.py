@@ -59,43 +59,109 @@ class SeqAckTimelineChart(ResearchChart):
 
         initiator_ip = session.get("initiator_ip", "")
 
-        # Collect per-packet data per direction
-        init_pts = []  # (timestamp, seq, ack)
-        resp_pts = []
+        # For bytes/time mode: collect timestamp + bytes for ANY protocol
+        # For seqack mode: collect TCP seq/ack only
+        if mode == "time":
+            init_time_pts = []  # (timestamp, cumulative_bytes)
+            resp_time_pts = []
+            for pkt in ctx.packets:
+                if pkt.session_key != session_id:
+                    continue
+                entry = (pkt.timestamp, pkt.orig_len)
+                if pkt.src_ip == initiator_ip:
+                    init_time_pts.append(entry)
+                else:
+                    resp_time_pts.append(entry)
 
-        for pkt in ctx.packets:
-            if pkt.session_key != session_id:
-                continue
-            if pkt.seq_num <= 0:
-                continue
-            entry = (pkt.timestamp, pkt.seq_num, pkt.ack_num)
-            if pkt.src_ip == initiator_ip:
-                init_pts.append(entry)
-            else:
-                resp_pts.append(entry)
-
-        if not init_pts and not resp_pts:
-            return {
-                "data": [],
-                "layout": {
-                    "paper_bgcolor": "rgba(0,0,0,0)",
-                    "plot_bgcolor":  "rgba(0,0,0,0)",
-                    "annotations": [{
-                        "text": "No TCP sequence data (may be UDP or incomplete capture)",
-                        "xref": "paper", "yref": "paper", "x": 0.5, "y": 0.5,
-                        "showarrow": False, "font": {"color": "#8b949e", "size": 12},
-                    }],
+            if not init_time_pts and not resp_time_pts:
+                return {
+                    "data": [],
+                    "layout": {
+                        "paper_bgcolor": "rgba(0,0,0,0)",
+                        "plot_bgcolor":  "rgba(0,0,0,0)",
+                        "annotations": [{
+                            "text": "No packet data for this session",
+                            "xref": "paper", "yref": "paper", "x": 0.5, "y": 0.5,
+                            "showarrow": False, "font": {"color": "#8b949e", "size": 12},
+                        }],
+                    }
                 }
-            }
 
-        init_pts.sort(key=lambda p: p[0])
-        resp_pts.sort(key=lambda p: p[0])
+            init_time_pts.sort(key=lambda p: p[0])
+            resp_time_pts.sort(key=lambda p: p[0])
 
-        src_label = f"{session.get('initiator_ip','?')}:{session.get('initiator_port','?')}"
-        dst_label = f"{session.get('responder_ip','?')}:{session.get('responder_port','?')}"
-        protocol  = session.get("protocol", "TCP")
+            src_label = f"{session.get('initiator_ip','?')}:{session.get('initiator_port','?')}"
+            dst_label = f"{session.get('responder_ip','?')}:{session.get('responder_port','?')}"
+            protocol  = session.get("protocol", "")
 
-        if mode == "seqack":
+            # Build cumulative bytes traces
+            t0 = min(
+                (init_time_pts[0][0] if init_time_pts else float('inf')),
+                (resp_time_pts[0][0] if resp_time_pts else float('inf'))
+            )
+            traces = []
+            for pts, label, color in [
+                (init_time_pts, f"Initiator ({src_label})", "#3fb950"),
+                (resp_time_pts, f"Responder ({dst_label})", "#58a6ff"),
+            ]:
+                if not pts:
+                    continue
+                xs, ys = [], []
+                cum = 0
+                for ts, size in pts:
+                    cum += size
+                    xs.append(round(ts - t0, 6))
+                    ys.append(cum)
+                traces.append({
+                    "type": "scatter", "mode": "lines+markers",
+                    "name": label,
+                    "x": xs, "y": ys,
+                    "line":   {"color": color, "width": 1.5},
+                    "marker": {"color": color, "size": 4, "opacity": 0.7, "line": {"width": 0}},
+                    "hovertemplate": "t+%{x:.3f}s  %{y:,} bytes<extra>" + label.split("(")[0].strip() + "</extra>",
+                })
+
+            xaxis_title = "Time (seconds from session start)"
+            yaxis_title = "Cumulative bytes"
+            chart_title = f"Bytes/Time — {protocol}  {src_label}"
+
+        else:
+            # SEQ/ACK mode — TCP only
+            init_pts = []
+            resp_pts = []
+
+            for pkt in ctx.packets:
+                if pkt.session_key != session_id:
+                    continue
+                if pkt.seq_num <= 0:
+                    continue
+                entry = (pkt.timestamp, pkt.seq_num, pkt.ack_num)
+                if pkt.src_ip == initiator_ip:
+                    init_pts.append(entry)
+                else:
+                    resp_pts.append(entry)
+
+            if not init_pts and not resp_pts:
+                return {
+                    "data": [],
+                    "layout": {
+                        "paper_bgcolor": "rgba(0,0,0,0)",
+                        "plot_bgcolor":  "rgba(0,0,0,0)",
+                        "annotations": [{
+                            "text": "No TCP sequence data (may be UDP or incomplete capture)",
+                            "xref": "paper", "yref": "paper", "x": 0.5, "y": 0.5,
+                            "showarrow": False, "font": {"color": "#8b949e", "size": 12},
+                        }],
+                    }
+                }
+
+            init_pts.sort(key=lambda p: p[0])
+            resp_pts.sort(key=lambda p: p[0])
+
+            src_label = f"{session.get('initiator_ip','?')}:{session.get('initiator_port','?')}"
+            dst_label = f"{session.get('responder_ip','?')}:{session.get('responder_port','?')}"
+            protocol  = session.get("protocol", "TCP")
+
             # SEQ vs ACK — normalize both axes to remove ISN offset
             def isn(pts, idx): return min(p[idx] for p in pts) if pts else 0
             init_seq_isn = isn(init_pts, 1);  init_ack_isn = isn(init_pts, 2) if any(p[2] > 0 for p in init_pts) else 0
@@ -127,40 +193,6 @@ class SeqAckTimelineChart(ResearchChart):
             xaxis_title = "ACK (bytes relative to ISN)"
             yaxis_title = "SEQ (bytes relative to ISN)"
             chart_title = f"SEQ vs ACK — {protocol}  {src_label}"
-        else:
-            # Bytes-sent vs time (default)
-            all_ts = [p[0] for p in init_pts + resp_pts]
-            t0 = min(all_ts) if all_ts else 0
-
-            def normalize_time(pts):
-                if not pts: return [], []
-                isn = min(s for _, s, _ in pts)
-                return [round(t - t0, 3) for t, _, _ in pts], [s - isn for _, s, _ in pts]
-
-            traces = []
-            if init_pts:
-                xs, ys = normalize_time(init_pts)
-                traces.append({
-                    "type": "scatter", "mode": "lines+markers",
-                    "name": f"Initiator ({src_label})",
-                    "x": xs, "y": ys,
-                    "line":   {"color": "#3fb950", "width": 1.5},
-                    "marker": {"color": "#3fb950", "size": 4, "opacity": 0.7, "line": {"width": 0}},
-                    "hovertemplate": "t+%{x:.3f}s  SEQ+%{y:,}<extra>Initiator</extra>",
-                })
-            if resp_pts:
-                xs, ys = normalize_time(resp_pts)
-                traces.append({
-                    "type": "scatter", "mode": "lines+markers",
-                    "name": f"Responder ({dst_label})",
-                    "x": xs, "y": ys,
-                    "line":   {"color": "#58a6ff", "width": 1.5},
-                    "marker": {"color": "#58a6ff", "size": 4, "opacity": 0.7, "line": {"width": 0}},
-                    "hovertemplate": "t+%{x:.3f}s  SEQ+%{y:,}<extra>Responder</extra>",
-                })
-            xaxis_title = "Time (seconds from session start)"
-            yaxis_title = "Bytes sent (relative to ISN)"
-            chart_title = f"Seq Timeline — {protocol}  {src_label}"
 
         layout = {
             "paper_bgcolor": "rgba(0,0,0,0)",

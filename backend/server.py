@@ -15,6 +15,7 @@ import time
 import uuid
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import tempfile
 from pathlib import Path
 from typing import Optional, List
@@ -56,11 +57,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("swifteye")
 
+# Rotating file handler: 10MB max per file, keep 5 backups
+_log_file = Path(__file__).parent / "swifteye.log"
+_rfh = RotatingFileHandler(_log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8")
+_rfh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+_rfh.setLevel(logging.INFO)
+logging.getLogger("swifteye").addHandler(_rfh)
+logging.getLogger("uvicorn.error").addHandler(_rfh)
+
 # ── App ──────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="SwiftEye",
     description="Network Traffic Visualization Platform",
-    version="0.9.53",
+    version="0.9.81",
 )
 
 app.add_middleware(
@@ -105,6 +114,7 @@ _dynamic_register([
     ("research.dns_timeline",          "DNSTimeline"),
     ("research.ja3_timeline",          "JA3Timeline"),
     ("research.ja4_timeline",          "JA4Timeline"),
+    ("research.http_ua_timeline",       "HTTPUserAgentTimeline"),
 ], register_chart, "research chart")
 
 # ── Payload preview helpers ─────────────────────────────────────────────────
@@ -134,6 +144,38 @@ def _payload_hex(data: bytes) -> str:
 
 def _payload_ascii(data: bytes) -> str:
     return ""  # ASCII is now embedded in the hex dump rows; no longer served separately
+
+
+def _payload_entropy(data: bytes) -> dict:
+    """
+    Compute Shannon entropy of payload bytes and classify it.
+
+    Returns {value, label, min_bytes} or empty dict if too few bytes.
+    Minimum 16 bytes for a meaningful reading.
+    """
+    if not data or len(data) < 16:
+        return {}
+    import math
+    from collections import Counter
+    counts = Counter(data)
+    length = len(data)
+    entropy = -sum((c / length) * math.log2(c / length) for c in counts.values())
+    entropy = round(entropy, 2)
+
+    if entropy < 1.0:
+        label = "Structured/repetitive"
+    elif entropy < 3.5:
+        label = "Low entropy (structured binary)"
+    elif entropy < 5.0:
+        label = "Text/markup"
+    elif entropy < 6.5:
+        label = "Mixed/encoded"
+    elif entropy < 7.5:
+        label = "High entropy (compressed)"
+    else:
+        label = "Likely encrypted/compressed"
+
+    return {"value": entropy, "label": label, "byte_count": length}
 
 
 # ── Capture State (in-memory, single-user) ───────────────────────────────
@@ -249,6 +291,7 @@ class CaptureStore:
                     "payload_hex":   _payload_hex(pkt.payload_preview),
                     "payload_ascii": _payload_ascii(pkt.payload_preview),
                     "payload_bytes": pkt.payload_preview.hex() if pkt.payload_preview else "",
+                    "payload_entropy": _payload_entropy(pkt.payload_preview),
                 })
                 count += 1
                 if count >= limit:
@@ -482,6 +525,7 @@ async def get_graph(
     time_start: Optional[float] = None,
     time_end: Optional[float] = None,
     protocols: Optional[str] = None,
+    protocol_filters: Optional[str] = None,  # composite keys: "4/TCP/HTTPS,6/UDP/DNS,..."
     ip_filter: str = "",
     port_filter: str = "",
     flag_filter: str = "",
@@ -503,6 +547,10 @@ async def get_graph(
     proto_set = None
     if protocols:
         proto_set = set(protocols.split(","))
+
+    pf_set = None
+    if protocol_filters:
+        pf_set = set(protocol_filters.split(","))
 
     # Build entity map from node merger if any strategy is active
     entity_map = {}
@@ -533,6 +581,7 @@ async def get_graph(
         store.packets,
         time_range=time_range,
         protocols=proto_set,
+        protocol_filters=pf_set,
         ip_filter=ip_filter,
         port_filter=port_filter,
         flag_filter=flag_filter,
@@ -603,11 +652,21 @@ def _enrich_nodes_with_plugins(nodes: list, plugin_results: dict):
         if node_plugin_data:
             node["plugin_data"] = node_plugin_data
 
-        # Flat os_guess: use the first IP in the node that has a fingerprint
+        # Flat os_guess: start from OS fingerprint, then let network role override.
         for ip in node.get("ips", [node.get("id")]):
             if ip in os_fp_map:
                 node["os_guess"] = os_fp_map[ip]
                 break
+
+        # Gateway override: if the network_map plugin identified this node as a
+        # gateway/router, os_guess becomes "Network device (gateway)" regardless
+        # of what the OS fingerprint found. Rationale: a Linux-based Ubiquiti or
+        # OpenWrt router should filter as "Network device", not "Linux". The OS
+        # fingerprint details remain in the plugin section for researchers who
+        # want to see the underlying stack.
+        role_data = node.get("plugin_data", {}).get("network_role", {})
+        if isinstance(role_data, dict) and role_data.get("role") == "gateway":
+            node["os_guess"] = "Network device (gateway)"
 
 
 def _looks_like_ip_keyed(d: dict) -> bool:

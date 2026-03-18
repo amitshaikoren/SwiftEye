@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.9.53 | March 2026**
+**Version 0.9.81 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -63,7 +63,12 @@ swifteye/
 │   │       ├── dissect_ssh.py       # SSH: banner version, software, client heuristic
 │   │       ├── dissect_ftp.py       # FTP: commands, username, filenames, credential flag
 │   │       ├── dissect_dhcp.py      # DHCP: hostname, vendor class, msg type, IPs
-│   │       └── dissect_smb.py       # SMB v1/v2/v3: command, status, share path, filename
+│   │       ├── dissect_smb.py       # SMB v1/v2/v3: command, status, share path, filename
+│   │       ├── dissect_smtp.py      # SMTP: EHLO, MAIL FROM, RCPT TO, AUTH, STARTTLS
+│   │       ├── dissect_mdns.py      # mDNS: service discovery, SRV, TXT records
+│   │       ├── dissect_ssdp.py      # SSDP/UPnP: M-SEARCH, NOTIFY, ST, USN, Location
+│   │       ├── dissect_llmnr.py     # LLMNR: queries, answers (DNS wire format on port 5355)
+│   │       └── dissect_dcerpc.py   # DCE/RPC: packet type, interface UUID, service name, opnum
 │   ├── analysis/                    # LAYER 2: Structural data organisation
 │   │   ├── aggregator.py            # Graph building, filtering, entity_map, OUI+JA3 lookup
 │   │   ├── sessions.py              # Session reconstruction + per-protocol aggregation
@@ -88,7 +93,8 @@ swifteye/
 │       ├── conversation_timeline.py # Peers of target IP over time
 │       ├── ttl_over_time.py         # TTL between two peers, both directions
 │       ├── session_gantt.py         # Session Gantt chart (Timeline page only)
-│       └── seq_ack_timeline.py      # TCP seq/ack numbers over time for a session
+│       ├── seq_ack_timeline.py      # TCP seq/ack numbers over time for a session
+│       └── http_ua_timeline.py      # HTTP requests over time, coloured by User-Agent
 ├── frontend/
 │   ├── package.json
 │   ├── vite.config.js               # chunkSizeWarningLimit: 1024 (D3 + OUI table = ~900KB)
@@ -339,6 +345,11 @@ Max file size: 500MB. Max packets: 2M. Dissector exceptions are caught and logge
 | `dissect_ftp.py` | FTP | `ftp_command`, `ftp_arg`, `ftp_response_code`, `ftp_username`, `ftp_transfer_file`, `ftp_has_credentials`, `ftp_server_banner` |
 | `dissect_dhcp.py` | DHCP | `dhcp_msg_type`, `dhcp_hostname`, `dhcp_vendor_class`, `dhcp_requested_ip`, `dhcp_offered_ip`, `dhcp_server_ip`, `dhcp_param_list`, `dhcp_domain`, `dhcp_bootfile` |
 | `dissect_smb.py` | SMB | `smb_version` (SMBv1/v2/v3), `smb_command`, `smb_status`, `smb_status_name`, `smb_tree_path`, `smb_filename`, `smb_dialect`, `smb_is_request` |
+| `dissect_smtp.py` | SMTP | `smtp_command`, `smtp_ehlo_domain`, `smtp_mail_from`, `smtp_rcpt_to`, `smtp_response_code`, `smtp_banner`, `smtp_auth_mechanism`, `smtp_has_auth`, `smtp_has_starttls` |
+| `dissect_mdns.py` | mDNS | `mdns_query`, `mdns_qtype`, `mdns_qr`, `mdns_answers`, `mdns_service_type`, `mdns_service_name`, `mdns_hostname`, `mdns_port`, `mdns_txt_records` |
+| `dissect_ssdp.py` | SSDP/UPnP | `ssdp_method`, `ssdp_st`, `ssdp_usn`, `ssdp_location`, `ssdp_server`, `ssdp_nts`, `ssdp_nt`, `ssdp_mx`, `ssdp_user_agent` |
+| `dissect_llmnr.py` | LLMNR | `llmnr_query`, `llmnr_qtype`, `llmnr_qr`, `llmnr_answers`, `llmnr_tc` |
+| `dissect_dcerpc.py` | DCE/RPC | `dcerpc_version`, `dcerpc_packet_type`, `dcerpc_call_id`, `dcerpc_interface_uuid`, `dcerpc_interface_name`, `dcerpc_opnum` |
 
 **Adding a new dissector:**
 

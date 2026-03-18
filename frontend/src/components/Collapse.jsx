@@ -1,20 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useContext, createContext } from 'react';
 
-export default function Collapse({ title, children, open: defaultOpen = false }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+// Context for per-panel collapse state persistence
+// Value: { state: Map<string, boolean>, toggle: (title) => void }
+// Map stores explicitly toggled titles → open/closed.
+// Titles NOT in the map fall back to the component's `open` prop default.
+export const CollapseContext = createContext(null);
+
+export default function Collapse({ title, children, open: defaultOpen = false, level }) {
+  const ctx = useContext(CollapseContext);
+  // If context has an explicit entry for this title, use it; otherwise use defaultOpen
+  const externalOpen = ctx ? (ctx.state.has(title) ? ctx.state.get(title) : defaultOpen) : undefined;
+  const [localOpen, setLocalOpen] = useState(defaultOpen);
+  useEffect(() => { setLocalOpen(defaultOpen); }, [defaultOpen]);
+
+  const isOpen = externalOpen !== undefined ? externalOpen : localOpen;
+  const handleToggle = () => {
+    if (ctx) { ctx.toggle(title, !isOpen); }
+    else { setLocalOpen(!localOpen); }
+  };
+
+  const isLayer = level === 'layer';
 
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div style={{ marginBottom: isLayer ? 10 : 8 }}>
       <div
         className="ch"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         style={{
-          fontSize: 10,
+          fontSize: isLayer ? 11 : 10,
           fontWeight: 600,
           textTransform: 'uppercase',
-          letterSpacing: '.1em',
-          color: 'var(--txM)',
+          letterSpacing: isLayer ? '.08em' : '.1em',
+          color: isLayer ? 'var(--tx)' : 'var(--txM)',
           marginBottom: isOpen ? 6 : 0,
+          cursor: 'pointer',
+          ...(isLayer ? { marginTop: 14, paddingBottom: 4, borderBottom: '1px solid var(--bd)' } : {}),
         }}
       >
         <span

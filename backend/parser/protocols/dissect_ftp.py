@@ -100,6 +100,12 @@ def _extract(payload: bytes) -> Dict[str, Any]:
                     filename = arg_raw.decode(errors="replace").strip()
                     info["ftp_arg"] = filename
                     info["ftp_transfer_file"] = filename
+                elif verb in (b"PORT", b"EPRT"):
+                    info["ftp_transfer_mode"] = "active"
+                    if arg_raw:
+                        info["ftp_arg"] = arg_raw.decode(errors="replace").strip()[:200]
+                elif verb in (b"PASV", b"EPSV"):
+                    info["ftp_transfer_mode"] = "passive"
                 elif arg_raw:
                     info["ftp_arg"] = arg_raw.decode(errors="replace").strip()[:200]
                 break

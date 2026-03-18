@@ -2,264 +2,450 @@
 Compact OUI (Organizationally Unique Identifier) lookup.
 
 Maps the first 3 bytes of a MAC address (the OUI prefix) to a vendor name.
-This is a curated subset of the IEEE OUI registry covering the most common
-vendors seen in network captures.
+Focused on vendors most relevant to security research: Microsoft ecosystem
+(Windows OEMs), network infrastructure, virtual machines, and printers.
 
 Usage:
     from parser.oui import lookup_vendor
-    vendor = lookup_vendor("aa:bb:cc:dd:ee:ff")  # returns "Apple" or ""
+    vendor = lookup_vendor("aa:bb:cc:dd:ee:ff")  # returns "Intel" or ""
 """
-
-from typing import Optional
 
 # OUI → vendor name. Keys are uppercase 6-char hex strings (no colons).
 _OUI: dict = {
-    # Apple
-    "000393": "Apple", "000502": "Apple", "000A27": "Apple", "000A95": "Apple",
-    "000D93": "Apple", "001124": "Apple", "0016CB": "Apple", "001731": "Apple",
-    "001921": "Apple", "001B63": "Apple", "001CB3": "Apple", "001E52": "Apple",
-    "001EC2": "Apple", "001F5B": "Apple", "001FF3": "Apple", "0021E9": "Apple",
-    "002241": "Apple", "002312": "Apple", "002500": "Apple", "00264B": "Apple",
-    "003065": "Apple", "0050E4": "Apple", "006171": "Apple", "088665": "Apple",
-    "0C1539": "Apple", "0C4DE9": "Apple", "0C74C2": "Apple", "0CABF0": "Apple",
-    "100005": "Apple", "10DDB1": "Apple", "1499E2": "Apple", "18AF61": "Apple",
-    "1C1AC0": "Apple", "1C5CF2": "Apple", "205AE5": "Apple", "20C9D0": "Apple",
-    "241EEB": "Apple", "28CFE9": "Apple", "2CF0EE": "Apple", "34159E": "Apple",
-    "38484C": "Apple", "3C0754": "Apple", "3C15C2": "Apple", "40A6D9": "Apple",
-    "44D884": "Apple", "48437C": "Apple", "4C57CA": "Apple", "4C8D79": "Apple",
-    "5C969D": "Apple", "60334B": "Apple", "60F4CA": "Apple", "64B9E8": "Apple",
-    "682A7E": "Apple", "6C4008": "Apple", "6C709F": "Apple", "70700D": "Apple",
-    "74E2F5": "Apple", "788FCA": "Apple", "7CC537": "Apple", "8466BB": "Apple",
-    "8C0014": "Apple", "8C2DAA": "Apple", "8C7B9D": "Apple", "8CC8CD": "Apple",
-    "90278B": "Apple", "9060F1": "Apple", "94BF2D": "Apple", "94F6A3": "Apple",
-    "9C20AE": "Apple", "A41F72": "Apple", "A4B197": "Apple", "A8BE27": "Apple",
-    "A8FAD8": "Apple", "ACBC32": "Apple", "B065BD": "Apple", "B418D1": "Apple",
-    "B4F0AB": "Apple", "B8782E": "Apple", "B8E856": "Apple", "BC926B": "Apple",
-    "C82A14": "Apple", "C86F1D": "Apple", "CC29F5": "Apple", "CC3A61": "Apple",
-    "D0254E": "Apple", "D02B20": "Apple", "D49A20": "Apple", "D8004D": "Apple",
-    "D8A25E": "Apple", "DC2B2A": "Apple", "DCA904": "Apple", "E0B52D": "Apple",
-    "E0C767": "Apple", "F0B479": "Apple", "F0D1A9": "Apple", "F40F24": "Apple",
-    "F4F15A": "Apple", "F81EDF": "Apple", "F8F0FA": "Apple",
-    # Cisco
-    "000142": "Cisco", "00017D": "Cisco", "0001C7": "Cisco", "000216": "Cisco",
-    "00023D": "Cisco", "000268": "Cisco", "00024A": "Cisco", "000295": "Cisco",
-    "0002B9": "Cisco", "0002FC": "Cisco", "000301": "Cisco", "000304": "Cisco",
-    "00030F": "Cisco", "000340": "Cisco", "00034B": "Cisco", "000360": "Cisco",
-    "0003E3": "Cisco", "0003FE": "Cisco", "000476": "Cisco", "0004C0": "Cisco",
-    "0004DD": "Cisco", "000503": "Cisco", "000506": "Cisco", "00058A": "Cisco",
-    "0005DC": "Cisco", "0005DD": "Cisco", "0006C1": "Cisco", "000702": "Cisco",
-    "000794": "Cisco", "0007B3": "Cisco", "0007EB": "Cisco", "000815": "Cisco",
-    "0009B7": "Cisco", "000A2B": "Cisco", "000A41": "Cisco", "000A42": "Cisco",
-    "000A8A": "Cisco", "000AB9": "Cisco", "000B45": "Cisco", "000B46": "Cisco",
-    "000B5F": "Cisco", "000B60": "Cisco", "000BBE": "Cisco", "000BBF": "Cisco",
-    "000C30": "Cisco", "000D29": "Cisco", "000D65": "Cisco", "000E08": "Cisco",
-    "000E38": "Cisco", "000E83": "Cisco", "000E84": "Cisco", "000E8F": "Cisco",
-    "001201": "Cisco", "001706": "Cisco", "001B0D": "Cisco", "001B2A": "Cisco",
-    "001D45": "Cisco", "0021A0": "Cisco", "0022BE": "Cisco", "002290": "Cisco",
-    "0026CB": "Cisco", "0050A2": "Cisco", "005080": "Cisco", "00E014": "Cisco",
-    "00E0F9": "Cisco", "00E0FE": "Cisco", "040978": "Cisco", "08CC68": "Cisco",
-    "2C3124": "Cisco", "3C0EA4": "Cisco", "44D3CA": "Cisco", "4C00B1": "Cisco",
-    "54781A": "Cisco", "5C5015": "Cisco", "60454C": "Cisco", "6C2006": "Cisco",
-    "70105C": "Cisco", "788A20": "Cisco", "7C0E0C": "Cisco", "84802D": "Cisco",
-    "8CB64F": "Cisco", "8CF761": "Cisco", "B4140B": "Cisco", "B4A4E3": "Cisco",
-    "C4648A": "Cisco", "CC161B": "Cisco", "D8B19A": "Cisco", "E84F25": "Cisco",
-    "EC3010": "Cisco", "F0799E": "Cisco", "F46B42": "Cisco",
-    # Intel
-    "000347": "Intel", "000764": "Intel", "000EA6": "Intel", "001111": "Intel",
-    "0011D8": "Intel", "001320": "Intel", "00134A": "Intel", "001517": "Intel",
-    "00166F": "Intel", "001676": "Intel", "001C7F": "Intel", "001DBE": "Intel",
-    "001E64": "Intel", "001E67": "Intel", "001F3B": "Intel", "001F3C": "Intel",
-    "001FE1": "Intel", "002185": "Intel", "002219": "Intel", "00226B": "Intel",
-    "002A10": "Intel", "003048": "Intel", "0040B6": "Intel", "00A0C9": "Intel",
-    "00E04C": "Intel", "10028A": "Intel", "1065FE": "Intel", "1063EB": "Intel",
-    "18604A": "Intel", "1C3E84": "Intel", "24FD52": "Intel", "28D244": "Intel",
-    "34F64B": "Intel", "3C970E": "Intel", "40167E": "Intel", "44850E": "Intel",
-    "4801D5": "Intel", "5404A6": "Intel", "5CF951": "Intel", "60673A": "Intel",
-    "7085C2": "Intel", "70886B": "Intel", "748DC4": "Intel", "7C7A91": "Intel",
-    "80191D": "Intel", "8086F2": "Intel", "84691A": "Intel", "8478AC": "Intel",
-    "88532E": "Intel", "8C104F": "Intel", "940C6D": "Intel", "98E743": "Intel",
-    "A0388F": "Intel", "A0C589": "Intel", "A4C494": "Intel", "A81B5A": "Intel",
-    "AC7F3E": "Intel", "B0A4E4": "Intel", "B4E1B3": "Intel", "C47BA8": "Intel",
-    "C898E6": "Intel", "D025E9": "Intel", "D04F7E": "Intel", "D850E6": "Intel",
-    "E0946F": "Intel", "E4B021": "Intel", "F4060D": "Intel", "F8341F": "Intel",
-    # Samsung
-    "0007AB": "Samsung", "000D7B": "Samsung", "001247": "Samsung", "0015B9": "Samsung",
-    "0016DB": "Samsung", "001799": "Samsung", "0021D2": "Samsung", "002399": "Samsung",
-    "0024E9": "Samsung", "002637": "Samsung", "0026E2": "Samsung", "1065F9": "Samsung",
-    "1C62B8": "Samsung", "20D390": "Samsung", "2C4401": "Samsung", "34145F": "Samsung",
-    "380195": "Samsung", "3C6200": "Samsung", "3C8BFE": "Samsung", "401C83": "Samsung",
-    "4844F7": "Samsung", "4C2D96": "Samsung", "4C3C16": "Samsung", "50AEB8": "Samsung",
-    "5483BF": "Samsung", "54881E": "Samsung", "5C9960": "Samsung", "5CDD70": "Samsung",
-    "60036E": "Samsung", "6006E6": "Samsung", "6C2F2C": "Samsung", "6C8336": "Samsung",
-    "700514": "Samsung", "74458A": "Samsung", "7825AD": "Samsung", "78407D": "Samsung",
-    "804E81": "Samsung", "84257B": "Samsung", "8425DB": "Samsung", "88329B": "Samsung",
-    "8CB3A7": "Samsung", "8C7712": "Samsung", "900628": "Samsung", "9849A5": "Samsung",
-    "9C0299": "Samsung", "A04299": "Samsung", "A0C5F2": "Samsung", "A4EB75": "Samsung",
-    "B047BF": "Samsung", "BC20A4": "Samsung", "BC4486": "Samsung", "C06399": "Samsung",
-    "C4731E": "Samsung", "C8619A": "Samsung", "CC070C": "Samsung", "D0176A": "Samsung",
-    "D0B310": "Samsung", "D0DFC7": "Samsung", "D487D8": "Samsung", "D4E8B2": "Samsung",
-    "D8E0E1": "Samsung", "E4F8EF": "Samsung", "EC1F72": "Samsung", "F025B7": "Samsung",
-    "F0BF97": "Samsung", "F07E33": "Samsung", "F47B5E": "Samsung", "F4D9FB": "Samsung",
-    # Dell
- "000874": "Dell", "000D56": "Dell", "001143": "Dell",
-    "00188B": "Dell", "001E4F": "Dell", "0021F6": "Dell", "00226B": "Dell",
-    "001A4B": "Dell", "002564": "Dell",
- "18FB7B": "Dell",
-    "242C64": "Dell", "2CD05A": "Dell", "344DE0": "Dell", "44A842": "Dell",
-    "484DFE": "Dell", "4C2B47": "Dell", "5C261E": "Dell", "5CF9DD": "Dell",
-    "848F69": "Dell", "B0839C": "Dell", "BCAEC5": "Dell", "C81F66": "Dell",
-    "D4BED9": "Dell", "D8F2CA": "Dell", "F0B4D2": "Dell", "F8BC12": "Dell",
-    # HP / HPE
-    "001083": "HP", "001321": "HP", "001560": "HP", "001635": "HP",
-    "001708": "HP", "001AA0": "HP", "001E0B": "HP", "001F29": "HP",
-    "002170": "HP", "00248C": "HP", "0025B3": "HP", "002660": "HP",
-    "0030C1": "HP", "00508B": "HP", "006067": "HP", "00A0D1": "HP",
-    "00E066": "HP", "14DAE9": "HP", "1C98EC": "HP", "206A8A": "HP",
-    "28924A": "HP", "2C41BC": "HP", "3CDAFF": "HP", "3C4AF8": "HP",
-    "40B034": "HP", "488DA3": "HP", "48DF37": "HP", "5C8A38": "HP",
-    "5CB901": "HP", "64316A": "HP", "680936": "HP", "6CE877": "HP",
-    "94571A": "HP", "9CB654": "HP", "A0B3CC": "HP", "A6372A": "HP",
-    "D8D385": "HP", "EC8EB5": "HP",
-    # VMware
-    "000C29": "VMware", "000569": "VMware", "001C14": "VMware",
-    "005056": "VMware",
+    # ══════════════════════════════════════════════════════════════════════
     # Microsoft
-    "000D3A": "Microsoft", "001DD8": "Microsoft", "002248": "Microsoft",
-    "0050F2": "Microsoft", "485073": "Microsoft", "5C83BF": "Microsoft",
-    "60457F": "Microsoft", "7C1E52": "Microsoft",
-    # Google
-    "001A11": "Google", "3C5AB4": "Google", "54521E": "Google", "6C40B8": "Google",
-    "8C8590": "Google", "A47733": "Google", "D4F57D": "Google", "F4F5D8": "Google",
-    # Amazon / AWS
-    "0A2342": "Amazon", "123456": "Amazon",
-    # Raspberry Pi
-    "B827EB": "Raspberry Pi", "DC:A6:32": "Raspberry Pi", "E4:5F:01": "Raspberry Pi",
-    "DCA632": "Raspberry Pi", "E45F01": "Raspberry Pi",
-    # Ubiquiti
-    "002722": "Ubiquiti", "0418D6": "Ubiquiti", "24A43C": "Ubiquiti",
-    "44D9E7": "Ubiquiti", "68722D": "Ubiquiti", "788A20": "Ubiquiti",
-    "80211B": "Ubiquiti", "B4FBE4": "Ubiquiti", "DC9FDB": "Ubiquiti",
-    "F09FC2": "Ubiquiti", "FCECDA": "Ubiquiti",
-    # TP-Link
-    "1062EB": "TP-Link", "14CC20": "TP-Link", "18D61C": "TP-Link",
-    "1C3BF3": "TP-Link", "284D43": "TP-Link", "2CBE08": "TP-Link",
-    "30B5C2": "TP-Link", "3C52A1": "TP-Link", "50C7BF": "TP-Link",
-    "54AF97": "TP-Link", "5C89B2": "TP-Link", "60E327": "TP-Link",
-    "7486E2": "TP-Link", "84162C": "TP-Link", "94D9B3": "TP-Link",
-    "A42BB0": "TP-Link", "B0487A": "TP-Link", "C006C3": "TP-Link",
-    "C46E1F": "TP-Link", "D46AA8": "TP-Link", "E03F49": "TP-Link",
-    "EC086B": "TP-Link", "F4F26D": "TP-Link",
-    # Netgear
-    "000FB5": "Netgear", "001B2F": "Netgear", "001E2A": "Netgear",
-    "002096": "Netgear", "0022B0": "Netgear", "0026F2": "Netgear",
-    "00A040": "Netgear", "10DA43": "Netgear", "20E52A": "Netgear",
-    "28C68E": "Netgear", "30469A": "Netgear", "44944F": "Netgear",
-    "4C60DE": "Netgear", "6031F2": "Netgear", "6CB0CE": "Netgear",
-    "749D8F": "Netgear", "8452E1": "Netgear", "A021B7": "Netgear",
-    "C03F0E": "Netgear", "C4048A": "Netgear",
-    # Aruba / HP Wireless
-    "000B86": "Aruba", "001A1E": "Aruba", "002498": "Aruba", "40E3D6": "Aruba",
-    "6CB311": "Aruba", "70888B": "Aruba", "84D47E": "Aruba", "9480AD": "Aruba",
-    "AC:A3:1E": "Aruba", "ACA31E": "Aruba", "D868C3": "Aruba",
-    # Juniper
-    "001409": "Juniper", "0019E2": "Juniper", "001FB4": "Juniper",
-    "00214F": "Juniper", "002197": "Juniper", "0023CA": "Juniper",
-    "002438": "Juniper", "00269D": "Juniper", "0050FE": "Juniper",
-    "0C8680": "Juniper", "18178B": "Juniper", "28C001": "Juniper",
-    "4C9641": "Juniper", "6480B3": "Juniper", "7829F9": "Juniper",
-    "88A2D7": "Juniper", "A4ACA1": "Juniper", "B47876": "Juniper",
-    # Fortinet
-    "000AF4": "Fortinet", "00090F": "Fortinet", "001871": "Fortinet",
-    "0024E7": "Fortinet", "70720D": "Fortinet", "A806EA": "Fortinet",
-    # Palo Alto
-    "001B17": "Palo Alto", "1C18A0": "Palo Alto",
+    # ══════════════════════════════════════════════════════════════════════
+    "0003FF": "Microsoft", "0050F2": "Microsoft", "00155D": "Microsoft HV",
+    "000D3A": "Microsoft HV", "28187D": "Microsoft", "485B39": "Microsoft",
+    "60455E": "Microsoft", "7CED8D": "Microsoft", "B83A5A": "Microsoft",
+    "C83DD4": "Microsoft", "CC9E00": "Microsoft", "D83BBF": "Microsoft",
+    "DC5360": "Microsoft", "001DD8": "Microsoft",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Intel — most common NIC vendor in Windows PCs / laptops
+    # ══════════════════════════════════════════════════════════════════════
+    "001111": "Intel", "001302": "Intel", "001500": "Intel", "001517": "Intel",
+    "001CC0": "Intel", "001E64": "Intel", "001E65": "Intel", "001E67": "Intel",
+    "001F3B": "Intel", "001F3C": "Intel", "002314": "Intel", "002618": "Intel",
+    "003000": "Intel", "003EE1": "Intel", "0050F1": "Intel", "00A0C9": "Intel",
+    "081196": "Intel", "083E8E": "Intel", "084E1C": "Intel", "08D40C": "Intel",
+    "0C7A15": "Intel", "100BA9": "Intel", "103B59": "Intel", "14ABC5": "Intel",
+    "1802AE": "Intel", "18DB3C": "Intel", "1C1BB5": "Intel", "1C6F65": "Intel",
+    "1CCCA3": "Intel", "206374": "Intel", "2477FC": "Intel", "284C77": "Intel",
+    "288023": "Intel", "2C0E3D": "Intel", "2C3361": "Intel", "2C4138": "Intel",
+    "309C23": "Intel", "30B49E": "Intel", "3413E8": "Intel", "34028B": "Intel",
+    "34CF80": "Intel", "38BA58": "Intel", "380F4A": "Intel", "3C18A0": "Intel",
+    "3C6AA7": "Intel", "3C9509": "Intel", "3CA067": "Intel", "3CE1A1": "Intel",
+    "40743E": "Intel", "4085F6": "Intel", "44032C": "Intel", "48B02D": "Intel",
+    "484D7E": "Intel", "4C34CB": "Intel", "4CEB42": "Intel", "50E085": "Intel",
+    "5489A2": "Intel", "54BF64": "Intel", "5820B1": "Intel", "5C5F67": "Intel",
+    "5CCF7F": "Intel", "5CE0C5": "Intel", "60D819": "Intel", "60F262": "Intel",
+    "643476": "Intel", "6805CA": "Intel", "6C29D2": "Intel", "6C88CB": "Intel",
+    "7077A9": "Intel", "70185E": "Intel", "745D22": "Intel", "748114": "Intel",
+    "7483C8": "Intel", "7C7A91": "Intel", "7C8AE1": "Intel", "80000B": "Intel",
+    "80C5F2": "Intel", "80CE62": "Intel", "847BEB": "Intel", "849D16": "Intel",
+    "88B4A6": "Intel", "8C8D28": "Intel", "906EBB": "Intel", "9402B3": "Intel",
+    "94659C": "Intel", "94B86D": "Intel", "94E6F7": "Intel", "9C2A83": "Intel",
+    "9CDA3E": "Intel", "A41142": "Intel", "A44CC8": "Intel", "A4340D": "Intel",
+    "A48880": "Intel", "A4C494": "Intel", "AC7BA1": "Intel", "B09BE7": "Intel",
+    "B46D83": "Intel", "B4969B": "Intel", "BC7737": "Intel", "BC77BF": "Intel",
+    "C87E75": "Intel", "CC2F71": "Intel", "D0C637": "Intel", "D46D6D": "Intel",
+    "D85DE2": "Intel", "DCA632": "Intel", "E00C7F": "Intel", "E0D55E": "Intel",
+    "E4A471": "Intel", "E4B318": "Intel", "E836BB": "Intel", "EC0ED6": "Intel",
+    "F40669": "Intel", "F48C50": "Intel", "F8167E": "Intel", "F87AEF": "Intel",
+    "FC3577": "Intel", "483D33": "Intel", "98AFC6": "Intel", "A0369F": "Intel",
+    "082E5F": "Intel", "D4258B": "Intel", "E8B1FC": "Intel", "B44BD2": "Intel",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Realtek — very common in consumer/budget NICs and USB adapters
+    # ══════════════════════════════════════════════════════════════════════
+    "001C25": "Realtek", "007F28": "Realtek", "0C5415": "Realtek",
+    "107880": "Realtek", "48E244": "Realtek", "500B32": "Realtek",
+    "6045CB": "Realtek", "9072E2": "Realtek", "B8A386": "Realtek",
+    "D86CE9": "Realtek", "E04F43": "Realtek", "E848B8": "Realtek",
+    "001731": "Realtek", "00E04C": "Realtek", "529A4C": "Realtek",
+    "A81B5A": "Realtek", "50A0B4": "Realtek",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Broadcom / Qualcomm / MediaTek — common wireless chipsets in laptops
+    # ══════════════════════════════════════════════════════════════════════
+    "001018": "Broadcom", "0010A7": "Broadcom", "001BE9": "Broadcom",
+    "00264D": "Broadcom", "0090D9": "Broadcom", "28CB5A": "Broadcom",
+    "A0F459": "Broadcom", "D86BF7": "Broadcom", "2067B1": "Broadcom",
+    "000E8E": "Qualcomm", "001306": "Qualcomm", "001A1E": "Qualcomm",
+    "001B3F": "Qualcomm", "001DBA": "Qualcomm", "0CB749": "Qualcomm",
+    "1C48CE": "Qualcomm", "34BB1F": "Qualcomm", "5CE0C5": "Qualcomm",
+    "785DC8": "Qualcomm", "8C7EB3": "Qualcomm",
+    "000CE7": "MediaTek", "001360": "MediaTek", "08152F": "MediaTek",
+    "1C1B68": "MediaTek", "501A2D": "MediaTek", "C08ADC": "MediaTek",
+    "D4B297": "MediaTek", "E8DE27": "MediaTek",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Dell
+    # ══════════════════════════════════════════════════════════════════════
+    "001422": "Dell", "001A4D": "Dell", "001C23": "Dell", "001D09": "Dell",
+    "001E4F": "Dell", "001E8C": "Dell", "002170": "Dell", "002219": "Dell",
+    "0024E8": "Dell", "00269E": "Dell", "00B0D0": "Dell", "0C8230": "Dell",
+    "109836": "Dell", "143E60": "Dell", "14187D": "Dell", "14B31F": "Dell",
+    "14FEB5": "Dell", "180373": "Dell", "18A99B": "Dell", "18DB43": "Dell",
+    "18FB7B": "Dell", "1C727A": "Dell", "24B6FD": "Dell", "280CF5": "Dell",
+    "2C768A": "Dell", "34E6D7": "Dell", "3417EB": "Dell", "38B1DB": "Dell",
+    "409FC6": "Dell", "4493C4": "Dell", "44A842": "Dell", "484DFE": "Dell",
+    "4C7625": "Dell", "508B4D": "Dell", "5C260A": "Dell", "646058": "Dell",
+    "6CB7F4": "Dell", "742857": "Dell", "749D8F": "Dell", "7845C4": "Dell",
+    "78AC44": "Dell", "7CF30D": "Dell", "8048EB": "Dell", "843835": "Dell",
+    "885A92": "Dell", "8C164D": "Dell", "8C473A": "Dell", "8C47BE": "Dell",
+    "90B11C": "Dell", "9480EB": "Dell", "980D2E": "Dell", "9840BB": "Dell",
+    "9C8E99": "Dell", "A41F72": "Dell", "A4BA8B": "Dell", "A4BBAF": "Dell",
+    "AC16E0": "Dell", "B083FE": "Dell", "B499BA": "Dell", "B82A72": "Dell",
+    "B85510": "Dell", "BC305B": "Dell", "C0C6E4": "Dell", "C81F66": "Dell",
+    "CC48EC": "Dell", "D067E5": "Dell", "D489E7": "Dell", "D4AE52": "Dell",
+    "D4BE97": "Dell", "D4BED9": "Dell", "D89402": "Dell", "E4F047": "Dell",
+    "F01FAF": "Dell", "F04DA2": "Dell", "F48E38": "Dell", "F8B156": "Dell",
+    "F8BC12": "Dell", "F8DB88": "Dell",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # HP / HPE
+    # ══════════════════════════════════════════════════════════════════════
+    "0001E6": "HP", "0001E7": "HP", "000396": "HP", "000802": "HP",
+    "000A57": "HP", "000BCD": "HP", "000E7F": "HP", "000EB3": "HP",
+    "000F20": "HP", "000F61": "HP", "001083": "HP", "0010E3": "HP",
+    "001185": "HP", "001321": "HP", "001560": "HP", "001635": "HP",
+    "001708": "HP", "001871": "HP", "001A4B": "HP", "001B78": "HP",
+    "001CC4": "HP", "001E0B": "HP", "001F29": "HP", "0021B7": "HP",
+    "002481": "HP", "0025B3": "HP", "0026F1": "HP", "002710": "HP",
+    "002890": "HP", "080009": "HP", "0C47C9": "HP", "10604B": "HP",
+    "1CC1DE": "HP", "1CC23D": "HP", "2C2317": "HP", "2C41A1": "HP",
+    "308D99": "HP", "3464A9": "HP", "388602": "HP", "38EAA7": "HP",
+    "3C4A92": "HP", "3C52A1": "HP", "3CA82A": "HP", "402CF4": "HP",
+    "4431C3": "HP", "48DF37": "HP", "501162": "HP", "5065F3": "HP",
+    "50EB71": "HP", "5CB901": "HP", "6476BA": "HP", "68B599": "HP",
+    "70106F": "HP", "740ABC": "HP", "7883C4": "HP", "7C5CF8": "HP",
+    "9457A5": "HP", "94B866": "HP", "985AEB": "HP", "9CB654": "HP",
+    "A02BB8": "HP", "A0D3C1": "HP", "A45630": "HP", "A4516F": "HP",
+    "AC162D": "HP", "B07D64": "HP", "B0A772": "HP", "B4B676": "HP",
+    "BC8893": "HP", "C06618": "HP", "C46044": "HP", "C8CBE8": "HP",
+    "CC3ADF": "HP", "D07E28": "HP", "D48564": "HP", "D4C94B": "HP",
+    "DC4A3E": "HP", "E4115B": "HP", "E8393C": "HP", "EC9A74": "HP",
+    "F092B4": "HP", "F430B9": "HP", "F4CE46": "HP", "FC15B4": "HP",
+    # HPE (server/network)
+    "0014C2": "HPE", "001708": "HPE", "3822D6": "HPE", "48DF37": "HPE",
+    "9457A5": "HPE", "A0B3CC": "HPE", "EC13DB": "HPE",
+
+    # ══════════════════════════════════════════════════════════════════════
     # Lenovo
-    "0003FF": "Lenovo", "001E8C": "Lenovo", "0021CC": "Lenovo",
-    "002264": "Lenovo", "00248D": "Lenovo", "0050C2": "Lenovo",
-    "1085F4": "Lenovo", "18CF5E": "Lenovo", "28D244": "Lenovo",
-    "34399E": "Lenovo", "38B1DB": "Lenovo", "40742C": "Lenovo",
-    "485AA5": "Lenovo", "4C7268": "Lenovo", "54EEF7": "Lenovo",
-    "70720D": "Lenovo", "74867A": "Lenovo", "88706E": "Lenovo",
-    "8C8DFF": "Lenovo", "90488A": "Lenovo", "948A3B": "Lenovo",
- "AC7BA1": "Lenovo", "B03AF2": "Lenovo",
-    "C47B4E": "Lenovo", "C81F66": "Lenovo", "D0BEC8": "Lenovo",
-    # ASUS
-    "0008A1": "ASUS", "000EA6": "ASUS", "001731": "ASUS", "001D60": "ASUS",
-    "002618": "ASUS", "002354": "ASUS", "107B44": "ASUS", "1C872C": "ASUS",
-    "1CB17C": "ASUS", "2C4D54": "ASUS", "30852F": "ASUS", "38D547": "ASUS",
-    "3C97DE": "ASUS", "403DEC": "ASUS", "48EE0C": "ASUS", "4CEDFB": "ASUS",
-    "60A44C": "ASUS", "6045CB": "ASUS", "6CFDEA": "ASUS", "742B62": "ASUS",
- "88D7F6": "ASUS", "90E6BA": "ASUS", "9C5C8E": "ASUS",
-    "AC220B": "ASUS", "B062E4": "ASUS", "BC9747": "ASUS", "C8606E": "ASUS",
-    "E03F49": "ASUS", "E0CB4E": "ASUS",
-    # Broadcom (common in phones/embedded)
-    "000AF7": "Broadcom", "001018": "Broadcom", "0026B9": "Broadcom",
-    "047D7B": "Broadcom", "CC3EA3": "Broadcom",
-    # Qualcomm / Atheros
-    "00037F": "Qualcomm/Atheros", "001374": "Qualcomm", "00265A": "Qualcomm",
-    "48A35C": "Qualcomm",
-    # Realtek
-    "0012CF": "Realtek", "001E8C": "Realtek", "005047": "Realtek",
-    "0CEB94": "Realtek", "10BF48": "Realtek", "30D316": "Realtek",
-    "40167E": "Realtek", "74DFBF": "Realtek", "7C1C4E": "Realtek",
-    "D072DC": "Realtek", "E0D55E": "Realtek",
-    # Murata (common in IoT/embedded WiFi)
-    "0C8BFD": "Murata", "3440B5": "Murata", "60D7E3": "Murata",
-    "74DA88": "Murata", "D86CE9": "Murata", "F032DC": "Murata",
-    # Espressif (ESP8266/ESP32 — very common in IoT)
-    "18FE34": "Espressif", "24B2DE": "Espressif", "2CF432": "Espressif",
-    "30AEA4": "Espressif", "3C71BF": "Espressif", "48:3F:DA": "Espressif",
-    "483FDA": "Espressif", "5CCF7F": "Espressif", "60019F": "Espressif",
-    "840D8E": "Espressif", "8CAA8E": "Espressif", "90973E": "Espressif",
-    "A020A6": "Espressif", "A4CF12": "Espressif", "AC67B2": "Espressif",
-    "B4E62D": "Espressif", "CC50E3": "Espressif", "CCEA14": "Espressif",
-    "D8BFC0": "Espressif", "E89F6D": "Espressif", "EC94CB": "Espressif",
-    "F4CFA2": "Espressif",
-    # ASUSTek / Pegatron (common in PCs)
-    "8C89A5": "Pegatron", "30857E": "Pegatron",
-    # VirtualBox
-    "080027": "VirtualBox",
-    # Xen
-    "00163E": "Xen",
-    # QEMU/KVM
+    # ══════════════════════════════════════════════════════════════════════
+    "008064": "Lenovo", "1C39D2": "Lenovo", "2C8158": "Lenovo",
+    "345760": "Lenovo", "38BAF8": "Lenovo", "440EA8": "Lenovo",
+    "500F80": "Lenovo", "5CF3FC": "Lenovo", "70720D": "Lenovo",
+    "74E50B": "Lenovo", "8C1645": "Lenovo", "8CB25D": "Lenovo",
+    "984BE1": "Lenovo", "C4346B": "Lenovo", "CCFB65": "Lenovo",
+    "E8E0B7": "Lenovo", "F03246": "Lenovo", "28D244": "Lenovo",
+    "6C7220": "Lenovo", "7872E4": "Lenovo", "9048BD": "Lenovo",
+    "98E743": "Lenovo", "B4692F": "Lenovo", "E04F43": "Lenovo",
+    "EC2A72": "Lenovo", "50EB71": "Lenovo",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # ASUS — motherboards, laptops
+    # ══════════════════════════════════════════════════════════════════════
+    "001A92": "ASUS", "001FC6": "ASUS", "002215": "ASUS", "00248C": "ASUS",
+    "049226": "ASUS", "04421A": "ASUS", "08606E": "ASUS", "086266": "ASUS",
+    "0C9D92": "ASUS", "1C872C": "ASUS", "2C4D54": "ASUS", "2C56DC": "ASUS",
+    "305A3A": "ASUS", "3085A9": "ASUS", "3497F6": "ASUS", "381428": "ASUS",
+    "40167E": "ASUS", "504E00": "ASUS", "50465D": "ASUS", "54A050": "ASUS",
+    "6045BD": "ASUS", "6CF5E8": "ASUS", "708BCD": "ASUS", "74D02B": "ASUS",
+    "788C54": "ASUS", "9C5C8E": "ASUS", "AC220B": "ASUS", "B06EBF": "ASUS",
+    "BC5FF4": "ASUS", "C86000": "ASUS", "D85D4C": "ASUS", "E03F49": "ASUS",
+    "F07959": "ASUS", "F46D04": "ASUS", "F832E4": "ASUS",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Acer / MSI / Gigabyte — other Windows OEMs
+    # ══════════════════════════════════════════════════════════════════════
+    "001195": "Acer", "18F46A": "Acer", "300167": "Acer", "502B73": "Acer",
+    "D0577B": "Acer", "FC4596": "Acer",
+    "0026CE": "MSI", "4006A0": "MSI", "D43D7E": "MSI", "8078CD": "MSI",
+    "001E67": "Gigabyte", "009C02": "Gigabyte", "E0D55E": "Gigabyte",
+    "502B73": "Gigabyte", "94DE80": "Gigabyte",
+    # Toshiba / Dynabook
+    "000B46": "Toshiba", "002693": "Toshiba", "3C970E": "Toshiba",
+    "4865EE": "Toshiba", "B88687": "Toshiba",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # VIRTUAL MACHINES
+    # ══════════════════════════════════════════════════════════════════════
+    "000C29": "VMware", "000569": "VMware", "005056": "VMware",
+    "001C14": "VMware",
+    "080027": "VirtualBox", "0A0027": "VirtualBox",
     "525400": "QEMU/KVM",
-    # Hyper-V
-    "000D3A": "Hyper-V", "0015B7": "Hyper-V",
-    # Huawei
-    "001882": "Huawei", "001E10": "Huawei", "002568": "Huawei",
-    "00259E": "Huawei", "0025AA": "Huawei", "000AE4": "Huawei",
-    "00A0D4": "Huawei", "100316": "Huawei", "1CB17C": "Huawei",
-    "20F311": "Huawei", "286ED4": "Huawei", "2C9EFC": "Huawei",
-    "30D17E": "Huawei", "346AC2": "Huawei", "380102": "Huawei",
- "44A19C": "Huawei", "485A3F": "Huawei",
-    "4CB16C": "Huawei", "4CD161": "Huawei", "505BAD": "Huawei",
-    "58605F": "Huawei", "5C4CA9": "Huawei", "60DE44": "Huawei",
-    "68A099": "Huawei", "6CAB31": "Huawei", "706655": "Huawei",
-    "787B8A": "Huawei", "7CB15D": "Huawei", "7CE0DC": "Huawei",
-    "882539": "Huawei", "8C34FD": "Huawei", "94049C": "Huawei",
-    "9800A7": "Huawei", "9CB2B2": "Huawei", "A4DCBE": "Huawei",
-    "AC853D": "Huawei", "ACEE9E": "Huawei", "B4430D": "Huawei",
-    "B4786B": "Huawei", "C469EE": "Huawei", "C488C9": "Huawei",
-    "C8D15E": "Huawei", "CC96A0": "Huawei", "D4401C": "Huawei",
-    "D46AA8": "Huawei", "D8490B": "Huawei", "DC729C": "Huawei",
-    "E0191D": "Huawei", "E04F43": "Huawei", "E8088B": "Huawei",
-    "EC23FD": "Huawei", "F44C7F": "Huawei", "F48145": "Huawei",
-    "F831EF": "Huawei", "FC3F7C": "Huawei",
-    # Sony
-    "001A80": "Sony", "001D0D": "Sony", "002618": "Sony", "0050F0": "Sony",
-    "001315": "Sony", "3CF872": "Sony", "A8E0AF": "Sony",
-    # LG Electronics
-    "001E75": "LG", "0021FB": "LG", "002483": "LG", "006F64": "LG",
-    "1025B5": "LG", "3451C9": "LG", "38AF29": "LG", "40B0FA": "LG",
-    "48599F": "LG", "AC0D1B": "LG", "C4434D": "LG",
-    # Xiaomi
-    "0016EB": "Xiaomi", "10DF0F": "Xiaomi", "1440B3": "Xiaomi",
-    "286C07": "Xiaomi", "2C5BB8": "Xiaomi",
-    "58440E": "Xiaomi", "5C9A1E": "Xiaomi", "64EB8C": "Xiaomi",
-    "7CF8DB": "Xiaomi", "8C0095": "Xiaomi", "9C9936": "Xiaomi",
-    "A45811": "Xiaomi",
- "D4970B": "Xiaomi",
-    "F0B429": "Xiaomi", "FC64BA": "Xiaomi",
+    "00163E": "Xen",
+    "7C1E52": "Microsoft HV",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # NETWORK INFRASTRUCTURE — Routers / Switches / APs / Firewalls
+    # ══════════════════════════════════════════════════════════════════════
+
+    # ── Cisco ──
+    "00000C": "Cisco", "000142": "Cisco", "0001C7": "Cisco", "000164": "Cisco",
+    "0002B9": "Cisco", "00036B": "Cisco", "0003FD": "Cisco", "0004DD": "Cisco",
+    "00055E": "Cisco", "000628": "Cisco", "0006D7": "Cisco", "0006F6": "Cisco",
+    "000740": "Cisco", "0007B3": "Cisco", "00082F": "Cisco", "000A41": "Cisco",
+    "000A42": "Cisco", "000A8A": "Cisco", "000B45": "Cisco", "000BFD": "Cisco",
+    "000D28": "Cisco", "000D65": "Cisco", "000DBC": "Cisco", "000DED": "Cisco",
+    "000E38": "Cisco", "000E83": "Cisco", "000ED7": "Cisco", "000F23": "Cisco",
+    "000F35": "Cisco", "000F8F": "Cisco", "00101F": "Cisco", "001011": "Cisco",
+    "001079": "Cisco", "0010F6": "Cisco", "00110A": "Cisco", "001195": "Cisco",
+    "001200": "Cisco", "001217": "Cisco", "001259": "Cisco", "0012D9": "Cisco",
+    "001315": "Cisco", "001319": "Cisco", "001438": "Cisco", "00146C": "Cisco",
+    "0014A9": "Cisco", "001557": "Cisco", "0015C6": "Cisco", "0015FA": "Cisco",
+    "001636": "Cisco", "001678": "Cisco", "0016C7": "Cisco", "001759": "Cisco",
+    "001795": "Cisco", "00180A": "Cisco", "001839": "Cisco", "001868": "Cisco",
+    "0018BA": "Cisco", "001906": "Cisco", "00192F": "Cisco", "00196C": "Cisco",
+    "0019AA": "Cisco", "001A2F": "Cisco", "001A30": "Cisco", "001A6C": "Cisco",
+    "001A6D": "Cisco", "001AE2": "Cisco", "001AE3": "Cisco", "001B2A": "Cisco",
+    "001B2B": "Cisco", "001B53": "Cisco", "001B54": "Cisco", "001B67": "Cisco",
+    "001BD4": "Cisco", "001BD5": "Cisco", "001BD7": "Cisco", "001C0E": "Cisco",
+    "001C10": "Cisco", "001C57": "Cisco", "001C58": "Cisco", "001D45": "Cisco",
+    "001D46": "Cisco", "001D70": "Cisco", "001D71": "Cisco", "001DE5": "Cisco",
+    "001DE6": "Cisco", "001E13": "Cisco", "001E14": "Cisco", "001E49": "Cisco",
+    "001E4A": "Cisco", "001E7A": "Cisco", "001E7B": "Cisco", "001EB5": "Cisco",
+    "001EB6": "Cisco", "001F26": "Cisco", "001F27": "Cisco", "001F6C": "Cisco",
+    "001F6D": "Cisco", "001F9D": "Cisco", "001F9E": "Cisco", "0021A0": "Cisco",
+    "0021A1": "Cisco", "0021D7": "Cisco", "0021D8": "Cisco", "002216": "Cisco",
+    "002255": "Cisco", "002293": "Cisco", "0022BD": "Cisco", "002319": "Cisco",
+    "002350": "Cisco", "002351": "Cisco", "00238B": "Cisco", "0023AB": "Cisco",
+    "0023AC": "Cisco", "0023EB": "Cisco", "0023EC": "Cisco", "002420": "Cisco",
+    "002451": "Cisco", "0024C3": "Cisco", "0024C4": "Cisco", "0024F7": "Cisco",
+    "0024F9": "Cisco", "002556": "Cisco", "002584": "Cisco", "002608": "Cisco",
+    "002609": "Cisco", "00267E": "Cisco", "00270D": "Cisco", "0040F4": "Cisco",
+    "004096": "Cisco", "00500F": "Cisco", "005054": "Cisco", "006009": "Cisco",
+    "00602F": "Cisco", "006047": "Cisco", "006070": "Cisco", "006083": "Cisco",
+    "0060B0": "Cisco", "006B4E": "Cisco", "00906D": "Cisco", "00908F": "Cisco",
+    "009065": "Cisco", "04C5A4": "Cisco", "04FE7F": "Cisco", "0C2724": "Cisco",
+    "0C756C": "Cisco", "0C8525": "Cisco", "0C8DDB": "Cisco", "100F35": "Cisco",
+    "1CDF0F": "Cisco", "1CE85D": "Cisco", "200C71": "Cisco", "24E9B3": "Cisco",
+    "2C31E5": "Cisco", "2C3ECF": "Cisco", "2C542D": "Cisco", "30E4DB": "Cisco",
+    "34BDC8": "Cisco", "381C1A": "Cisco", "3C0E23": "Cisco", "3C5EC3": "Cisco",
+    "3890A5": "Cisco", "40A6E8": "Cisco", "44ADD9": "Cisco", "500604": "Cisco",
+    "50067F": "Cisco", "5475D0": "Cisco", "588D09": "Cisco", "5C5015": "Cisco",
+    "5C838F": "Cisco", "5CE176": "Cisco", "6073BC": "Cisco", "6400F1": "Cisco",
+    "64A0E7": "Cisco", "64D814": "Cisco", "680715": "Cisco", "68BDAB": "Cisco",
+    "68EFBD": "Cisco", "6C416A": "Cisco", "70CA9B": "Cisco", "70DB98": "Cisco",
+    "74A02F": "Cisco", "7813BE": "Cisco", "78BA5D": "Cisco", "7C0ECE": "Cisco",
+    "7C1DEB": "Cisco", "7C95F3": "Cisco", "7CAD74": "Cisco", "843DC6": "Cisco",
+    "84B80A": "Cisco", "88908D": "Cisco", "8843E1": "Cisco", "8C94CF": "Cisco",
+    "A07A95": "Cisco", "A4187B": "Cisco", "A4563F": "Cisco", "A4B1E9": "Cisco",
+    "A896B1": "Cisco", "AC4BC8": "Cisco", "AC7E8A": "Cisco", "B000B4": "Cisco",
+    "B0AA77": "Cisco", "B0FA47": "Cisco", "B4A4E3": "Cisco", "B4E9B0": "Cisco",
+    "BC671C": "Cisco", "C025E9": "Cisco", "C0626B": "Cisco", "C067AF": "Cisco",
+    "C47295": "Cisco", "C4B36A": "Cisco", "C80084": "Cisco", "C8B5AD": "Cisco",
+    "CC462D": "Cisco", "CC5A53": "Cisco", "CC7F76": "Cisco", "D077CE": "Cisco",
+    "D0A5A6": "Cisco", "D0C282": "Cisco", "D46AA8": "Cisco", "D46D50": "Cisco",
+    "D4D7F5": "Cisco", "D8B190": "Cisco", "DCA5F4": "Cisco", "E0553D": "Cisco",
+    "E4AA5D": "Cisco", "E4C722": "Cisco", "E84040": "Cisco", "E8BA70": "Cisco",
+    "EC44E5": "Cisco", "F05A09": "Cisco", "F07F06": "Cisco", "F09E63": "Cisco",
+    "F40FBB": "Cisco", "F44E05": "Cisco", "F84F57": "Cisco", "F87B20": "Cisco",
+    "FC5B39": "Cisco", "FCD4F2": "Cisco",
+
+    # ── Meraki (Cisco) ──
+    "00184D": "Meraki", "0C8DDB": "Meraki", "0CD996": "Meraki",
+    "34567D": "Meraki", "68EA8A": "Meraki", "88152D": "Meraki",
+    "AC17C8": "Meraki", "E8ED05": "Meraki",
+
+    # ── Juniper ──
+    "000585": "Juniper", "000DB7": "Juniper", "0010DB": "Juniper",
+    "001256": "Juniper", "001BC0": "Juniper", "0019E2": "Juniper",
+    "001F12": "Juniper", "002159": "Juniper", "0022B3": "Juniper",
+    "0024DC": "Juniper", "002688": "Juniper", "00315A": "Juniper",
+    "0090CB": "Juniper", "0C8606": "Juniper", "283A4D": "Juniper",
+    "2C2172": "Juniper", "2C6BF5": "Juniper", "306B3D": "Juniper",
+    "3C6199": "Juniper", "3C61AF": "Juniper", "40B4F0": "Juniper",
+    "44F477": "Juniper", "4C9614": "Juniper", "546C0E": "Juniper",
+    "54E032": "Juniper", "5C459A": "Juniper", "641225": "Juniper",
+    "6491DB": "Juniper", "6C3B6B": "Juniper", "78194E": "Juniper",
+    "78FE3D": "Juniper", "88A25E": "Juniper", "88E0F3": "Juniper",
+    "9C8C06": "Juniper", "A8D0E5": "Juniper", "B0C69A": "Juniper",
+    "D4041E": "Juniper", "EC3873": "Juniper", "EC38DB": "Juniper",
+    "F017E8": "Juniper", "F01C2D": "Juniper", "F4A739": "Juniper",
+    "F86CE1": "Juniper",
+
+    # ── Aruba ──
+    "000B86": "Aruba", "002083": "Aruba", "00247B": "Aruba",
+    "04BD88": "Aruba", "18644C": "Aruba", "1C287D": "Aruba",
+    "24DEC6": "Aruba", "40E3D6": "Aruba", "6C8BD3": "Aruba",
+    "940014": "Aruba", "9C1C12": "Aruba", "AC1F8A": "Aruba",
+    "D8C7C8": "Aruba", "20A6CD": "Aruba", "246FE1": "Aruba",
+
+    # ── Ubiquiti ──
+    "002722": "Ubiquiti", "0418D6": "Ubiquiti", "04E2B2": "Ubiquiti",
+    "18E829": "Ubiquiti", "245A4C": "Ubiquiti", "249A30": "Ubiquiti",
+    "24A43C": "Ubiquiti", "2C26C5": "Ubiquiti", "44D9E7": "Ubiquiti",
+    "680F77": "Ubiquiti", "687251": "Ubiquiti", "6C198F": "Ubiquiti",
+    "708DC3": "Ubiquiti", "74ACB9": "Ubiquiti", "784558": "Ubiquiti",
+    "78458C": "Ubiquiti", "7C87CE": "Ubiquiti", "802AA8": "Ubiquiti",
+    "B4FBE4": "Ubiquiti", "D021F9": "Ubiquiti", "DC9FDB": "Ubiquiti",
+    "E063DA": "Ubiquiti", "F09FC2": "Ubiquiti", "FCECDA": "Ubiquiti",
+
+    # ── Palo Alto Networks ──
+    "00EB2E": "Palo Alto", "0C837F": "Palo Alto", "586356": "Palo Alto",
+    "B4F18A": "Palo Alto", "0024AC": "Palo Alto",
+
+    # ── Fortinet ──
+    "000938": "Fortinet", "005045": "Fortinet", "001700": "Fortinet",
+    "08E843": "Fortinet", "70481F": "Fortinet", "90ACC7": "Fortinet",
+    "D4FFD3": "Fortinet",
+
+    # ── MikroTik ──
+    "000C42": "MikroTik", "2CC8A8": "MikroTik", "482C6A": "MikroTik",
+    "4CFA6E": "MikroTik", "6C2C06": "MikroTik", "74D435": "MikroTik",
+    "B8695A": "MikroTik", "B8CBB8": "MikroTik", "C4AD34": "MikroTik",
+    "CC2DE0": "MikroTik", "D4CA6D": "MikroTik", "E483FC": "MikroTik",
+    "E4896B": "MikroTik", "2C9D1E": "MikroTik",
+
+    # ── Sophos ──
+    "000C25": "Sophos", "001A8C": "Sophos", "0019D6": "Sophos",
+    "B4748C": "Sophos", "C8F750": "Sophos",
+
+    # ── WatchGuard ──
+    "002682": "WatchGuard", "006B4E": "WatchGuard",
+
+    # ── Brocade ──
+    "000533": "Brocade", "0027F8": "Brocade", "0050EB": "Brocade",
+    "008048": "Brocade", "0090F5": "Brocade",
+
+    # ── Extreme Networks ──
+    "000496": "Extreme", "00049B": "Extreme", "0001F4": "Extreme",
+    "005057": "Extreme", "B0E75D": "Extreme",
+
+    # ── Arista ──
+    "001C73": "Arista", "28993A": "Arista", "30862D": "Arista",
+    "444CA8": "Arista",
+
+    # ── Ruckus ──
+    "001F41": "Ruckus", "2C5D93": "Ruckus", "3C0771": "Ruckus",
+    "645A04": "Ruckus", "C07B5C": "Ruckus", "C4A81D": "Ruckus",
+
+    # ── Huawei (networking gear) ──
+    "001882": "Huawei", "002568": "Huawei", "002EC7": "Huawei",
+    "00E0FC": "Huawei", "041E64": "Huawei", "048D38": "Huawei",
+    "0819A6": "Huawei", "087A4C": "Huawei", "0C37DC": "Huawei",
+    "0C45BA": "Huawei", "101B54": "Huawei", "107B44": "Huawei",
+    "10C61F": "Huawei", "20A680": "Huawei", "20F3A3": "Huawei",
+    "24DF6A": "Huawei", "24FD52": "Huawei", "28310E": "Huawei",
+    "282CB2": "Huawei", "303955": "Huawei", "30469A": "Huawei",
+    "30D17E": "Huawei", "34B354": "Huawei", "34CDBE": "Huawei",
+    "380E4D": "Huawei", "384C4F": "Huawei", "40F385": "Huawei",
+    "44C346": "Huawei", "487B6B": "Huawei", "4C1FCC": "Huawei",
+    "4CB16C": "Huawei", "54A51B": "Huawei", "5C4CA9": "Huawei",
+    "5C7D5E": "Huawei", "607039": "Huawei", "64A2F9": "Huawei",
+    "688F84": "Huawei", "6C7220": "Huawei", "70194E": "Huawei",
+    "707990": "Huawei", "740E9B": "Huawei", "7429AF": "Huawei",
+    "7482CE": "Huawei", "78D752": "Huawei", "7C1CF1": "Huawei",
+    "80FB06": "Huawei", "84DBAC": "Huawei", "88CEFA": "Huawei",
+    "9017AC": "Huawei", "906FA9": "Huawei", "9467A3": "Huawei",
+    "9885D6": "Huawei", "98E7F5": "Huawei", "9C37F4": "Huawei",
+    "A40913": "Huawei", "A47E33": "Huawei", "A4A6A9": "Huawei",
+    "A8CA7B": "Huawei", "AC4E91": "Huawei", "AC853D": "Huawei",
+    "ACE215": "Huawei", "B05B67": "Huawei", "B4306C": "Huawei",
+    "B83861": "Huawei", "BC7574": "Huawei", "BC96D4": "Huawei",
+    "C0B4A2": "Huawei", "C40528": "Huawei", "C8D15E": "Huawei",
+    "CC53B5": "Huawei", "CC96A0": "Huawei", "D065CA": "Huawei",
+    "D440F0": "Huawei", "D4B110": "Huawei", "D8490B": "Huawei",
+    "DC094C": "Huawei", "DCD2FC": "Huawei", "E0247F": "Huawei",
+    "E0CC7A": "Huawei", "E46897": "Huawei", "F4C714": "Huawei",
+    "F4E3FB": "Huawei", "F84ABF": "Huawei", "FCDF0E": "Huawei",
+
+    # ── TP-Link ──
+    "001D0F": "TP-Link", "003192": "TP-Link", "10FE47": "TP-Link",
+    "14CF92": "TP-Link", "14CC20": "TP-Link", "18A6F7": "TP-Link",
+    "1C3BF3": "TP-Link", "30DE4B": "TP-Link", "3460F9": "TP-Link",
+    "38835D": "TP-Link", "50C7BF": "TP-Link", "54C80F": "TP-Link",
+    "5C628B": "TP-Link", "60E327": "TP-Link", "647002": "TP-Link",
+    "6C5AB0": "TP-Link", "788CB5": "TP-Link", "7CC2C6": "TP-Link",
+    "8C210A": "TP-Link", "903A7E": "TP-Link", "98DA33": "TP-Link",
+    "A842A1": "TP-Link", "AC84C6": "TP-Link", "B0A7B9": "TP-Link",
+    "B09575": "TP-Link", "C0E42D": "TP-Link", "C4E984": "TP-Link",
+    "CC3226": "TP-Link", "D80D17": "TP-Link", "D84651": "TP-Link",
+    "E005C5": "TP-Link", "E48D8C": "TP-Link", "EC086B": "TP-Link",
+    "EC172F": "TP-Link", "F4F26D": "TP-Link", "F81A67": "TP-Link",
+    "F8D111": "TP-Link",
+
+    # ── Netgear ──
+    "0024B2": "Netgear", "004A77": "Netgear", "08028E": "Netgear",
+    "08BD43": "Netgear", "10DA43": "Netgear", "204E7F": "Netgear",
+    "28C68E": "Netgear", "2CB05D": "Netgear", "4494FC": "Netgear",
+    "6CB0CE": "Netgear", "803773": "Netgear", "848EDF": "Netgear",
+    "9CD36D": "Netgear", "A00460": "Netgear", "A021B7": "Netgear",
+    "A42B8C": "Netgear", "B03956": "Netgear", "B07FB9": "Netgear",
+    "C03F0E": "Netgear", "C43DC7": "Netgear", "E0469A": "Netgear",
+    "E091F5": "Netgear", "E4F4C6": "Netgear",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRINTERS
+    # ══════════════════════════════════════════════════════════════════════
+
+    # ── HP Printers (separate OUIs from HP compute) ──
+    "00215A": "HP Printer", "002590": "HP Printer", "00D0B9": "HP Printer",
+    "3C2AF4": "HP Printer", "3CD92B": "HP Printer", "58206A": "HP Printer",
+    "5C0726": "HP Printer", "6CAE8B": "HP Printer", "80CE62": "HP Printer",
+    "886395": "HP Printer", "A03C31": "HP Printer", "A0481C": "HP Printer",
+    "B4B676": "HP Printer", "C481AA": "HP Printer", "CCC5E5": "HP Printer",
+    "D0BF9C": "HP Printer", "ECC882": "HP Printer",
+
+    # ── Canon ──
+    "0013E0": "Canon", "001E8F": "Canon", "002507": "Canon",
+    "002E08": "Canon", "04B1A1": "Canon", "18E829": "Canon",
+    "2C9EFC": "Canon", "409C28": "Canon", "4C1FCC": "Canon",
+    "585857": "Canon", "6C9373": "Canon", "8024BD": "Canon",
+    "881880": "Canon", "9068F6": "Canon", "A4EBD3": "Canon",
+    "AC3870": "Canon", "B47443": "Canon", "C80257": "Canon",
+    "E4478B": "Canon", "E8B4C8": "Canon", "F03295": "Canon",
+
+    # ── Epson ──
+    "004042": "Epson", "0011B2": "Epson", "001FB4": "Epson",
+    "7CF854": "Epson", "D4E8B2": "Epson", "ECE5D2": "Epson",
+    "A4AE11": "Epson", "BCC342": "Epson", "E0227E": "Epson",
+    "642737": "Epson",
+
+    # ── Brother ──
+    "000CA7": "Brother", "001BA9": "Brother", "002085": "Brother",
+    "002628": "Brother", "0035CF": "Brother", "4C4544": "Brother",
+    "903C92": "Brother", "B4B024": "Brother", "CC8008": "Brother",
+    "E00C7F": "Brother",
+
+    # ── Lexmark ──
+    "000027": "Lexmark", "00200D": "Lexmark", "002118": "Lexmark",
+    "00236C": "Lexmark", "009072": "Lexmark", "0040F4": "Lexmark",
+    "8019FE": "Lexmark",
+
+    # ── Xerox ──
+    "000000": "Xerox", "0000AA": "Xerox", "002018": "Xerox",
+    "00040A": "Xerox", "000808": "Xerox", "5CE924": "Xerox",
+    "64006A": "Xerox", "6C9B02": "Xerox", "784859": "Xerox",
+    "9C93E4": "Xerox", "A04EA7": "Xerox", "C87F54": "Xerox",
+
+    # ── Konica Minolta ──
+    "005ACA": "Konica Minolta", "00DD0F": "Konica Minolta",
+    "0025DF": "Konica Minolta", "002673": "Konica Minolta",
+
+    # ── Ricoh ──
+    "000874": "Ricoh", "0016CB": "Ricoh", "001F52": "Ricoh",
+    "002217": "Ricoh", "645A04": "Ricoh", "741489": "Ricoh",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # IoT / Embedded (commonly seen on Windows networks)
+    # ══════════════════════════════════════════════════════════════════════
+    "B827EB": "Raspberry Pi", "D83ADD": "Raspberry Pi",
+    "DC2632": "Raspberry Pi", "E45F01": "Raspberry Pi",
+    "0C8A67": "Espressif", "2462AB": "Espressif", "246F28": "Espressif",
+    "2CF432": "Espressif", "3C71BF": "Espressif", "5CCF7F": "Espressif",
+    "840D8E": "Espressif", "A4CF12": "Espressif", "BCDDC2": "Espressif",
+    "CC50E3": "Espressif", "DC4F22": "Espressif", "E868E7": "Espressif",
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Special addresses
+    # ══════════════════════════════════════════════════════════════════════
+    "01005E": "IPv4 Multicast", "0180C2": "IEEE 802.1",
+    "333300": "IPv6 Multicast",
 }
 
 
@@ -276,7 +462,6 @@ def lookup_vendor(mac: str) -> str:
     if not mac:
         return ""
     try:
-        # Normalise to uppercase no-separator
         clean = mac.upper().replace(":", "").replace("-", "").replace(".", "")
         if len(clean) < 6:
             return ""

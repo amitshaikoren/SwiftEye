@@ -1,5 +1,28 @@
 # SwiftEye — Handoff Document
-## Version 0.9.53 | March 2026
+## Version 0.9.81 | March 2026
+
+### v0.9.81 — March 2026
+- **HTTP User-Agent timeline** — new Research chart. X = time, Y = source IP, colour = User-Agent string. One trace per unique UA, dot size scaled by request payload bytes. Shows method + URI + host + destination in hover. Useful for spotting automated tools (curl, PowerShell, python-requests), C2 beaconing patterns, UA spoofing, and lateral movement.
+- **SMTP dissector** — new protocol dissector for TCP ports 25/587. Extracts EHLO domain, MAIL FROM, RCPT TO, AUTH mechanism (PLAIN/LOGIN/CRAM-MD5), STARTTLS indicator, server banner, response codes. Session aggregation collects all fields.
+- **mDNS dissector** — new protocol dissector for UDP port 5353. Parses DNS wire format to extract query names, service types (`_http._tcp.local`), service instance names, SRV target hostnames + ports, TXT records, A/AAAA answers. Uses scapy DNS layer with raw byte fallback.
+- **SSDP dissector** — new protocol dissector for UDP port 1900. Extracts M-SEARCH/NOTIFY method, Search Target (ST), Unique Service Name (USN), Location URL, Server header, Notification Sub-Type (NTS).
+- **LLMNR dissector** — new protocol dissector for UDP port 5355. Parses DNS wire format to extract query names, query types, answers. LLMNR is commonly abused in Windows AD environments for credential relay attacks (Responder/NTLM relay).
+- **DCE/RPC dissector** — new protocol dissector with payload fingerprinting (magic bytes `05 00`/`05 01` + valid packet type). Works on any port — detects RPC on ephemeral ports without needing to track the Endpoint Mapper. Extracts packet type (bind/request/response/fault), interface UUID from bind packets, and maps UUIDs to ~40 known Windows services (DRSUAPI, SAMR, LSARPC, SVCCTL, NETLOGON, WINREG, WMI, DCOM, EventLog, etc.). Also extracts operation numbers from request packets. Port 135 added to WELL_KNOWN_PORTS.
+- **OUI vendor table expanded** — from ~688 to ~1050 entries, focused on: Microsoft ecosystem (Intel, Realtek, Dell, HP/HPE, Lenovo, ASUS, Acer, MSI, Gigabyte, Broadcom, Qualcomm, MediaTek), network infrastructure (Cisco, Meraki, Juniper, Aruba, Ubiquiti, Palo Alto, Fortinet, MikroTik, Sophos, WatchGuard, Brocade, Extreme, Arista, Ruckus, Huawei, TP-Link, Netgear), virtual machines (VMware, VirtualBox, QEMU/KVM, Xen, Hyper-V), and printers (HP Printer, Canon, Epson, Brother, Lexmark, Xerox, Ricoh, Konica Minolta).
+- **User-Agent text brighter** — the User-Agent strings in SessionDetail HTTP section were rendered with `var(--txD)` (dim text), making them hard to read. Changed to `var(--txM)` (medium) matching other protocol field values.
+- **Collapse state carries over all sections between sessions** — previously only sections the user had explicitly toggled were carried over when navigating between sessions on the same edge. Sections with `open` as a default prop (HTTP, DNS) would appear closed on the next session because they weren't in the cloned Set. Root cause: the collapse context used `Set<title>` (in set = open, not in set = closed), ignoring the component's `open` prop default. Fix: changed to `Map<title, boolean>` where entries represent explicit user toggles. Titles not in the Map fall back to the component's `open` prop. Now all collapse state — both user-toggled and default-open sections — carries over correctly.
+- **Generic keyword search now matches session-level fields** — searching "mozilla" or "powershell" now finds edges whose sessions contain matching User-Agent strings, URIs, SSH banners, Kerberos principals, LDAP bind DNs, FTP commands, DHCP hostnames, and any other session field. Previously the search only checked edge-level fields (tls_snis, http_hosts, ja3/ja4). The new `matchSession` function iterates all string and array values on session objects generically, so future protocol additions are automatically searchable. Matching sessions are mapped back to their graph edges via IP+protocol matching.
+- **Roadmap additions**: QUIC dissector (Phase 1: cleartext header + SNI from Initial packets; Phase 2: SSLKEYLOGFILE decryption), TLS private key decryption (SSLKEYLOGFILE upload for HTTPS/QUIC/LDAPS/SMTPS deep inspection), SQL query layer (expressive queries beyond display filter — Phase 1: filter extensions, Phase 2: full SQL endpoint).
+
+### v0.9.54 — March 2026
+- **Client-side search** — the TopBar search box now evaluates client-side against all node and edge fields: IPs, MACs, MAC vendors, hostnames, OS guess, metadata, protocol, TLS SNI, HTTP host, DNS queries, JA3/JA4 hashes, TLS versions, cipher suites. Instant (no backend re-fetch), non-destructive (dims non-matches like the display filter). Backend `search` param remains in the API for programmatic use and pcap export.
+- **Protocol hierarchy tree** — the flat protocol list in the left panel is now a collapsible tree: IPv4/IPv6 → Transport (TCP/UDP/ICMP) → Application protocol. Click a branch to toggle all children. Unresolved transport-only packets appear as "Other TCP" / "Other UDP". Packet counts shown at every level.
+- **Address type annotation in NodeDetail** — each IP in the IPs list now has a colored badge: Private (RFC1918), Loopback, APIPA (169.254.x), Multicast, Broadcast, CGNAT (100.64.x), Documentation ranges, Unspecified, and IPv6 equivalents (Link-local, ULA, Multicast). Pure frontend — `classifyIp()` function in `NodeDetail.jsx`.
+- **Enhanced DNS dissection** — the DNS dissector now extracts: query type name (A/AAAA/CNAME/MX/etc.), response code name (NOERROR/NXDOMAIN/SERVFAIL), DNS flags (AA/TC/RD/RA), transaction ID, structured answer records with per-record type/data/TTL, authority section (NS/SOA), and additional section. Session aggregation passes all new fields through. SessionDetail DNS section redesigned: query/response badges, record type chips, rcode with color coding (green=NOERROR, red=error), structured answer rows with TTL, authority section, flags row with tx ID.
+- **Payload entropy** — Shannon entropy computed per packet in the session detail API (minimum 16 bytes). Classified into bands: structured/repetitive (<1.0), low entropy (<3.5), text/markup (<5.0), mixed/encoded (<6.5), high entropy/compressed (<7.5), likely encrypted/compressed (≥7.5). Shown as a colored badge on each payload packet row in the PAYLOAD tab.
+- **OS filter now finds gateway nodes** — gateways detected by the Network Map plugin now get `os_guess = "Network device (gateway)"` which **overrides** the OS fingerprint. A Linux-based router that OS Fingerprint classifies as "Linux 4.x/5.x" will show as "Network device (gateway)" in the OS filter chips instead. The OS fingerprint details (TTL, window size, etc.) remain visible in the OS Fingerprint plugin section — nothing is lost. Rationale: researchers filtering by "Network device" expect to find routers regardless of their underlying OS.
+- **IPv6 nodes pruned after merge-by-MAC when Show IPv6 is off** — the packet-level IPv6 filter correctly keeps dual-stack traffic where the local host resolves to IPv4 via entity_map, but this left behind graph nodes for external IPv6 endpoints (e.g. `2606:4700::`). Added a post-filter in `build_graph()` that removes nodes whose canonical ID is IPv6 (and their edges) when `include_ipv6=False` and entity_map is active.
+- **Known bugs documented**: JA3/JA4 only appears on HTTPS sessions where the ClientHello was captured. Sessions started before the capture begins will not have fingerprints — this is expected behavior, not a bug.
 
 ### v0.9.52 — Final audit pass
 - **Version bump** to 0.9.52. FastAPI version string synced.
@@ -100,6 +123,20 @@ Not yet validated on:
 
 To revisit: test against varied real pcaps. Tuning candidates: min gap seconds (60),
 min gap fraction (0.20). Logic lives in `detectBursts()` in `TimelineStrip.jsx`.
+
+
+### Known limitations — JA3/JA4 fingerprinting
+JA3 and JA4 fingerprints are computed **only from TLS ClientHello packets**. Sessions
+where the capture started after the TLS handshake completed will not have JA3/JA4 data.
+This is inherent to the fingerprinting method — the ClientHello must be present in the pcap.
+
+Additionally, when scapy's TLS layer is installed (via the `cryptography` dependency),
+scapy parses TLS records into structured objects and removes the `Raw` layer. The JA3/JA4
+computation needs the raw bytes. The code has fallback paths (`lastlayer().load`,
+`bytes(tcp.payload)`, `pkt[TLS].original`) but these may not recover raw bytes on all
+scapy versions. If a session clearly shows a ClientHello in the Payload tab but has no
+JA3/JA4, this is the likely cause. Fix: improve the raw byte recovery in `pcap_reader.py`
+JA3/JA4 block.
 
 
 <p align="center"><img src="frontend/public/logo.png" alt="SwiftEye Logo" width="100"/></p>
@@ -435,6 +472,7 @@ For a typical security research capture (10–60 minutes, 50K–500K packets, 50
 - [x] DNS Timeline — DNS queries over time by IP
 - [x] JA3 Timeline — JA3 fingerprint events over time
 - [x] JA4 Timeline — JA4 fingerprint events over time
+- [x] HTTP User-Agent Timeline — HTTP requests over time by source IP, coloured by User-Agent
 
 ---
 
@@ -532,11 +570,58 @@ All v0.8.x bug details preserved in §4a.
 - [x] **Network mapping** — done in v0.9.8 (`plugins/network_map.py`)
 - [ ] **Credential viewing** — HTTP Basic, FTP, Telnet, SMTP AUTH
 - [x] **Certificate extraction** — done in v0.9.7
-- [ ] **SMTP dissector** — not yet written
-- [ ] **Kerberos dissector** — not yet written
-- [ ] **mDNS/SSDP dissectors** — not yet written
+- [x] **SMTP dissector** (v0.9.81) — EHLO domain, MAIL FROM, RCPT TO, AUTH mechanism, STARTTLS, banner, response codes. Works on both port 25 and 587.
+- [x] **Kerberos dissector** (v0.9.79) — ASN.1 DER parser, extracts msg type, realm, principals, etypes, errors
+- [x] **mDNS dissector** (v0.9.81) — queries, service types/names, SRV hostname+port, TXT records, A/AAAA answers. Scapy DNS layer with raw fallback.
+- [x] **SSDP dissector** (v0.9.81) — M-SEARCH/NOTIFY method, ST, USN, Location URL, Server, NTS.
+- [x] **LLMNR dissector** (v0.9.81) — queries, qtypes, answers. DNS wire format, scapy layer with raw fallback. Port 5355.
+- [ ] **QUIC dissector** — QUIC (UDP 443) is encrypted by design (TLS 1.3 baked in). The Initial packet has a cleartext long header with version + connection IDs, and the SNI can be extracted from the CRYPTO frames in the Initial packet (before encryption). However, all application data is encrypted. Phase 1: extract version, connection IDs, and SNI from the Initial packet cleartext. Phase 2: with TLS key material (see TLS private key support below), decrypt 0-RTT and 1-RTT data. *Prerequisites:* TLS key log support for full decryption. Status: medium-term.
+- [x] **DCE/RPC dissector** (v0.9.81) — payload fingerprinting (`05 00`/`05 01` magic bytes) detects DCE/RPC on any port including ephemeral. Extracts packet type, interface UUID from bind packets, maps ~40 known Windows service UUIDs (DRSUAPI, SAMR, LSARPC, SVCCTL, NETLOGON, WINREG, WMI, DCOM, etc.), and operation numbers from requests. No connection tracker needed.
+- [ ] **TLS private key / key log support** — allow researchers to provide TLS key material for decrypting captured TLS traffic. Two input methods: (1) **SSLKEYLOGFILE** format (NSS key log) — the same `CLIENT_RANDOM` / `CLIENT_HANDSHAKE_TRAFFIC_SECRET` format that Wireshark uses. Upload via a new "Keys" button or API endpoint. The key log maps each session's random bytes to the master secret, enabling per-session decryption. (2) **RSA private key** (PEM) — for RSA key exchange only (not ECDHE/DHE). Less useful for modern TLS but covers legacy deployments. *Implementation:* after TLS dissection identifies a session's ClientHello random, look up the corresponding secrets from the key log. Use the secrets to derive the session keys and decrypt the TLS records. Decrypted payloads would then be fed back through the protocol detection + dissector pipeline (the inner HTTP/LDAP/Kerberos/etc. becomes visible). *Scope:* large feature. Scapy has partial TLS decryption support via `load_layer('tls')` + session keys, but it's fragile. May require a dedicated TLS record parser. Status: long-term.
+- [ ] **SQL query layer** — expressive query interface beyond the current equals/contains filter. Allow researchers to write SQL-like queries against the packet/session/node data. Two phases: (1) **Display filter extensions** — extend the existing Wireshark-style filter with comparison operators (`bytes > 10000`, `packets >= 50`, `duration > 30`), aggregation-aware predicates (`session_count > 5`, `distinct_ports > 3`), and set membership (`port in (80, 443, 8080)`). These extend the existing `displayFilter.js` evaluator. Client-side, instant. (2) **Full SQL endpoint** — a `/api/query` endpoint that accepts SQL queries against a virtual schema: `SELECT src_ip, dst_ip, protocol, SUM(bytes) FROM sessions WHERE protocol = 'HTTP' GROUP BY src_ip, dst_ip ORDER BY SUM(bytes) DESC LIMIT 20`. In the in-memory phase, this is evaluated by translating SQL to Python filters+aggregations (using a lightweight SQL parser like `sqlglot` or `mo-sql-parsing`). In the SQLite phase (Phase 2 of the storage roadmap), queries pass through directly. Results render in a table in a new "Query" panel. *Prerequisites:* Phase 1 (display filter extensions) is independent. Phase 2 benefits from the SQLite migration but can be done in-memory first. Status: medium-term.
+- [ ] **Application layer (L5+) enrichment for all protocols** — extract more per-packet fields in dissectors, aggregate into initiator (→) / responder (←) lists at the session level in `sessions.py`. Display in Session Detail under Application (L5+) split by direction. Principle: fields that vary per-direction are split (User-Agent is initiator, Server is responder). Fields that are session-wide stay flat (TLS SNI, DHCP hostname). Implementation: dissectors add new `pkt.extra` fields → `sessions.py` aggregates → `SessionDetail.jsx` renders.
+
+  **HTTP** (dissect_http.py → sessions.py):
+  Initiator →: `user_agents: [str]` (unique UA strings), `methods: [str]` (unique HTTP methods), `uris: [str]` (requested URIs, capped at 30), `referers: [str]`, `has_cookies: bool`, `has_auth: bool` (Authorization header present).
+  Responder ←: `servers: [str]` (unique Server headers), `status_codes: [int]` (unique response codes), `content_types: [str]` (unique Content-Type values), `redirects: [str]` (Location headers from 3xx), `set_cookies: bool`.
+
+  **ICMP** (dissect_icmp.py → sessions.py):
+  Initiator →: `types_seen: [{type, type_name, code, code_name, count}]`, `identifiers: [int]` (unique ICMP identifier values), `payload_sizes: [int]` (payload byte sizes per packet), `payload_samples: [str]` (hex of first 64 bytes of each unique payload — capped at 10 samples).
+  Responder ←: `types_seen: [{type, type_name, code, code_name, count}]`, `identifiers: [int]`, `payload_sizes: [int]`, `payload_samples: [str]`.
+
+  **DHCP** (dissect_dhcp.py → sessions.py):
+  Session-wide (no direction split — DHCP is client/server by nature): `options_seen: [{number, name}]` (all option types observed), `lease_time: int` (option 51), `server_id: str` (option 54), `relay_agent: str` (giaddr if non-zero). Keep existing: hostname, vendor_class, msg_types, param_list, offered_ip, requested_ip.
+
+  **FTP** (dissect_ftp.py → sessions.py):
+  Initiator →: `commands: [str]` (unique commands issued — USER, PASS, CWD, RETR, STOR, LIST, etc.), `transfer_mode: str` ("PORT" or "PASV").
+  Responder ←: `response_codes: [int]` (unique FTP response codes), `server_banner: str` (220 banner, already exists).
+  Keep existing: usernames, transfer_files, has_credentials.
+
+  **SSH** (dissect_ssh.py → sessions.py):
+  Initiator →: `client_banner: str` (existing), `kex_algorithms: [str]`, `encryption_client_to_server: [str]`, `mac_client_to_server: [str]`.
+  Responder ←: `server_banner: str` (existing), `kex_algorithms: [str]`, `host_key_types: [str]`, `encryption_server_to_client: [str]`, `mac_server_to_client: [str]`.
+
+  **TLS** (dissect_tls.py → sessions.py):
+  Initiator → (ClientHello): `supported_versions: [str]`, `alpn_offered: [str]`, `extensions: [int]` (extension type numbers), `compression_methods: [int]`. Keep existing: cipher_suites, ja3, ja4, sni.
+  Responder ← (ServerHello + Certificate): `alpn_selected: str`, `key_exchange_group: str`, `session_resumption: str` ("none"/"session_id"/"ticket"), `cert_chain: [{subject_cn, issuer, serial}]` (full chain). Keep existing: selected_cipher, tls_versions, cert leaf.
+
+  **DNS** (dissect_dns.py → sessions.py):
+  Session-wide: `dns_qclass_name: str` ("IN"/"CH"/"ANY"). Already well-extracted — SOA, SRV, PTR, NAPTR captured via structured answer_records/authority_records. No other changes needed.
+
+  **DNSSEC** (separate protocol, future dissector):
+  DS/DNSKEY/RRSIG/NSEC/NSEC3 record types, AD/CD flags, signature algorithm, key tag.
+
+  **SMB** (dissect_smb.py → sessions.py):
+  Initiator →: `operations: [str]` (unique SMB operations — CREATE, READ, WRITE, DELETE, RENAME).
+  Responder ←: `nt_status_codes: [{code, name}]` (unique NT status codes with human names).
+  Keep existing: versions, tree_paths, filenames, dialect.
+
+  **New protocols** (future dissectors):
+  DNSSEC: DS/DNSKEY/RRSIG/NSEC records, AD/CD flags, signature algorithm.
+  QUIC: version, connection IDs, SNI from Initial packet (see roadmap).
+  DCE/RPC: EPM on port 135, interface UUIDs, service names (see roadmap — needs connection tracker).
 - [ ] **Aggregator/entity-resolution plugin tier** — pre-aggregation plugins that return an IP→canonical map; `build_graph` applies it. Design agreed, not scheduled.
-- [ ] **Expand OUI vendor table** — current table has ~700 hand-curated entries; many common MACs (e.g. c4:d0:e3, various Intel/Realtek) are missing. Replace with the full IEEE OUI database (~35,000 entries). Download from https://standards-oui.ieee.org/oui/oui.txt, parse, and embed in `backend/parser/oui.py`.
+- [x] **Expand OUI vendor table** (v0.9.81) — expanded from ~688 to ~1050 entries, focused on Microsoft ecosystem (Intel, Realtek, Dell, HP, Lenovo, ASUS, Acer, MSI, Gigabyte), network infrastructure (Cisco, Juniper, Aruba, Ubiquiti, Palo Alto, Fortinet, MikroTik, Huawei, TP-Link, Netgear), VMs (VMware, VirtualBox, QEMU/KVM, Xen, Hyper-V), and printers (HP Printer, Canon, Epson, Brother, Lexmark, Xerox, Ricoh, Konica Minolta).
 - [ ] **Interactive research dashboard** — Plotly charts with cross-filtering across sessions/nodes
 - [ ] **File extraction** — reconstruct files from HTTP/FTP/SMB streams (FTP dissector already surfaces filenames/credentials)
 - [ ] **Multi-capture comparison** — side-by-side or overlay view of two captures
@@ -553,13 +638,390 @@ All v0.8.x bug details preserved in §4a.
   - [ ] **Hostname/cert grouping** — cluster external IPs by cert issuer, TLD, or hostname pattern without geolocation. "Most traffic to AWS infra", etc.
   - [ ] **LLM interpretation panel** — user provides API key (stored in localStorage, never sent to server). Frontend sends a structured JSON summary of the capture (top nodes, session counts, protocol distribution, notable SNIs, DNS queries, OS guesses) to the LLM with a fixed prompt: "Explain what is happening in this network capture in plain language. Focus on understanding activity, not finding threats." Response streams into a chat-style panel. Model choice: any OpenAI-compatible endpoint (user configures). Groundwork: `backend/api/capture_summary.py` that serializes capture state to the structured JSON the LLM receives.
 - [ ] **Geolocation** — lowest priority
+- [x] **DCE/RPC dissector** (v0.9.81) — payload fingerprinting on any port. See changelog.
+- [ ] **Investigation panel: notes aggregation** — the Investigation panel's Markdown editor gets a sidebar showing all notes created on nodes, edges, and sessions across the capture. Each note card shows the target (node IP/hostname, edge endpoints, session reference hash), the note text, a "Go to ↗" link (selects target on graph, opens detail panel), and "+ Add to timeline" to promote the note into the investigation narrative. The sidebar is a helper — it doesn't replace the Markdown area, it augments it. Researchers can reference their scattered notes in one place while writing their investigation report.
+
+### Long-term vision: projects and workspaces
+
+- [ ] **User workspaces** — each user gets a persistent workspace. Authentication, user profiles, workspace persistence (database-backed, not in-memory). Workspaces survive server restarts. Foundation for everything below.
+- [ ] **Projects** — a workspace contains multiple projects (e.g. "Incident Response — March 2026", "Quarterly Audit Q1"). A project groups related analyses around a single investigation topic. Projects have metadata (name, description, created date, status).
+- [ ] **Sub-projects (analysis units)** — each project contains sub-projects. A sub-project is what SwiftEye is today: a self-contained pcap analysis with its own graph, sessions, plugins, notes, annotations, and synthetic elements. The Visualize panel also becomes a first-class sub-project type — a custom data visualization workspace that doesn't require a pcap. Sub-project types: `capture` (current SwiftEye), `visualization` (standalone Visualize), potentially others later (Zeek logs, Sysmon, etc.).
+- [ ] **Project-level investigation** — the investigation lives at the project level and can reference findings from any sub-project. The Markdown editor + notes sidebar spans all sub-projects. Cross-references link to specific nodes/edges/sessions in specific sub-projects. Each sub-project can also have a mini-investigation for local notes that feed up into the project investigation.
+- [ ] **Multi-capture correlation** — with multiple capture sub-projects in one project, enable cross-capture queries: "show me all sessions to this IP across all captures", timeline view spanning captures, shared entity resolution (same MAC across captures = same host).
 - [x] **Backend test suite** (v0.9.50) — pytest tests for the critical path: `build_graph()`, `build_mac_split_map()`, `filter_packets()`, `build_sessions()`, `compute_global_stats()`, plugin `analyze_global()` methods, analysis plugin `compute()` methods, and the v0.9.43 session scoping regression. Run: `cd backend && pytest tests/ -v`.
-- [ ] **Address type annotation in NodeDetail** — show the type of each IP address in the IPs list in NodeDetail. Known types to detect and label: Private (RFC1918), APIPA (169.254.x.x), Loopback (127.x/::1), Link-local IPv6 (fe80::), Multicast IPv4 (224.x-239.x), Multicast IPv6 (ff00::/8), Broadcast (255.255.255.255), Documentation (198.51.100.x/203.0.113.x/192.0.2.x), Carrier-grade NAT (100.64.x.x). Display as a small coloured badge next to the IP. Pure frontend — no backend needed, all ranges are static.
+- [x] **Address type annotation in NodeDetail** (v0.9.54) — show the type of each IP address in the IPs list in NodeDetail. Known types to detect and label: Private (RFC1918), APIPA (169.254.x.x), Loopback (127.x/::1), Link-local IPv6 (fe80::), Multicast IPv4 (224.x-239.x), Multicast IPv6 (ff00::/8), Broadcast (255.255.255.255), Documentation (198.51.100.x/203.0.113.x/192.0.2.x), Carrier-grade NAT (100.64.x.x), ULA (fc00::/fd00::). Display as a small coloured badge next to the IP. Pure frontend — `classifyIp()` in `NodeDetail.jsx`.
 
 - [x] **Backend centrality computation** (v0.9.50) — node centrality moved from client-side JavaScript to Python in `plugins/analyses/node_centrality.py`. Same Brandes algorithm, runs in the backend via `/api/analysis/results`. Frontend calls the API instead of computing locally. NetworkX dependency not needed — pure Python implementation scales well. Can upgrade to NetworkX later if graph sizes demand it.
 
 ### Done (recent)
-- [x] Show Hostnames toggle (v0.9.1)
+
+---
+
+## 7. Architecture Plan: Multi-Source Ingestion & Scale
+
+### Problem statement
+
+SwiftEye currently ingests pcap files only, stores everything in a Python list in memory, and queries by full-scan. This limits the tool in two ways:
+
+1. **Data sources** — security researchers work with Splunk exports, Zeek logs, Sysmon events, netflow, firewall logs, and more. Each has a different schema. SwiftEye can only consume pcap.
+2. **Scale** — the in-memory full-scan model works up to ~200K packets (~50MB). At 500K+ packets it drags, at 1M+ it's unusable. Enterprise firewall logs or Splunk exports can be 10M–100M events.
+
+### Current architecture (for reference)
+
+```
+pcap file → scapy/dpkt parser → List[PacketRecord] in memory (store.packets)
+                                        ↓
+                              full-scan on every query
+                                        ↓
+                          build_graph / build_sessions / stats
+```
+
+Every API call (`/api/graph`, `/api/sessions`, `/api/session_detail`) does a linear scan of `store.packets`. Session detail scans all packets to find the ~20 that belong to one session.
+
+### Design: EventRecord abstraction (multi-source)
+
+The graph builder, session reconstructor, and stats engine don't need raw packets — they need **events with common fields**. A DNS query from a pcap and a DNS query from Splunk are the same thing to the aggregator.
+
+```python
+@dataclass
+class EventRecord:
+    timestamp: float
+    src_ip: str
+    dst_ip: str
+    src_port: int
+    dst_port: int
+    src_mac: str       # empty for non-pcap sources
+    dst_mac: str
+    transport: str     # TCP, UDP, ICMP, ""
+    protocol: str      # HTTPS, DNS, SSH, ...
+    ip_version: int    # 4 or 6
+    length: int        # bytes
+    extra: dict        # protocol-specific fields (same as today's pkt.extra)
+    # Optional fields for pcap-only data:
+    tcp_flags: int
+    tcp_flags_str: str
+    seq_num: int
+    ack_num: int
+    window_size: int
+    ttl: int
+    payload: bytes     # None for non-pcap sources
+```
+
+Each data source gets an **ingestion adapter**:
+
+| Source | Adapter | Notes |
+|--------|---------|-------|
+| pcap/pcapng | `pcap_adapter.py` | Current parser, maps `PacketRecord` → `EventRecord` |
+| Splunk CSV/JSON | `splunk_adapter.py` | Maps `_time`, `src`, `dest`, `action`, `app`, `bytes_in/out`. Data is often pre-aggregated (one row = one connection, not one packet). Sessions are 1:1 with events. |
+| Zeek conn.log | `zeek_adapter.py` | Near 1:1 mapping. `id.orig_h`, `id.resp_h`, `id.orig_p`, `id.resp_p`, `proto`, `service`, `duration`, `orig_bytes`, `resp_bytes`. Also pre-aggregated. |
+| Zeek dns/http/ssl/etc. | `zeek_detail_adapter.py` | Protocol-specific logs map to `extra` fields. Joined to conn.log by `uid`. |
+| Sysmon XML/JSON | `sysmon_adapter.py` | Event ID 3 (network connection) maps directly. Event ID 22 (DNS query) maps to DNS events. Event ID 1 (process create) is metadata, not an event — stored separately. |
+| Netflow/IPFIX | `netflow_adapter.py` | Pre-aggregated flows. `SRC_ADDR`, `DST_ADDR`, `SRC_PORT`, `DST_PORT`, `PROTOCOL`, `IN_BYTES`, `OUT_BYTES`, `FIRST_SWITCHED`, `LAST_SWITCHED`. |
+
+The rest of the pipeline (`build_graph`, `build_sessions`, `filter_packets`, stats, plugins) consumes `EventRecord` instead of `PacketRecord`. No changes to the aggregator or frontend.
+
+### Storage backend options
+
+#### Option A: Indexed in-memory store
+
+**What:** Keep all events in a Python list (as today), but build dict indexes at load time: `by_session_key`, `by_protocol`, `by_src_ip`, `by_time_bucket`. Session detail becomes O(1) dict lookup instead of O(n) scan.
+
+**Pros:**
+- Simplest to implement (days, not weeks)
+- No new dependencies
+- Fast for small/medium datasets
+- No migration needed — existing code barely changes
+
+**Cons:**
+- Limited by RAM. ~5M events on 16GB machine, ~1M on 8GB
+- No persistence — reload on restart
+- No concurrent access
+
+**Best for:** Single-user, single-capture analysis up to ~5M events. Good as an immediate upgrade.
+
+**Estimated scale ceiling:** ~50M events on a 64GB machine, but query performance degrades as indexes grow.
+
+#### Option B: SQLite (embedded, zero-config)
+
+**What:** Store events in a SQLite file with indexes on `(session_key)`, `(src_ip, dst_ip, protocol)`, `(timestamp)`. Queries become SQL. Graph builder does `SELECT src_ip, dst_ip, protocol, SUM(length), COUNT(*) FROM events WHERE timestamp BETWEEN ? AND ? GROUP BY src_ip, dst_ip, protocol`.
+
+**Pros:**
+- Zero-config (no server, just a file)
+- Handles 50M+ events easily
+- Persistent across restarts
+- Familiar SQL interface
+- WAL mode gives good read concurrency
+- Enables workspace save/load naturally (the DB file IS the workspace)
+
+**Cons:**
+- Slower than in-memory for small datasets (disk I/O overhead)
+- Write speed: ~100K inserts/sec (bulk), so ingesting 10M events takes ~2 minutes
+- Single-writer (fine for single-user, problematic for multi-user)
+- No built-in time-series optimization
+
+**Best for:** Single-user forensic workstation. 1M–50M events. The sweet spot for SwiftEye's current use case. Workspace persistence comes free.
+
+**Estimated scale ceiling:** ~100M events on SSD, ~500M with partitioned tables.
+
+#### Option C: PostgreSQL + TimescaleDB
+
+**What:** Full relational database with TimescaleDB extension for automatic time-based partitioning. Events stored in a hypertable partitioned by timestamp. All queries are SQL, same as Option B but with concurrent writes, multi-user, and time-series optimization.
+
+**Pros:**
+- Handles billions of events
+- Multi-user concurrent access
+- Time-range queries are fast (partition pruning)
+- Rich ecosystem (pg_stat, EXPLAIN ANALYZE, extensions)
+- Natural fit for the projects/workspaces vision (user tables, project tables, event tables)
+- Continuous aggregates for pre-computed dashboards
+
+**Cons:**
+- Requires a running PostgreSQL server (deployment complexity)
+- Configuration and tuning needed
+- Overkill for single-user on a laptop
+- Network latency between app and DB (unless co-located)
+
+**Best for:** Multi-user deployment, enterprise use, the projects/workspaces vision. 10M–1B+ events.
+
+**Estimated scale ceiling:** Billions of events with proper partitioning and hardware.
+
+#### Option D: Neo4j (graph-native)
+
+**What:** Store nodes and edges as first-class graph entities. Cypher queries replace Python loops for graph traversal.
+
+**Pros:**
+- Graph traversal queries are native and fast ("all paths from A to B through C")
+- Natural fit for the network graph model
+- Visualization tools built-in
+
+**Cons:**
+- Poor at aggregation and time-range scans compared to SQL
+- Requires a running server
+- Different query language (Cypher) — team needs to learn it
+- Not a good primary event store — it's a graph store, not a time-series store
+- Expensive in RAM
+
+**Best for:** Complement to a SQL store, not a replacement. Use for graph-specific queries (path finding, community detection, centrality) while SQL handles event storage, time-range filtering, and aggregation.
+
+**Not recommended as the sole backend.** Better as a secondary store populated from the SQL event store for graph-specific workloads.
+
+### Recommendation: phased approach
+
+```
+Phase 1 (near-term)     Phase 2 (medium-term)     Phase 3 (long-term)
+─────────────────────    ─────────────────────     ─────────────────────
+EventRecord abstraction  SQLite backend             PostgreSQL + TimescaleDB
+Ingestion adapters       SWIFTEYE_BACKEND=          Multi-user auth
+  (pcap, Splunk)           memory|sqlite            Projects/workspaces
+In-memory indexes        Workspace = DB file        Cross-project queries
+  (Option A)             50M event ceiling          Neo4j as secondary
+5M event ceiling                                    graph store
+```
+
+**Phase 1:** Define `EventRecord`, refactor the parser to produce it, build one new adapter (Splunk CSV), add in-memory indexes. The existing pipeline consumes `EventRecord` with no other changes. Immediate multi-source support, immediate performance improvement for session lookups. Days of work.
+
+**Phase 2:** Add SQLite as an alternative backend behind a config flag. Ingestion writes to SQLite instead of (or in addition to) the in-memory list. `filter_packets()` and `build_graph()` become SQL queries. The DB file becomes the workspace save format. The in-memory path stays for small pcaps where startup speed matters. Weeks of work.
+
+**Phase 3:** When the projects/workspaces vision is ready, migrate from SQLite to PostgreSQL. The SQL queries from Phase 2 transfer almost unchanged. Add user auth, project metadata tables, cross-project event queries. TimescaleDB for time-series optimization. Optionally add Neo4j as a secondary graph store for advanced traversal queries. Months of work.
+
+### Splunk integration specifics
+
+Splunk data comes in several forms:
+
+| Format | How to get it | Structure |
+|--------|--------------|-----------|
+| CSV export | Splunk Web → Search → Export | Flat rows, configurable columns |
+| JSON export | Splunk Web → Search → Export (JSON) | One JSON object per event |
+| REST API | `https://splunk:8089/services/search/jobs/export` | Streaming JSON |
+| Saved search results | Forwarded to a file | CSV or JSON |
+
+Common Splunk fields for network data (sourcetype `firewall`, `proxy`, `ids`):
+
+```
+_time, src, src_ip, dest, dest_ip, src_port, dest_port,
+transport, action (allowed/blocked/dropped),
+app (application name), bytes_in, bytes_out, packets_in, packets_out,
+user, severity, signature, category, vendor_product
+```
+
+Key difference from pcap: **Splunk data is pre-aggregated**. One row typically represents one complete connection (or one log entry), not one packet. The session reconstruction step (`build_sessions`) is unnecessary — each Splunk row IS a session. The adapter should detect this and skip session building, or map each row to a single-event session.
+
+Another consideration: Splunk data often includes **metadata not available in pcap** — usernames, application names, firewall actions (allow/deny), severity scores, IDS signatures. These map to `EventRecord.extra` and should surface in the UI as additional fields in Session/Edge detail.
+
+---
+
+## 8. Architecture Plan: Team Boundaries & Code Decoupling
+
+### Team structure (planned)
+
+| Team | Owns | Key files |
+|------|------|-----------|
+| **Full-stack** | API layer, frontend UI, state management, deployment | `server.py`, `App.jsx`, `useCapture.js`, all components, `api.js` |
+| **Research** | Research charts, insight plugins, analysis plugins | `research/*.py`, `plugins/insights/*.py`, `plugins/analyses/*.py` |
+| **Parsing** | Protocol dissectors, signature matchers, packet readers | `parser/protocols/*.py`, `parser/pcap_reader.py`, `parser/dpkt_reader.py` |
+| **Aggregation** | Graph builder, session reconstruction, statistics, filtering | `analysis/aggregator.py`, `analysis/sessions.py`, `analysis/stats.py` |
+
+### Current state: what's decoupled and what isn't
+
+#### Well-isolated (teams can work independently today)
+
+**Parsing team** — the dissector plugin system is genuinely decoupled. A parsing engineer writes `dissect_smtp.py`, drops it in `protocols/`, adds one import in `__init__.py`, and it works. They return a dict of `extra` fields. They don't need to know about the frontend, the aggregator, or the graph. The signature system (`@register_payload_signature`) is equally pluggable. This team could work independently today.
+
+**Research team** — each research chart is a self-contained Python file that registers via `@register_chart`. A researcher adds `latency_distribution.py` to `research/` and it appears in the Research panel automatically. They only need to know the `Param` API and what fields exist on packets/sessions. The insight/analysis plugin systems are similarly pluggable.
+
+#### Coupled (would cause friction at scale)
+
+**Problem 1: `aggregator.py` hardcodes protocol field names**
+
+When building edges, `aggregator.py` explicitly collects named fields:
+```python
+# In build_graph():
+edge['tls_snis'] = collected_snis
+edge['ja3_hashes'] = collected_ja3
+edge['http_hosts'] = collected_hosts
+# ... each field listed by name
+```
+
+**Impact:** If the parsing team adds a new field to `pkt.extra` (e.g. `smtp_from`), the aggregation team must update `aggregator.py` to collect it onto edges. Without that update, the field exists on packets but is invisible at the graph level.
+
+**Fix:** Generic `extra` collection. The aggregator iterates all `pkt.extra` keys and merges them onto the edge object automatically:
+```python
+for key, val in pkt.extra.items():
+    if isinstance(val, list):
+        edge_extra.setdefault(key, []).extend(val)
+    elif val not in edge_extra.get(key, []):
+        edge_extra.setdefault(key, []).append(val)
+```
+New protocol fields appear on edges without aggregator changes.
+
+**Problem 2: Frontend hardcodes protocol-specific UI sections**
+
+`SessionDetail.jsx` has dedicated sections for TLS (SNI, ciphers, JA3/JA4, certificates), DNS (queries with type/rcode/records), HTTP (hosts), SSH (versions), FTP (commands/credentials), DHCP (options), SMB (paths/files). `EdgeDetail.jsx` similarly hardcodes `tls_snis`, `ja3_hashes`, `http_hosts` etc. The search evaluator in `useCapture.js` also lists specific field names.
+
+**Impact:** If the parsing team adds SMTP, someone on the full-stack team must add an SMTP section to SessionDetail, update EdgeDetail to show SMTP fields, and update the search evaluator to match SMTP fields. Three files to change, cross-team coordination required.
+
+**Fix — two-tier rendering:**
+1. **Generic renderer (fallback):** Iterate all `extra` fields on a session/edge and render them with sensible defaults — strings as text, arrays as lists, objects as nested key-value pairs. Any new protocol's fields appear automatically.
+2. **Protocol renderers (optional enhancement):** Register frontend "renderer" components for specific protocols. `DnsRenderer` provides the rich DNS UI with colored badges and record types. `TlsRenderer` provides the cert tree and JA3/JA4 display. If no renderer is registered for a protocol, the generic renderer handles it.
+
+This means: a new protocol added by the parsing team shows up in the UI immediately (generic view). The full-stack team can later add a rich renderer for better presentation, but it's not blocking.
+
+**Problem 3: `server.py` is a monolith**
+
+`server.py` is simultaneously:
+- The FastAPI application and route definitions
+- The upload/parse orchestrator
+- Business logic (entropy computation, gateway OS override, session detail enrichment)
+- The annotation CRUD layer
+- The synthetic element CRUD layer
+
+**Impact:** A frontend engineer adding a new API endpoint edits the same 1500-line file as a backend engineer modifying the parse pipeline. Merge conflicts, unclear ownership.
+
+**Fix:** Split into FastAPI routers:
+```
+backend/
+  server.py              # App factory, mounts routers, CaptureStore
+  api/
+    graph.py             # /api/graph, /api/protocols, /api/stats
+    sessions.py          # /api/sessions, /api/session_detail
+    upload.py            # /api/upload, /api/upload_metadata
+    annotations.py       # /api/annotations CRUD
+    synthetic.py         # /api/synthetic CRUD
+    research.py          # /api/research/charts, /api/research/run
+    plugins.py           # /api/plugins/results, /api/plugins/slots
+```
+Each router file is one domain. `server.py` becomes a thin app that mounts them and holds the shared `CaptureStore` reference.
+
+**Problem 4: `useCapture.js` is a god hook**
+
+All frontend state lives in one ~800-line hook: graph fetching, protocol filtering, search, selection, navigation history, panel routing, annotations, synthetic elements, sessions, investigation mode, display filters, timeline, and more.
+
+**Impact:** Any frontend change touches this file. Two developers working on unrelated features (search dropdown vs. protocol tree) will conflict.
+
+**Fix:** Decompose into focused hooks:
+```
+hooks/
+  useCapture.js          # Thin orchestrator — composes the hooks below
+  useGraph.js            # Graph fetch, protocol filters, time range, subnet options
+  useSelection.js        # Node/edge/session selection, navigation history, clearSel/clearAll
+  useSearch.js           # Search text, search evaluator, searchResult, dropdown state
+  useSessions.js         # Session list fetch, session detail, session scoping
+  useAnnotations.js      # Annotations CRUD, notes
+  useSynthetic.js        # Synthetic nodes/edges/clusters
+  useInvestigation.js    # Investigation mode, investigated IP, component detection
+  useDisplayFilter.js    # Display filter expression, parsing, evaluation
+```
+Each hook manages its own state and effects. `useCapture.js` composes them and returns the unified interface that `App.jsx` consumes. The public API doesn't change — only the internal organization.
+
+**Problem 5: Search evaluator knows field names**
+
+The client-side search in `useCapture.js` has hardcoded field checks:
+```javascript
+for (const s of (e.tls_snis || [])) { if (s.includes(q)) return 'tls_sni'; }
+for (const h of (e.http_hosts || [])) { if (h.includes(q)) return 'http_host'; }
+// ... each field listed
+```
+
+**Impact:** New protocol fields are not searchable until someone updates the evaluator.
+
+**Fix:** Generic field search. Iterate all keys of `edge.extra` (or the edge object itself) and search their values:
+```javascript
+for (const [key, val] of Object.entries(e)) {
+    if (Array.isArray(val)) {
+        for (const v of val) { if (String(v).toLowerCase().includes(q)) return key; }
+    } else if (typeof val === 'string' && val.toLowerCase().includes(q)) {
+        return key;
+    }
+}
+```
+Any new field is automatically searchable. Protocol-specific exclusions (like the DNS query noise fix) become an explicit deny-list rather than an implicit allow-list.
+
+### Coupling matrix (current state)
+
+```
+                    Parsing    Aggregation    Full-stack    Research
+Parsing               —        COUPLED(1)     COUPLED(2)     low
+Aggregation        COUPLED(1)      —          COUPLED(2)     low
+Full-stack         COUPLED(2)  COUPLED(2)         —          low
+Research              low         low             low          —
+```
+
+(1) = aggregator hardcodes field names from parsers
+(2) = frontend hardcodes field names from aggregator/parsers
+
+After fixes:
+```
+                    Parsing    Aggregation    Full-stack    Research
+Parsing               —           low            low          low
+Aggregation           low          —             low          low
+Full-stack            low         low              —          low
+Research              low         low             low           —
+```
+
+### Refactoring priority
+
+| Priority | Refactor | Effort | Unblocks |
+|----------|----------|--------|----------|
+| 1 | Generic `extra` collection in `aggregator.py` | 1 day | Parsing team independence |
+| 2 | Generic field renderer in SessionDetail/EdgeDetail | 2-3 days | New protocols appear in UI automatically |
+| 3 | Generic search evaluator | 1 day | New fields searchable automatically |
+| 4 | Split `server.py` into routers | 1-2 days | Backend team parallelism |
+| 5 | Decompose `useCapture.js` | 3-5 days | Frontend team parallelism |
+
+Priorities 1-3 should be done before onboarding a parsing team. Priority 4-5 should be done before scaling the full-stack team to 3+ developers.
+
+### When to do this
+
+**Not now.** The current architecture works well for a small team or single developer. These refactors become necessary when:
+- You have 3-4 teams working in parallel and merge conflicts become a bottleneck
+- The parsing team wants to ship a new protocol without waiting for frontend changes
+- `useCapture.js` is over 1000 lines and two devs are constantly conflicting
+
+Document the plan now so everyone knows where the boundaries *should* be. Implement when the team scales.
+
+---
+
+### Done (recent)
 - [x] Seq/Ack Timeline inline in SessionDetail (v0.9.1)
 - [x] App.jsx → useCapture hook refactor (v0.9.1)
 - [x] VERSION single source of truth (v0.9.1)
@@ -604,3 +1066,180 @@ cd swifteye/frontend && npm run dev
 - **README.md** — user-facing quick start, feature overview, changelog
 - **docs/DEVELOPERS.md** — full developer docs: architecture, extension points, API reference, patterns
 - **HANDOFF.md** — this file: project status, rules, roadmap
+
+---
+
+## 9. Long-term Considerations
+
+These are not roadmap items — they're architectural concerns and bottlenecks that will need attention as SwiftEye scales in users, data volume, and team size. Listed roughly by when they'll become painful.
+
+### Testing & CI/CD
+
+**Current state:** One `test_core.py` file with basic pytest assertions. No frontend tests. No CI pipeline.
+
+**What's needed:**
+- Per-module unit tests: parsing team tests dissectors against known pcap fixtures, aggregation team tests graph output, frontend tests component rendering and hook behavior.
+- Integration tests: pcap file in → expected graph/session/stats out. These are the safety net for the generic `extra` refactor — verify output is identical before and after.
+- A curated set of small test pcaps (one per protocol, one multi-protocol, one edge case) checked into the repo as fixtures.
+- CI pipeline (GitHub Actions or similar) that runs all tests on every PR. Block merges on test failure.
+- Frontend: React Testing Library for component tests, or at minimum Playwright/Cypress for critical user flows (upload → graph renders → click node → detail opens).
+
+**When it hurts:** As soon as two developers are working on the same codebase. Without CI, teams break each other's code silently.
+
+### State Persistence
+
+**Current state:** Everything is in-memory. Annotations, synthetic elements, investigation notes, collapse states, theme preferences — all lost on server restart.
+
+**Before SQLite (Phase 2), a quick fix:** Dump critical state to a JSON file on shutdown (or periodically), reload on startup. Covers: annotations, synthetic elements, investigation markdown, researcher metadata. Takes a day to implement and eliminates the worst pain point immediately.
+
+**With SQLite (Phase 2):** The DB file IS the workspace. Persistence comes free. Save/load becomes "copy the .sqlite file."
+
+**When it hurts:** The first time a researcher loses 30 minutes of annotations to a server restart.
+
+### Frontend Performance Cliffs
+
+**D3 force graph at 500+ nodes:** The canvas-based D3 force simulation becomes janky. The force tick runs every frame, and at 500+ nodes with edges the layout computation exceeds the 16ms frame budget. Options:
+- WebGL renderer (deck.gl, sigma.js, or pixi.js) — 10-100x more nodes before janking
+- Level of detail (LOD) — cluster distant/small nodes, expand on zoom
+- Pre-computed layout — run the force simulation once on the backend (Python networkx spring_layout), send fixed positions, frontend just renders without simulation
+- Hybrid: simulate for the first 3 seconds (let the user see it settle), then freeze positions and switch to static rendering
+
+**Sessions list at 10K+ sessions:** Currently fetches ALL sessions at once. The frontend stores them in a single array and renders a scrollable list. At 10K+ sessions, the initial fetch is slow and the list is laggy. Fix: virtual scrolling (react-window or react-virtualized) + server-side pagination (`/api/sessions?offset=0&limit=100`).
+
+**Protocol tree at 100+ protocols:** The `allKeys` computation in LeftPanel runs on every render. Fine at 20 protocols, noticeable at 100+. Fix: `useMemo` (already used) should be sufficient, but verify the dependency array isn't causing unnecessary recomputation.
+
+**Research charts at 1M+ packets:** Each chart fetches the full filtered packet list server-side, transforms it, and returns Plotly JSON. At 1M packets a single chart render takes 30+ seconds. Fix: pre-aggregation on the backend (SQL GROUP BY in Phase 2), or streaming/sampling for visualization.
+
+**When it hurts:** When researchers start using SwiftEye on real enterprise captures (50MB+) with 100+ unique endpoints.
+
+### Plugin Versioning & Compatibility
+
+**Current state:** Plugins assume a fixed `PacketRecord` / session shape. No version field, no compatibility checking.
+
+**What happens when `EventRecord` arrives (Phase 1):** Every plugin that reads `pkt.tcp_flags` or `session.tls_snis` needs to handle the case where those fields don't exist (because the event came from Splunk, not pcap). Some plugins will crash, others will silently produce wrong results.
+
+**What's needed:**
+- A plugin API version field (`PLUGIN_API_VERSION = 2`) that the registry checks at load time.
+- Graceful degradation: plugins declare which fields they require. If a field is missing, the plugin is skipped (not crashed) and the UI shows "Plugin X skipped — requires pcap data."
+- Plugin health reporting: did it run? How long did it take? Did it produce output? Did it error? Surface this in the UI (Analysis panel or Server Logs).
+
+**When it hurts:** Phase 1 (EventRecord), when non-pcap data enters the pipeline.
+
+### Data Lineage & Provenance
+
+**Current state:** No tracking of where an event came from. A packet is a packet.
+
+**Why it matters with multi-source:** When the graph shows an edge between A and B, the researcher needs to know: "these 3 packets came from pcap capture_1.pcap (bytes 45210-47800), and these 2 connection records came from the Splunk firewall export (rows 8901-8902)." Without this, findings are unverifiable.
+
+**What's needed:**
+- Each `EventRecord` carries `source_id` (which file/adapter produced it) and `source_ref` (pcap byte offset, CSV row number, Splunk event ID — whatever makes sense for the source type).
+- The UI shows source info in Session Detail (e.g. "Source: capture_1.pcap · packets 4521-4523") and Edge Detail.
+- Export/report includes source references for reproducibility.
+
+**When it hurts:** When researchers need to present findings to a legal or compliance audience, or when debugging "why does this edge exist?"
+
+### Collaboration
+
+**Current state:** Single-user tool. No auth, no multi-user awareness.
+
+**What the projects/workspaces vision implies:**
+- Multiple analysts on the same case, potentially simultaneously
+- Conflict resolution for annotations (two analysts note the same node differently)
+- Activity log / audit trail (who annotated what, when, with what justification)
+- Role-based access: viewer (read-only, sees the graph and investigation), analyst (can annotate, run plugins, write investigation), admin (can create projects, manage users, delete data)
+
+**Sync model options:**
+- **Async (simpler):** Each analyst works on their own branch/copy, merges findings periodically. Like git for investigations. Lower complexity, fits the forensic workflow where analysts often work independently then meet.
+- **Real-time (harder):** Google Docs-style live collaboration. Requires WebSocket or SSE, conflict resolution (CRDT or OT), presence awareness. Much higher complexity, but valuable for time-sensitive incident response.
+
+**Recommendation:** Start with async. Each analyst gets their own workspace copy. "Share findings" button exports their annotations/notes as a JSON patch that another analyst can import. Real-time collaboration is a v2.0 feature, not a v1.0 requirement.
+
+**When it hurts:** When two analysts work the same incident and duplicate effort because they can't see each other's notes.
+
+### Export & Reporting
+
+**Current state:** pcap slice export (filtered packets as a new pcap file). Investigation panel has Markdown. No formal report generation.
+
+**What researchers need:**
+- **Graph export:** SVG or PNG snapshot of the current graph view (with labels, colors, legend). For including in reports and presentations.
+- **Session/edge export:** CSV of filtered sessions or edges with all fields. For importing into Excel, SIEM, or other tools.
+- **Investigation report:** Export the Markdown investigation as a formatted PDF or HTML document, with embedded graph snapshots, referenced session details, and a table of all notes.
+- **Workspace handoff:** Export the entire workspace (capture data + annotations + synthetic elements + investigation + settings) as a single portable file. Another analyst opens it and sees exactly what you saw.
+- **Chain of custody:** For forensic reports — hash of original pcap file(s), SwiftEye version used, complete filter history (what was filtered in/out at each step), timestamps of analysis actions. Proves the analyst didn't cherry-pick data.
+
+**When it hurts:** When the first analyst needs to hand off their work to a colleague or present to management.
+
+### Logging & Observability
+
+**Current state:** Basic Python `logging` module writing to `backend/swifteye.log` and console. Logs capture upload events, parse errors, and plugin failures. No structured format, no log levels per module, no frontend error reporting, no request tracing.
+
+**What's needed:**
+- **Structured logging (JSON):** Each log line is a JSON object with `timestamp`, `level`, `module`, `message`, `context` (request ID, user ID, session ID). Enables log aggregation tools (ELK, Loki, Splunk — ironic but useful) to parse and query.
+- **Request tracing:** Each API request gets a unique `request_id` that propagates through all downstream function calls. When a researcher reports "session detail is slow," you can search logs by request ID and see exactly which query took how long.
+- **Per-module log levels:** Parsing at DEBUG (every packet decision), aggregation at INFO (graph build timing), API at WARNING+ (only errors). Configurable via environment variable or config file without code changes. e.g. `SWIFTEYE_LOG_LEVEL=parser:DEBUG,aggregation:INFO,api:WARNING`.
+- **Performance logging:** Time every significant operation — parse duration, graph build duration, session reconstruction, plugin execution, API response time. Surface as metrics (not just log lines) for dashboards. At minimum, log a timing summary after each upload: "Parsed 11,153 packets in 2.3s, built graph (105 nodes, 381 sessions) in 0.4s, ran 5 plugins in 1.1s."
+- **Frontend error reporting:** Uncaught JS errors and React error boundaries should POST to a `/api/log` endpoint (or at minimum log to browser console with enough context to reproduce). Currently frontend errors are silent to the backend.
+- **Audit log (for multi-user):** Distinct from application logs. Records analyst actions: uploaded file X, annotated node Y, exported pcap Z, modified investigation. Append-only, tamper-evident. Required for forensic chain of custody and for the collaboration model (who did what).
+- **Log rotation:** The current `swifteye.log` grows unbounded. Add rotation (e.g. `RotatingFileHandler` with 10MB max, 5 backups) before the file fills a disk during a long analysis session.
+
+**When it hurts:** First production deployment. Debugging "why is it slow" or "what happened" without structured logs is guesswork.
+
+### Authentication & User Management
+
+**Current state:** No authentication. Anyone who can reach the port can do anything — upload, delete, view, annotate. Single-user by design.
+
+**Options, from simplest to most capable:**
+
+#### Option 1: Shared secret / API token
+
+**What:** A single token configured via environment variable (`SWIFTEYE_TOKEN=mysecret`). Every request must include `Authorization: Bearer mysecret` header. Frontend stores the token after initial login prompt.
+
+**Pros:** Trivial to implement (FastAPI middleware, 20 lines). No user management, no database. Good enough for a shared lab where you just want to prevent accidental access.
+
+**Cons:** Single token for everyone — no per-user identity, no audit trail, no role differentiation. Token rotation requires restart.
+
+**Best for:** Internal lab deployment, small team, "just keep random people out."
+
+#### Option 2: Username/password with local accounts
+
+**What:** Users table in the database (SQLite in Phase 2, PostgreSQL in Phase 3). Registration, login, bcrypt-hashed passwords, JWT session tokens. Each request carries a JWT. Server validates and extracts user identity.
+
+**Pros:** Per-user identity enables audit trails, per-user workspaces, role-based access. Self-contained — no external dependencies. Standard pattern, well-understood.
+
+**Cons:** Password management burden (reset flows, complexity requirements, breach risk). Users must create yet another account. Doesn't integrate with enterprise identity.
+
+**Best for:** Standalone deployment, small-to-medium teams, SaaS model.
+
+#### Option 3: Domain integration (LDAP/Active Directory)
+
+**What:** Authenticate against the organization's existing directory. User types their domain credentials, SwiftEye validates against LDAP/AD, creates a local user record on first login. Groups in AD map to roles in SwiftEye (e.g. `CN=SwiftEye-Analysts` → analyst role, `CN=SwiftEye-Admins` → admin role).
+
+**Pros:** No new passwords. Users log in with their existing credentials. Group-based role mapping. IT controls access via existing tooling. Fits enterprise deployment.
+
+**Cons:** Requires network access to the domain controller. LDAP integration is configuration-heavy (bind DN, search base, group mapping, TLS). Doesn't work for isolated/air-gapped forensic workstations (no DC access).
+
+**Best for:** Enterprise on-premises deployment where SwiftEye runs on the corporate network.
+
+#### Option 4: SSO / OAuth2 / SAML
+
+**What:** Delegate authentication to an identity provider (Okta, Azure AD, Google Workspace, Keycloak). SwiftEye is a "relying party" — it redirects to the IdP for login, receives a token back, and trusts the IdP's assertion of identity.
+
+**Pros:** Enterprise-grade. MFA comes free from the IdP. No passwords stored in SwiftEye. Works with any IdP. Supports SAML (for legacy enterprise) and OIDC/OAuth2 (for modern).
+
+**Cons:** Most complex to implement. Requires IdP configuration (client registration, redirect URIs, claim mapping). Doesn't work air-gapped. Overkill for a small team.
+
+**Best for:** Large enterprise deployment, cloud-hosted SwiftEye, compliance-driven environments.
+
+#### Option 5: Token-based API keys (for programmatic access)
+
+**What:** In addition to interactive login (any of the above), users can generate long-lived API tokens from their profile. Tokens authenticate API requests for automation — scripts that upload pcaps, export data, trigger analysis.
+
+**Pros:** Enables CI/CD integration, automated workflows, scripted bulk analysis. Tokens can be scoped (read-only, upload-only, full access) and revoked individually.
+
+**Cons:** Token leakage risk. Needs a token management UI.
+
+**Best for:** Complement to any of the above. Add when programmatic access is needed.
+
+**Recommendation:** Start with Option 1 (shared token) as a quick gate. Move to Option 2 (local accounts) when the projects/workspaces feature ships. Add Option 3 (LDAP) or 4 (SSO) based on deployment target. Option 5 (API keys) when automation use cases emerge.
+
+**When it hurts:** First multi-user deployment, or first time a non-team member accesses the tool accidentally.

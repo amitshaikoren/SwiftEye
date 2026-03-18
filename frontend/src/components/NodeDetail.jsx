@@ -5,6 +5,40 @@ import Row from './Row';
 import { PluginSections, GenericDisplay } from './PluginSection';
 import { fN, fB } from '../utils';
 
+/**
+ * Classify an IP address into its address type.
+ * Returns {label, bg, fg} or null for regular public unicast.
+ */
+function classifyIp(ip) {
+  if (!ip) return null;
+  // IPv6
+  if (ip.includes(':')) {
+    const lower = ip.toLowerCase();
+    if (lower === '::1') return { label: 'Loopback', bg: 'rgba(139,148,158,.18)', fg: '#8b949e' };
+    if (lower.startsWith('fe80:')) return { label: 'Link-local', bg: 'rgba(139,148,158,.18)', fg: '#8b949e' };
+    if (lower.startsWith('ff')) return { label: 'Multicast', bg: 'rgba(210,153,34,.15)', fg: '#d29922' };
+    if (lower.startsWith('fc') || lower.startsWith('fd')) return { label: 'ULA', bg: 'rgba(56,189,248,.12)', fg: '#38bdf8' };
+    if (lower === '::') return { label: 'Unspecified', bg: 'rgba(139,148,158,.18)', fg: '#8b949e' };
+    return null;
+  }
+  // IPv4
+  const parts = ip.split('.');
+  if (parts.length !== 4) return null;
+  const [a, b, c, d] = parts.map(Number);
+  if (a === 10) return { label: 'Private', bg: 'rgba(56,189,248,.12)', fg: '#38bdf8' };
+  if (a === 172 && b >= 16 && b <= 31) return { label: 'Private', bg: 'rgba(56,189,248,.12)', fg: '#38bdf8' };
+  if (a === 192 && b === 168) return { label: 'Private', bg: 'rgba(56,189,248,.12)', fg: '#38bdf8' };
+  if (a === 127) return { label: 'Loopback', bg: 'rgba(139,148,158,.18)', fg: '#8b949e' };
+  if (a === 169 && b === 254) return { label: 'APIPA', bg: 'rgba(210,153,34,.15)', fg: '#d29922' };
+  if (a >= 224 && a <= 239) return { label: 'Multicast', bg: 'rgba(210,153,34,.15)', fg: '#d29922' };
+  if (a === 255 && b === 255 && c === 255 && d === 255) return { label: 'Broadcast', bg: 'rgba(210,153,34,.15)', fg: '#d29922' };
+  if (a === 100 && b >= 64 && b <= 127) return { label: 'CGNAT', bg: 'rgba(163,113,247,.15)', fg: '#a371f7' };
+  if ((a === 192 && b === 0 && c === 2) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113))
+    return { label: 'Documentation', bg: 'rgba(139,148,158,.18)', fg: '#8b949e' };
+  if (a === 0) return { label: 'Unspecified', bg: 'rgba(139,148,158,.18)', fg: '#8b949e' };
+  return null;  // regular public unicast — no badge
+}
+
 /** Dedicated renderer for os_fingerprint on node detail */
 function OSFingerprintNodeRenderer({ data }) {
   if (!data) {
@@ -236,9 +270,22 @@ export default function NodeDetail({
       {node.ips?.length > 0 && (
         <div style={{ marginBottom: 8, marginTop: 6 }}>
           <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>IPs</div>
-          {(node.ips || []).map(ip => (
-            <div key={ip} style={{ fontSize: 10, fontFamily: 'var(--fn)', padding: '1px 0', color: 'var(--txM)' }}>{ip}</div>
-          ))}
+          {(node.ips || []).map(ip => {
+            const addrType = classifyIp(ip);
+            return (
+              <div key={ip} style={{ fontSize: 10, fontFamily: 'var(--fn)', padding: '1px 0', color: 'var(--txM)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span>{ip}</span>
+                {addrType && (
+                  <span style={{
+                    fontSize: 8, padding: '0px 5px', borderRadius: 8,
+                    background: addrType.bg, color: addrType.fg,
+                    fontFamily: 'var(--fn)', letterSpacing: '.03em', lineHeight: '15px',
+                    whiteSpace: 'nowrap', flexShrink: 0,
+                  }}>{addrType.label}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

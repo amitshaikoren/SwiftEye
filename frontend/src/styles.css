@@ -21,8 +21,8 @@
   --acO: #d29922;
   --acR: #f85149;
   --acP: #bc8cff;
-  --fn: 'JetBrains Mono', 'Fira Code', monospace;
-  --fd: 'Outfit', sans-serif;
+  --fn: 'JetBrains Mono', 'Fira Code', ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+  --fd: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --r: 8px;
   --rs: 5px;
   /* Graph canvas node colors */

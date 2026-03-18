@@ -100,6 +100,7 @@ Click **Research** in the left panel. Use the time scope slider to restrict to a
 | **Conversation timeline** | Who talked to this IP, when, and on what protocol? |
 | **TTL over time** | Did the TTL between two peers stay consistent? |
 | **Seq/Ack Timeline** | What do sequence numbers look like over the session? (also in Session Detail → SEQ/ACK tab) |
+| **HTTP User-Agent timeline** | Which source IPs made HTTP requests, when, and with what User-Agent? |
 
 The Session Gantt lives in the **Timeline** nav entry.
 
@@ -132,6 +133,139 @@ The `name` field becomes the node label. All other fields appear in Node Detail.
 ---
 
 ## Changelog
+
+### v0.9.81 — March 2026
+- **HTTP User-Agent timeline** — new Research chart. X = time, Y = source IP, colour = User-Agent. Spot automated tools, C2 beacons, and UA spoofing at a glance.
+- **SMTP dissector** — EHLO, MAIL FROM, RCPT TO, AUTH, STARTTLS, banner extraction.
+- **mDNS dissector** — service discovery: query names, service types, SRV hostnames, TXT records.
+- **SSDP dissector** — UPnP discovery: M-SEARCH/NOTIFY, ST, USN, Location, Server.
+- **LLMNR dissector** — Link-Local Multicast Name Resolution: queries, answers. Common attack vector in AD environments.
+- **DCE/RPC dissector** — payload fingerprinting (`05 00`/`05 01` magic bytes) detects Microsoft RPC on any port including ephemeral. Extracts packet type, interface UUID → service name mapping (~40 known services: DRSUAPI, SAMR, LSARPC, SVCCTL, NETLOGON, WMI, DCOM, etc.), and operation numbers.
+- **OUI vendor table expanded** — from ~688 to ~1050 entries focused on Microsoft ecosystem, network infrastructure, VMs, and printers.
+- **User-Agent text brighter** — UA strings in SessionDetail were too dim; fixed.
+- **Collapse state carries over all sections** — navigating between sessions on the same edge now preserves all collapse states, not just explicitly toggled ones.
+- **Generic search matches session fields** — searching "mozilla", "powershell", etc. now finds edges with matching User-Agents, URIs, SSH banners, Kerberos principals, LDAP DNs, and all other session-level fields.
+
+### v0.9.79 — March 2026
+- **Kerberos dissector** — new protocol dissector for TCP/UDP port 88. Parses ASN.1 DER to extract message type (AS-REQ/TGS-REP/KRB-ERROR/etc.), realm, client principal (cname), service principal (sname), encryption types offered, error codes. Session aggregation collects all fields. Frontend renders under Application (L5+) with principals in green/blue, encryption types collapsible, errors in red.
+- **LDAP dissector** — new protocol dissector for TCP port 389/636. Parses ASN.1 BER to extract operation type (BindRequest/SearchRequest/etc.), bind DN, SASL mechanism, search base DN, search scope, result codes, entry DNs, attribute names. Session aggregation collects all fields. Frontend renders under Application (L5+) with bind DNs, search bases, result entries collapsible, result codes green/orange.
+
+### v0.9.78 — March 2026
+- **Bytes/time chart works for all protocols** — the Bytes/time chart in session Charts tab now works for UDP, ICMP, DNS, and any other protocol — not just TCP. Shows cumulative bytes per direction over time. The SEQ/ACK chart remains TCP-only. Previously, both modes required TCP sequence numbers, so non-TCP sessions showed "No TCP sequence data".
+
+### v0.9.77 — March 2026
+- **Collapse state carries over between sessions** — when navigating between sessions (via the ← → arrows on an edge), any sections you had open (e.g. Application L5+, DNS) stay open on the next session. New sessions clone the collapse state from the previous session instead of starting with everything collapsed. Previously visited sessions keep their own state.
+
+### v0.9.76 — March 2026
+- **TLS section title fix** — removed SNI from the TLS collapse title. Now shows just "TLS 1.2" or "TLS 1.3" instead of "TLS 0x9C01 — hostname". SNI is still displayed inside the section.
+
+### v0.9.75 — March 2026
+- **L5+ frontend rendering** — SessionDetail Application (L5+) layer now displays all new directional fields. Each protocol section shows Initiator → and Responder ← sub-headers where applicable:
+  - **TLS**: ALPN offered/selected, supported versions, key exchange group, session resumption, full certificate chain (intermediates)
+  - **HTTP**: Initiator shows User-Agents, methods, URIs, referers, cookie/auth flags. Responder shows servers, status codes, content types, redirects, set-cookie flag.
+  - **SSH**: Directional banners, KEX algorithms, host key types, encryption/MAC algorithms (collapsible per direction)
+  - **FTP**: Initiator commands + transfer mode. Responder response codes + banner.
+  - **DHCP**: Lease time, server ID, DNS servers, routers, options seen (in addition to existing hostname/vendor/msg_types)
+  - **SMB**: Initiator operations as tags, responder NT status codes (green for success, orange for errors)
+  - **ICMP**: Per-direction type/code counts, identifiers (hex), payload sizes, payload hex samples (collapsible)
+  - **DNS**: Query class badge (shown only when non-IN — highlights CH/ANY queries)
+
+### v0.9.74 — March 2026
+- **HTTP enrichment** — extracts User-Agent, Referer, Content-Type, Content-Length, Server, Set-Cookie, Location, Cookie, Authorization per packet. Session aggregates: unique UAs, referers, content types, servers, methods, status codes, URIs, redirect locations, cookies, auth headers. Both scapy and manual parser paths enriched.
+- **ICMP enrichment** — extracts original destination IP from unreachable/time-exceeded embedded headers, redirect gateway address, original TTL from time-exceeded. Session aggregates: unique ICMP type names, original destinations, redirect gateways.
+- **DHCP enrichment** — extracts lease time (opt 51), server identifier (opt 54), subnet mask (opt 1), router (opt 3), DNS servers (opt 6), relay agent info (opt 82), client identifier (opt 61), all option numbers seen. Session aggregates: lease time (first seen), unique server IDs, DNS servers, routers, all option numbers.
+- **FTP enrichment** — detects transfer mode (active via PORT/EPRT, passive via PASV/EPSV). Session aggregates: unique transfer modes, response codes in order.
+- All new fields properly aggregated in sessions.py with appropriate types (sets for unique values, capped lists for ordered sequences) and serialized in post-processing.
+
+### v0.9.74 — March 2026
+- **L5+ enrichment: dissectors** — HTTP: User-Agent, Referer, Content-Type, Content-Length, Server, Set-Cookie, Location, Cookie, Authorization. ICMP: payload size and hex sample (first 64 bytes). SSH: KEX_INIT parsing for kex/host-key/encryption/MAC/compression algorithms (both directions). TLS: ALPN offered/selected, supported_versions, extensions list, compression methods, key exchange group, session resumption detection, full cert chain. DNS: query class name (IN/CH/ANY).
+- **L5+ enrichment: session aggregation** — all new fields aggregated at session level split by initiator (→) / responder (←). HTTP: initiator gets user_agents/methods/uris/referers/has_cookies/has_auth, responder gets servers/status_codes/content_types/redirects/has_set_cookies. ICMP: per-direction type/code counts, identifiers, payload sizes, payload hex samples. SSH: per-direction banners + KEX algorithms. FTP: initiator commands/transfer_mode, responder response_codes/banner. SMB: initiator operations, responder NT status codes. TLS: initiator ClientHello extensions, responder ServerHello details + cert chain.
+
+### v0.9.73 — March 2026
+- **Back navigation fix** — canvas background click was double-pushing to history (once from `handleGSel`'s blanket `_navPush()`, once from `clearAll()`). Now `_navPush()` is called per-branch (node/edge only), and the else branch delegates to `clearAll()` which handles its own push. Pressing back after canvas click now correctly restores the previous edge/session/node detail.
+
+### v0.9.72 — March 2026
+- **Back/forward navigation fix** — history snapshots now use a `latestRef` that always holds the most recent state values, fixing the stale-closure problem where pressing back after a canvas click would restore the wrong panel state. Dropdown no longer auto-opens on history restore — it only opens when the search input is focused (user actively typing).
+
+### v0.9.71 — March 2026
+- **ARP and OTHER are top-level in protocol tree** — no longer incorrectly nested under IPv4. ARP, OTHER, and any non-IP protocol render as flat toggleable rows with color swatches at the root level, alongside IPv4 and IPv6.
+- **Transport rows have color swatches** — UDP, TCP, ICMPv6 now show a colored checkbox square (like leaf protocols), making it visually obvious they are clickable/toggleable. Half-filled state when some children are on.
+- **Backend: ip_version 0 wildcard** — composite filter keys with ip_version=0 (e.g. `0/ARP/ARP`) match any ip_version in the backend filter, correctly handling non-IP protocols.
+
+### v0.9.70 — March 2026
+- **HANDOFF: Logging & auth considerations** — structured JSON logging, request tracing, per-module log levels, performance timing, frontend error reporting, audit log, log rotation. Authentication options from simplest to most capable: shared token, local accounts, LDAP/AD, SSO/OAuth2, API keys — with pros, cons, and when each fits.
+
+### v0.9.69 — March 2026
+- **HANDOFF: Architecture plans documented** — Section 7 (Multi-source ingestion & scale: EventRecord abstraction, 4 storage backend options with pros/cons/scale ceilings, phased recommendation, Splunk integration specifics), Section 8 (Team boundaries & code decoupling: 5 coupling problems with fixes, coupling matrix, refactoring priority table), Section 9 (Long-term considerations: testing/CI, state persistence, frontend performance cliffs, plugin versioning, data lineage, collaboration models, export/reporting).
+- **Roadmap: L5+ protocol enrichment** — per-protocol field extraction targets for DNS, DNSSEC, TLS, HTTP, SSH, FTP, DHCP, SMB, ICMP, and new protocols (SMTP, Kerberos, mDNS, SSDP).
+
+### v0.9.68 — March 2026
+- **Legend fix** — protocol names in the graph legend are now deduplicated from composite keys. `4/UDP/DNS` and `6/UDP/DNS` both show as a single "DNS" with its color swatch. No more duplicate or raw composite key labels.
+- **ARP/ICMPv6/OTHER no longer show "Other" subcategory** — when a transport has only one leaf and that leaf is the transport itself (ARP/ARP, ICMPv6/ICMPv6), the tree shows just the transport row as a toggleable leaf without expanding into an "Other" child.
+
+### v0.9.67 — March 2026
+- **Back/forward panel navigation** — browser-style arrow buttons (left/right) appear at the top of the right panel when navigation history exists. Every panel change (clicking a node, edge, session, switching panels, escaping) pushes the current state to a history stack. Click back to return to the previous view, forward to go ahead again. History capped at 50 entries. Uses refs to avoid re-renders. Restoring a snapshot sets selNodes, selEdge, selSession, rPanel, and search text.
+
+### v0.9.66 — March 2026
+- **Offline-safe CDN fallbacks** — Google Fonts and Plotly.js CDN links kept in index.html for when internet is available. Font CSS variables now include system font fallbacks (ui-monospace, Cascadia Code, SF Mono, Consolas for mono; system-ui, Segoe UI, Roboto for display) so the UI renders correctly offline instead of falling back to serif. Plotly.js added to package.json as local dependency and imported in main.jsx, so Vite bundles it — works offline after npm install.
+- **Escape and canvas click clear search** — pressing Escape or clicking the canvas background now clears the search text (and its dimming) in addition to clearing the selection. New `clearAll()` function handles both. Panel switches and other navigation still only clear selection, not search.
+
+### v0.9.65 — March 2026
+- **Roadmap: investigation notes aggregation** — the Investigation panel's Markdown editor will get a sidebar showing all notes from nodes/edges/sessions as clickable reference cards with "Go to" and "+ Add to timeline" actions.
+- **Roadmap: projects and workspaces (long-term)** — user workspaces containing projects, each with sub-projects (capture analyses, standalone visualizations). Project-level investigation spans all sub-projects. Multi-capture correlation across sub-projects.
+
+### v0.9.64 — March 2026
+- **Session ID is now the reference hash** — the user-facing Session ID in the Advanced section is the 16-char FNV-1a reference hash (e.g. `82d0ceb66f6ceb99`). The internal key (e.g. `192.168.1.104|224.0.0.251|5353|5353|UDP`) is shown below as "Internal key". Hash computation moved to shared `sessionRefHash()` utility in utils.js.
+
+### v0.9.63 — March 2026
+- **Collapse state persistence** — sections you open in a session detail are remembered. Navigate away and come back: they're still open. New sessions start all-collapsed. Uses React Context (CollapseContext) with a per-session Map stored in useCapture. Notes section auto-opens when existing text is loaded.
+
+### v0.9.62 — March 2026
+- **All sections start collapsed** — SessionDetail opens with everything collapsed. User expands what they need. Navigating to a different session resets all collapse states (via React key on SessionDetail). Notes section auto-opens when existing note text is loaded.
+- **Search clears selection** — changing the search text now clears the previous node/edge/session selection, preventing old highlights from persisting when searching for something new.
+
+### v0.9.61 — March 2026
+- **Search dropdown (Option D)** — typing in the search bar shows a dropdown with categorized results (Nodes / Edges). Each result shows what matched (hostname, tls_sni, ja3, protocol, etc.) in green. Click a result to select it on the graph and open its detail in the right panel. Dropdown closes on click-outside or when search is cleared.
+- **Charts tab crash fixed** — Notes section was accidentally inside the SeqAckChart component, causing a crash when switching to the Charts tab.
+- **Search precision improved** — DNS queries removed from edge matching (too noisy). No cascade from matched edges to endpoints.
+- **All SessionDetail sections open by default** — all collapsible sections now start expanded.
+- **EdgeDetail duplicate Notes removed**.
+
+### v0.9.60 — March 2026
+- **Search no longer propagates edge→node** — only directly matched nodes and their edges highlight. Matched edges highlight but their endpoints no longer light up, preventing the cascade where a DNS edge matching "cert" would light up the DNS server and then all its other connections.
+- **Session Advanced section enriched** — shows session ID, start/end time (ISO 8601), and a unique hash for reference.
+
+### v0.9.60 — March 2026
+- **Search precision fix** — removed DNS query matching from edges (one DNS edge aggregates hundreds of unrelated queries, causing false positives like "cert" matching every DNS edge). DNS matching now works through node hostnames only, which are precise. Searching "cert" now highlights only `cert.ssl.com` and its direct connections.
+- **Layer headers visually distinct and collapsible** — Network (L3), Transport (L4), Application (L5+) headers in Session Detail use a new `level="layer"` prop on Collapse: larger font, brighter color (`--tx` instead of `--txM`), top margin and bottom border. Clearly distinguishable from inner section headers. Fully collapsible.
+- **Session Advanced enriched** — shows session ID, start/end timestamps (ISO 8601), and a 16-char FNV-1a reference hash.
+
+### v0.9.59 — March 2026
+- **Search cascade fix** — searching no longer flood-fills the graph. Previously, a matched node lit up its edges, whose other endpoints also lit up, cascading across the graph. Now: matched nodes highlight their edges (but not the other endpoint), matched edges highlight their endpoints (but don't cascade further). Searching "cert" now highlights only `cert.ssl.com` and its direct edges.
+- **Search clear button** — X button appears in the search box when text is present.
+
+### v0.9.58 — March 2026
+- **Layer sections collapsible** — Network (L3), Transport (L4), and Application (L5+) section headers in Session Detail are now collapsible `<Collapse>` wrappers instead of static labels. Click to expand/collapse an entire layer.
+
+### v0.9.57 — March 2026
+- **Notes on sessions and edges** — collapsible Notes section added to SessionDetail and EdgeDetail (same pattern as NodeDetail). Notes are stored as annotations with `session_id` or `edge_id`, persisted to backend.
+- **Help popup scrollable** — the display filter syntax popup (`?` button) now scrolls within the viewport instead of overflowing off-screen.
+
+### v0.9.56 — March 2026
+- **Session Detail layer organization** — OVERVIEW tab reorganized by network layer: General (packets/bytes/duration/direction) → Network L3 (TTL, IPv4/IPv6 header) → Transport L4 (ports, TCP reliability, window size, TCP flags, seq/ack, TCP options) → Application L5+ (TLS, HTTP, DNS, SSH, FTP, DHCP, SMB). Advanced section kept at bottom for session ID and future use. UDP sessions show ports under Transport L4. Layer headers only appear when relevant data exists.
+
+### v0.9.55 — March 2026
+- **Protocol hierarchy: per-IP-version filtering** — toggling a transport branch (e.g. UDP under IPv6) only affects that IP version, not both. Composite filter keys (`4/TCP/HTTPS`, `6/UDP/DNS`) sent to backend via new `protocol_filters` parameter. "Other" label for unresolved transport-only packets (replaces the removed synthetic "Other TCP" entries). Double-click any protocol to solo it.
+- **Client-side search: field name matching** — searching "ja3" now highlights all edges that have JA3 fingerprints. Searching "dns" highlights DNS edges, "tls" highlights TLS edges, etc. Previously only matched against field values, not names.
+
+### v0.9.54 — March 2026
+- **Client-side search** — the search box now evaluates instantly against all node/edge fields (IPs, MACs, hostnames, OS, JA3/JA4, TLS SNI, HTTP host, DNS queries, cipher suites, metadata). Non-matching elements are dimmed, not removed. No backend re-fetch.
+- **Protocol hierarchy** — the flat protocol list is now a collapsible tree: IPv4/IPv6 → Transport → Application protocol. Click branches to toggle all children. "Other TCP"/"Other UDP" for unresolved transport-only packets.
+- **Address type annotation** — each IP in NodeDetail now shows a colored badge: Private, Loopback, APIPA, Multicast, Broadcast, CGNAT, Documentation, ULA, Link-local.
+- **Enhanced DNS dissection** — query type names (A/AAAA/CNAME/MX/…), response codes (NOERROR/NXDOMAIN/SERVFAIL), structured answer records with per-record type, data and TTL, authority/additional sections, DNS flags (AA/TC/RD/RA), transaction IDs.
+- **Payload entropy** — Shannon entropy per packet in the Payload tab, classified as structured/text/mixed/compressed/encrypted with color-coded badges.
+- **OS filter finds gateway nodes** — gateways detected by Network Map get `os_guess = "Network device (gateway)"` overriding the OS fingerprint. The OS fingerprint details remain in the plugin section.
+- **Show IPv6 OFF + Merge by MAC fixed** — external IPv6 nodes that were only reachable through a merged dual-stack host are now correctly hidden when "Show IPv6" is toggled off.
 
 ### v0.9.38 — March 2026
 - **Backend gap collapsing** — `build_time_buckets()` now replaces large empty runs (>1 day AND >20% of capture duration) with a single `is_gap=True` marker bucket. A 3-day gap between two pcaps becomes one bucket instead of 260,000.

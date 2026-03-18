@@ -22,7 +22,7 @@ WELL_KNOWN_PORTS: Dict[int, str] = {
     25: "SMTP", 110: "POP3", 143: "IMAP",
     465: "SMTPS", 587: "SMTP-SUB", 993: "IMAPS", 995: "POP3S",
     # DNS
-    53: "DNS", 5353: "mDNS",
+    53: "DNS", 5353: "mDNS", 5355: "LLMNR",
     # Web
     80: "HTTP", 443: "HTTPS",
     8080: "HTTP-ALT", 8443: "HTTPS-ALT", 8888: "HTTP-ALT2", 8000: "HTTP-ALT3",
@@ -34,7 +34,7 @@ WELL_KNOWN_PORTS: Dict[int, str] = {
     88: "Kerberos", 389: "LDAP", 636: "LDAPS",
     137: "NetBIOS-NS", 138: "NetBIOS-DGM", 139: "NetBIOS-SSN",
     # File sharing
-    445: "SMB", 111: "RPC", 2049: "NFS",
+    445: "SMB", 111: "RPC", 135: "DCE/RPC", 2049: "NFS",
     # Databases
     1433: "MSSQL", 1521: "Oracle", 3306: "MySQL", 5432: "PostgreSQL",
     6379: "Redis", 27017: "MongoDB", 11211: "Memcached",
@@ -74,7 +74,7 @@ PROTOCOL_COLORS: Dict[str, str] = {
     # TLS
     "TLS": "#2dd4bf",
     # DNS
-    "DNS": "#fbbf24", "mDNS": "#fbbf24",
+    "DNS": "#fbbf24", "mDNS": "#fbbf24", "LLMNR": "#facc15",
     # Email
     "SMTP": "#60a5fa", "SMTP-SUB": "#60a5fa", "SMTPS": "#60a5fa",
     "POP3": "#60a5fa", "POP3S": "#60a5fa", "IMAP": "#60a5fa", "IMAPS": "#60a5fa",
@@ -82,7 +82,7 @@ PROTOCOL_COLORS: Dict[str, str] = {
     "SSH": "#34d399", "TELNET": "#f472b6", "RDP": "#818cf8", "VNC": "#06b6d4",
     # File transfer
     "FTP": "#fb923c", "FTP-DATA": "#fb923c", "TFTP": "#fb923c", "SFTP": "#fb923c",
-    "SMB": "#a78bfa", "NFS": "#a78bfa",
+    "SMB": "#a78bfa", "NFS": "#a78bfa", "DCE/RPC": "#c084fc",
     # Network management
     "NTP": "#94a3b8", "DHCP": "#e879f9", "SNMP": "#a3e635", "SNMP-TRAP": "#a3e635",
     "SYSLOG": "#84cc16", "SSDP/UPnP": "#94a3b8",
