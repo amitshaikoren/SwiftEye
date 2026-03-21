@@ -446,7 +446,8 @@ All v0.8.x bug details preserved in §4a.
 - [x] **Researcher notes on every node** (v0.9.5) — add a collapsible "Notes" section to NodeDetail (and EdgeDetail) for all nodes, not just synthetic ones. A researcher should be able to attach a free-text note to any real node or edge during investigation. Notes are stored in `store.annotations` as a special annotation type (add `annotation_type: "note"` field alongside the existing `node_id`/`edge_id` fields, or use a separate `store.notes` dict keyed by node/edge ID). Notes persist across graph re-fetches (keyed by node ID, same as node annotations) and are included in workspace save/load. This is separate from researcher metadata JSON (which is pre-loaded structured data) — notes are ad-hoc, written during investigation, and not tied to a specific capture file structure.
 - [x] **Multi-pcap ingestion** — done in v0.9.15. UI accepts multiple files, TopBar shows "N files". Backend merges by timestamp.
 - [ ] **Large pcap support (>500MB)** — profile the pipeline; likely bottlenecks are scapy's per-packet overhead and full-list scans in `build_graph`/`build_sessions`. Candidate approaches in priority order: (1) streaming/chunked parse, (2) background loading with progress API via `/api/status`, (3) indexed packet store by session_key/IP/time for O(1) queries above ~500K packets.
-- [ ] **Multi-threaded pcap parsing** — each packet is parsed independently (no cross-packet state in the parser layer), so parsing can be parallelised. Approach: split the raw packet iterator into N chunks, parse each chunk in a separate thread/process via `concurrent.futures.ProcessPoolExecutor`, then concatenate the resulting `PacketRecord` lists and sort by timestamp. Scapy's GIL-bound layer construction likely needs `ProcessPoolExecutor` (not threads). The dpkt path is lighter and may benefit from `ThreadPoolExecutor`. Measure before choosing. *Note:* dissectors that use scapy layer objects (e.g. `pkt.haslayer(DNS)`) are safe to parallelise because each packet's scapy object is independent. *Prerequisites:* large pcap support profiling first to confirm the parser is the bottleneck.
+- [ ] **Multi-threaded pcap parsing** — low priority. Each packet is parsed independently so it's parallelisable via `ProcessPoolExecutor`, but the real bottleneck is scapy's per-packet overhead. Multi-processing adds serialization cost that eats much of the gain (estimated 30s→12s for 100MB, not transformative). The bigger win is dpkt parity (5-10x faster than scapy). For multi-source data (Zeek, Splunk, Sysmon), parsing is text-based and already fast — this optimization is pcap-specific. *Recommendation:* pursue dpkt parity and the EventRecord abstraction first. Revisit multi-threading only if profiling confirms the parser is still the bottleneck after dpkt parity.
+- [ ] **Magic numbers cleanup** — audit the entire codebase for hardcoded magic numbers (thresholds, limits, sizes, timeouts, pixel values, array slice indices) and extract them into named constants. Examples: `MAX_PACKETS = 2_000_000`, `DPKT_THRESHOLD = 500MB`, `MAX_FILE_SIZE = 500MB`, payload preview cap, session field caps in `sessions.py`, entropy thresholds, gap detection thresholds in `TimelineStrip.jsx`, bucket sizes, etc. All should be named constants at the top of their respective files or in `constants.py` where appropriate.
 - [x] **Network mapping** — done in v0.9.8 (`plugins/network_map.py`)
 - [ ] **Credential viewing** — HTTP Basic, FTP, Telnet, SMTP AUTH
 - [x] **Certificate extraction** — done in v0.9.7
@@ -505,10 +506,11 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Interactive research dashboard** — Plotly charts with cross-filtering across sessions/nodes
 - [ ] **File extraction** — reconstruct files from HTTP/FTP/SMB streams (FTP dissector already surfaces filenames/credentials)
 - [ ] **Multi-capture comparison** — side-by-side or overlay view of two captures
-- [ ] **Sysmon log ingestion** — accept Windows Sysmon XML/JSON event logs (process creation ID 1, network connections ID 3, DNS ID 22). Normalize into `EventRecord` structs parallel to `PacketRecord`. Network connections map cleanly to the existing session/edge model. Foundation for host-based threat hunting. *Prerequisites:* `EventRecord` abstraction. Status: very long-term.
-- [ ] **Process tree visualization** — once Sysmon data is ingested, render a process tree overlaid on the network graph. Nodes = processes (PID, image path, command line, user); edges = parent→child spawns + network connection edges to IP nodes. *Prerequisites:* Sysmon ingestion. Status: very long-term.
-- [ ] **Neo4j graph backend** — replace in-memory node/edge dicts with Neo4j. Benefits: Cypher queries replace Python loops, native graph storage survives restarts, enables multi-capture persistence and cross-capture queries. Architecture: keep in-memory as fallback via `SWIFTEYE_GRAPH_BACKEND=neo4j|memory`; `PacketRecord`→node/edge transform writes to Neo4j at upload time; query endpoints become Cypher; frontend unchanged. *Prerequisites:* large pcap support first. Status: long-term, design not started.
-- [ ] **Multi-source log ingestion** — accept Zeek/Bro logs, SIEM exports (CEF/LEEF), syslog, Windows Sysmon XML/JSON. Each source type becomes an ingestion adapter normalising records into `PacketRecord`-equivalent structs. Zeek `conn.log` is the highest-value first target. *Prerequisites:* `EventRecord` abstraction design. Status: long-term.
+- [ ] **Multi-source ingestion (ETL)** — the next major milestone. Accept Zeek logs, Splunk exports, Sysmon events, netflow, and more via the adapter framework. Full architecture in §7. Phase 1: `EventRecord` abstraction + adapter framework + Zeek conn.log adapter + generic UI rendering + adapter field docs. *Status:* design complete, ready to build.
+- [ ] **Sysmon log ingestion** — Sysmon adapter for Event ID 3 (network connections), ID 22 (DNS), ID 1 (process create). Granularity = "event". *Prerequisites:* multi-source ETL Phase 1. Status: medium-term.
+- [ ] **Process tree visualization** — process tree panel for Sysmon data. Nodes = processes, edges = parent→child spawns + network connections to IP nodes. *Prerequisites:* Sysmon adapter. Status: long-term.
+- [ ] **Neo4j graph backend** — secondary graph store for advanced traversal queries (path finding, community detection). Not a primary event store. *Prerequisites:* SQLite backend (ETL Phase 2). Status: long-term.
+
 - [x] **Analysis panel** (v0.9.50) — dedicated full-width panel with plugin-based architecture in `backend/plugins/analyses/`. Each plugin produces a named analysis with `_display` data for generic rendering. Frontend: grid of collapsible insight cards. Node centrality and traffic characterisation implemented. Planned additional analyses:
   - [ ] **Node centrality** — degree centrality (most connected), betweenness (bridges), traffic-weighted PageRank. Ranked table + graph highlight.
   - [ ] **Traffic characterisation** — foreground (interactive: bidirectional, low latency, short) vs background (periodic, one-directional, long). Based on session duration, packet ratio, inter-arrival time.
@@ -537,7 +539,7 @@ All v0.8.x bug details preserved in §4a.
 
 ---
 
-## 7. Architecture Plan: Multi-Source Ingestion & Scale
+## 7. Architecture Plan: Multi-Source Ingestion (ETL)
 
 ### Problem statement
 
@@ -558,47 +560,175 @@ pcap file → scapy/dpkt parser → List[PacketRecord] in memory (store.packets)
 
 Every API call (`/api/graph`, `/api/sessions`, `/api/session_detail`) does a linear scan of `store.packets`. Session detail scans all packets to find the ~20 that belong to one session.
 
-### Design: EventRecord abstraction (multi-source)
+### Design overview: ETL with capabilities
 
-The graph builder, session reconstructor, and stats engine don't need raw packets — they need **events with common fields**. A DNS query from a pcap and a DNS query from Splunk are the same thing to the aggregator.
+The architecture follows an **ETL (Extract–Transform–Load)** pattern:
+
+- **Extract** = Ingestion adapters read source files (pcap, Zeek, Splunk, Sysmon, etc.)
+- **Transform** = Normalize to `EventRecord` + enrich via plugins
+- **Load** = Feed into the pipeline (`build_graph`, `build_sessions`, stats, UI)
+
+The key design principles:
+
+1. **Common core, dynamic extras.** All sources share a minimal common schema. Everything source-specific goes in `extra: dict`. No data is thrown away.
+2. **Capabilities, not source types.** The UI doesn't ask "is this pcap?" — it asks "does this data have payload bytes?" Features activate based on what data is available, not where it came from.
+3. **Granularity awareness.** Pcap gives packets (need session building). Zeek/netflow give pre-aggregated sessions (skip session building). The pipeline routes accordingly.
+4. **Plugin requirements are declarative.** Plugins declare what fields they need per strategy. The framework matches against what the adapter provides. No runtime data scanning, no manual if-statements.
+
+### EventRecord: the universal data type
 
 ```python
 @dataclass
 class EventRecord:
+    # ── Common core (every source MUST provide these) ──────────
     timestamp: float
     src_ip: str
     dst_ip: str
-    src_port: int
-    dst_port: int
-    src_mac: str       # empty for non-pcap sources
-    dst_mac: str
-    transport: str     # TCP, UDP, ICMP, ""
-    protocol: str      # HTTPS, DNS, SSH, ...
-    ip_version: int    # 4 or 6
-    length: int        # bytes
-    extra: dict        # protocol-specific fields (same as today's pkt.extra)
-    # Optional fields for pcap-only data:
-    tcp_flags: int
-    tcp_flags_str: str
-    seq_num: int
-    ack_num: int
-    window_size: int
-    ttl: int
-    payload: bytes     # None for non-pcap sources
+    protocol: str              # "HTTP", "DNS", "SSH", ...
+
+    # ── Common optional (sources provide what they have) ───────
+    src_port: int = 0
+    dst_port: int = 0
+    src_mac: str = ""
+    dst_mac: str = ""
+    transport: str = ""        # "TCP", "UDP", "ICMP", ""
+    bytes_total: int = 0
+    ip_version: int = 4
+
+    # ── Everything else ────────────────────────────────────────
+    extra: Dict[str, Any] = field(default_factory=dict)
+    #
+    # Source-specific fields live here. Examples:
+    #   pcap:   ttl, window_size, tcp_flags, seq_num, ack_num,
+    #           tcp_options, payload_preview, tcp_flags_str, ...
+    #   zeek:   duration, history, conn_state, uid, ...
+    #   sysmon: pid, process_name, command_line, parent_pid, ...
+    #   splunk: action, app, user, severity, signature, ...
+    #
+    # The extra dict is the dynamic part. Adapters put everything
+    # they have. Plugins and UI read what they need. Nothing is lost.
 ```
 
-Each data source gets an **ingestion adapter**:
+`PacketRecord` is NOT replaced — the pcap adapter continues to produce full `PacketRecord` objects internally. It maps them to `EventRecord` with all pcap-specific fields preserved in `extra`. This means payload hex dumps, TCP seq/ack timelines, and all other pcap-rich features continue to work exactly as they do today.
 
-| Source | Adapter | Notes |
-|--------|---------|-------|
-| pcap/pcapng | `pcap_adapter.py` | Current parser, maps `PacketRecord` → `EventRecord` |
-| Splunk CSV/JSON | `splunk_adapter.py` | Maps `_time`, `src`, `dest`, `action`, `app`, `bytes_in/out`. Data is often pre-aggregated (one row = one connection, not one packet). Sessions are 1:1 with events. |
-| Zeek conn.log | `zeek_adapter.py` | Near 1:1 mapping. `id.orig_h`, `id.resp_h`, `id.orig_p`, `id.resp_p`, `proto`, `service`, `duration`, `orig_bytes`, `resp_bytes`. Also pre-aggregated. |
-| Zeek dns/http/ssl/etc. | `zeek_detail_adapter.py` | Protocol-specific logs map to `extra` fields. Joined to conn.log by `uid`. |
-| Sysmon XML/JSON | `sysmon_adapter.py` | Event ID 3 (network connection) maps directly. Event ID 22 (DNS query) maps to DNS events. Event ID 1 (process create) is metadata, not an event — stored separately. |
-| Netflow/IPFIX | `netflow_adapter.py` | Pre-aggregated flows. `SRC_ADDR`, `DST_ADDR`, `SRC_PORT`, `DST_PORT`, `PROTOCOL`, `IN_BYTES`, `OUT_BYTES`, `FIRST_SWITCHED`, `LAST_SWITCHED`. |
+### Ingestion adapters (Extract layer)
 
-The rest of the pipeline (`build_graph`, `build_sessions`, `filter_packets`, stats, plugins) consumes `EventRecord` instead of `PacketRecord`. No changes to the aggregator or frontend.
+Each data source gets a Python class that reads one file format and produces `EventRecord` objects. Adapters are auto-discovered via a registry decorator, same pattern as dissectors.
+
+```python
+@register_adapter
+class PcapAdapter(IngestionAdapter):
+    name = "pcap/pcapng"
+    file_extensions = [".pcap", ".pcapng", ".cap"]
+    granularity = "packet"     # → pipeline runs build_sessions()
+
+    def can_handle(self, path: Path, header: bytes) -> bool:
+        """Sniff magic bytes: pcap (d4c3b2a1/a1b2c3d4) or pcapng (0a0d0d0a)."""
+
+    def parse(self, path: Path, **opts) -> List[EventRecord]:
+        """Delegates to existing scapy/dpkt reader, maps PacketRecord → EventRecord."""
+```
+
+```python
+@register_adapter
+class ZeekConnAdapter(IngestionAdapter):
+    name = "Zeek conn.log"
+    file_extensions = [".log"]
+    granularity = "session"    # → pipeline SKIPS build_sessions()
+
+    def can_handle(self, path: Path, header: bytes) -> bool:
+        """Check for Zeek header: #fields\tts\tuid\tid.orig_h"""
+
+    def parse(self, path: Path, **opts) -> List[EventRecord]:
+        """Each conn.log row → one EventRecord. Zeek-specific fields in extra."""
+```
+
+**`granularity` field** controls pipeline routing:
+- `"packet"` → run `build_sessions()` then `build_graph()` (pcap path)
+- `"session"` → skip session building, each EventRecord IS a session → `build_graph()` directly
+- `"event"` → host-level events with potentially different visualization (Sysmon process tree — future)
+
+**Adding a new adapter** = writing one Python file, dropping it in `backend/parser/adapters/`, adding one import. No frontend changes, no pipeline changes.
+
+What `extra` fields each adapter produces is documented in `docs/DEVELOPERS.md` (adapter field reference). Adapter authors maintain their own section — no central field registry.
+
+| Source | Adapter | Granularity | Key `extra` fields |
+|--------|---------|-------------|-------------------|
+| pcap/pcapng | `pcap_adapter.py` | packet | ttl, tcp_flags, seq_num, payload_preview, ... |
+| Zeek conn.log | `zeek_conn_adapter.py` | session | duration, history, conn_state, uid, orig/resp_bytes |
+| Zeek dns/http/ssl | `zeek_detail_adapter.py` | session | Joined to conn.log by uid. DNS queries, HTTP URIs, TLS SNIs |
+| Splunk CSV/JSON | `splunk_adapter.py` | session | action, app, user, severity, signature, bytes_in/out |
+| Sysmon XML/JSON | `sysmon_adapter.py` | event | pid, process_name, command_line, parent_pid, event_id |
+| Netflow/IPFIX | `netflow_adapter.py` | session | in_bytes, out_bytes, first_switched, last_switched |
+
+### Plugins (Transform layer)
+
+Plugins consume sessions/nodes/edges and produce insights or analyses. Each plugin explicitly declares which data sources it supports via a `sources` list. The framework only calls a plugin if the current source is in its list.
+
+```python
+class OSFingerprintPlugin(PluginBase):
+    sources = ["pcap", "zeek"]   # explicitly opt in to each source
+
+    def analyze(self, sessions, nodes, edges, source_type):
+        if source_type == "pcap":
+            # TTL + window_size + TCP options → passive fingerprint
+            ...
+        elif source_type == "zeek":
+            # zeek_os field in extra → use directly
+            ...
+```
+
+```python
+class TrafficCharacterisationPlugin(PluginBase):
+    sources = ["pcap", "zeek", "splunk", "netflow"]  # works on anything with sessions
+
+    def analyze(self, sessions, nodes, edges, source_type):
+        # Only uses common fields (bytes, timing, protocol) — source-agnostic
+        ...
+```
+
+**How it works:**
+- Each adapter declares a `source_type` string (`"pcap"`, `"zeek"`, `"splunk"`, etc.)
+- Each plugin declares `sources = [...]` — the list of source types it knows how to handle
+- The framework calls only plugins whose `sources` includes the loaded source type
+- The plugin receives `source_type` so it can branch if it handles sources differently
+- Plugins that don't list a source simply don't run for that source — no errors, just absent
+
+**Plugin authors read the adapter field reference** in `docs/DEVELOPERS.md` to know what `extra` fields each source provides, then implement their logic per source. The contract is documentation, not framework machinery.
+
+### UI capabilities (Load layer)
+
+The UI renders features conditionally based on what fields are present in the data. This is NOT a source-type check — it's a data check. Each rich UI feature has a corresponding set of `extra` fields it looks for:
+
+| UI Feature | Activates when `extra` contains | Source that provides it |
+|------------|--------------------------------|----------------------|
+| Payload hex dump tab | `payload_preview` | pcap |
+| SEQ/ACK timeline chart | `seq_num`, `ack_num` | pcap |
+| TCP flags breakdown | `tcp_flags`, `tcp_flags_str` | pcap |
+| Connection state analysis | `history`, `conn_state` | Zeek |
+| Process context panel | `process_name`, `command_line` | Sysmon |
+| Firewall action badges | `action` | Splunk |
+| Session duration display | `duration` | Zeek, netflow |
+
+**Principle:** if a future adapter provides `payload_preview` (e.g. a full packet capture in a different format), the payload hex dump tab lights up automatically. Capabilities follow the data, not the source.
+
+**Two-tier rendering in SessionDetail:**
+1. **Generic renderer (always):** Iterate all `extra` fields and render as key-value pairs with sensible defaults (strings as text, arrays as chips, nested objects as expandable).
+2. **Rich renderers (optional):** Registered UI components for specific field groups. `PayloadRenderer` handles hex dumps. `TcpStateRenderer` handles seq/ack charts. `ZeekConnRenderer` handles connection state visualization. If no rich renderer exists for a field, the generic renderer handles it.
+
+New adapter fields appear in the UI immediately (generic view). Rich renderers can be added later for better presentation without blocking anything.
+
+### Pipeline routing
+
+```
+                           ┌─ granularity == "packet" ──→ build_sessions() ─┐
+file → detect adapter      │                                                 │
+     → adapter.parse()  ───┤                                                 ├──→ build_graph() → UI
+     → List[EventRecord]   │                                                 │
+                           └─ granularity == "session" ─────────────────────┘
+```
+
+`build_graph()` and `filter_packets()` consume `EventRecord` in both paths. `build_sessions()` is only called for packet-granularity data. The stats engine adapts based on what fields are available (packet counts vs session counts).
 
 ### Storage backend options
 
@@ -606,103 +736,42 @@ The rest of the pipeline (`build_graph`, `build_sessions`, `filter_packets`, sta
 
 **What:** Keep all events in a Python list (as today), but build dict indexes at load time: `by_session_key`, `by_protocol`, `by_src_ip`, `by_time_bucket`. Session detail becomes O(1) dict lookup instead of O(n) scan.
 
-**Pros:**
-- Simplest to implement (days, not weeks)
-- No new dependencies
-- Fast for small/medium datasets
-- No migration needed — existing code barely changes
-
-**Cons:**
-- Limited by RAM. ~5M events on 16GB machine, ~1M on 8GB
-- No persistence — reload on restart
-- No concurrent access
-
-**Best for:** Single-user, single-capture analysis up to ~5M events. Good as an immediate upgrade.
-
-**Estimated scale ceiling:** ~50M events on a 64GB machine, but query performance degrades as indexes grow.
+**Pros:** Simplest (days), no dependencies, fast for small/medium. **Cons:** RAM-limited (~5M events on 16GB), no persistence. **Best for:** Single-user up to ~5M events. Good as Phase 1 upgrade.
 
 #### Option B: SQLite (embedded, zero-config)
 
-**What:** Store events in a SQLite file with indexes on `(session_key)`, `(src_ip, dst_ip, protocol)`, `(timestamp)`. Queries become SQL. Graph builder does `SELECT src_ip, dst_ip, protocol, SUM(length), COUNT(*) FROM events WHERE timestamp BETWEEN ? AND ? GROUP BY src_ip, dst_ip, protocol`.
+**What:** Store events in a SQLite file with indexes on `(session_key)`, `(src_ip, dst_ip, protocol)`, `(timestamp)`. Queries become SQL. The DB file IS the workspace.
 
-**Pros:**
-- Zero-config (no server, just a file)
-- Handles 50M+ events easily
-- Persistent across restarts
-- Familiar SQL interface
-- WAL mode gives good read concurrency
-- Enables workspace save/load naturally (the DB file IS the workspace)
-
-**Cons:**
-- Slower than in-memory for small datasets (disk I/O overhead)
-- Write speed: ~100K inserts/sec (bulk), so ingesting 10M events takes ~2 minutes
-- Single-writer (fine for single-user, problematic for multi-user)
-- No built-in time-series optimization
-
-**Best for:** Single-user forensic workstation. 1M–50M events. The sweet spot for SwiftEye's current use case. Workspace persistence comes free.
-
-**Estimated scale ceiling:** ~100M events on SSD, ~500M with partitioned tables.
+**Pros:** Zero-config, 50M+ events, persistent, workspace save/load is free. **Cons:** Slower for small datasets, single-writer. **Best for:** Single-user forensic workstation, 1M–50M events.
 
 #### Option C: PostgreSQL + TimescaleDB
 
-**What:** Full relational database with TimescaleDB extension for automatic time-based partitioning. Events stored in a hypertable partitioned by timestamp. All queries are SQL, same as Option B but with concurrent writes, multi-user, and time-series optimization.
+**What:** Full relational database with time-based partitioning. Multi-user concurrent access.
 
-**Pros:**
-- Handles billions of events
-- Multi-user concurrent access
-- Time-range queries are fast (partition pruning)
-- Rich ecosystem (pg_stat, EXPLAIN ANALYZE, extensions)
-- Natural fit for the projects/workspaces vision (user tables, project tables, event tables)
-- Continuous aggregates for pre-computed dashboards
-
-**Cons:**
-- Requires a running PostgreSQL server (deployment complexity)
-- Configuration and tuning needed
-- Overkill for single-user on a laptop
-- Network latency between app and DB (unless co-located)
-
-**Best for:** Multi-user deployment, enterprise use, the projects/workspaces vision. 10M–1B+ events.
-
-**Estimated scale ceiling:** Billions of events with proper partitioning and hardware.
+**Pros:** Billions of events, multi-user, natural fit for projects/workspaces. **Cons:** Requires server, config, overkill for laptop. **Best for:** Enterprise deployment, 10M–1B+ events.
 
 #### Option D: Neo4j (graph-native)
 
-**What:** Store nodes and edges as first-class graph entities. Cypher queries replace Python loops for graph traversal.
+**Not recommended as sole backend.** Better as secondary store for graph-specific queries (path finding, community detection) while SQL handles event storage and time-range filtering.
 
-**Pros:**
-- Graph traversal queries are native and fast ("all paths from A to B through C")
-- Natural fit for the network graph model
-- Visualization tools built-in
-
-**Cons:**
-- Poor at aggregation and time-range scans compared to SQL
-- Requires a running server
-- Different query language (Cypher) — team needs to learn it
-- Not a good primary event store — it's a graph store, not a time-series store
-- Expensive in RAM
-
-**Best for:** Complement to a SQL store, not a replacement. Use for graph-specific queries (path finding, community detection, centrality) while SQL handles event storage, time-range filtering, and aggregation.
-
-**Not recommended as the sole backend.** Better as a secondary store populated from the SQL event store for graph-specific workloads.
-
-### Recommendation: phased approach
+### Implementation phases
 
 ```
-Phase 1 (near-term)     Phase 2 (medium-term)     Phase 3 (long-term)
-─────────────────────    ─────────────────────     ─────────────────────
-EventRecord abstraction  SQLite backend             PostgreSQL + TimescaleDB
-Ingestion adapters       SWIFTEYE_BACKEND=          Multi-user auth
-  (pcap, Splunk)           memory|sqlite            Projects/workspaces
-In-memory indexes        Workspace = DB file        Cross-project queries
-  (Option A)             50M event ceiling          Neo4j as secondary
-5M event ceiling                                    graph store
+Phase 1 (near-term)          Phase 2 (medium-term)        Phase 3 (long-term)
+──────────────────────────   ──────────────────────────   ──────────────────────────
+EventRecord abstraction      SQLite backend                PostgreSQL + TimescaleDB
+Adapter framework + pcap     SWIFTEYE_BACKEND=             Multi-user auth
+Zeek conn.log adapter          memory|sqlite               Projects/workspaces
+Generic UI rendering         Workspace = DB file           Cross-project queries
+In-memory indexes (Opt A)    50M event ceiling             Neo4j as secondary
+5M event ceiling                                           graph store
 ```
 
-**Phase 1:** Define `EventRecord`, refactor the parser to produce it, build one new adapter (Splunk CSV), add in-memory indexes. The existing pipeline consumes `EventRecord` with no other changes. Immediate multi-source support, immediate performance improvement for session lookups. Days of work.
+**Phase 1:** Define `EventRecord`. Refactor parser to produce it. Build adapter framework with auto-discovery. Wrap existing pcap reader as `PcapAdapter`. Build `ZeekConnAdapter` as first non-pcap source. Add generic field rendering in SessionDetail. Document adapter field reference in DEVELOPERS.md. Add in-memory indexes.
 
-**Phase 2:** Add SQLite as an alternative backend behind a config flag. Ingestion writes to SQLite instead of (or in addition to) the in-memory list. `filter_packets()` and `build_graph()` become SQL queries. The DB file becomes the workspace save format. The in-memory path stays for small pcaps where startup speed matters. Weeks of work.
+**Phase 2:** Add SQLite as alternative backend behind config flag. Ingestion writes to SQLite. `filter_packets()` and `build_graph()` become SQL queries. DB file = workspace save format. In-memory path stays for small pcaps.
 
-**Phase 3:** When the projects/workspaces vision is ready, migrate from SQLite to PostgreSQL. The SQL queries from Phase 2 transfer almost unchanged. Add user auth, project metadata tables, cross-project event queries. TimescaleDB for time-series optimization. Optionally add Neo4j as a secondary graph store for advanced traversal queries. Months of work.
+**Phase 3:** PostgreSQL migration. User auth, project metadata tables, cross-project event queries. TimescaleDB for time-series. Neo4j optional for graph traversal.
 
 ### Splunk integration specifics
 
@@ -724,9 +793,7 @@ app (application name), bytes_in, bytes_out, packets_in, packets_out,
 user, severity, signature, category, vendor_product
 ```
 
-Key difference from pcap: **Splunk data is pre-aggregated**. One row typically represents one complete connection (or one log entry), not one packet. The session reconstruction step (`build_sessions`) is unnecessary — each Splunk row IS a session. The adapter should detect this and skip session building, or map each row to a single-event session.
-
-Another consideration: Splunk data often includes **metadata not available in pcap** — usernames, application names, firewall actions (allow/deny), severity scores, IDS signatures. These map to `EventRecord.extra` and should surface in the UI as additional fields in Session/Edge detail.
+Key difference from pcap: **Splunk data is pre-aggregated**. One row = one connection/log entry, not one packet. The adapter sets `granularity = "session"` so `build_sessions()` is skipped. Splunk-specific fields (action, user, severity, signature) go in `extra` and surface in the UI via generic rendering.
 
 ---
 
