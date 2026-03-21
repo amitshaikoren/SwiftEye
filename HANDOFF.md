@@ -5,7 +5,11 @@
 
 **Latest version: v0.10.1** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.9.82)
+### Recent highlights (v0.10.1)
+- Zeek multi-log enrichment (dns.log, http.log, ssl.log) with 5-tuple session joining
+- Edge session threshold (20 per edge, "Show more" fetches from API)
+- Timeline slider debounce, bucket cap (MAX_RAW_BUCKETS=15000)
+- Graph node/edge brightness improvements
 - QUIC dissector (Phase 1) — Initial packet decryption, SNI/ALPN extraction
 - SMTP, mDNS, SSDP, LLMNR, DCE/RPC dissectors
 - HTTP User-Agent timeline research chart
@@ -514,8 +518,8 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Sysmon log ingestion** — Sysmon adapter for Event ID 3 (network connections), ID 22 (DNS), ID 1 (process create). Granularity = "event". *Prerequisites:* multi-source ETL Phase 1. Status: medium-term.
 - [ ] **Process tree visualization** — process tree panel for Sysmon data. Nodes = processes, edges = parent→child spawns + network connections to IP nodes. *Prerequisites:* Sysmon adapter. Status: long-term.
 - [ ] **UI capabilities system** — the UI should only show sections when the data source actually provides that data. E.g. L3 IP header details (DSCP, ECN, fragmentation) should not appear for Zeek sessions since Zeek doesn't provide raw IP headers. Each UI section declares what `extra` fields it needs; sections with no matching data are hidden. This is the "capabilities follow data, not source" principle from §7.
-- [ ] **Timeline slider performance** — resizing the time window on the timeline slider can be extremely slow, especially with large captures (15k+ sessions). Each drag tick re-fetches `/api/sessions` and `/api/stats` with the new time range. Potential fixes: debounce the slider so it only fires after the user stops dragging, cache recent time-range queries on the backend, or compute session/stats deltas incrementally instead of re-filtering the full list each time.
-- [ ] **Investigation bar overlaps hidden nodes bar** — when investigating a node, the "Investigating: X.X.X.X — N nodes in component" bar covers the "N nodes hidden / Unhide all" bar. They occupy the same vertical space. Fix: stack them vertically or merge them into a single status bar.
+- [x] **Timeline slider performance** (v0.10.1) — debounced `timeRange` in useCapture.js (300ms). Slider movement updates the UI instantly but API calls (sessions, stats, graph) only fire after the user stops dragging. Combined with MAX_RAW_BUCKETS=15000 cap from v0.9.83.
+- [x] **Investigation bar overlaps hidden nodes bar** (v0.10.1) — hidden nodes badge now shifts down (top: 38px) when the investigation banner is visible.
 - [ ] **Multi-source search compatibility** — ensure all log sources (Zeek, and future sources) are searchable through both the Wireshark-style BPF display filter and the generic keyword search. Currently these are optimized for pcap fields. Zeek sessions should be searchable by UID, conn_state, service, and other Zeek-specific fields. Transitively, every new log source adapter should declare its searchable fields so the filter system picks them up automatically.
 - [ ] **Session detail readability overhaul** — the SessionDetail panel has poor visual hierarchy. Labels, values, and section headers blend together with inconsistent font sizes. Hard to visually separate sections (HTTP, TLS, Advanced, etc.) and distinguish field names from values. Applies to both pcap and Zeek sessions. Needs: clearer section dividers, consistent typography, better label/value contrast, breathing room between fields.
 - [ ] **Subnet node visual redesign** — change how subnet entity nodes look visually on the graph. Current rendering doesn't clearly distinguish subnets from regular nodes.

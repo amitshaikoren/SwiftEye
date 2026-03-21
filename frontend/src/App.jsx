@@ -289,7 +289,7 @@ export default function App() {
                 {/* Hidden nodes badge */}
                 {c.hiddenNodes.size > 0 && (
                   <div style={{
-                    position: 'absolute', top: 8, right: 8, zIndex: 10,
+                    position: 'absolute', top: c.investigatedIp ? 38 : 8, right: 8, zIndex: 10,
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)',
                     borderRadius: 6, padding: '4px 10px', fontSize: 10,

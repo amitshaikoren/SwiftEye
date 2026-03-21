@@ -15,7 +15,7 @@
  * No business logic lives in App.jsx — it is pure layout and routing.
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   fetchStatus, fetchStats, slicePcapUrl,
   fetchTimeline, fetchProtocols, fetchSessions,
@@ -50,6 +50,13 @@ export function useCapture() {
 
   // ── Filters ──────────────────────────────────────────────────────
   const [timeRange, setTimeRange]   = useState([0, 0]);
+  const [debouncedTR, setDebouncedTR] = useState([0, 0]);
+  const trTimerRef = useRef(null);
+  const setTimeRangeOuter = useCallback((v) => {
+    setTimeRange(v);
+    clearTimeout(trTimerRef.current);
+    trTimerRef.current = setTimeout(() => setDebouncedTR(v), 300);
+  }, []);
   const [enabledP, setEnabledP]     = useState(new Set());
   const [search, setSearch]         = useState('');
   const [searchResult, setSearchResult] = useState(null); // {nodes: Set, edges: Set, matchedNodes, matchedEdges} or null
@@ -210,35 +217,37 @@ export function useCapture() {
     if (!loaded) return;
     fetchTimeline(bucketSec).then(d => {
       setTimeline(d.buckets);
-      setTimeRange([0, d.buckets.length - 1]);
+      const full = [0, d.buckets.length - 1];
+      setTimeRange(full);
+      setDebouncedTR(full);
     }).catch(() => {});
   }, [bucketSec, loaded]);
 
-  // Re-fetch sessions when time range changes
+  // Re-fetch sessions when time range changes (debounced)
   useEffect(() => {
     if (!loaded || !timeline.length) return;
-    const ts = timeline[timeRange[0]]?.start_time;
-    const te = timeline[timeRange[1]]?.end_time;
+    const ts = timeline[debouncedTR[0]]?.start_time;
+    const te = timeline[debouncedTR[1]]?.end_time;
     fetchSessions(1000, '', ts != null && te != null ? { timeStart: ts, timeEnd: te } : {})
       .then(d => { setSessions(d.sessions || []); setSessionTotal(d.total ?? d.sessions?.length ?? 0); })
       .catch(() => {});
-  }, [loaded, timeRange, timeline]);
+  }, [loaded, debouncedTR, timeline]);
 
-  // Re-fetch stats when time range changes
+  // Re-fetch stats when time range changes (debounced)
   useEffect(() => {
     if (!loaded || !timeline.length) return;
-    const ts = timeline[timeRange[0]]?.start_time;
-    const te = timeline[timeRange[1]]?.end_time;
+    const ts = timeline[debouncedTR[0]]?.start_time;
+    const te = timeline[debouncedTR[1]]?.end_time;
     fetchStats(ts != null && te != null ? { timeStart: ts, timeEnd: te } : {})
       .then(d => setStats(d.stats || {}))
       .catch(() => {});
-  }, [loaded, timeRange, timeline]);
+  }, [loaded, debouncedTR, timeline]);
 
-  // Re-fetch graph when any filter changes
+  // Re-fetch graph when any filter changes (debounced)
   useEffect(() => {
     if (!loaded || !timeline.length) return;
-    const ts = timeline[timeRange[0]]?.start_time;
-    const te = timeline[timeRange[1]]?.end_time;
+    const ts = timeline[debouncedTR[0]]?.start_time;
+    const te = timeline[debouncedTR[1]]?.end_time;
     const params = {};
     if (ts != null) params.timeStart = ts;
     if (te != null) params.timeEnd = te;
@@ -277,7 +286,7 @@ export function useCapture() {
       if (e.name !== 'AbortError') console.error(e);
     });
     return () => ctrl.abort();
-  }, [loaded, timeRange, enabledP, stats, subnetG, subnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, timeline, protocols]);
+  }, [loaded, debouncedTR, enabledP, stats, subnetG, subnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, timeline, protocols]);
 
   // Re-evaluate display filter when graph data changes
   useEffect(() => {
@@ -431,7 +440,9 @@ export function useCapture() {
     ]);
     setStats(sd.stats);
     setTimeline(td.buckets);
-    setTimeRange([0, td.buckets.length - 1]);
+    const fullRange = [0, td.buckets.length - 1];
+    setTimeRange(fullRange);
+    setDebouncedTR(fullRange);
     setProtocols(pd.protocols);
     setPColors(pd.colors);
     // Build composite keys "ipv/transport/protocol" for the protocol tree
@@ -834,7 +845,7 @@ export function useCapture() {
     visibleNodes, visibleEdges, timeLabel, osGuesses, availableIps,
 
     // Filters
-    timeRange, setTimeRange,
+    timeRange, setTimeRange: setTimeRangeOuter,
     enabledP, setEnabledP,
     search, setSearch, searchResult,
     collapseStatesRef,
