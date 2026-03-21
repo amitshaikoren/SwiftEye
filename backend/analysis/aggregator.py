@@ -51,6 +51,17 @@ def build_time_buckets(
     min_t = packets[0].timestamp
     max_t = packets[-1].timestamp
     total_sec = max(1.0, max_t - min_t)
+
+    # Cap raw buckets at 5000 to prevent memory/performance issues on long captures.
+    # If the requested bucket_seconds would exceed this, widen the bucket size.
+    MAX_RAW_BUCKETS = 15000
+    effective_bucket_sec = bucket_seconds
+    if total_sec / effective_bucket_sec > MAX_RAW_BUCKETS:
+        effective_bucket_sec = math.ceil(total_sec / MAX_RAW_BUCKETS)
+        logger.debug("Bucket size auto-adjusted from %ds to %ds (capture spans %.0fs)",
+                      bucket_seconds, effective_bucket_sec, total_sec)
+    bucket_seconds = effective_bucket_sec
+
     num_buckets = max(1, math.ceil(total_sec / bucket_seconds))
 
     raw: List[Dict[str, Any]] = []

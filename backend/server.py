@@ -31,6 +31,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from parser import read_pcap, PacketRecord, MAX_FILE_SIZE
+from parser.adapters import detect_adapter, ADAPTERS
 from constants import PROTOCOL_COLORS
 from analysis import build_time_buckets, build_graph, filter_packets, build_sessions, compute_global_stats, get_subnets, build_mac_split_map
 from plugins.insights.node_merger import build_entity_map
@@ -397,9 +398,14 @@ if VITE_DIST.exists():
 
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_pcap(files: List[UploadFile] = File(...)):
-    """Upload and parse one or more pcap/pcapng files. Multiple files are merged by timestamp."""
+    """Upload and parse capture files or log files. Multiple files are merged by timestamp."""
     if not files:
         raise HTTPException(400, "No files provided")
+
+    # Build set of all supported extensions from registered adapters
+    supported_exts = set()
+    for adapter_cls in ADAPTERS:
+        supported_exts.update(adapter_cls.file_extensions)
 
     all_packets: list[PacketRecord] = []
     total_size  = 0
@@ -409,9 +415,6 @@ async def upload_pcap(files: List[UploadFile] = File(...)):
     for file in files:
         if not file.filename:
             continue
-        ext = Path(file.filename).suffix.lower()
-        if ext not in (".pcap", ".pcapng", ".cap"):
-            raise HTTPException(400, f"Unsupported file type: {ext} ({file.filename})")
 
         content   = await file.read()
         file_size = len(content)
@@ -424,14 +427,24 @@ async def upload_pcap(files: List[UploadFile] = File(...)):
         total_size += file_size
         file_names.append(file.filename)
 
+        ext = Path(file.filename).suffix.lower()
         tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
         try:
             tmp.write(content)
             tmp.close()
-            logger.info(f"Parsing {file.filename} ({file_size/1024/1024:.1f}MB)...")
-            packets = read_pcap(tmp.name)
-            logger.info(f"  {len(packets)} packets from {file.filename}")
+
+            # Detect adapter by extension + header sniffing
+            tmp_path = Path(tmp.name)
+            adapter = detect_adapter(tmp_path)
+            if not adapter:
+                raise HTTPException(400, f"Unsupported file type: {file.filename}")
+
+            logger.info(f"Parsing {file.filename} ({file_size/1024/1024:.1f}MB) with {adapter.name}...")
+            packets = adapter.parse(tmp_path)
+            logger.info(f"  {len(packets)} records from {file.filename}")
             all_packets.extend(packets)
+        except HTTPException:
+            raise
         except ValueError as e:
             raise HTTPException(400, str(e))
         except Exception as e:

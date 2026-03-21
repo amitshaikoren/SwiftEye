@@ -483,7 +483,7 @@ export function useCapture() {
   function handleDrop(e) {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files).filter(f =>
-      ['.pcap', '.pcapng', '.cap'].some(ext => f.name.toLowerCase().endsWith(ext))
+      ['.pcap', '.pcapng', '.cap', '.log'].some(ext => f.name.toLowerCase().endsWith(ext))
     );
     if (files.length) handleUpload(files);
   }

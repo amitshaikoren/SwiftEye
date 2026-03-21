@@ -3,6 +3,7 @@ import Tag from './Tag';
 import Collapse from './Collapse';
 import Row from './Row';
 import { fN, fB, fD, fT } from '../utils';
+import { fetchSessions } from '../api';
 
 
 // Renders a JA3 hash with inline app name when known
@@ -44,6 +45,13 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
     }
   }, [edgeId, noteText, existingNote, onSaveNote]);
 
+  const EDGE_SESSION_PAGE = 20;
+  const [fetchedSessions, setFetchedSessions] = useState([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  // Reset state when edge changes
+  useEffect(() => { setFetchedSessions([]); setExpanded(false); }, [src, tgt, e?.protocol]);
+
   const nodeIpsMap = useMemo(() => {
     const m = new Map();
     for (const n of nodes) {
@@ -54,7 +62,7 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
     return m;
   }, [nodes]);
 
-  const edgeSessions = useMemo(() => {
+  const edgeFilter = useCallback((list) => {
     if (!e) return [];
     function ipInCidr(ip, cidr) {
       if (!cidr.includes('/')) return ip === cidr;
@@ -68,20 +76,41 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
       } catch { return false; }
     }
     function matchEndpoint(sessionIp, endpoint) {
-      // Subnet case
       if (endpoint.includes('/')) return ipInCidr(sessionIp, endpoint);
-      // Merged-node case: check all IPs belonging to this node, not just canonical
       const nodeIps = nodeIpsMap.get(endpoint);
       if (nodeIps) return nodeIps.has(sessionIp);
-      // Fallback: exact match
       return sessionIp === endpoint;
     }
-    return (sessions || []).filter(s =>
+    return list.filter(s =>
       s.protocol === e.protocol &&
       ((matchEndpoint(s.src_ip, src) || matchEndpoint(s.dst_ip, src)) &&
        (matchEndpoint(s.src_ip, tgt) || matchEndpoint(s.dst_ip, tgt)))
     );
-  }, [sessions, src, tgt, e?.protocol, nodeIpsMap]);
+  }, [e, src, tgt, e?.protocol, nodeIpsMap]);
+
+  // Initial edge sessions: filter from global list (cheap, no extra fetch)
+  const edgeSessions = useMemo(() => {
+    const fromGlobal = edgeFilter(sessions || []);
+    if (fetchedSessions.length === 0) return fromGlobal;
+    // Merge fetched with global, dedup by id
+    const seen = new Set(fromGlobal.map(s => s.id));
+    const merged = [...fromGlobal];
+    for (const s of edgeFilter(fetchedSessions)) {
+      if (!seen.has(s.id)) { seen.add(s.id); merged.push(s); }
+    }
+    return merged;
+  }, [sessions, fetchedSessions, edgeFilter]);
+
+  // "Show more" fetches sessions from the API using one of the edge IPs
+  const loadMoreSessions = useCallback(() => {
+    const searchIp = !src.includes('/') ? src : !tgt.includes('/') ? tgt : '';
+    if (!searchIp) return;
+    setLoadingMore(true);
+    fetchSessions(5000, searchIp)
+      .then(d => setFetchedSessions(d.sessions || []))
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [src, tgt]);
 
   if (!e) return null;
 
@@ -188,8 +217,16 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
       )}
 
       <Collapse title={'Sessions on this edge (' + edgeSessions.length + ')'} open={true}>
-        {edgeSessions.length === 0 && <div style={{ fontSize: 10, color: 'var(--txD)' }}>No sessions found</div>}
-        {edgeSessions.map((s, i) => (
+        {edgeSessions.length === 0 && !loadingMore && (
+          <div style={{ fontSize: 10, color: 'var(--txD)' }}>
+            No sessions found
+            {fetchedSessions.length === 0 && (
+              <span className="hr" onClick={loadMoreSessions}
+                style={{ marginLeft: 6, color: 'var(--ac)', cursor: 'pointer' }}>Search</span>
+            )}
+          </div>
+        )}
+        {(expanded ? edgeSessions : edgeSessions.slice(0, EDGE_SESSION_PAGE)).map((s, i) => (
           <div key={i} className="hr" onClick={() => onSelectSession && onSelectSession(s, edgeSessions)}
             style={{ padding: '6px 4px', borderBottom: '1px solid var(--bd)', cursor: 'pointer', borderRadius: 3 }}>
             <div style={{ fontSize: 10, fontWeight: 500 }}>
@@ -197,7 +234,7 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
             </div>
             <div style={{ display: 'flex', gap: 4, marginTop: 3, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 9, color: 'var(--txM)' }}>
-                {fN(s.packet_count)} pkts · {fB(s.total_bytes)} · {fD(s.duration)}
+                {s.start_time ? fT(s.start_time) + ' · ' : ''}{fN(s.packet_count)} pkts · {fB(s.total_bytes)} · {fD(s.duration)}
               </span>
               {s.has_handshake && <Tag color="#3fb950" small tip="TCP Handshake completed (SYN→SYN+ACK→ACK)">HS</Tag>}
               {s.has_reset && <Tag color="#f85149" small tip="Connection reset (abrupt termination)">RST</Tag>}
@@ -205,6 +242,16 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
             </div>
           </div>
         ))}
+        {!expanded && edgeSessions.length > EDGE_SESSION_PAGE && (
+          <button className="btn" onClick={() => { setExpanded(true); if (fetchedSessions.length === 0) loadMoreSessions(); }}
+            disabled={loadingMore}
+            style={{ fontSize: 9, padding: '3px 10px', marginTop: 6, width: '100%' }}>
+            {loadingMore ? 'Loading…' : `Show more (${edgeSessions.length - EDGE_SESSION_PAGE} remaining)`}
+          </button>
+        )}
+        {loadingMore && edgeSessions.length === 0 && (
+          <div style={{ fontSize: 10, color: 'var(--txD)', padding: 4 }}>Loading…</div>
+        )}
       </Collapse>
 
       {/* Notes */}

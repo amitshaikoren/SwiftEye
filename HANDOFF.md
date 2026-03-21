@@ -3,7 +3,7 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.9.82** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.9.83** — see `CHANGELOG.md` for full version history.
 
 ### Recent highlights (v0.9.82)
 - QUIC dissector (Phase 1) — Initial packet decryption, SNI/ALPN extraction
@@ -447,6 +447,10 @@ All v0.8.x bug details preserved in §4a.
 - [x] **Multi-pcap ingestion** — done in v0.9.15. UI accepts multiple files, TopBar shows "N files". Backend merges by timestamp.
 - [ ] **Large pcap support (>500MB)** — profile the pipeline; likely bottlenecks are scapy's per-packet overhead and full-list scans in `build_graph`/`build_sessions`. Candidate approaches in priority order: (1) streaming/chunked parse, (2) background loading with progress API via `/api/status`, (3) indexed packet store by session_key/IP/time for O(1) queries above ~500K packets.
 - [ ] **Multi-threaded pcap parsing** — low priority. Each packet is parsed independently so it's parallelisable via `ProcessPoolExecutor`, but the real bottleneck is scapy's per-packet overhead. Multi-processing adds serialization cost that eats much of the gain (estimated 30s→12s for 100MB, not transformative). The bigger win is dpkt parity (5-10x faster than scapy). For multi-source data (Zeek, Splunk, Sysmon), parsing is text-based and already fast — this optimization is pcap-specific. *Recommendation:* pursue dpkt parity and the EventRecord abstraction first. Revisit multi-threading only if profiling confirms the parser is still the bottleneck after dpkt parity.
+- [ ] **SESSION FIELD EXPLOSION (HIGH PRIORITY)** — `sessions.py` hardcodes ~200 protocol-specific fields (TLS, HTTP, SSH, DNS, SMTP, mDNS, SSDP, LLMNR, DCE/RPC, QUIC, Kerberos, LDAP, etc.) with explicit init, accumulation, and serialization for each. Every new dissector adds ~20 lines across 3 sections. This won't scale. The session builder should dynamically aggregate `extra` fields from packets — dissectors already put their data in `extra`, so sessions.py shouldn't need to know about each protocol. Same pattern in `build_graph` which hardcodes TLS/HTTP/DNS edge fields. Refactor to generic `extra` accumulation with merge strategies (set-union for strings, append for lists, first-wins for scalars).
+- [ ] **DYNAMIC SESSION DETAIL RENDERING (HIGH PRIORITY)** — `SessionDetail.jsx` hardcodes rendering for every protocol section (TLS, HTTP, SSH, DNS, FTP, DHCP, SMB, ICMP, Kerberos, LDAP, SMTP, mDNS, SSDP, LLMNR, DCE/RPC, QUIC). Each new dissector requires frontend changes. Should dynamically render session fields from the backend with: (1) generic key-value renderer for unknown fields, (2) registered "rich renderers" for known field groups (hex dump, cert chain, DNS records). Backend should declare field metadata (display name, group, render hint). New dissectors appear in UI automatically.
+- [ ] **Source-specific capability tabs (HIGH PRIORITY)** — each data source should declare what UI tabs/capabilities it supports. Pcap sources get Payload tab, SEQ/ACK charts, TCP flags. Zeek sources get conn state visualization, duration analysis, history breakdown. Tabs that have no data from the source are hidden entirely (not shown empty). This is different from field-level capabilities — it's about entire UI sections/tabs. Backend declares available capabilities per source type, frontend conditionally renders tabs.
+- [ ] **In-function imports cleanup** — move lazy imports (scapy layers, struct, hashlib, etc.) to the top of each file. Found in: dissect_icmp.py, dissect_dns.py, dissect_ssh.py, pcap_reader.py, dpkt_reader.py, aggregator.py, and others. Exceptions: dpkt imports can stay lazy since dpkt is optional. All others should be top-level.
 - [ ] **Magic numbers cleanup** — audit the entire codebase for hardcoded magic numbers (thresholds, limits, sizes, timeouts, pixel values, array slice indices) and extract them into named constants. Examples: `MAX_PACKETS = 2_000_000`, `DPKT_THRESHOLD = 500MB`, `MAX_FILE_SIZE = 500MB`, payload preview cap, session field caps in `sessions.py`, entropy thresholds, gap detection thresholds in `TimelineStrip.jsx`, bucket sizes, etc. All should be named constants at the top of their respective files or in `constants.py` where appropriate.
 - [x] **Network mapping** — done in v0.9.8 (`plugins/network_map.py`)
 - [ ] **Credential viewing** — HTTP Basic, FTP, Telnet, SMTP AUTH
@@ -506,9 +510,15 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Interactive research dashboard** — Plotly charts with cross-filtering across sessions/nodes
 - [ ] **File extraction** — reconstruct files from HTTP/FTP/SMB streams (FTP dissector already surfaces filenames/credentials)
 - [ ] **Multi-capture comparison** — side-by-side or overlay view of two captures
-- [ ] **Multi-source ingestion (ETL)** — the next major milestone. Accept Zeek logs, Splunk exports, Sysmon events, netflow, and more via the adapter framework. Full architecture in §7. Phase 1: `EventRecord` abstraction + adapter framework + Zeek conn.log adapter + generic UI rendering + adapter field docs. *Status:* design complete, ready to build.
+- [x] **Multi-source ingestion (ETL) — Phase 1** — adapter framework with `@register_adapter` decorator, `detect_adapter()` auto-detection by extension + header sniffing. Zeek adapters: `conn.log` (graph/sessions backbone), `dns.log` (query/response enrichment), `http.log` (method/URI/UA/status enrichment), `ssl.log` (TLS version/cipher/SNI/JA3/cert enrichment). Multiple Zeek logs can be uploaded together — packets merge by timestamp and join the same sessions via 5-tuple matching. Each log works standalone if conn.log is missing (degraded but functional). Shared parser in `zeek_common.py`. Sessions.py handles Zeek's combined request+response records (HTTP/TLS) via `source_type="zeek"` flag. *Status:* done. Next: more Zeek logs (ssh, files, notice), Splunk/Sysmon adapters, EventRecord abstraction.
 - [ ] **Sysmon log ingestion** — Sysmon adapter for Event ID 3 (network connections), ID 22 (DNS), ID 1 (process create). Granularity = "event". *Prerequisites:* multi-source ETL Phase 1. Status: medium-term.
 - [ ] **Process tree visualization** — process tree panel for Sysmon data. Nodes = processes, edges = parent→child spawns + network connections to IP nodes. *Prerequisites:* Sysmon adapter. Status: long-term.
+- [ ] **UI capabilities system** — the UI should only show sections when the data source actually provides that data. E.g. L3 IP header details (DSCP, ECN, fragmentation) should not appear for Zeek sessions since Zeek doesn't provide raw IP headers. Each UI section declares what `extra` fields it needs; sections with no matching data are hidden. This is the "capabilities follow data, not source" principle from §7.
+- [ ] **Timeline slider performance** — resizing the time window on the timeline slider can be extremely slow, especially with large captures (15k+ sessions). Each drag tick re-fetches `/api/sessions` and `/api/stats` with the new time range. Potential fixes: debounce the slider so it only fires after the user stops dragging, cache recent time-range queries on the backend, or compute session/stats deltas incrementally instead of re-filtering the full list each time.
+- [ ] **Investigation bar overlaps hidden nodes bar** — when investigating a node, the "Investigating: X.X.X.X — N nodes in component" bar covers the "N nodes hidden / Unhide all" bar. They occupy the same vertical space. Fix: stack them vertically or merge them into a single status bar.
+- [ ] **Multi-source search compatibility** — ensure all log sources (Zeek, and future sources) are searchable through both the Wireshark-style BPF display filter and the generic keyword search. Currently these are optimized for pcap fields. Zeek sessions should be searchable by UID, conn_state, service, and other Zeek-specific fields. Transitively, every new log source adapter should declare its searchable fields so the filter system picks them up automatically.
+- [ ] **Session detail readability overhaul** — the SessionDetail panel has poor visual hierarchy. Labels, values, and section headers blend together with inconsistent font sizes. Hard to visually separate sections (HTTP, TLS, Advanced, etc.) and distinguish field names from values. Applies to both pcap and Zeek sessions. Needs: clearer section dividers, consistent typography, better label/value contrast, breathing room between fields.
+- [ ] **Subnet node visual redesign** — change how subnet entity nodes look visually on the graph. Current rendering doesn't clearly distinguish subnets from regular nodes.
 - [ ] **Neo4j graph backend** — secondary graph store for advanced traversal queries (path finding, community detection). Not a primary event store. *Prerequisites:* SQLite backend (ETL Phase 2). Status: long-term.
 
 - [x] **Analysis panel** (v0.9.50) — dedicated full-width panel with plugin-based architecture in `backend/plugins/analyses/`. Each plugin produces a named analysis with `_display` data for generic rendering. Frontend: grid of collapsible insight cards. Node centrality and traffic characterisation implemented. Planned additional analyses:
@@ -650,16 +660,20 @@ class ZeekConnAdapter(IngestionAdapter):
 
 **Adding a new adapter** = writing one Python file, dropping it in `backend/parser/adapters/`, adding one import. No frontend changes, no pipeline changes.
 
+**Current implementation note:** Phase 1 uses `PacketRecord` directly (not `EventRecord`) — Zeek adapters produce `PacketRecord` objects with source-specific data in `pkt.extra`. This lets the entire existing pipeline (`build_sessions`, `build_graph`, all plugins) work unchanged. The `EventRecord` abstraction remains planned for Phase 2 when scale demands it. Zeek enrichment logs (dns, http, ssl) join sessions by 5-tuple matching — packets from all uploaded logs merge, and `build_sessions` groups them into the same session. Shared parsing logic lives in `zeek_common.py`.
+
 What `extra` fields each adapter produces is documented in `docs/DEVELOPERS.md` (adapter field reference). Adapter authors maintain their own section — no central field registry.
 
-| Source | Adapter | Granularity | Key `extra` fields |
-|--------|---------|-------------|-------------------|
-| pcap/pcapng | `pcap_adapter.py` | packet | ttl, tcp_flags, seq_num, payload_preview, ... |
-| Zeek conn.log | `zeek_conn_adapter.py` | session | duration, history, conn_state, uid, orig/resp_bytes |
-| Zeek dns/http/ssl | `zeek_detail_adapter.py` | session | Joined to conn.log by uid. DNS queries, HTTP URIs, TLS SNIs |
-| Splunk CSV/JSON | `splunk_adapter.py` | session | action, app, user, severity, signature, bytes_in/out |
-| Sysmon XML/JSON | `sysmon_adapter.py` | event | pid, process_name, command_line, parent_pid, event_id |
-| Netflow/IPFIX | `netflow_adapter.py` | session | in_bytes, out_bytes, first_switched, last_switched |
+| Source | Adapter | Granularity | Status | Key `extra` fields |
+|--------|---------|-------------|--------|-------------------|
+| pcap/pcapng | `pcap_adapter.py` | packet | **done** | ttl, tcp_flags, seq_num, payload_preview, ... |
+| Zeek conn.log | `zeek_conn.py` | session | **done** | duration, history, conn_state, uid, orig/resp_bytes |
+| Zeek dns.log | `zeek_dns.py` | session | **done** | dns_query, dns_qtype_name, dns_answers, dns_rcode, dns_flags |
+| Zeek http.log | `zeek_http.py` | session | **done** | http_host, http_method, http_uri, http_user_agent, http_status |
+| Zeek ssl.log | `zeek_ssl.py` | session | **done** | tls_sni, tls_version, tls_cipher, ja3, tls_cert subject/issuer |
+| Splunk CSV/JSON | `splunk_adapter.py` | session | planned | action, app, user, severity, signature, bytes_in/out |
+| Sysmon XML/JSON | `sysmon_adapter.py` | event | planned | pid, process_name, command_line, parent_pid, event_id |
+| Netflow/IPFIX | `netflow_adapter.py` | session | planned | in_bytes, out_bytes, first_switched, last_switched |
 
 ### Plugins (Transform layer)
 

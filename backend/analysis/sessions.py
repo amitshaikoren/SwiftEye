@@ -218,6 +218,12 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 "dcerpc_packet_types": set(),
                 "dcerpc_interfaces": [],         # [{uuid, name}] unique
                 "dcerpc_opnums": set(),
+                # Zeek metadata (populated only for Zeek sources)
+                "zeek_uid": None,
+                "zeek_conn_state": None,
+                "zeek_history": None,
+                "zeek_duration": None,
+                "source_type": None,
                 # QUIC
                 "quic_versions": set(),
                 "quic_dcids": set(),
@@ -276,18 +282,21 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
             else:
                 s["ttls_responder"].add(pkt.ttl)
 
-        # IP header aggregation
+        # IP header aggregation — only for sources that provide raw IP headers
+        # (Zeek conn.log provides ip_version but not DSCP/ECN/flags/etc.)
+        _has_ip_headers = not getattr(pkt, 'extra', {}).get("source_type")
         if s["ip_version"] == 0 and pkt.ip_version > 0:
             s["ip_version"] = pkt.ip_version
         # Per-direction prefix: fwd = initiator->responder, rev = the other way
         d = "fwd" if is_from_initiator else "rev"
-        s[f"{d}_dscp_values"].add(pkt.dscp)
-        s[f"{d}_ecn_values"].add(pkt.ecn)
-        if pkt.ip_flags & 2:
+        if _has_ip_headers:
+            s[f"{d}_dscp_values"].add(pkt.dscp)
+            s[f"{d}_ecn_values"].add(pkt.ecn)
+        if _has_ip_headers and pkt.ip_flags & 2:
             s[f"{d}_df_set"] = True
-        if pkt.ip_flags & 1:
+        if _has_ip_headers and pkt.ip_flags & 1:
             s[f"{d}_mf_set"] = True
-        if pkt.frag_offset > 0:
+        if _has_ip_headers and pkt.frag_offset > 0:
             s[f"{d}_frag_seen"] = True
         if pkt.ip_version == 4 and pkt.ip_id > 0:
             k_min, k_max = f"{d}_ip_id_min", f"{d}_ip_id_max"
@@ -372,9 +381,12 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 s["tls_rev_session_resumption"] = ex["tls_session_resumption"]
 
             # ── HTTP — split by direction ──
+            # Zeek http.log rows contain both request and response fields in a
+            # single record, so we always add both sides when source_type=zeek.
+            _zeek_src = ex.get("source_type") == "zeek"
             if ex.get("http_host"):
                 s["http_hosts"].add(ex["http_host"])
-            if is_from_initiator:
+            if is_from_initiator or _zeek_src:
                 if ex.get("http_user_agent"):
                     s["http_fwd_user_agents"].add(ex["http_user_agent"])
                 if ex.get("http_method"):
@@ -387,7 +399,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                     s["http_fwd_has_cookies"] = True
                 if ex.get("http_authorization"):
                     s["http_fwd_has_auth"] = True
-            else:
+            if not is_from_initiator or _zeek_src:
                 if ex.get("http_server"):
                     s["http_rev_servers"].add(ex["http_server"])
                 if ex.get("http_status") and len(s["http_rev_status_codes"]) < 50:
@@ -630,7 +642,19 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 if pkt.extra.get(flag_key):
                     dns_entry["flags"][flag_key.replace("dns_", "")] = True
             s["dns_queries"].append(dns_entry)
-    
+
+        # Zeek metadata
+        if pkt.extra.get("source_type") == "zeek":
+            s["source_type"] = "zeek"
+            if pkt.extra.get("uid"):
+                s["zeek_uid"] = pkt.extra["uid"]
+            if pkt.extra.get("conn_state"):
+                s["zeek_conn_state"] = pkt.extra["conn_state"]
+            if pkt.extra.get("history"):
+                s["zeek_history"] = pkt.extra["history"]
+            if pkt.extra.get("duration"):
+                s["zeek_duration"] = pkt.extra["duration"]
+
     # Post-process sessions
     results = []
     for s in session_map.values():

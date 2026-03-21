@@ -201,15 +201,15 @@ export default function GraphCanvas({
       const cs = getComputedStyle(document.body);
       const cv = k => cs.getPropertyValue(k).trim();
       const bgColor       = cv('--bg')           || '#08090d';
-      const nodePrivate   = cv('--node-private')  || '#1e3045';
-      const nodePrivateS  = cv('--node-private-s')|| '#4080b0';
-      const nodeExternal  = cv('--node-external') || '#2a1a38';
-      const nodeExternalS = cv('--node-external-s')|| '#7040a8';
-      const nodeSubnet    = cv('--node-subnet')   || '#1a2530';
-      const nodeSubnetS   = cv('--node-subnet-s') || '#3a5060';
-      const nodeGateway   = cv('--node-gateway')  || '#2a2010';
-      const nodeGatewayS  = cv('--node-gateway-s')|| '#c8960a';
-      const nodeLabel     = cv('--node-label')    || '#8b949e';
+      const nodePrivate   = cv('--node-private')  || '#264060';
+      const nodePrivateS  = cv('--node-private-s')|| '#5a9ad5';
+      const nodeExternal  = cv('--node-external') || '#3d2855';
+      const nodeExternalS = cv('--node-external-s')|| '#9060cc';
+      const nodeSubnet    = cv('--node-subnet')   || '#253545';
+      const nodeSubnetS   = cv('--node-subnet-s') || '#557080';
+      const nodeGateway   = cv('--node-gateway')  || '#3d3018';
+      const nodeGatewayS  = cv('--node-gateway-s')|| '#e0b020';
+      const nodeLabel     = cv('--node-label')    || '#a0aab5';
       const acColor       = cv('--ac')            || '#58a6ff';
       const acGColor      = cv('--acG')           || '#3fb950';
 
@@ -271,7 +271,7 @@ export default function GraphCanvas({
 
         if (!inInv || !inDf) { ctx.globalAlpha = 0.04; }
         else if (edge.synthetic) ctx.globalAlpha = isSel ? 1 : hs ? (con ? 1 : 0.35) : 0.85;
-        else ctx.globalAlpha = isSel ? 1 : hs ? (con ? 0.85 : 0.15) : 0.6;
+        else ctx.globalAlpha = isSel ? 1 : hs ? (con ? 0.9 : 0.2) : 0.85;
 
         ctx.beginPath();
         ctx.moveTo(src.x, src.y);
