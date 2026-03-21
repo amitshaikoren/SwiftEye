@@ -1,5 +1,12 @@
 # SwiftEye — Changelog
 
+### v0.10.1 — March 2026
+- **Zeek multi-log enrichment** — new adapters for dns.log, http.log, ssl.log that enrich sessions when uploaded alongside conn.log. Shared Zeek utilities extracted to zeek_common.py. 5-tuple matching joins L7 data to existing sessions.
+- **Edge session threshold** — edges show 20 sessions initially with "Show more" button that fetches from API. Prevents UI stall on high-traffic edges.
+- **Graph brightness** — node and edge colors brightened for better visibility.
+- **Timeline bucket cap** — MAX_RAW_BUCKETS=15000 prevents crashes on long captures with small bucket sizes.
+- **Zeek DSCP fix** — DSCP/ECN no longer shows for non-pcap sources.
+
 ### v0.9.82 — March 2026
 - **QUIC dissector (Phase 1)** — new protocol dissector for UDP port 443. Parses QUIC long headers to extract version, Destination/Source Connection IDs, and packet type. Decrypts QUIC Initial packet header protection and payload using HKDF-derived keys from the DCID (RFC 9001 §5), then parses CRYPTO frames to extract TLS ClientHello SNI, ALPN, supported TLS versions, and cipher suites. Payload signature detection works on any UDP port. Session aggregation collects QUIC versions, connection IDs, SNIs, and ALPN protocols. Requires `cryptography` package for decryption; falls back to header-only parsing without it.
 - **Changelog split** — detailed version history moved from README.md and HANDOFF.md into standalone CHANGELOG.md.

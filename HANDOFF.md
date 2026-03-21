@@ -1,9 +1,9 @@
 # SwiftEye — Handoff Document
-## Version 0.9.81 | March 2026
+## Version 0.10.1 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.9.83** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.10.1** — see `CHANGELOG.md` for full version history.
 
 ### Recent highlights (v0.9.82)
 - QUIC dissector (Phase 1) — Initial packet decryption, SNI/ALPN extraction
