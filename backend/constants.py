@@ -71,8 +71,8 @@ PROTOCOL_COLORS: Dict[str, str] = {
     "HTTP": "#22d3ee", "HTTPS": "#38bdf8", "HTTP-ALT": "#22d3ee", "HTTPS-ALT": "#38bdf8",
     "HTTP-ALT2": "#22d3ee", "HTTP-ALT3": "#22d3ee", "HTTP-DEV": "#22d3ee", "HTTP-DEV2": "#22d3ee",
     "HTTP-MGMT": "#22d3ee",
-    # TLS
-    "TLS": "#2dd4bf",
+    # TLS / QUIC
+    "TLS": "#2dd4bf", "QUIC": "#06b6d4",
     # DNS
     "DNS": "#fbbf24", "mDNS": "#fbbf24", "LLMNR": "#facc15",
     # Email
