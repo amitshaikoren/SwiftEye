@@ -177,6 +177,8 @@ class ZeekConnAdapter(IngestionAdapter):
                 extra[field] = val
 
         # Store numeric versions for session detail display
+        if service and service != "-":
+            extra["service"] = service
         extra["orig_bytes"] = orig_bytes
         extra["resp_bytes"] = resp_bytes
         extra["duration"] = duration

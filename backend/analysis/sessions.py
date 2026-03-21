@@ -223,6 +223,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 "zeek_conn_state": None,
                 "zeek_history": None,
                 "zeek_duration": None,
+                "zeek_service": None,
                 "source_type": None,
                 # QUIC
                 "quic_versions": set(),
@@ -654,6 +655,8 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 s["zeek_history"] = pkt.extra["history"]
             if pkt.extra.get("duration"):
                 s["zeek_duration"] = pkt.extra["duration"]
+            if pkt.extra.get("service"):
+                s["zeek_service"] = pkt.extra["service"]
 
     # Post-process sessions
     results = []

@@ -249,7 +249,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 2, marginBottom: 12, borderBottom: '1px solid var(--bd)', paddingBottom: 6 }}>
-        {['overview', 'packets', 'payload', 'charts'].map(t => (
+        {(['overview', ...(s.source_type ? [] : ['packets', 'payload', 'charts'])]).map(t => (
           <button key={t} className={'btn' + (tab === t ? ' on' : '')}
             onClick={() => switchTab(t)} style={{ textTransform: 'uppercase', letterSpacing: '.05em', fontSize: 9 }}>{t}</button>
         ))}
@@ -272,6 +272,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
           </Collapse>
 
           {/* ═══════════════ NETWORK (L3) ═══════════════ */}
+          {!s.source_type && (
           <Collapse title="Network (L3)" level="layer">
 
           {(s.ttls_initiator?.length > 0 || s.ttls_responder?.length > 0) && (
@@ -337,9 +338,10 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
           )}
 
           </Collapse>
+          )}
 
           {/* ═══════════════ TRANSPORT (L4) ═══════════════ */}
-          {s.transport === 'TCP' && (
+          {s.transport === 'TCP' && !s.source_type && (
             <Collapse title="Transport (L4)" level="layer">
 
               {(s.initiator_ports?.length > 0 || s.responder_ports?.length > 0) && (
@@ -429,6 +431,17 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
                   <Row l="Responder →" v={s.responder_ports.slice(0, 10).join(', ') + (s.responder_ports.length > 10 ? '…' : '')} />
                 )}
               </Collapse>
+            </Collapse>
+          )}
+
+          {/* ═══════════════ ZEEK CONNECTION ═══════════════ */}
+          {s.source_type === 'zeek' && (s.zeek_conn_state || s.zeek_history || s.zeek_duration != null || s.zeek_service) && (
+            <Collapse title="Connection (Zeek)" level="layer">
+              {s.zeek_conn_state && <Row l="Conn State" v={s.zeek_conn_state} />}
+              {s.zeek_history && <Row l="History" v={s.zeek_history} />}
+              {s.zeek_duration != null && <Row l="Duration" v={`${s.zeek_duration.toFixed(3)}s`} />}
+              {s.zeek_service && <Row l="Service" v={s.zeek_service} />}
+              {s.zeek_uid && <Row l="UID" v={s.zeek_uid} />}
             </Collapse>
           )}
 
@@ -946,10 +959,6 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
           {/* ═══════════════ ADVANCED ═══════════════ */}
           <Collapse title="Advanced">
             <Row l="Session ID" v={sessionRefHash(s)} />
-            {s.zeek_uid && <Row l="Zeek UID" v={s.zeek_uid} />}
-            {s.zeek_conn_state && <Row l="Conn State" v={s.zeek_conn_state} />}
-            {s.zeek_history && <Row l="History" v={s.zeek_history} />}
-            {s.zeek_duration != null && <Row l="Duration (Zeek)" v={`${s.zeek_duration.toFixed(3)}s`} />}
             {s.source_type && <Row l="Source" v={s.source_type} />}
             {s.start_time > 0 && <Row l="Start time" v={new Date(s.start_time * 1000).toISOString()} />}
             {s.end_time > 0 && <Row l="End time" v={new Date(s.end_time * 1000).toISOString()} />}
