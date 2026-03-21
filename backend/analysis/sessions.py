@@ -108,6 +108,8 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 "http_fwd_referers": set(),
                 "http_fwd_has_cookies": False,
                 "http_fwd_has_auth": False,
+                "http_fwd_auth_types": set(),
+                "http_fwd_usernames": set(),
                 "http_rev_servers": set(),        # responder ←
                 "http_rev_status_codes": [],
                 "http_rev_content_types": set(),
@@ -400,6 +402,12 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                     s["http_fwd_has_cookies"] = True
                 if ex.get("http_authorization"):
                     s["http_fwd_has_auth"] = True
+                    auth_val = ex["http_authorization"]
+                    if isinstance(auth_val, str) and auth_val is not True:
+                        auth_type = auth_val.split()[0] if ' ' in auth_val else auth_val
+                        s["http_fwd_auth_types"].add(auth_type)
+                    if ex.get("http_username"):
+                        s["http_fwd_usernames"].add(ex["http_username"])
             if not is_from_initiator or _zeek_src:
                 if ex.get("http_server"):
                     s["http_rev_servers"].add(ex["http_server"])
@@ -696,6 +704,8 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         s["http_rev_status_codes"] = s["http_rev_status_codes"][:50]
         s["http_rev_content_types"] = sorted(s["http_rev_content_types"])
         s["http_rev_redirects"] = sorted(s["http_rev_redirects"])
+        s["http_fwd_auth_types"] = sorted(s["http_fwd_auth_types"])
+        s["http_fwd_usernames"] = sorted(s["http_fwd_usernames"])
 
         s["ja3_hashes"] = sorted(s["ja3_hashes"])
         s["ja4_hashes"] = sorted(s["ja4_hashes"])

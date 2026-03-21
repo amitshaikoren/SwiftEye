@@ -97,7 +97,11 @@ class ZeekHttpAdapter(IngestionAdapter):
 
         username = row.get("username", "-")
         if username and username != "-":
-            extra["http_authorization"] = True
+            extra["http_authorization"] = "Basic"
+            extra["http_username"] = username
+        password = row.get("password", "-")
+        if password and password != "-":
+            extra["http_password"] = password
 
         # Response fields (responder ←)
         status = safe_int(row.get("status_code", "0"))

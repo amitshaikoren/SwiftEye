@@ -437,7 +437,24 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
           {/* ═══════════════ ZEEK CONNECTION ═══════════════ */}
           {s.source_type === 'zeek' && (s.zeek_conn_state || s.zeek_history || s.zeek_duration != null || s.zeek_service) && (
             <Collapse title="Connection (Zeek)" level="layer">
-              {s.zeek_conn_state && <Row l="Conn State" v={s.zeek_conn_state} />}
+              {s.zeek_conn_state && (() => {
+                const desc = {
+                  S0: 'SYN sent, no reply',
+                  S1: 'SYN-ACK seen, connection established (no data)',
+                  SF: 'Normal — established and closed cleanly',
+                  REJ: 'Connection rejected (RST to SYN)',
+                  S2: 'Established, initiator closed (no responder close)',
+                  S3: 'Established, responder closed (no initiator close)',
+                  RSTO: 'Established, initiator aborted (RST)',
+                  RSTR: 'Established, responder aborted (RST)',
+                  RSTOS0: 'Initiator sent SYN then RST (no SYN-ACK)',
+                  RSTRH: 'Responder sent RST (no SYN)',
+                  SH: 'Initiator sent SYN+FIN, no responder reply',
+                  SHR: 'Initiator sent SYN+FIN, responder sent RST',
+                  OTH: 'Midstream traffic (no SYN, no RST)',
+                };
+                return <Row l="Conn State" v={`${s.zeek_conn_state}${desc[s.zeek_conn_state] ? ' — ' + desc[s.zeek_conn_state] : ''}`} />;
+              })()}
               {s.zeek_history && <Row l="History" v={s.zeek_history} />}
               {s.zeek_duration != null && <Row l="Duration" v={`${s.zeek_duration.toFixed(3)}s`} />}
               {s.zeek_service && <Row l="Service" v={s.zeek_service} />}
@@ -592,7 +609,18 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
                   )}
                   {s.http_fwd_referers?.length > 0 && <Row l="Referer(s)" v={s.http_fwd_referers.join(', ')} />}
                   {s.http_fwd_has_cookies && <Row l="Cookies" v="present" />}
-                  {s.http_fwd_has_auth && <Row l="Authorization" v="present" />}
+                  {s.http_fwd_has_auth && (
+                    <>
+                      <Row l="Authorization" v={
+                        s.http_fwd_auth_types?.length > 0
+                          ? s.http_fwd_auth_types.join(', ') + ' — cleartext credentials'
+                          : 'present'
+                      } />
+                      {s.http_fwd_usernames?.length > 0 && (
+                        <Row l="Username(s)" v={s.http_fwd_usernames.join(', ')} />
+                      )}
+                    </>
+                  )}
                 </div>
               )}
               {/* Responder ← */}

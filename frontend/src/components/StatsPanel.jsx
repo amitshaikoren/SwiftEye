@@ -51,6 +51,19 @@ export default function StatsPanel({ stats, pColors, onSelectNode, pluginResults
         <div className="sc"><div style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 2 }}>Sessions</div><div style={{ fontSize: 17, fontWeight: 600, fontFamily: 'var(--fd)' }}>{fN(stats.total_sessions)}</div><div style={{ fontSize: 9, color: 'var(--txD)' }}>{fD(stats.duration)}</div></div>
       </div>
 
+      {stats.cleartext_credential_sessions > 0 && (
+        <div style={{
+          background: 'rgba(248,81,73,.1)', border: '1px solid rgba(248,81,73,.3)',
+          borderRadius: 6, padding: '8px 10px', marginBottom: 12, fontSize: 10,
+        }}>
+          <div style={{ color: '#f85149', fontWeight: 600, marginBottom: 2 }}>Cleartext Credentials Detected</div>
+          <div style={{ color: 'var(--txM)' }}>
+            {stats.cleartext_credential_sessions} session{stats.cleartext_credential_sessions > 1 ? 's' : ''} with
+            credentials in cleartext (HTTP Auth, FTP, SMTP)
+          </div>
+        </div>
+      )}
+
       <PluginSections slotType="stats_section" pluginResults={pluginResults} uiSlots={uiSlots} dedicated={dedicated} onSelectNode={onSelectNode} />
 
       <Collapse title="Protocol Hierarchy" open={true}>

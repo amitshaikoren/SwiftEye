@@ -92,4 +92,5 @@ def compute_global_stats(packets: List[PacketRecord], sessions: List[Dict]) -> D
         "sessions_with_fin": sum(1 for s in sessions if s.get("has_fin")),
         "first_timestamp": packets[0].timestamp,
         "last_timestamp": packets[-1].timestamp,
+        "cleartext_credential_sessions": sum(1 for s in sessions if s.get("ftp_has_credentials") or s.get("http_fwd_has_auth") or s.get("smtp_has_auth")),
     }
