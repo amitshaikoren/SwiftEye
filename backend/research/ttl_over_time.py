@@ -16,6 +16,7 @@ No anomaly detection — just the raw values. The researcher decides
 what's significant.
 """
 
+from datetime import datetime, timezone
 from research import ResearchChart, Param, AnalysisContext, SWIFTEYE_LAYOUT
 
 
@@ -141,5 +142,4 @@ class TTLOverTime(ResearchChart):
 
 
 def _fmt_time(ts: float) -> str:
-    from datetime import datetime, timezone
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%H:%M:%S.%f")[:-3]

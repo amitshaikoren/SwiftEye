@@ -18,6 +18,7 @@ Fields extracted:
   ssh_banner         — full raw banner line (for reference)
 """
 
+import struct
 from typing import Dict, Any
 from . import register_dissector, register_payload_signature
 
@@ -86,7 +87,6 @@ def _parse_kex_init(data: bytes) -> Dict[str, Any]:
     SSH binary packet format: uint32 packet_length, byte padding_length, byte msg_type, ...
     KEX_INIT (type 20) payload after 16-byte cookie: 10 name-lists (comma-separated strings).
     """
-    import struct
     info: Dict[str, Any] = {}
     try:
         if len(data) < 6:

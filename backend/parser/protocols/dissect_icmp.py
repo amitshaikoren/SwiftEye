@@ -10,6 +10,7 @@ ICMPv6 fields: icmp_type, icmp_code, icmp_type_name, icmp_code_name, icmp_id, ic
                icmpv6_target (for NS/NA — the IPv6 address being resolved)
 """
 
+import struct
 from typing import Dict, Any
 from . import register_dissector
 from .ports import ICMP_TYPES, ICMP_DEST_UNREACH_CODES
@@ -181,7 +182,6 @@ def _extract_icmpv4_manual(payload: bytes) -> Dict[str, Any]:
     info["icmp_code"]      = icmp_code
     info["icmp_type_name"] = ICMP_TYPES.get(icmp_type, f"Type {icmp_type}")
     if icmp_type in (0, 8) and len(payload) >= 8:
-        import struct
         info["icmp_id"]  = struct.unpack_from("!H", payload, 4)[0]
         info["icmp_seq"] = struct.unpack_from("!H", payload, 6)[0]
         # ICMP echo payload starts after 8-byte header

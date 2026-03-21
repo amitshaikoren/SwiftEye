@@ -16,9 +16,15 @@ import uuid
 import json
 import logging
 from logging.handlers import RotatingFileHandler
+import io
+import math
+import re
+import base64
+import datetime
 import tempfile
 from pathlib import Path
 from typing import Optional, List
+from collections import Counter
 
 # Ensure backend/ is on sys.path so imports work regardless of CWD
 _backend_dir = Path(__file__).resolve().parent
@@ -156,8 +162,6 @@ def _payload_entropy(data: bytes) -> dict:
     """
     if not data or len(data) < 16:
         return {}
-    import math
-    from collections import Counter
     counts = Counter(data)
     length = len(data)
     entropy = -sum((c / length) * math.log2(c / length) for c in counts.values())
@@ -496,7 +500,6 @@ async def get_stats(
     """Get capture statistics, optionally scoped to a time range."""
     _require_capture()
     if time_start is not None and time_end is not None:
-        from analysis import compute_global_stats
         scoped_pkts = [p for p in store.packets if time_start <= p.timestamp <= time_end]
         active_keys = {p.session_key for p in scoped_pkts}
         scoped_sess = [s for s in store.sessions if s.get('id') in active_keys]
@@ -930,7 +933,6 @@ async def update_investigation(body: dict):
 async def upload_investigation_image(file: UploadFile = File(...)):
     """Upload an image for the investigation notebook. Returns an image ID for embedding."""
     _require_capture()
-    import base64
     content = await file.read()
     img_id = f"img_{uuid.uuid4().hex[:8]}"
     media_type = file.content_type or "image/png"
@@ -975,10 +977,6 @@ def _generate_investigation_pdf(markdown: str, images: dict, capture_name: str) 
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, HRFlowable, Preformatted
     from reportlab.lib.enums import TA_LEFT, TA_CENTER
-    import base64
-    import io
-    import re
-    import datetime
 
     pdf_path = os.path.join(tempfile.gettempdir(), f"investigation_{uuid.uuid4().hex[:8]}.pdf")
 
@@ -1084,7 +1082,6 @@ def _generate_investigation_pdf(markdown: str, images: dict, capture_name: str) 
 
 def _md_inline(text: str) -> str:
     """Convert inline markdown (bold, italic, code) to reportlab XML."""
-    import re
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'__(.+?)__', r'<b>\1</b>', text)
     text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
@@ -1119,7 +1116,6 @@ async def create_synthetic(body: dict):
         raise HTTPException(400, "id is required")
     if syn_type not in ("node", "edge"):
         raise HTTPException(400, "type must be 'node' or 'edge'")
-    import datetime
     if syn_type == "node":
         obj = {
             "id": syn_id,
@@ -1225,7 +1221,6 @@ async def create_annotation(body: dict):
     ann_id = body.get("id")
     if not ann_id:
         raise HTTPException(400, "Annotation id is required")
-    import datetime
     annotation = {
         "id":              ann_id,
         "x":               float(body.get("x", 0)),
@@ -1323,8 +1318,6 @@ async def slice_pcap(
     Returns the pcap as a binary file download.
     """
     _require_capture()
-    from analysis import filter_packets
-    import tempfile, os
 
     pkts = filter_packets(
         store.packets,

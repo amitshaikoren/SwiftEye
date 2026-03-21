@@ -14,6 +14,8 @@ Useful for:
     - Identifying which protocol dominates each relationship
 """
 
+from collections import defaultdict
+from datetime import datetime, timezone
 from research import ResearchChart, Param, AnalysisContext, SWIFTEYE_LAYOUT, PROTOCOL_COLORS
 
 
@@ -49,7 +51,6 @@ class ConversationTimeline(ResearchChart):
             }
 
         # group by peer
-        from collections import defaultdict
         peer_packets = defaultdict(list)
         for pkt in relevant:
             peer = pkt.dst_ip if pkt.src_ip == target else pkt.src_ip
@@ -59,8 +60,7 @@ class ConversationTimeline(ResearchChart):
         peers = sorted(peer_packets.keys(), key=lambda p: peer_packets[p][0].timestamp)
 
         # build one trace per protocol (so legend works cleanly)
-        from collections import defaultdict as dd
-        proto_traces = dd(lambda: {"x": [], "y": [], "size": [], "text": [], "peer": []})
+        proto_traces = defaultdict(lambda: {"x": [], "y": [], "size": [], "text": [], "peer": []})
 
         for peer in peers:
             for pkt in peer_packets[peer]:
@@ -132,5 +132,4 @@ class ConversationTimeline(ResearchChart):
 
 
 def _fmt_time(ts: float) -> str:
-    from datetime import datetime, timezone
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%H:%M:%S.%f")[:-3]

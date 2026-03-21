@@ -1,6 +1,7 @@
 """DNS dissector — extracts query/response info using scapy's DNS layer."""
 
 from typing import Dict, Any, List
+from scapy.layers.dns import DNS, DNSQR, DNSRR
 from . import register_dissector
 
 
@@ -76,7 +77,6 @@ def _parse_rr_section(rr, max_count: int) -> List[Dict[str, Any]]:
 
 @register_dissector("DNS")
 def dissect_dns(pkt) -> Dict[str, Any]:
-    from scapy.layers.dns import DNS, DNSQR, DNSRR
     info = {}
     if not pkt.haslayer(DNS):
         return info

@@ -16,14 +16,16 @@ The output is identical List[PacketRecord] — the analysis layer never knows
 which reader was used.
 """
 
+import hashlib
 import logging
+import socket
 import struct
 import time
 from pathlib import Path
 from typing import List, Optional
 
 from .packet import PacketRecord
-from .protocols import resolve_protocol, TCP_FLAG_BITS, detect_protocol_by_payload
+from .protocols import resolve_protocol, TCP_FLAG_BITS, detect_protocol_by_payload, DISSECTORS
 
 logger = logging.getLogger("swifteye.parser.dpkt")
 
@@ -285,7 +287,6 @@ def _enrich_from_payload(rec: PacketRecord, payload: bytes):
             rec.protocol = payload_protocol
 
     # ── Raw-byte dissection (dpkt path) ────────────────────────────
-    from .protocols import DISSECTORS
     proto = rec.protocol
     extra = {}
 
@@ -574,8 +575,6 @@ def _parse_client_hello(data: bytes) -> Optional[dict]:
     Returns None if not a ClientHello.
     """
     try:
-        import hashlib
-
         if len(data) < 10 or data[0] != 0x16:
             return None  # Not TLS
 
@@ -682,7 +681,6 @@ def _parse_client_hello(data: bytes) -> Optional[dict]:
             f"{'-'.join(str(c) for c in curves)},"
             f"{'-'.join(str(p) for p in point_formats)}"
         )
-        import hashlib
         ja3 = hashlib.md5(ja3_str.encode()).hexdigest()
 
         # ── JA4 ───────────────────────────────────────────────────────
@@ -743,7 +741,6 @@ def _ipstr(b: bytes) -> str:
 
 def _ip6str(b: bytes) -> str:
     try:
-        import socket
         return socket.inet_ntop(socket.AF_INET6, b)
     except Exception:
         return ""

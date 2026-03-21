@@ -236,9 +236,6 @@ def build_mac_split_map(packets: List[PacketRecord]) -> Dict[str, set]:
     - Skip broadcast/multicast MACs and known infrastructure vendor MACs
     - Skip blank or zero MACs
     """
-    from parser.oui import lookup_vendor
-    from collections import defaultdict
-
     _INFRA_VENDORS = {
         "cisco", "juniper", "aruba", "ubiquiti", "palo alto",
         "fortinet", "sophos", "watchguard", "brocade", "extreme",
