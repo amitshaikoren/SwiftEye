@@ -218,6 +218,15 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 "dcerpc_packet_types": set(),
                 "dcerpc_interfaces": [],         # [{uuid, name}] unique
                 "dcerpc_opnums": set(),
+                # QUIC
+                "quic_versions": set(),
+                "quic_dcids": set(),
+                "quic_scids": set(),
+                "quic_snis": set(),
+                "quic_alpn": set(),
+                "quic_packet_types": set(),
+                "quic_tls_versions": set(),
+                "quic_tls_ciphers": set(),
             }
         
         s = session_map[key]
@@ -567,6 +576,27 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                     if a not in s["llmnr_answers"]:
                         s["llmnr_answers"].append(a)
 
+            # ── QUIC ──
+            if ex.get("quic_version_name"):
+                s["quic_versions"].add(ex["quic_version_name"])
+            if ex.get("quic_dcid"):
+                s["quic_dcids"].add(ex["quic_dcid"])
+            if ex.get("quic_scid"):
+                s["quic_scids"].add(ex["quic_scid"])
+            if ex.get("quic_sni"):
+                s["quic_snis"].add(ex["quic_sni"])
+            if ex.get("quic_alpn"):
+                for p in ex["quic_alpn"]:
+                    s["quic_alpn"].add(p)
+            if ex.get("quic_packet_type"):
+                s["quic_packet_types"].add(ex["quic_packet_type"])
+            if ex.get("quic_tls_versions"):
+                for v in ex["quic_tls_versions"]:
+                    s["quic_tls_versions"].add(v)
+            if ex.get("quic_tls_ciphers"):
+                for c in ex["quic_tls_ciphers"][:10]:
+                    s["quic_tls_ciphers"].add(c)
+
             # ── DCE/RPC ──
             if ex.get("dcerpc_packet_type"):
                 s["dcerpc_packet_types"].add(ex["dcerpc_packet_type"])
@@ -735,7 +765,17 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         s["dcerpc_packet_types"] = sorted(s["dcerpc_packet_types"])
         s["dcerpc_interfaces"] = s["dcerpc_interfaces"][:20]
         s["dcerpc_opnums"] = sorted(s["dcerpc_opnums"])
-        
+
+        # QUIC
+        s["quic_versions"] = sorted(s["quic_versions"])
+        s["quic_dcids"] = sorted(s["quic_dcids"])[:10]
+        s["quic_scids"] = sorted(s["quic_scids"])[:10]
+        s["quic_snis"] = sorted(s["quic_snis"])
+        s["quic_alpn"] = sorted(s["quic_alpn"])
+        s["quic_packet_types"] = sorted(s["quic_packet_types"])
+        s["quic_tls_versions"] = sorted(s["quic_tls_versions"])
+        s["quic_tls_ciphers"] = sorted(s["quic_tls_ciphers"])[:15]
+
         # TCP state detection
         fc = s["flag_counts"]
         s["has_handshake"] = fc.get("SYN", 0) >= 2 and fc.get("ACK", 0) >= 1

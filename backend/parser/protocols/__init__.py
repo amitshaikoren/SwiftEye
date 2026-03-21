@@ -91,4 +91,5 @@ from . import dissect_mdns     # noqa: F401
 from . import dissect_ssdp     # noqa: F401
 from . import dissect_llmnr    # noqa: F401
 from . import dissect_dcerpc   # noqa: F401
+from . import dissect_quic     # noqa: F401
 from . import signatures       # noqa: F401

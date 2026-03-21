@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.9.81 | March 2026**
+**Version 0.9.82 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -68,7 +68,8 @@ swifteye/
 │   │       ├── dissect_mdns.py      # mDNS: service discovery, SRV, TXT records
 │   │       ├── dissect_ssdp.py      # SSDP/UPnP: M-SEARCH, NOTIFY, ST, USN, Location
 │   │       ├── dissect_llmnr.py     # LLMNR: queries, answers (DNS wire format on port 5355)
-│   │       └── dissect_dcerpc.py   # DCE/RPC: packet type, interface UUID, service name, opnum
+│   │       ├── dissect_dcerpc.py   # DCE/RPC: packet type, interface UUID, service name, opnum
+│   │       └── dissect_quic.py    # QUIC: version, connection IDs, SNI from Initial (Phase 1)
 │   ├── analysis/                    # LAYER 2: Structural data organisation
 │   │   ├── aggregator.py            # Graph building, filtering, entity_map, OUI+JA3 lookup
 │   │   ├── sessions.py              # Session reconstruction + per-protocol aggregation
@@ -350,6 +351,7 @@ Max file size: 500MB. Max packets: 2M. Dissector exceptions are caught and logge
 | `dissect_ssdp.py` | SSDP/UPnP | `ssdp_method`, `ssdp_st`, `ssdp_usn`, `ssdp_location`, `ssdp_server`, `ssdp_nts`, `ssdp_nt`, `ssdp_mx`, `ssdp_user_agent` |
 | `dissect_llmnr.py` | LLMNR | `llmnr_query`, `llmnr_qtype`, `llmnr_qr`, `llmnr_answers`, `llmnr_tc` |
 | `dissect_dcerpc.py` | DCE/RPC | `dcerpc_version`, `dcerpc_packet_type`, `dcerpc_call_id`, `dcerpc_interface_uuid`, `dcerpc_interface_name`, `dcerpc_opnum` |
+| `dissect_quic.py` | QUIC | `quic_version`, `quic_version_name`, `quic_dcid`, `quic_scid`, `quic_packet_type`, `quic_sni`, `quic_alpn`, `quic_tls_versions`, `quic_tls_ciphers` |
 
 **Adding a new dissector:**
 

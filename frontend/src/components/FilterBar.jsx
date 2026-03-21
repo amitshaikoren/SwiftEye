@@ -38,7 +38,8 @@ const FIELD_SUGGESTIONS = [
   'port', 'bytes', 'packets', 'tls.sni', 'http.host', 'dns', 'os', 'role',
   'private', 'subnet', 'gateway',
   'http', 'https', 'dns', 'tcp', 'udp', 'ssh', 'tls', 'arp',
-  'icmp', 'ftp', 'smtp', 'smb', 'rdp', 'ntp', 'dhcp',
+  'icmp', 'ftp', 'smtp', 'smb', 'rdp', 'ntp', 'dhcp', 'quic',
+  'quic.sni',
 ];
 
 export default function FilterBar({ value, onChange, onApply, onClear, matchCount, error, isActive, osGuesses = [], activeOsFilter = '' }) {

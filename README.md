@@ -34,7 +34,7 @@ Open **http://localhost:8642** and drop a pcap file.
 
 - **Force-directed graph** — nodes are IPs/subnets, edges coloured by protocol. Each unique protocol between two nodes gets its own edge. Click a node or edge for detail, shift+click for multi-select with scoped statistics.
 - **Protocol detection** — ~90 well-known port mappings plus payload-based detection for TLS, HTTP, SSH, SMTP, FTP, DHCP, SMB, and more on non-standard ports. Conflicts between port and payload are flagged with a warning.
-- **Protocol dissection** — SSH banner version, FTP credentials/filenames, DHCP hostname/vendor class, SMB share paths/filenames, ICMPv4/ICMPv6 type names, DNS queries/answers, HTTP host/method/URI, TLS SNI/version/ciphers.
+- **Protocol dissection** — SSH banner version, FTP credentials/filenames, DHCP hostname/vendor class, SMB share paths/filenames, ICMPv4/ICMPv6 type names, DNS queries/answers, HTTP host/method/URI, TLS SNI/version/ciphers, QUIC version/connection IDs/SNI.
 - **Session reconstruction** — bidirectional flows with initiator tracking (SYN-based), directional traffic bytes, retransmit detection, TCP window stats, seq/ack numbers.
 - **TLS details** — SNI, versions, cipher suites, JA3 and JA4 fingerprints. Known JA3 hashes resolved to application names (Firefox, Chrome, curl, Cobalt Strike, etc.) with a red ⚠ badge for known malware.
 - **Seq/Ack Timeline** — inline chart in the Session Detail SEQ/ACK tab. Click Run to compute a Plotly scatter of sequence numbers over time — shows retransmits, reordering, and throughput shape.
@@ -133,6 +133,9 @@ The `name` field becomes the node label. All other fields appear in Node Detail.
 ---
 
 ## Changelog
+
+### v0.9.82 — March 2026
+- **QUIC dissector (Phase 1)** — parses QUIC long headers (version, connection IDs, packet type). Decrypts Initial packets to extract TLS ClientHello SNI, ALPN, cipher suites, and supported TLS versions. Payload signature detection works on any UDP port, not just 443.
 
 ### v0.9.81 — March 2026
 - **HTTP User-Agent timeline** — new Research chart. X = time, Y = source IP, colour = User-Agent. Spot automated tools, C2 beacons, and UA spoofing at a glance.
