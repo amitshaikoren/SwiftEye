@@ -403,9 +403,9 @@ For a typical security research capture (10–60 minutes, 50K–500K packets, 50
 ## 5. Known Bugs / Architecture Notes
 
 ### Open
-- **OS filter "network device (likely)" doesn't match gateway/router** — the OS fingerprint plugin produces the guess "network device (likely)" but the display filter/OS dropdown doesn't match nodes identified as gateway/router by the network_map plugin. The two plugins produce independent results — OS fingerprint looks at TTL/window/MSS while network_map looks at ARP/gateway behaviour. The filter should recognise gateway nodes as matching the "network device" filter.
-- **Windows OS filter incorrect** — the OS fingerprint `os contains "Windows"` filter does not correctly match all Windows-detected nodes. Likely a casing or substring issue in the display filter evaluator or the OS guess string format. Needs investigation.
-- **Visualize time slider re-renders graph during drag** — the time window slider in the Visualize panel rebuilds the graph on every slider move via `useMemo`. It should debounce or require a "Run" button press like the Timeline panel does.
+- ~~**OS filter "network device (likely)" doesn't match gateway/router**~~ — investigated in v0.10.4. The filter logic is correct: `os contains "Network"` matches both `"Network device (likely)"` and `"Network device (gateway)"`. The real issue was the OS chip UI: multiple OS variants (e.g. "Windows 10/11", "Windows (likely)") created redundant chips that all generated the same filter. Fixed by grouping chips by OS family keyword — one chip per family with a count badge.
+- ~~**Windows OS filter incorrect**~~ — investigated in v0.10.4. The display filter evaluator correctly handles case-insensitive `contains` matching. Same root cause as above: multiple Windows variant chips were confusing. Fixed by chip consolidation.
+- ~~**Visualize time slider re-renders graph during drag**~~ — fixed in v0.10.4. Added 300ms debounce: slider position updates instantly (visual feedback) but `filteredRows`/`graphData` recompute only after the user stops dragging.
 - **`get_packets_for_session()` in CaptureStore** — serialisation logic that belongs in `analysis/sessions.py`. Low priority, no user impact.
 - **`_looks_like_ip_keyed()` heuristic** — fragile sampling of plugin result dict keys. Right fix: `slot_data_type: "ip_map" | "global"` on UISlot. Low breakage risk with existing plugins.
 - ~~**DHCP dissector misses scapy-parsed packets**~~ — fixed in v0.10.3. Dissector now checks `pkt.haslayer(BOOTP)` first, falls back to Raw.

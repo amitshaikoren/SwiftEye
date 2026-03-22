@@ -13,11 +13,12 @@
  *
  * Entirely frontend — no backend endpoint needed. Data never touches the server.
  */
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import * as d3 from 'd3';
 
 const MAX_ROWS = 10000;
 const MAX_FILE_MB = 50;
+const TIME_SLIDER_DEBOUNCE_MS = 300;
 
 // ── CSV/TSV/JSON parser ────────────────────────────────────────────────────
 
@@ -364,6 +365,13 @@ export default function VisualizePage() {
     nodeColor: '', nodeSize: '', hover: [], nodeGroup: '', timestamp: '',
   });
   const [timeRange, setTimeRange] = useState([0, 1]);
+  const [debouncedTimeRange, setDebouncedTimeRange] = useState([0, 1]);
+  const timeRangeTimer = useRef(null);
+  const updateTimeRange = useCallback((val) => {
+    setTimeRange(val);
+    clearTimeout(timeRangeTimer.current);
+    timeRangeTimer.current = setTimeout(() => setDebouncedTimeRange(val), TIME_SLIDER_DEBOUNCE_MS);
+  }, []);
   const containerRef = useRef(null);
   const [dims, setDims] = useState({ w: 800, h: 500 });
 
@@ -414,14 +422,14 @@ export default function VisualizePage() {
     }).filter(v => !isNaN(v));
     if (!vals.length) return data.rows;
     const min = Math.min(...vals), max = Math.max(...vals);
-    const tStart = min + (max - min) * timeRange[0];
-    const tEnd = min + (max - min) * timeRange[1];
+    const tStart = min + (max - min) * debouncedTimeRange[0];
+    const tEnd = min + (max - min) * debouncedTimeRange[1];
     return data.rows.filter(r => {
       const v = parseFloat(r[col]);
       const ts = isNaN(v) ? new Date(r[col]).getTime() / 1000 : v;
       return ts >= tStart && ts <= tEnd;
     });
-  }, [data, mapping.timestamp, timeRange]);
+  }, [data, mapping.timestamp, debouncedTimeRange]);
 
   // Color maps
   const colorMaps = useMemo(() => {
@@ -491,7 +499,7 @@ export default function VisualizePage() {
 
             <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4, marginTop: 12 }}>Data</div>
             <MultiSelect label="Hover data" values={mapping.hover} onChange={v => setMap('hover', v)} columns={cols} />
-            <ColSelect label="Timestamp" value={mapping.timestamp} onChange={v => { setMap('timestamp', v); setTimeRange([0, 1]); }} columns={cols} />
+            <ColSelect label="Timestamp" value={mapping.timestamp} onChange={v => { setMap('timestamp', v); setTimeRange([0, 1]); setDebouncedTimeRange([0, 1]); }} columns={cols} />
 
             {/* Time slider */}
             {mapping.timestamp && (
@@ -500,13 +508,13 @@ export default function VisualizePage() {
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <span style={{ fontSize: 8, color: '#378ADD' }}>Start</span>
                   <input type="range" min={0} max={1} step={0.01} value={timeRange[0]}
-                    onChange={e => setTimeRange([Math.min(+e.target.value, timeRange[1]), timeRange[1]])}
+                    onChange={e => updateTimeRange([Math.min(+e.target.value, timeRange[1]), timeRange[1]])}
                     style={{ flex: 1 }} />
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 2 }}>
                   <span style={{ fontSize: 8, color: '#1D9E75' }}>End</span>
                   <input type="range" min={0} max={1} step={0.01} value={timeRange[1]}
-                    onChange={e => setTimeRange([timeRange[0], Math.max(+e.target.value, timeRange[0])])}
+                    onChange={e => updateTimeRange([timeRange[0], Math.max(+e.target.value, timeRange[0])])}
                     style={{ flex: 1 }} />
                 </div>
                 <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 4 }}>

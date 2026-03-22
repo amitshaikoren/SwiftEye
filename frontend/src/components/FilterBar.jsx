@@ -317,32 +317,44 @@ export default function FilterBar({ value, onChange, onApply, onClear, matchCoun
         </div>
       </div>
 
-      {/* OS quick-filter chips — only shown when OS fingerprint data is available */}
+      {/* OS quick-filter chips — grouped by family, one chip per OS keyword */}
       {osGuesses.length > 0 && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 5, marginTop: 4,
           paddingTop: 4, borderTop: '1px solid rgba(128,128,128,0.08)',
         }}>
           <span style={{ fontSize: 9, color: 'var(--txD)', flexShrink: 0, letterSpacing: '.05em' }}>OS:</span>
-          {osGuesses.map(os => {
-            const keyword = os.split(' ')[0];
-            const isOn = activeOsFilter.includes(keyword);
-            return (
-              <button
-                key={os}
-                onClick={() => handleOsChip(os)}
-                title={`Filter: os contains "${keyword}"`}
-                style={{
-                  padding: '1px 7px', fontSize: 9, borderRadius: 10,
-                  cursor: 'pointer', border: '1px solid',
-                  fontFamily: 'var(--fn)', transition: 'all .12s',
-                  background: isOn ? 'rgba(88,166,255,.15)' : 'transparent',
-                  borderColor: isOn ? 'var(--ac)' : 'var(--bd)',
-                  color: isOn ? 'var(--ac)' : 'var(--txD)',
-                }}
-              >{os}</button>
-            );
-          })}
+          {(() => {
+            // Group OS guesses by family keyword to avoid redundant chips
+            // e.g. "Windows 10/11", "Windows (likely)" → one "Windows" chip
+            const families = new Map();
+            for (const os of osGuesses) {
+              const keyword = os.split(' ')[0];
+              if (!families.has(keyword)) families.set(keyword, []);
+              families.get(keyword).push(os);
+            }
+            return [...families.entries()].map(([keyword, variants]) => {
+              const isOn = activeOsFilter.includes(keyword);
+              const label = variants.length === 1 ? variants[0] : `${keyword} (${variants.length})`;
+              return (
+                <button
+                  key={keyword}
+                  onClick={() => handleOsChip(variants[0])}
+                  title={variants.length === 1
+                    ? `Filter: os contains "${keyword}"`
+                    : `Filter: os contains "${keyword}" — matches: ${variants.join(', ')}`}
+                  style={{
+                    padding: '1px 7px', fontSize: 9, borderRadius: 10,
+                    cursor: 'pointer', border: '1px solid',
+                    fontFamily: 'var(--fn)', transition: 'all .12s',
+                    background: isOn ? 'rgba(88,166,255,.15)' : 'transparent',
+                    borderColor: isOn ? 'var(--ac)' : 'var(--bd)',
+                    color: isOn ? 'var(--ac)' : 'var(--txD)',
+                  }}
+                >{label}</button>
+              );
+            });
+          })()}
           {activeOsFilter && (
             <button
               onClick={() => { onChange(''); onClear(); }}
