@@ -1,12 +1,15 @@
 # SwiftEye — Handoff Document
-## Version 0.3.0 | March 2026
+## Version 0.10.3 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.10.2** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.10.3** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.10.2)
+### Recent highlights (v0.10.3)
 - Session field explosion refactor: `sessions.py` 884→280 lines, 18 auto-discovered protocol field modules
+- Dynamic session detail rendering: `SessionDetail.jsx` 1171→646 lines, 11 auto-discovered section components
+- Generic fallback renderer: new backend protocols appear in UI automatically as key-value rows
+- DHCP dissector bug fix: scapy BOOTP layer now handled correctly
 - JA3/JA4 fingerprints merged into TLS module (was separate file)
 
 ### Previous highlights (v0.10.1)
@@ -137,6 +140,8 @@ SwiftEye is a **network traffic visualization platform for security researchers*
 **Core philosophy: viewer, not analyzer.** The platform shows what's in the data. Researchers bring the expertise. Analysis features (OS fingerprinting, DNS resolution, traffic characterisation) are plugins that present data, never make security judgments.
 
 The boundary: if it's displaying what's in the packet → core viewer. If it requires correlation, inference, or domain knowledge → plugin.
+
+**Zero data loss principle.** Never discard raw data to create a cleaner view. Aggregation (sessions, graphs, statistics) adds zoom levels on top of the data — it never replaces it. The researcher must always be able to drill from aggregated view → individual packets → raw bytes without hitting a wall. Many security platforms decide what's "interesting" for the researcher; SwiftEye helps the researcher visualize data so they can form hypotheses they wouldn't have otherwise, while preserving full access to the underlying raw data.
 
 ---
 
@@ -373,7 +378,8 @@ For a typical security research capture (10–60 minutes, 50K–500K packets, 50
 - **Visualize time slider re-renders graph during drag** — the time window slider in the Visualize panel rebuilds the graph on every slider move via `useMemo`. It should debounce or require a "Run" button press like the Timeline panel does.
 - **`get_packets_for_session()` in CaptureStore** — serialisation logic that belongs in `analysis/sessions.py`. Low priority, no user impact.
 - **`_looks_like_ip_keyed()` heuristic** — fragile sampling of plugin result dict keys. Right fix: `slot_data_type: "ip_map" | "global"` on UISlot. Low breakage risk with existing plugins.
-- **DHCP dissector misses scapy-parsed packets** — when scapy recognises DHCP, it parses the payload into its own `DHCP` layer instead of leaving it as `Raw`. The dissector only checks `pkt.haslayer("Raw")`, so it never fires. The dpkt path has a separate `_parse_dhcp_raw()` that works, but dpkt is never used for small files. Fix: check for scapy's `DHCP` layer and extract options from it, or fall back to raw bytes from the UDP payload. Affects any DHCP pcap under 500MB (i.e., all of them).
+- ~~**DHCP dissector misses scapy-parsed packets**~~ — fixed in v0.10.3. Dissector now checks `pkt.haslayer(BOOTP)` first, falls back to Raw.
+- **asyncio `_call_connection_lost` error on Windows** — `ProactorBasePipeTransport._call_connection_lost()` raises an exception during `socket.shutdown(SHUT_RDWR)`. Appears in server logs as `[ERROR] asyncio: Exception in callback`. Likely a Python 3.14 / Windows asyncio proactor issue when the client disconnects before the response completes. No user impact (request still completes with 200 OK). Low priority.
 - **dpkt dissector parity** — partially addressed in v0.9.15 (DNS, FTP, DHCP, SMB now have raw-byte parsers). HTTP/TLS/SSH already had manual fallbacks. However, DPKT_THRESHOLD == MAX_FILE_SIZE == 500MB means dpkt is effectively never used (files ≥500MB are rejected first). Roadmap: lower DPKT_THRESHOLD to ~50MB once parity is confirmed. The raw-byte parsers are ready.
 
 ### Fixed in v0.9.4
@@ -459,7 +465,8 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Multi-threaded pcap parsing** — low priority. Each packet is parsed independently so it's parallelisable via `ProcessPoolExecutor`, but the real bottleneck is scapy's per-packet overhead. Multi-processing adds serialization cost that eats much of the gain (estimated 30s→12s for 100MB, not transformative). The bigger win is dpkt parity (5-10x faster than scapy). For multi-source data (Zeek, Splunk, Sysmon), parsing is text-based and already fast — this optimization is pcap-specific. *Recommendation:* pursue dpkt parity and the EventRecord abstraction first. Revisit multi-threading only if profiling confirms the parser is still the bottleneck after dpkt parity.
 - [x] **SESSION FIELD EXPLOSION** (v0.10.2) — `sessions.py` gutted from 884→280 lines. All protocol-specific field handling (init, accumulate, serialize) extracted to auto-discovered modules in `analysis/protocol_fields/`. 18 protocol files: TLS (includes JA3/JA4), HTTP, SSH, FTP, ICMP, DNS, DHCP, SMB, Kerberos, LDAP, SMTP, mDNS, SSDP, LLMNR, DCE/RPC, QUIC, Zeek metadata. Drop a new file in `protocol_fields/`, it registers automatically via `pkgutil.iter_modules`. Core transport logic (direction, TCP state, IP headers, window/seq/ack) stays in `sessions.py`. **Future:** fully dynamic accumulation with type inference (no per-protocol code at all) — see roadmap.
 - [ ] **Session boundary detection (HIGH PRIORITY)** — current session grouping is purely 5-tuple based (`sorted IPs + sorted ports + transport`). This is naive: if a TCP connection closes (FIN/RST) and a new one opens on the same 5-tuple, they merge into one session. With packet loss, FINs can be missed entirely. Review session building logic to detect session boundaries using TCP seq/ack numbers — sequence gaps, ISN resets, and FIN/RST events should split sessions. Also consider timestamp gaps as a fallback for non-TCP (UDP sessions with long idle periods). This affects Zeek less (Zeek already computes per-connection records) but is critical for pcap accuracy.
-- [ ] **DYNAMIC SESSION DETAIL RENDERING (HIGH PRIORITY)** — `SessionDetail.jsx` hardcodes rendering for every protocol section (TLS, HTTP, SSH, DNS, FTP, DHCP, SMB, ICMP, Kerberos, LDAP, SMTP, mDNS, SSDP, LLMNR, DCE/RPC, QUIC). Each new dissector requires frontend changes. Should dynamically render session fields from the backend with: (1) generic key-value renderer for unknown fields, (2) registered "rich renderers" for known field groups (hex dump, cert chain, DNS records). Backend should declare field metadata (display name, group, render hint). New dissectors appear in UI automatically.
+- [x] **DYNAMIC SESSION DETAIL RENDERING** (v0.10.3) — `SessionDetail.jsx` gutted from 1171→646 lines. 11 protocol sections extracted to auto-discovered components in `session_sections/` (Vite `import.meta.glob`). Generic fallback renderer auto-displays unknown protocol prefixes as key-value rows. New backend protocols appear in Session Detail without frontend changes. Rich renderers (TLS certs, DNS records, ICMP types) preserved as custom components.
+- [ ] **Per-packet header detail in Packets tab** — the session overview aggregates fields (e.g. "TTLs seen: 64, 128, 255") which loses per-packet context. The Packets tab should show full L3/L4 headers per packet: all IP fields, TCP flags, options, window size, seq/ack — so researchers can spot mid-session anomalies (TTL changes indicating route shifts or host swaps, flag sequences, option variations) without leaving the session view. This is what Wireshark's packet detail pane does, but scoped to the session. The data is already available in `get_packets_for_session()` — it's a frontend rendering task.
 - [ ] **Source-specific capability tabs (HIGH PRIORITY)** — each data source should declare what UI tabs/capabilities it supports. Pcap sources get Payload tab, SEQ/ACK charts, TCP flags. Zeek sources get conn state visualization, duration analysis, history breakdown. Tabs that have no data from the source are hidden entirely (not shown empty). This is different from field-level capabilities — it's about entire UI sections/tabs. Backend declares available capabilities per source type, frontend conditionally renders tabs.
 - [x] **In-function imports cleanup** (v0.10.1) — moved lazy imports to top level across 8 backend files. dpkt imports stay lazy (optional dep), reportlab stays lazy (optional), scapy layer try/except imports stay for graceful failure.
 - [x] **Magic numbers cleanup** (v0.10.1) — extracted ~40 named constants across sessions.py (21 CAP_ constants), stats.py (TOP_TALKERS/PORTS/TTLS), aggregator.py (edge caps, gap thresholds), pcap_reader.py/dpkt_reader.py (PAYLOAD_PREVIEW_SIZE), dissect_ssh.py, and useCapture.js (SESSIONS_FETCH_LIMIT, TIME_RANGE_DEBOUNCE_MS).

@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.10.3 — March 2026
+- **Dynamic session detail rendering** — `SessionDetail.jsx` gutted from 1171→646 lines. 11 protocol sections (TLS, HTTP, SSH, FTP, DHCP, SMB, ICMP, Kerberos, LDAP, DNS, QUIC) extracted to auto-discovered components in `frontend/src/components/session_sections/`. Vite `import.meta.glob` discovers new sections at build time. Generic fallback renderer auto-displays unclaimed protocol field prefixes (e.g. `smtp_`, `mdns_`) as key-value rows — new backend protocols appear in the UI without any frontend code.
+- **DHCP dissector bug fix** — scapy parses DHCP into its own BOOTP/DHCP layer, consuming the Raw layer. The dissector checked `pkt.haslayer("Raw")` which was always False. Fixed to read from scapy's BOOTP layer directly, falling back to Raw for non-scapy paths.
+
 ### v0.10.2 — March 2026
 - **Session field explosion refactor** — `sessions.py` gutted from 884→280 lines. All protocol-specific field handling (init, accumulate, serialize) extracted to 18 auto-discovered modules in `analysis/protocol_fields/`: TLS (with JA3/JA4), HTTP, SSH, FTP, ICMP, DNS, DHCP, SMB, Kerberos, LDAP, SMTP, mDNS, SSDP, LLMNR, DCE/RPC, QUIC, Zeek metadata. New protocols just drop a file in `protocol_fields/` — auto-registered via `pkgutil.iter_modules`.
 - **JA3/JA4 merged into TLS** — JA3/JA4 fingerprint accumulation and `lookup_ja3` enrichment moved from standalone `ja3.py` into `tls.py`. JA3 is a TLS derivative, not a separate protocol.

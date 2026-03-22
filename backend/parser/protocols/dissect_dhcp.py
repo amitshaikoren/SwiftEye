@@ -51,6 +51,15 @@ def _detect_dhcp(payload: bytes) -> bool:
 
 @register_dissector("DHCP")
 def dissect_dhcp(pkt) -> Dict[str, Any]:
+    # Scapy parses DHCP into BOOTP/DHCP layers, consuming the Raw layer.
+    # Try scapy's BOOTP layer first (contains the full DHCP payload),
+    # then fall back to Raw for non-scapy paths.
+    try:
+        from scapy.layers.dhcp import BOOTP
+        if pkt.haslayer(BOOTP):
+            return _extract(bytes(pkt[BOOTP]))
+    except ImportError:
+        pass
     if pkt.haslayer("Raw"):
         return _extract(bytes(pkt["Raw"].load))
     return {}
