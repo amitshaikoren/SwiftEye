@@ -81,8 +81,7 @@ swifteye/
 │   │   │   ├── tcp_flags.py         # TCP flag analysis with sender attribution
 │   │   │   ├── dns_resolver.py      # DNS hostname resolution from capture
 │   │   │   ├── network_map.py       # ARP table, gateway detection, LAN hosts
-│   │   │   ├── node_merger.py       # MAC-based node merging (pre-aggregation)
-│   │   │   └── network_map.py      # ARP table, gateway detection, LAN hosts
+│   │   │   └── node_merger.py       # MAC-based node merging (pre-aggregation)
 │   │   └── analyses/                # Graph-wide computation
 │   │       ├── __init__.py          # AnalysisPluginBase, registry
 │   │       ├── node_centrality.py   # Degree + betweenness + traffic ranking
@@ -102,7 +101,7 @@ swifteye/
 │   ├── index.html                   # Vite entry point (Plotly.js CDN loaded here)
 │   └── src/
 │       ├── main.jsx                 # React entry point
-│       ├── version.js               # Single source of truth: VERSION = '0.9.1'
+│       ├── version.js               # Single source of truth: VERSION = '0.10.4'
 │       ├── App.jsx                  # Pure layout + routing (~220 lines)
 │       ├── hooks/
 │       │   └── useCapture.js        # All state, effects, handlers (~340 lines)
@@ -126,8 +125,7 @@ swifteye/
 │           ├── LogsPanel.jsx        # Auto-refreshing server log viewer
 │           ├── Sparkline.jsx        # Time-bucketed packet count canvas sparkline
 │           ├── PluginSection.jsx    # Generic renderer for plugin _display data
-│           ├── Tag.jsx, FlagBadge.jsx, Collapse.jsx, Row.jsx  # UI primitives
-│           └── Sparkline.jsx
+│           └── Tag.jsx, FlagBadge.jsx, Collapse.jsx, Row.jsx  # UI primitives
 └── docs/
     ├── DEVELOPERS.md               # This file
     └── HANDOFF.md                  # Version history, known bugs, roadmap
