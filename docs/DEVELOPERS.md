@@ -417,7 +417,9 @@ Called from `aggregator.py` (edges → `ja3_apps`) and `sessions.py` (sessions �
 
 ### `analysis/sessions.py` — Session Reconstruction
 
-Groups packets by `session_key` into bidirectional flows. Per-session fields include:
+Groups packets by `session_key` into bidirectional flows. Core transport fields (packet counts, bytes, direction, TCP state, IP headers, window/seq/ack) live in `sessions.py`. Protocol-specific fields (TLS, HTTP, DNS, etc.) are handled by auto-discovered modules in `analysis/protocol_fields/` — see "Adding a New Protocol Dissector" in §11.
+
+Per-session fields include:
 
 - Basic: `packet_count`, `total_bytes`, `duration`, `initiator_ip`, `responder_ip`
 - TCP: `has_handshake`, `has_fin`, `has_reset`, `init_window_initiator/responder`, `window_min/max`, `seq_first/last`, `ack_first/last`, `tcp_options_seen`
@@ -428,6 +430,28 @@ Groups packets by `session_key` into bidirectional flows. Per-session fields inc
 - FTP: `ftp_commands`, `ftp_usernames`, `ftp_transfer_files`, `ftp_has_credentials`
 - DHCP: `dhcp_hostnames`, `dhcp_vendor_classes`, `dhcp_msg_types`
 - SMB: `smb_versions`, `smb_commands`, `smb_tree_paths`, `smb_filenames`
+
+### `analysis/protocol_fields/` — Protocol Field Handlers
+
+Auto-discovered modules that handle protocol-specific session field init, accumulation, and serialization. Each module exports three functions:
+
+- `init()` → dict of initial fields (sets, lists, None)
+- `accumulate(s, ex, is_fwd, source_type)` → merge one packet's `pkt.extra` into the session
+- `serialize(s)` → convert sets to sorted lists, apply caps
+
+**`source_type` parameter:** identifies which adapter produced the packet. Protocol handlers use this when the same protocol needs different accumulation logic depending on the data source. For example, Zeek HTTP logs contain both request and response fields in a single record, so the HTTP handler must add both directions regardless of `is_fwd` when `source_type == "zeek"`.
+
+Valid `source_type` values (set by each adapter in `pkt.extra["source_type"]`):
+
+| Value | Source | Notes |
+|-------|--------|-------|
+| `None` | pcap/pcapng | Raw packets. Direction from TCP flags or first-packet heuristic. |
+| `"zeek"` | Zeek log adapters | Pre-aggregated records. One record may contain both directions. |
+| `"splunk"` | Splunk CSV/JSON | Planned. |
+| `"sysmon"` | Sysmon XML/JSON | Planned. |
+| `"netflow"` | Netflow/IPFIX | Planned. |
+
+When adding a new adapter, add its `source_type` string to this table and to `analysis/protocol_fields/__init__.py`.
 
 ### `plugins/node_merger.py` — MAC-Based Node Merging
 
@@ -884,7 +908,7 @@ Is it reading raw packet fields and presenting them?
 3. Add payload signature (optional) — `protocols/signatures.py` or in the dissector file itself
 4. Create `protocols/dissect_myproto.py` with `@register_dissector("MYPROTO")`
 5. Add `from . import dissect_myproto` to `protocols/__init__.py`
-6. Add session aggregation in `sessions.py` if the protocol has session-level fields
+6. Add session field handler in `analysis/protocol_fields/myproto.py` — define `init()`, `accumulate(s, ex, is_fwd, source_type)`, `serialize(s)`. Auto-discovered, no changes to `sessions.py` needed.
 7. Add UI section in `SessionDetail.jsx` if needed
 
 ### Adding a New Analysis Plugin
