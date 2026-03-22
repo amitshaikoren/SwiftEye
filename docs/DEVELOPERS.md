@@ -31,7 +31,7 @@ SwiftEye is a network traffic visualization platform for security researchers. I
 
 **What it does**: Displays network traffic visually — who talked to whom, over what protocols, with what TCP behavior. Researchers bring the expertise; SwiftEye shows the data.
 
-**What it does NOT do**: Make security judgments, flag threats, or generate alerts. Analysis features (OS fingerprinting, DNS hostname resolution) present evidence for the researcher to interpret.
+**What the core does NOT do**: Make security judgments, flag threats, or generate alerts. The core viewer and analysis layers present evidence for the researcher to interpret. Threat detection, alerting, and security scoring belong in the plugin system — specifically the analyses tier (graph-wide computation), where they can correlate across sessions and nodes without polluting the core viewer.
 
 ---
 

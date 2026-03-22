@@ -137,7 +137,7 @@ Graph Options are toggles that reshape how the backend *builds* the graph — th
 
 SwiftEye is a **network traffic visualization platform for security researchers**.
 
-**Core philosophy: viewer, not analyzer.** The platform shows what's in the data. Researchers bring the expertise. Analysis features (OS fingerprinting, DNS resolution, traffic characterisation) are plugins that present data, never make security judgments.
+**Core philosophy: viewer, not analyzer.** The core platform shows what's in the data. Researchers bring the expertise. The core viewer and analysis layers never make security judgments — they present evidence. Threat detection, alerting, and security scoring belong in the plugin system (analyses tier), where they can correlate across sessions and nodes without polluting the core.
 
 The boundary: if it's displaying what's in the packet → core viewer. If it requires correlation, inference, or domain knowledge → plugin.
 
