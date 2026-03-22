@@ -1,5 +1,5 @@
 # SwiftEye — Handoff Document
-## Version 0.10.3 | March 2026
+## Version 0.10.4 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
@@ -142,6 +142,36 @@ SwiftEye is a **network traffic visualization platform for security researchers*
 The boundary: if it's displaying what's in the packet → core viewer. If it requires correlation, inference, or domain knowledge → plugin.
 
 **Zero data loss principle.** Never discard raw data to create a cleaner view. Aggregation (sessions, graphs, statistics) adds zoom levels on top of the data — it never replaces it. The researcher must always be able to drill from aggregated view → individual packets → raw bytes without hitting a wall. Many security platforms decide what's "interesting" for the researcher; SwiftEye helps the researcher visualize data so they can form hypotheses they wouldn't have otherwise, while preserving full access to the underlying raw data.
+
+### Zero Data Loss — Current Violations & Execution Plan
+
+The codebase has two categories of violations against this principle:
+
+**Violation 1: Silent caps at the accumulation layer.**
+Every `CAP_*` constant in `analysis/protocol_fields/*.py` permanently discards data. A session with 80 HTTP URIs silently keeps 30 and throws away 50. The researcher has no idea data was lost and can't drill down to find it. Dissector-level caps (`min(dns.ancount, 20)` in `dissect_dns.py`) are worse — the data never even enters the session. String truncation in dissectors (User-Agent at 200 chars, SSDP fields at 300 chars) silently clips fields with no indication.
+
+**Violation 2: Data noise from eager protocol init.**
+`all_init()` runs every protocol field initializer on every session, even ones that never see that protocol. A pure TCP file transfer gets `smtp_has_auth: False`, `dns_queries: []`, `kerberos_error_codes: []`, etc. — 18 protocols worth of empty fields. This is the opposite problem: showing the researcher things that aren't in the data. It caused the fallback renderer bugs (SMTP appearing on DHCP sessions) and makes session objects harder to inspect.
+
+**Execution plan (in order):**
+
+| Step | What | Where | Risk |
+|------|------|-------|------|
+| 1 | Remove dissector-level record caps | `dissect_dns.py`, `dissect_tls.py` | Low — only affects field count, not parsing logic |
+| 2 | Lazy protocol init | `protocol_fields/*.py` `init()` → called on first `accumulate()` per session | Medium — must verify all `serialize()` functions handle missing keys gracefully |
+| 3 | Remove `CAP_*` from accumulation | `protocol_fields/*.py` accumulate functions | Medium — memory grows unbounded per session |
+| 4 | Add caps at serialization with `_total` counts | `protocol_fields/*.py` serialize functions | Low — display-only change |
+| 5 | Add truncation indicators for strings | `dissect_http.py`, `dissect_smtp.py`, `dissect_ssdp.py` | Low — append `…` or add `_truncated: true` |
+| 6 | Frontend "X of Y" display + expand | `session_sections/*.jsx`, `EdgeDetail.jsx` | Low — UI-only |
+
+**Pitfalls & tradeoffs (memory/compute vs. philosophy):**
+
+- **Memory pressure on large captures.** The whole reason caps exist is that a 500MB pcap can produce sessions with thousands of HTTP URIs or DNS queries. Removing accumulation caps means session objects can grow much larger in memory. For a desktop tool this is a real constraint — a 2M-packet capture with heavy HTTP traffic could balloon session memory by 5-10x on the worst sessions. *Mitigation:* keep a **generous** cap (e.g. 500 per list field, 2000 chars per string) as a safety valve, but set it high enough that no realistic investigation hits it, and always include `_total` so the researcher knows. The raw pcap is the escape hatch for anything beyond the cap.
+- **Serialization payload size.** Sending uncapped lists to the frontend means larger JSON payloads on session detail requests. A session with 500 DNS queries × ~200 bytes each = ~100KB just for that field. *Mitigation:* paginate at the API level — the session detail endpoint already accepts `packet_limit`; extend this pattern to protocol fields. Return the first N items + `_total`, with a `?field_offset=N` param to fetch more.
+- **Lazy init complicates serialize().** If a protocol's fields were never initialized (no packets seen), `serialize()` must either not be called or handle `KeyError` gracefully. Currently `all_serialize()` calls every protocol's `serialize()` unconditionally. *Mitigation:* track which protocols have been initialized per session (a `set` on the session dict, e.g. `s['_active_protocols']`), and only call `serialize()` for those.
+- **Edge aggregation is a separate problem.** `aggregator.py` re-caps TLS ciphers and DNS queries at the edge level. Edges aggregate across many sessions, so uncapping here has a multiplicative effect. *Mitigation:* edges are summary views by nature — capping at the edge display layer is philosophically fine as long as the researcher can drill into individual sessions to see everything. Document this distinction.
+- **Stats top-N is not a violation.** `TOP_TALKERS=15` in `stats.py` is aggregation that adds a zoom level. The underlying session data still has every IP. The researcher can always drill down. Same for timeline bucketing. These stay as-is.
+- **Resource guards are not violations.** `MAX_FILE_SIZE`, `MAX_PACKETS`, `MAX_RAW_BUCKETS` protect the tool from choking. They are explicit boundaries, not silent discarding. These stay as-is.
 
 ---
 
@@ -464,6 +494,9 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Large pcap support (>500MB)** — profile the pipeline; likely bottlenecks are scapy's per-packet overhead and full-list scans in `build_graph`/`build_sessions`. Candidate approaches in priority order: (1) streaming/chunked parse, (2) background loading with progress API via `/api/status`, (3) indexed packet store by session_key/IP/time for O(1) queries above ~500K packets.
 - [ ] **Multi-threaded pcap parsing** — low priority. Each packet is parsed independently so it's parallelisable via `ProcessPoolExecutor`, but the real bottleneck is scapy's per-packet overhead. Multi-processing adds serialization cost that eats much of the gain (estimated 30s→12s for 100MB, not transformative). The bigger win is dpkt parity (5-10x faster than scapy). For multi-source data (Zeek, Splunk, Sysmon), parsing is text-based and already fast — this optimization is pcap-specific. *Recommendation:* pursue dpkt parity and the EventRecord abstraction first. Revisit multi-threading only if profiling confirms the parser is still the bottleneck after dpkt parity.
 - [x] **SESSION FIELD EXPLOSION** (v0.10.2) — `sessions.py` gutted from 884→280 lines. All protocol-specific field handling (init, accumulate, serialize) extracted to auto-discovered modules in `analysis/protocol_fields/`. 18 protocol files: TLS (includes JA3/JA4), HTTP, SSH, FTP, ICMP, DNS, DHCP, SMB, Kerberos, LDAP, SMTP, mDNS, SSDP, LLMNR, DCE/RPC, QUIC, Zeek metadata. Drop a new file in `protocol_fields/`, it registers automatically via `pkgutil.iter_modules`. Core transport logic (direction, TCP state, IP headers, window/seq/ack) stays in `sessions.py`. **Future:** fully dynamic accumulation with type inference (no per-protocol code at all) — see roadmap.
+- [ ] **Zero data loss alignment (HIGH PRIORITY)** — two architectural changes to align the codebase with the zero data loss principle (§1). See §1 for full execution plan and pitfalls.
+  1. **Caps → display layer.** Every `CAP_*` constant in `protocol_fields/*.py` currently discards data at the accumulation layer. Move all caps from accumulation to serialization. Accumulate everything; apply limits only when sending data to the frontend. When truncating, include a `_total` count so the UI can show "30 of 87". Frontend `.slice()` limits should show "Showing X of Y" with expand/paginate. Dissector-level record caps (`min(dns.ancount, 20)` in `dissect_dns.py`) must also be removed — let the full response through.
+  2. **Lazy protocol init.** `all_init()` currently initializes all 18 protocol field sets on every session object, even when that protocol is never seen. This creates data noise (empty `smtp_has_auth: false` on a DHCP session). Change to lazy initialization: a protocol's fields are only added when `accumulate()` is first called for that session. No packets of that protocol → no fields exist → no noise. The fallback renderer and `hasData()` guards already handle missing fields correctly.
 - [ ] **Session boundary detection (HIGH PRIORITY)** — current session grouping is purely 5-tuple based (`sorted IPs + sorted ports + transport`). This is naive: if a TCP connection closes (FIN/RST) and a new one opens on the same 5-tuple, they merge into one session. With packet loss, FINs can be missed entirely. Review session building logic to detect session boundaries using TCP seq/ack numbers — sequence gaps, ISN resets, and FIN/RST events should split sessions. Also consider timestamp gaps as a fallback for non-TCP (UDP sessions with long idle periods). This affects Zeek less (Zeek already computes per-connection records) but is critical for pcap accuracy.
 - [x] **DYNAMIC SESSION DETAIL RENDERING** (v0.10.3) — `SessionDetail.jsx` gutted from 1171→646 lines. 11 protocol sections extracted to auto-discovered components in `session_sections/` (Vite `import.meta.glob`). Generic fallback renderer auto-displays unknown protocol prefixes as key-value rows. New backend protocols appear in Session Detail without frontend changes. Rich renderers (TLS certs, DNS records, ICMP types) preserved as custom components.
 - [ ] **Per-packet header detail in Packets tab** — the session overview aggregates fields (e.g. "TTLs seen: 64, 128, 255") which loses per-packet context. The Packets tab should show full L3/L4 headers per packet: all IP fields, TCP flags, options, window size, seq/ack — so researchers can spot mid-session anomalies (TTL changes indicating route shifts or host swaps, flag sequences, option variations) without leaving the session view. This is what Wireshark's packet detail pane does, but scoped to the session. The data is already available in `get_packets_for_session()` — it's a frontend rendering task.

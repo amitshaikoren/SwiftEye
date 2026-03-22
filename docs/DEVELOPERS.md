@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.10.1 | March 2026**
+**Version 0.10.4 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -168,6 +168,24 @@ The core question for every feature: **"Am I displaying what's in the packet, or
 
 If you're unsure, err on the side of making it a plugin. Plugins can always access the same data as the core, but they keep the core clean.
 
+### Zero Data Loss
+
+The second core principle: **never discard raw data to create a cleaner view.** Aggregation (sessions, graphs, statistics) adds zoom levels on top of the data — it never replaces it. The researcher must always be able to drill from aggregated view → individual packets → raw bytes without hitting a wall.
+
+**The decision tree for data limits:**
+
+1. **Is it a resource guard?** (MAX_FILE_SIZE, MAX_PACKETS) → **Keep it.** These are explicit boundaries the researcher is aware of, not silent discarding.
+2. **Is it a display limit?** (frontend `.slice(0, 20)`, stats TOP_TALKERS) → **Fine**, as long as the full data exists somewhere the researcher can reach. Show "X of Y" when truncating.
+3. **Is it a storage/accumulation limit?** (CAP_* constants, dissector record caps) → **Violation.** The data is permanently lost and the researcher doesn't know. Move the limit to the display layer and include a total count.
+4. **Is it a string truncation?** (User-Agent at 200 chars) → **Acceptable with indicator.** Append `…` or set a `_truncated` flag so the researcher knows the field was clipped. The raw pcap is the escape hatch for full values.
+
+**When writing new code:**
+
+- **Dissectors** (`parser/protocols/`): Extract everything the packet contains. Do not cap record counts or truncate strings without a truncation indicator. If memory is a concern, document the tradeoff and set a generous limit (not a tight one).
+- **Protocol field accumulators** (`analysis/protocol_fields/`): Accumulate all data. Apply caps only in `serialize()`, never in `accumulate()`. When capping in serialize, include a `_total` key with the uncapped count.
+- **Frontend sections** (`session_sections/*.jsx`): When using `.slice()` for display, show "Showing X of Y" and provide an expand mechanism. Never silently truncate a list the researcher might need to see in full.
+- **Edge aggregation** (`aggregator.py`): Edges summarize across many sessions — display caps here are acceptable because the researcher can drill into individual sessions. This is aggregation adding a zoom level, not replacing data.
+
 ### Graph Options — Philosophy and Placement Rules
 
 **Graph Options** contains toggles that change how the graph is *built* — not how it's filtered or displayed. Each toggle triggers a full `/api/graph` re-fetch.
@@ -235,6 +253,28 @@ The goal: reduce what the user sees without losing data. The full capture is alw
 ### Design principle
 
 The architecture assumes the researcher's first action is to scope down. The tool prioritises fast scoping (time slider, filters, subnet grouping) over brute-force rendering of the full graph.
+
+### Zero data loss vs. memory constraints
+
+SwiftEye is a desktop tool processing captures that can reach 500MB / 2M packets. The zero data loss principle (§3) creates tension with memory:
+
+**Where the tension is real:**
+- A heavy HTTP session can accumulate thousands of URIs. Uncapped, a 2M-packet capture with aggressive web crawling could balloon session memory by 5-10x on the worst sessions.
+- Sending uncapped lists to the frontend means larger JSON payloads. 500 DNS queries × ~200 bytes ≈ 100KB per session detail request.
+- Removing dissector-level caps (e.g. DNS answer records) means the parser stores more data per packet. For most captures this is negligible; for pathological cases (DNS amplification attacks with 200+ answer records) it matters.
+
+**Where the tension is not real:**
+- Stats aggregation (top-N talkers/ports) — the underlying session data is still complete. Top-N is a zoom level, not data loss.
+- Edge-level caps — edges summarize across sessions. The researcher drills into individual sessions for full data.
+- Resource guards (MAX_FILE_SIZE, MAX_PACKETS) — explicit boundaries, not silent discarding.
+- Frontend `.slice()` — display pagination, not data loss. The full data is in memory.
+
+**Resolution strategy:**
+1. Accumulate everything in the session object (no caps in `accumulate()`).
+2. Apply generous safety-valve caps in `serialize()` only (e.g. 500 items per list, 2000 chars per string). These exist for memory safety, not UX.
+3. Always include `_total` counts when capping, so the researcher knows data was trimmed.
+4. Paginate at the API level for large fields (`?field_offset=N`), matching the existing `packet_limit` pattern.
+5. The raw pcap file is always the ultimate escape hatch — SwiftEye never modifies or deletes the source file.
 
 ---
 

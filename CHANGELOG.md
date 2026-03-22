@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.10.4 — March 2026
+- **Zero data loss documentation** — codified the zero data loss principle in HANDOFF.md §1 and DEVELOPERS.md §3/§4. Documented current violations (silent accumulation caps, eager protocol init), 6-step execution plan, decision tree for when limits are acceptable vs. violations, and memory/compute tradeoffs. Added HIGH PRIORITY roadmap item for the alignment work.
+
 ### v0.10.3 — March 2026
 - **Dynamic session detail rendering** — `SessionDetail.jsx` gutted from 1171→646 lines. 11 protocol sections (TLS, HTTP, SSH, FTP, DHCP, SMB, ICMP, Kerberos, LDAP, DNS, QUIC) extracted to auto-discovered components in `frontend/src/components/session_sections/`. Vite `import.meta.glob` discovers new sections at build time. Generic fallback renderer auto-displays unclaimed protocol field prefixes (e.g. `smtp_`, `mdns_`) as key-value rows — new backend protocols appear in the UI without any frontend code.
 - **DHCP dissector bug fix** — scapy parses DHCP into its own BOOTP/DHCP layer, consuming the Raw layer. The dissector checked `pkt.haslayer("Raw")` which was always False. Fixed to read from scapy's BOOTP layer directly, falling back to Raw for non-scapy paths.
