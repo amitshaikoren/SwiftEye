@@ -24,6 +24,8 @@ logger = logging.getLogger("swifteye.parser")
 
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB hard limit
 MAX_PACKETS = 2_000_000
+PAYLOAD_PREVIEW_SIZE = 128
+PROGRESS_CALLBACK_INTERVAL = 10000
 
 # Scapy is used for all files up to this size — it gives full protocol dissection
 # (DNS, TLS, HTTP, etc.) via its layer system. dpkt is only a fallback for very
@@ -113,7 +115,7 @@ def _read_scapy(
             if rec is not None:
                 packets.append(rec)
 
-            if progress_callback and i % 10000 == 0:
+            if progress_callback and i % PROGRESS_CALLBACK_INTERVAL == 0:
                 progress_callback(i, time.time() - start_time)
     finally:
         reader.close()
@@ -252,7 +254,7 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
         
         # Store first 128 bytes for payload preview (hex+ascii view in SessionDetail)
         if _tcp_raw_payload:
-            rec.payload_preview = _tcp_raw_payload[:128]
+            rec.payload_preview = _tcp_raw_payload[:PAYLOAD_PREVIEW_SIZE]
 
         # Resolve protocol
         rec.protocol = resolve_protocol("TCP", tcp.sport, tcp.dport)
@@ -269,7 +271,7 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
             _udp_raw = bytes(pkt[Raw].load)
             rec.payload_len = len(_udp_raw)
         if _udp_raw:
-            rec.payload_preview = _udp_raw[:128]
+            rec.payload_preview = _udp_raw[:PAYLOAD_PREVIEW_SIZE]
 
         rec.protocol = resolve_protocol("UDP", udp.sport, udp.dport)
     

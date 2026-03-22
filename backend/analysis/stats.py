@@ -8,6 +8,11 @@ from collections import defaultdict, Counter
 from parser.packet import PacketRecord
 from constants import WELL_KNOWN_PORTS
 
+# ── Top-N limits for stats output ─────────────────────────────────────
+TOP_TALKERS = 15
+TOP_PORTS   = 15
+TOP_TTLS    = 10
+
 
 def compute_global_stats(packets: List[PacketRecord], sessions: List[Dict]) -> Dict[str, Any]:
     """Compute global capture statistics."""
@@ -63,12 +68,12 @@ def compute_global_stats(packets: List[PacketRecord], sessions: List[Dict]) -> D
     duration = packets[-1].timestamp - packets[0].timestamp if len(packets) > 1 else 0.0
     
     # Sort and limit
-    top_talkers = sorted(talker_bytes.items(), key=lambda x: x[1], reverse=True)[:15]
+    top_talkers = sorted(talker_bytes.items(), key=lambda x: x[1], reverse=True)[:TOP_TALKERS]
     top_ports = [
         {"port": p, "count": c, "service": WELL_KNOWN_PORTS.get(p, "")}
-        for p, c in port_counts.most_common(15)
+        for p, c in port_counts.most_common(TOP_PORTS)
     ]
-    top_ttls = [{"ttl": t, "count": c} for t, c in ttl_counts.most_common(10)]
+    top_ttls = [{"ttl": t, "count": c} for t, c in ttl_counts.most_common(TOP_TTLS)]
     
     protocols = {k: v for k, v in sorted(proto_breakdown.items(), key=lambda x: x[1]["bytes"], reverse=True)}
     

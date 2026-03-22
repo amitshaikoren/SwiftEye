@@ -14,6 +14,29 @@ import logging
 from typing import List, Dict, Any
 from collections import defaultdict
 
+# ── Field caps — maximum items stored per session field ──────────────
+CAP_HTTP_URIS           = 30
+CAP_HTTP_STATUS_CODES   = 50
+CAP_FTP_COMMANDS        = 50
+CAP_FTP_RESPONSE_CODES  = 50
+CAP_FTP_TRANSFER_FILES  = 20
+CAP_SMB_STATUS_CODES    = 30
+CAP_SMB_FILENAMES       = 20
+CAP_ICMP_PAYLOAD_SAMPLES = 10
+CAP_KRB_ERROR_CODES     = 20
+CAP_LDAP_RESULT_CODES   = 20
+CAP_LDAP_ENTRY_DNS      = 20
+CAP_MDNS_TXT_RECORDS    = 30
+CAP_SSDP_ITEMS          = 20
+CAP_LLMNR_ANSWERS       = 20
+CAP_DCERPC_INTERFACES   = 20
+CAP_DNS_QUERIES         = 50
+CAP_TLS_CIPHERS         = 15
+CAP_TLS_CIPHER_SUITES   = 10
+CAP_TCP_OPTIONS_DETAIL  = 20
+CAP_QUIC_CIDS           = 10
+CAP_QUIC_TLS_CIPHERS    = 15
+
 from parser.packet import PacketRecord
 from parser.ja3_db import lookup_ja3
 
@@ -340,7 +363,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         # TCP options
         for opt in pkt.tcp_options:
             s["tcp_options_seen"].add(opt.get("kind", ""))
-            if opt.get("kind") in ("MSS", "WScale") and len(s["tcp_options_detail"]) < 20:
+            if opt.get("kind") in ("MSS", "WScale") and len(s["tcp_options_detail"]) < CAP_TCP_OPTIONS_DETAIL:
                 s["tcp_options_detail"].append(opt)
         
         # TLS details per session (from dissector extras)
@@ -354,7 +377,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
             if ex.get("tls_selected_cipher"):
                 s["tls_selected_ciphers"].add(ex["tls_selected_cipher"])
             if ex.get("tls_cipher_suites"):
-                for cs in ex["tls_cipher_suites"][:10]:
+                for cs in ex["tls_cipher_suites"][:CAP_TLS_CIPHER_SUITES]:
                     s["tls_ciphers"].add(cs)
             if ex.get("tls_cert") and s["tls_cert"] is None:
                 s["tls_cert"] = ex["tls_cert"]
@@ -394,7 +417,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                     s["http_fwd_user_agents"].add(ex["http_user_agent"])
                 if ex.get("http_method"):
                     s["http_fwd_methods"].add(ex["http_method"])
-                if ex.get("http_uri") and len(s["http_fwd_uris"]) < 30:
+                if ex.get("http_uri") and len(s["http_fwd_uris"]) < CAP_HTTP_URIS:
                     s["http_fwd_uris"].append(ex["http_uri"])
                 if ex.get("http_referer"):
                     s["http_fwd_referers"].add(ex["http_referer"])
@@ -411,7 +434,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
             if not is_from_initiator or _zeek_src:
                 if ex.get("http_server"):
                     s["http_rev_servers"].add(ex["http_server"])
-                if ex.get("http_status") and len(s["http_rev_status_codes"]) < 50:
+                if ex.get("http_status") and len(s["http_rev_status_codes"]) < CAP_HTTP_STATUS_CODES:
                     s["http_rev_status_codes"].append(ex["http_status"])
                 if ex.get("http_content_type"):
                     s["http_rev_content_types"].add(ex["http_content_type"])
@@ -453,12 +476,12 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
 
             # ── FTP — split by direction ──
             if is_from_initiator:
-                if ex.get("ftp_command") and len(s["ftp_fwd_commands"]) < 50:
+                if ex.get("ftp_command") and len(s["ftp_fwd_commands"]) < CAP_FTP_COMMANDS:
                     s["ftp_fwd_commands"].append(ex["ftp_command"])
                 if ex.get("ftp_transfer_mode") and s["ftp_fwd_transfer_mode"] is None:
                     s["ftp_fwd_transfer_mode"] = ex["ftp_transfer_mode"]
             else:
-                if ex.get("ftp_response_code") and len(s["ftp_rev_response_codes"]) < 50:
+                if ex.get("ftp_response_code") and len(s["ftp_rev_response_codes"]) < CAP_FTP_RESPONSE_CODES:
                     s["ftp_rev_response_codes"].append(ex["ftp_response_code"])
                 if ex.get("ftp_server_banner") and s["ftp_rev_server_banner"] is None:
                     s["ftp_rev_server_banner"] = ex["ftp_server_banner"]
@@ -495,7 +518,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
             if is_from_initiator and ex.get("smb_command"):
                 s["smb_fwd_operations"].add(ex["smb_command"])
             if not is_from_initiator and ex.get("smb_status_name"):
-                if len(s["smb_rev_status_codes"]) < 30:
+                if len(s["smb_rev_status_codes"]) < CAP_SMB_STATUS_CODES:
                     s["smb_rev_status_codes"].append({"code": ex.get("smb_status", 0), "name": ex["smb_status_name"]})
             if ex.get("smb_tree_path"):
                 s["smb_tree_paths"].add(ex["smb_tree_path"])
@@ -511,7 +534,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                     s[f"icmp_{d_prefix}_identifiers"].add(ex["icmp_id"])
                 if ex.get("icmp_payload_size") is not None:
                     s[f"icmp_{d_prefix}_payload_sizes"].append(ex["icmp_payload_size"])
-                if ex.get("icmp_payload_hex") and len(s[f"icmp_{d_prefix}_payload_samples"]) < 10:
+                if ex.get("icmp_payload_hex") and len(s[f"icmp_{d_prefix}_payload_samples"]) < CAP_ICMP_PAYLOAD_SAMPLES:
                     hex_val = ex["icmp_payload_hex"]
                     if hex_val not in s[f"icmp_{d_prefix}_payload_samples"]:
                         s[f"icmp_{d_prefix}_payload_samples"].append(hex_val)
@@ -528,7 +551,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
             if ex.get("krb_etypes"):
                 for e in ex["krb_etypes"]:
                     s["krb_etypes"].add(e)
-            if ex.get("krb_error_code") is not None and len(s["krb_error_codes"]) < 20:
+            if ex.get("krb_error_code") is not None and len(s["krb_error_codes"]) < CAP_KRB_ERROR_CODES:
                 s["krb_error_codes"].append({"code": ex["krb_error_code"], "name": ex.get("krb_error_name", "")})
 
             # ── LDAP ──
@@ -540,7 +563,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 s["ldap_bind_mechanisms"].add(ex["ldap_bind_mechanism"])
             if ex.get("ldap_search_base"):
                 s["ldap_search_bases"].add(ex["ldap_search_base"])
-            if ex.get("ldap_result_code") is not None and len(s["ldap_result_codes"]) < 20:
+            if ex.get("ldap_result_code") is not None and len(s["ldap_result_codes"]) < CAP_LDAP_RESULT_CODES:
                 s["ldap_result_codes"].append({"code": ex["ldap_result_code"], "name": ex.get("ldap_result_name", "")})
             if ex.get("ldap_entry_dn"):
                 s["ldap_entry_dns"].add(ex["ldap_entry_dn"])
@@ -572,7 +595,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 s["mdns_service_names"].add(ex["mdns_service_name"])
             if ex.get("mdns_hostname"):
                 s["mdns_hostnames"].add(ex["mdns_hostname"])
-            if ex.get("mdns_txt_records") and len(s["mdns_txt_records"]) < 30:
+            if ex.get("mdns_txt_records") and len(s["mdns_txt_records"]) < CAP_MDNS_TXT_RECORDS:
                 for t in ex["mdns_txt_records"]:
                     if t not in s["mdns_txt_records"]:
                         s["mdns_txt_records"].append(t)
@@ -592,7 +615,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
             # ── LLMNR ──
             if ex.get("llmnr_query"):
                 s["llmnr_queries"].add(ex["llmnr_query"])
-            if ex.get("llmnr_answers") and len(s["llmnr_answers"]) < 20:
+            if ex.get("llmnr_answers") and len(s["llmnr_answers"]) < CAP_LLMNR_ANSWERS:
                 for a in ex["llmnr_answers"]:
                     if a not in s["llmnr_answers"]:
                         s["llmnr_answers"].append(a)
@@ -615,13 +638,13 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 for v in ex["quic_tls_versions"]:
                     s["quic_tls_versions"].add(v)
             if ex.get("quic_tls_ciphers"):
-                for c in ex["quic_tls_ciphers"][:10]:
+                for c in ex["quic_tls_ciphers"][:CAP_TLS_CIPHER_SUITES]:
                     s["quic_tls_ciphers"].add(c)
 
             # ── DCE/RPC ──
             if ex.get("dcerpc_packet_type"):
                 s["dcerpc_packet_types"].add(ex["dcerpc_packet_type"])
-            if ex.get("dcerpc_interface_uuid") and len(s["dcerpc_interfaces"]) < 20:
+            if ex.get("dcerpc_interface_uuid") and len(s["dcerpc_interfaces"]) < CAP_DCERPC_INTERFACES:
                 uuid = ex["dcerpc_interface_uuid"]
                 name = ex.get("dcerpc_interface_name", "")
                 if not any(i["uuid"] == uuid for i in s["dcerpc_interfaces"]):
@@ -630,7 +653,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 s["dcerpc_opnums"].add(ex["dcerpc_opnum"])
         
         # DNS queries
-        if pkt.extra.get("dns_query") and len(s["dns_queries"]) < 50:
+        if pkt.extra.get("dns_query") and len(s["dns_queries"]) < CAP_DNS_QUERIES:
             dns_entry = {
                 "query": pkt.extra["dns_query"],
                 "type": pkt.extra.get("dns_qtype", 0),
@@ -684,7 +707,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         s["responder_ports"] = sorted(s["responder_ports"])
         s["tls_snis"] = sorted(s["tls_snis"])
         s["tls_versions"] = sorted(s["tls_versions"])
-        s["tls_ciphers"] = sorted(s["tls_ciphers"])[:15]
+        s["tls_ciphers"] = sorted(s["tls_ciphers"])[:CAP_TLS_CIPHERS]
         s["tls_selected_ciphers"] = sorted(s["tls_selected_ciphers"])
         # TLS new directional
         s["tls_fwd_alpn_offered"] = sorted(s["tls_fwd_alpn_offered"])
@@ -698,10 +721,10 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         s["http_hosts"] = sorted(s["http_hosts"])
         s["http_fwd_user_agents"] = sorted(s["http_fwd_user_agents"])
         s["http_fwd_methods"] = sorted(s["http_fwd_methods"])
-        s["http_fwd_uris"] = list(dict.fromkeys(s["http_fwd_uris"]))[:30]
+        s["http_fwd_uris"] = list(dict.fromkeys(s["http_fwd_uris"]))[:CAP_HTTP_URIS]
         s["http_fwd_referers"] = sorted(s["http_fwd_referers"])
         s["http_rev_servers"] = sorted(s["http_rev_servers"])
-        s["http_rev_status_codes"] = s["http_rev_status_codes"][:50]
+        s["http_rev_status_codes"] = s["http_rev_status_codes"][:CAP_HTTP_STATUS_CODES]
         s["http_rev_content_types"] = sorted(s["http_rev_content_types"])
         s["http_rev_redirects"] = sorted(s["http_rev_redirects"])
         s["http_fwd_auth_types"] = sorted(s["http_fwd_auth_types"])
@@ -727,10 +750,10 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         s["ssh_mac_s2c"] = sorted(s["ssh_mac_s2c"])
 
         # FTP — directional
-        s["ftp_fwd_commands"] = s["ftp_fwd_commands"][:50]
-        s["ftp_rev_response_codes"] = s["ftp_rev_response_codes"][:50]
+        s["ftp_fwd_commands"] = s["ftp_fwd_commands"][:CAP_FTP_COMMANDS]
+        s["ftp_rev_response_codes"] = s["ftp_rev_response_codes"][:CAP_FTP_RESPONSE_CODES]
         s["ftp_usernames"] = sorted(s["ftp_usernames"])
-        s["ftp_transfer_files"] = list(dict.fromkeys(s["ftp_transfer_files"]))[:20]
+        s["ftp_transfer_files"] = list(dict.fromkeys(s["ftp_transfer_files"]))[:CAP_FTP_TRANSFER_FILES]
 
         # DHCP
         s["dhcp_hostnames"]    = sorted(s["dhcp_hostnames"])
@@ -744,9 +767,9 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         # SMB — directional
         s["smb_versions"]      = sorted(s["smb_versions"])
         s["smb_fwd_operations"]= sorted(s["smb_fwd_operations"])
-        s["smb_rev_status_codes"] = s["smb_rev_status_codes"][:30]
+        s["smb_rev_status_codes"] = s["smb_rev_status_codes"][:CAP_SMB_STATUS_CODES]
         s["smb_tree_paths"]    = sorted(s["smb_tree_paths"])
-        s["smb_filenames"]     = sorted(s["smb_filenames"])[:20]
+        s["smb_filenames"]     = sorted(s["smb_filenames"])[:CAP_SMB_FILENAMES]
 
         # ICMP — directional (aggregate type counts)
         def _icmp_type_counts(type_list):
@@ -771,7 +794,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         s["ldap_bind_dns"] = sorted(s["ldap_bind_dns"])
         s["ldap_bind_mechanisms"] = sorted(s["ldap_bind_mechanisms"])
         s["ldap_search_bases"] = sorted(s["ldap_search_bases"])
-        s["ldap_entry_dns"] = sorted(s["ldap_entry_dns"])[:20]
+        s["ldap_entry_dns"] = sorted(s["ldap_entry_dns"])[:CAP_LDAP_ENTRY_DNS]
 
         # SMTP
         s["smtp_ehlo_domains"] = sorted(s["smtp_ehlo_domains"])
@@ -785,33 +808,33 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         s["mdns_service_types"] = sorted(s["mdns_service_types"])
         s["mdns_service_names"] = sorted(s["mdns_service_names"])
         s["mdns_hostnames"] = sorted(s["mdns_hostnames"])
-        s["mdns_txt_records"] = s["mdns_txt_records"][:30]
+        s["mdns_txt_records"] = s["mdns_txt_records"][:CAP_MDNS_TXT_RECORDS]
 
         # SSDP
         s["ssdp_methods"] = sorted(s["ssdp_methods"])
-        s["ssdp_sts"] = sorted(s["ssdp_sts"])[:20]
-        s["ssdp_usns"] = sorted(s["ssdp_usns"])[:20]
-        s["ssdp_locations"] = sorted(s["ssdp_locations"])[:20]
+        s["ssdp_sts"] = sorted(s["ssdp_sts"])[:CAP_SSDP_ITEMS]
+        s["ssdp_usns"] = sorted(s["ssdp_usns"])[:CAP_SSDP_ITEMS]
+        s["ssdp_locations"] = sorted(s["ssdp_locations"])[:CAP_SSDP_ITEMS]
         s["ssdp_servers"] = sorted(s["ssdp_servers"])
 
         # LLMNR
         s["llmnr_queries"] = sorted(s["llmnr_queries"])
-        s["llmnr_answers"] = s["llmnr_answers"][:20]
+        s["llmnr_answers"] = s["llmnr_answers"][:CAP_LLMNR_ANSWERS]
 
         # DCE/RPC
         s["dcerpc_packet_types"] = sorted(s["dcerpc_packet_types"])
-        s["dcerpc_interfaces"] = s["dcerpc_interfaces"][:20]
+        s["dcerpc_interfaces"] = s["dcerpc_interfaces"][:CAP_DCERPC_INTERFACES]
         s["dcerpc_opnums"] = sorted(s["dcerpc_opnums"])
 
         # QUIC
         s["quic_versions"] = sorted(s["quic_versions"])
-        s["quic_dcids"] = sorted(s["quic_dcids"])[:10]
-        s["quic_scids"] = sorted(s["quic_scids"])[:10]
+        s["quic_dcids"] = sorted(s["quic_dcids"])[:CAP_QUIC_CIDS]
+        s["quic_scids"] = sorted(s["quic_scids"])[:CAP_QUIC_CIDS]
         s["quic_snis"] = sorted(s["quic_snis"])
         s["quic_alpn"] = sorted(s["quic_alpn"])
         s["quic_packet_types"] = sorted(s["quic_packet_types"])
         s["quic_tls_versions"] = sorted(s["quic_tls_versions"])
-        s["quic_tls_ciphers"] = sorted(s["quic_tls_ciphers"])[:15]
+        s["quic_tls_ciphers"] = sorted(s["quic_tls_ciphers"])[:CAP_QUIC_TLS_CIPHERS]
 
         # TCP state detection
         fc = s["flag_counts"]

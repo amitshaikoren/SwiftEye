@@ -53,6 +53,8 @@ _VER_MAP = {
 # Must match the equivalent set in pcap_reader.py.
 _TLS_PROTOCOLS = {"TLS", "HTTPS", "HTTPS-ALT", "HTTPS-ALT2", "HTTPS-ALT3"}
 
+PAYLOAD_PREVIEW_SIZE = 128
+
 
 def read_pcap_dpkt(
     filepath: str,
@@ -205,7 +207,7 @@ def _parse_raw(ts: float, raw: bytes, link_type: int, dpkt) -> Optional[PacketRe
             rec.payload_len = len(payload)
             rec.protocol    = resolve_protocol("TCP", l4.sport, l4.dport)
             if payload:
-                rec.payload_preview = payload[:128]
+                rec.payload_preview = payload[:PAYLOAD_PREVIEW_SIZE]
                 _enrich_from_payload(rec, payload)
 
         # ── Layer 4: UDP ──────────────────────────────────────────────
@@ -217,7 +219,7 @@ def _parse_raw(ts: float, raw: bytes, link_type: int, dpkt) -> Optional[PacketRe
             rec.payload_len = len(payload)
             rec.protocol    = resolve_protocol("UDP", l4.sport, l4.dport)
             if payload:
-                rec.payload_preview = payload[:128]
+                rec.payload_preview = payload[:PAYLOAD_PREVIEW_SIZE]
                 _enrich_from_payload(rec, payload)
 
         # ── Layer 4: ICMP ─────────────────────────────────────────────

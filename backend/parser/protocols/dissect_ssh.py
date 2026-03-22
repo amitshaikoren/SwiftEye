@@ -22,6 +22,8 @@ import struct
 from typing import Dict, Any
 from . import register_dissector, register_payload_signature
 
+_MAX_KEX_NAME_LEN = 10000  # sanity cap for SSH KEX name-list field length
+
 
 @register_payload_signature("SSH", priority=20)
 def _detect_ssh(payload: bytes) -> bool:
@@ -123,7 +125,7 @@ def _parse_kex_init(data: bytes) -> Dict[str, Any]:
                 break
             name_len = struct.unpack_from("!I", data, off)[0]
             off += 4
-            if off + name_len > len(data) or name_len > 10000:
+            if off + name_len > len(data) or name_len > _MAX_KEX_NAME_LEN:
                 break
             name_list = data[off:off + name_len].decode(errors="replace")
             off += name_len

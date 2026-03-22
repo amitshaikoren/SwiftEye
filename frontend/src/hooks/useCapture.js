@@ -27,6 +27,9 @@ import {
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
 
+const SESSIONS_FETCH_LIMIT = 1000;
+const TIME_RANGE_DEBOUNCE_MS = 300;
+
 export function useCapture() {
 
   // ── Capture lifecycle ────────────────────────────────────────────
@@ -55,7 +58,7 @@ export function useCapture() {
   const setTimeRangeOuter = useCallback((v) => {
     setTimeRange(v);
     clearTimeout(trTimerRef.current);
-    trTimerRef.current = setTimeout(() => setDebouncedTR(v), 300);
+    trTimerRef.current = setTimeout(() => setDebouncedTR(v), TIME_RANGE_DEBOUNCE_MS);
   }, []);
   const [enabledP, setEnabledP]     = useState(new Set());
   const [search, setSearch]         = useState('');
@@ -228,7 +231,7 @@ export function useCapture() {
     if (!loaded || !timeline.length) return;
     const ts = timeline[debouncedTR[0]]?.start_time;
     const te = timeline[debouncedTR[1]]?.end_time;
-    fetchSessions(1000, '', ts != null && te != null ? { timeStart: ts, timeEnd: te } : {})
+    fetchSessions(SESSIONS_FETCH_LIMIT, '', ts != null && te != null ? { timeStart: ts, timeEnd: te } : {})
       .then(d => { setSessions(d.sessions || []); setSessionTotal(d.total ?? d.sessions?.length ?? 0); })
       .catch(() => {});
   }, [loaded, debouncedTR, timeline]);

@@ -26,6 +26,15 @@ from parser.ja3_db import lookup_ja3
 
 logger = logging.getLogger("swifteye.aggregator")
 
+# ── Edge field caps ───────────────────────────────────────────────────
+EDGE_TLS_CIPHER_SUITES = 10
+EDGE_TLS_CIPHERS       = 15
+EDGE_DNS_QUERIES       = 30
+
+# ── Gap collapse thresholds ───────────────────────────────────────────
+GAP_MIN_SECONDS        = 600.0   # 10 minutes
+GAP_MIN_FRACTION       = 0.20    # 20% of total capture duration
+
 
 def build_time_buckets(
     packets: List[PacketRecord],
@@ -86,7 +95,7 @@ def build_time_buckets(
 
     # ── Gap collapse ─────────────────────────────────────────────────
     # Threshold: gap must be both >20% of total duration AND >10 minutes (600s).
-    min_gap_sec = max(600.0, total_sec * 0.20)
+    min_gap_sec = max(GAP_MIN_SECONDS, total_sec * GAP_MIN_FRACTION)
     min_gap_buckets = math.ceil(min_gap_sec / bucket_seconds)
 
     result: List[Dict[str, Any]] = []
@@ -466,7 +475,7 @@ def build_graph(
             if ex.get("tls_selected_cipher"):
                 e["tls_selected_ciphers"].add(ex["tls_selected_cipher"])
             if ex.get("tls_cipher_suites"):
-                for cs in ex["tls_cipher_suites"][:10]:
+                for cs in ex["tls_cipher_suites"][:EDGE_TLS_CIPHER_SUITES]:
                     e["tls_ciphers"].add(cs)
             if ex.get("http_host"):
                 e["http_hosts"].add(ex["http_host"])
@@ -531,10 +540,10 @@ def build_graph(
             "ports": sorted(e["ports"]),
             "tls_snis": sorted(e["tls_snis"]),
             "tls_versions": sorted(e["tls_versions"]),
-            "tls_ciphers": sorted(e["tls_ciphers"])[:15],
+            "tls_ciphers": sorted(e["tls_ciphers"])[:EDGE_TLS_CIPHERS],
             "tls_selected_ciphers": sorted(e["tls_selected_ciphers"]),
             "http_hosts": sorted(e["http_hosts"]),
-            "dns_queries": sorted(e["dns_queries"])[:30],
+            "dns_queries": sorted(e["dns_queries"])[:EDGE_DNS_QUERIES],
             "ja3_hashes": sorted(e["ja3_hashes"]),
             "ja4_hashes": sorted(e["ja4_hashes"]),
         }
