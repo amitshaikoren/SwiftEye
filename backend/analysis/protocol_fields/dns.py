@@ -16,6 +16,19 @@ Key variables:
 
 from analysis.protocol_fields import cap_list
 
+DNS_INACTIVITY_TIMEOUT = 10.0  # seconds — Zeek default for DNS
+
+
+def check_boundary(flow_state, ex, ts):
+    """Split DNS session on inactivity timeout."""
+    if not ex.get("dns_query") and not ex.get("dns_qr"):
+        return False  # not a DNS packet
+    last_dns_ts = flow_state.get("last_dns_ts", 0)
+    flow_state["last_dns_ts"] = ts
+    if last_dns_ts > 0 and (ts - last_dns_ts) > DNS_INACTIVITY_TIMEOUT:
+        return True
+    return False
+
 
 def init():
     return {

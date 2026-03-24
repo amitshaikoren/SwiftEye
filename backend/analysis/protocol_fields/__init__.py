@@ -5,7 +5,7 @@ Each module in this package defines three required functions and one optional:
     init()                              → dict of initial session fields for this protocol
     accumulate(s, ex, is_fwd, source_type) → mutate session dict from one packet's extra
     serialize(s)                        → convert working fields (sets, etc.) to JSON-safe output
-    check_boundary(flow_state, ex)      → (optional) return True to split session on this packet
+    check_boundary(flow_state, ex, ts)   → (optional) return True to split session on this packet
 
 Modules are auto-discovered on import. Drop a new file here and it just works —
 no changes to sessions.py needed.
@@ -82,10 +82,10 @@ def _discover():
             _BOUNDARY_CHECKERS.append(boundary_fn)
 
 
-def any_boundary(flow_state: dict, ex: dict) -> bool:
+def any_boundary(flow_state: dict, ex: dict, timestamp: float) -> bool:
     """Run all protocol boundary checkers. Returns True if any says split."""
     for fn in _BOUNDARY_CHECKERS:
-        if fn(flow_state, ex):
+        if fn(flow_state, ex, timestamp):
             return True
     return False
 

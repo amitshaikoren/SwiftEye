@@ -12,8 +12,20 @@ Key variables:
 """
 
 
-def check_boundary(flow_state, ex):
-    """Split session when DHCP transaction ID changes."""
+DHCP_INACTIVITY_TIMEOUT = 10.0  # seconds — Zeek default for DHCP
+
+def check_boundary(flow_state, ex, ts):
+    """Split on DHCP transaction ID change or inactivity timeout."""
+    # Inactivity timeout (Zeek-style)
+    last_dhcp_ts = flow_state.get("last_dhcp_ts", 0)
+    if ex.get("dhcp_msg_type") or ex.get("dhcp_xid"):
+        if last_dhcp_ts > 0 and (ts - last_dhcp_ts) > DHCP_INACTIVITY_TIMEOUT:
+            flow_state["last_dhcp_ts"] = ts
+            flow_state["last_dhcp_xid"] = ex.get("dhcp_xid")
+            return True
+        flow_state["last_dhcp_ts"] = ts
+
+    # Transaction ID change
     xid = ex.get("dhcp_xid")
     if not xid:
         return False

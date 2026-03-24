@@ -57,6 +57,8 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
 
     # ── Signal 1: TCP FIN/RST close → split ──
     # After FIN/RST: pure SYN splits immediately (no ambiguity).
+    # SYN-ACK with a new ISN also splits immediately (Wireshark-style:
+    # responder saw a SYN we missed — the new ISN proves it's a new connection).
     # Any other packet splits only after the grace period expires
     # (allows teardown ACKs, retransmits, and in-flight data to land).
     closed_at = flow_state["closed_at"]
@@ -64,6 +66,12 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
         since_close = pkt.timestamp - closed_at
         if pkt.tcp_flags_list and "SYN" in pkt.tcp_flags_list and "ACK" not in pkt.tcp_flags_list:
             split = True  # pure SYN after close — always a new connection
+        elif (pkt.tcp_flags_list and "SYN" in pkt.tcp_flags_list
+              and "ACK" in pkt.tcp_flags_list and pkt.seq_num > 0):
+            # SYN-ACK: split if the ISN doesn't match the previous responder ISN
+            last_resp_isn = flow_state.get("last_resp_isn", 0)
+            if last_resp_isn > 0 and pkt.seq_num != last_resp_isn:
+                split = True  # new ISN on SYN-ACK — missed SYN, new connection
         elif since_close > CLOSE_GRACE_PERIOD:
             split = True  # grace period expired — any packet starts a new session
 
@@ -86,7 +94,7 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
 
     # ── Signal 4: protocol-specific boundary checkers ──
     if not split and pkt.extra:
-        split = any_boundary(flow_state, pkt.extra)
+        split = any_boundary(flow_state, pkt.extra, pkt.timestamp)
 
     # ── Update flow state ──
     flow_state["last_ts"] = pkt.timestamp
@@ -98,6 +106,9 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
                 flow_state["closed_at"] = pkt.timestamp
     if is_tcp and pkt.seq_num > 0:
         flow_state["last_seq"] = pkt.seq_num
+        # Track responder ISN for Wireshark-style SYN-ACK detection
+        if pkt.tcp_flags_list and "SYN" in pkt.tcp_flags_list and "ACK" in pkt.tcp_flags_list:
+            flow_state["last_resp_isn"] = pkt.seq_num
 
     if split:
         # Reset state for the new generation

@@ -14,6 +14,19 @@ Key variables:
 
 from analysis.protocol_fields import cap_list
 
+HTTP_INACTIVITY_TIMEOUT = 30.0  # seconds — Zeek default for HTTP
+
+
+def check_boundary(flow_state, ex, ts):
+    """Split HTTP session on inactivity timeout."""
+    if not ex.get("http_method") and not ex.get("http_status") and not ex.get("http_host"):
+        return False  # not an HTTP packet
+    last_http_ts = flow_state.get("last_http_ts", 0)
+    flow_state["last_http_ts"] = ts
+    if last_http_ts > 0 and (ts - last_http_ts) > HTTP_INACTIVITY_TIMEOUT:
+        return True
+    return False
+
 
 def init():
     return {
