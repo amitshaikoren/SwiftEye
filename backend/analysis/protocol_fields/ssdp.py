@@ -8,7 +8,7 @@ Key variables:
     source_type — unused
 """
 
-CAP_SSDP_ITEMS = 20
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -36,7 +36,10 @@ def accumulate(s, ex, is_fwd, source_type):
 
 def serialize(s):
     s["ssdp_methods"] = sorted(s["ssdp_methods"])
-    s["ssdp_sts"] = sorted(s["ssdp_sts"])[:CAP_SSDP_ITEMS]
-    s["ssdp_usns"] = sorted(s["ssdp_usns"])[:CAP_SSDP_ITEMS]
-    s["ssdp_locations"] = sorted(s["ssdp_locations"])[:CAP_SSDP_ITEMS]
+    s["ssdp_sts"] = sorted(s["ssdp_sts"])
+    cap_list(s, "ssdp_sts")
+    s["ssdp_usns"] = sorted(s["ssdp_usns"])
+    cap_list(s, "ssdp_usns")
+    s["ssdp_locations"] = sorted(s["ssdp_locations"])
+    cap_list(s, "ssdp_locations")
     s["ssdp_servers"] = sorted(s["ssdp_servers"])

@@ -27,11 +27,37 @@ Key variables used across protocol field modules:
                     "netflow" — Netflow/IPFIX records
 
                   When adding a new adapter, add its source_type string here.
+
+Lazy initialization:
+    Protocol fields are NOT pre-loaded onto every session. Instead, each protocol's
+    init() is called only when its accumulator first encounters relevant data.
+    A session that never sees DNS traffic will have no dns_* fields — zero data noise.
+
+    Mechanism: accumulate() calls run without init. If the accumulator accesses a field
+    that doesn't exist (KeyError), we catch it, run init(), and retry. This works because
+    accumulators always check ex.get() (no mutation) before accessing s[] (mutation),
+    so the KeyError fires before any partial state changes.
 """
 
 import importlib
 import pkgutil
 from typing import Callable, Dict, Any, List, Tuple
+
+# ── Serialize-time cap ───────────────────────────────────────────────
+# Generous safety valve applied only when sending data to the frontend.
+# During accumulation, data grows unbounded. This prevents pathological
+# sessions (e.g. web crawler with 10K URIs) from blowing up memory.
+# When a field is capped, a companion _total key is added so the
+# frontend can show "Showing X of Y".
+SERIALIZE_CAP = 500
+
+
+def cap_list(s: dict, key: str, limit: int = SERIALIZE_CAP):
+    """Cap a list field in-place and add a _total count if truncated."""
+    lst = s.get(key, [])
+    if len(lst) > limit:
+        s[f"{key}_total"] = len(lst)
+        s[key] = lst[:limit]
 
 # Each entry: (init_fn, accumulate_fn, serialize_fn)
 _REGISTRY: List[Tuple[Callable, Callable, Callable]] = []
@@ -48,24 +74,40 @@ def _discover():
             _REGISTRY.append((init_fn, acc_fn, ser_fn))
 
 
-def all_init() -> Dict[str, Any]:
-    """Merged initial fields from all registered protocols."""
-    merged = {}
-    for init_fn, _, _ in _REGISTRY:
-        merged.update(init_fn())
-    return merged
-
-
 def all_accumulate(s: dict, ex: dict, is_fwd: bool, source_type: str = None):
-    """Run all protocol accumulators on one packet."""
-    for _, acc_fn, _ in _REGISTRY:
-        acc_fn(s, ex, is_fwd, source_type)
+    """Run all protocol accumulators on one packet with lazy init.
+
+    Each protocol is initialized only when its accumulator first tries to access
+    session fields (KeyError on uninitialized field → init → retry).
+    Protocols that never see relevant data are never initialized.
+    """
+    active = s.get("_active_protocols")
+    if active is None:
+        active = set()
+        s["_active_protocols"] = active
+
+    for i, (init_fn, acc_fn, _) in enumerate(_REGISTRY):
+        if i in active:
+            acc_fn(s, ex, is_fwd, source_type)
+        else:
+            try:
+                acc_fn(s, ex, is_fwd, source_type)
+            except KeyError:
+                # Accumulator tried to access its fields but they don't exist yet.
+                # Init this protocol's fields and retry.
+                s.update(init_fn())
+                active.add(i)
+                acc_fn(s, ex, is_fwd, source_type)
 
 
 def all_serialize(s: dict):
-    """Run all protocol serializers on a completed session."""
-    for _, _, ser_fn in _REGISTRY:
-        ser_fn(s)
+    """Run only active protocol serializers on a completed session."""
+    active = s.get("_active_protocols", set())
+    for i, (_, _, ser_fn) in enumerate(_REGISTRY):
+        if i in active:
+            ser_fn(s)
+    # Clean up internal tracking field
+    s.pop("_active_protocols", None)
 
 
 _discover()

@@ -6,6 +6,15 @@ per-session metrics: TCP state, directional TTLs, directional ports,
 window sizes, etc.  Protocol-specific fields (TLS, HTTP, DNS, …) are
 handled by auto-discovered modules in analysis/protocol_fields/.
 
+Session boundary detection splits flows that reuse the same 5-tuple
+(src/dst IP + ports + transport) into separate sessions using three
+heuristic signals:
+  1. TCP FIN/RST close followed by SYN reopen
+  2. Large timestamp gap (60s UDP, 120s TCP)
+  3. TCP sequence number jump + moderate time gap (catches lost FIN/RST)
+False non-splits are preferred over false splits — when in doubt, keep
+packets in the same session.
+
 This is core viewer layer — it structures raw packet data by session.
 The fields computed here are direct reads from packet fields grouped
 by direction, not interpretive analysis.
@@ -15,31 +24,99 @@ import logging
 from typing import List, Dict, Any
 from collections import defaultdict
 
-# ── Field caps — maximum items stored per session field ──────────────
-CAP_TCP_OPTIONS_DETAIL  = 20
-
 from parser.packet import PacketRecord
-from analysis.protocol_fields import all_init, all_accumulate, all_serialize
+from analysis.protocol_fields import all_accumulate, all_serialize
 
 logger = logging.getLogger("swifteye.sessions")
+
+# ── Session boundary detection thresholds ─────────────────────────
+# Conservative values — false non-splits are better than false splits.
+UDP_GAP_THRESHOLD = 60.0         # seconds before a UDP flow is considered stale
+TCP_GAP_THRESHOLD = 120.0        # seconds — TCP can have long keepalives
+SEQ_JUMP_THRESHOLD = 1_000_000   # seq delta that suggests a new connection (not retransmit)
+SEQ_JUMP_GAP = 5.0               # seconds — seq jump alone isn't enough, needs a time gap too
+
+
+def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
+    """
+    Decide whether *pkt* starts a new session on an existing 5-tuple.
+
+    Returns True if a boundary is detected (caller should bump generation).
+    Mutates flow_state to track close/timestamp/seq for future checks.
+    """
+    split = False
+
+    # ── Signal 1: TCP FIN/RST close → SYN reopen ──
+    if is_tcp and flow_state["closed"] and pkt.tcp_flags_list:
+        if "SYN" in pkt.tcp_flags_list and "ACK" not in pkt.tcp_flags_list:
+            split = True
+
+    # ── Signal 2: timestamp gap ──
+    last_ts = flow_state["last_ts"]
+    if not split and last_ts > 0:
+        gap = pkt.timestamp - last_ts
+        threshold = TCP_GAP_THRESHOLD if is_tcp else UDP_GAP_THRESHOLD
+        if gap > threshold:
+            split = True
+
+    # ── Signal 3: TCP seq jump + moderate time gap ──
+    if not split and is_tcp and pkt.seq_num > 0:
+        last_seq = flow_state["last_seq"]
+        if last_seq > 0:
+            delta = abs(pkt.seq_num - last_seq)
+            gap = pkt.timestamp - last_ts if last_ts > 0 else 0
+            if delta > SEQ_JUMP_THRESHOLD and gap > SEQ_JUMP_GAP:
+                split = True
+
+    # ── Update flow state ──
+    flow_state["last_ts"] = pkt.timestamp
+    if is_tcp and pkt.tcp_flags_list:
+        if "FIN" in pkt.tcp_flags_list or "RST" in pkt.tcp_flags_list:
+            flow_state["closed"] = True
+    if is_tcp and pkt.seq_num > 0:
+        flow_state["last_seq"] = pkt.seq_num
+
+    if split:
+        # Reset state for the new generation
+        flow_state["closed"] = False
+        flow_state["last_seq"] = 0
+
+    return split
 
 
 def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
     """
     Group packets into sessions (bidirectional flows).
 
-    A session is identified by: sorted(src_ip, dst_ip) + sorted(src_port, dst_port) + transport
+    A session is identified by: sorted(src_ip, dst_ip) + sorted(src_port, dst_port) + transport.
+    Flows that reuse the same 5-tuple are split into separate sessions
+    when boundary heuristics fire (FIN/RST+SYN, timestamp gap, seq jump).
 
     Returns list of session dicts with aggregated metrics.
     """
     session_map: Dict[str, Dict[str, Any]] = {}
-    
+
+    # Per-5-tuple state for boundary detection
+    flow_generation: Dict[str, int] = {}
+    flow_state: Dict[str, dict] = {}
+
     for pkt in packets:
         if not pkt.src_ip or not pkt.dst_ip:
             continue
-        
-        key = pkt.session_key
-        
+
+        base_key = pkt.session_key
+        is_tcp = pkt.transport == "TCP"
+
+        # ── Boundary detection ──
+        if base_key not in flow_generation:
+            flow_generation[base_key] = 0
+            flow_state[base_key] = {"closed": False, "last_ts": 0, "last_seq": 0}
+        elif _check_boundary(flow_state[base_key], pkt, is_tcp):
+            flow_generation[base_key] += 1
+
+        gen = flow_generation[base_key]
+        key = f"{base_key}#{gen}" if gen > 0 else base_key
+
         if key not in session_map:
             ips = sorted([pkt.src_ip, pkt.dst_ip])
             ports = sorted([pkt.src_port, pkt.dst_port])
@@ -98,8 +175,8 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 # Directional ports
                 "initiator_ports": set(),
                 "responder_ports": set(),
-                # ── Protocol fields (auto-discovered from protocol_fields/) ──
-                **all_init(),
+                # Protocol fields: lazy-initialized by all_accumulate() on first
+                # relevant packet. No pre-loading — see protocol_fields/__init__.py.
             }
         
         s = session_map[key]
@@ -204,7 +281,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         # TCP options
         for opt in pkt.tcp_options:
             s["tcp_options_seen"].add(opt.get("kind", ""))
-            if opt.get("kind") in ("MSS", "WScale") and len(s["tcp_options_detail"]) < CAP_TCP_OPTIONS_DETAIL:
+            if opt.get("kind") in ("MSS", "WScale"):
                 s["tcp_options_detail"].append(opt)
         
         # ── Protocol fields (auto-discovered from protocol_fields/) ──

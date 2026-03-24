@@ -8,7 +8,7 @@ Key variables:
     source_type — unused
 """
 
-CAP_LLMNR_ANSWERS = 20
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -21,7 +21,7 @@ def init():
 def accumulate(s, ex, is_fwd, source_type):
     if ex.get("llmnr_query"):
         s["llmnr_queries"].add(ex["llmnr_query"])
-    if ex.get("llmnr_answers") and len(s["llmnr_answers"]) < CAP_LLMNR_ANSWERS:
+    if ex.get("llmnr_answers"):
         for a in ex["llmnr_answers"]:
             if a not in s["llmnr_answers"]:
                 s["llmnr_answers"].append(a)
@@ -29,4 +29,4 @@ def accumulate(s, ex, is_fwd, source_type):
 
 def serialize(s):
     s["llmnr_queries"] = sorted(s["llmnr_queries"])
-    s["llmnr_answers"] = s["llmnr_answers"][:CAP_LLMNR_ANSWERS]
+    cap_list(s, "llmnr_answers")

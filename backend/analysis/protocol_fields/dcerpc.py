@@ -10,7 +10,7 @@ Key variables:
     source_type — unused
 """
 
-CAP_DCERPC_INTERFACES = 20
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -24,7 +24,7 @@ def init():
 def accumulate(s, ex, is_fwd, source_type):
     if ex.get("dcerpc_packet_type"):
         s["dcerpc_packet_types"].add(ex["dcerpc_packet_type"])
-    if ex.get("dcerpc_interface_uuid") and len(s["dcerpc_interfaces"]) < CAP_DCERPC_INTERFACES:
+    if ex.get("dcerpc_interface_uuid"):
         uuid = ex["dcerpc_interface_uuid"]
         name = ex.get("dcerpc_interface_name", "")
         if not any(i["uuid"] == uuid for i in s["dcerpc_interfaces"]):
@@ -35,5 +35,5 @@ def accumulate(s, ex, is_fwd, source_type):
 
 def serialize(s):
     s["dcerpc_packet_types"] = sorted(s["dcerpc_packet_types"])
-    s["dcerpc_interfaces"] = s["dcerpc_interfaces"][:CAP_DCERPC_INTERFACES]
+    cap_list(s, "dcerpc_interfaces")
     s["dcerpc_opnums"] = sorted(s["dcerpc_opnums"])

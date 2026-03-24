@@ -8,7 +8,7 @@ Key variables:
     source_type — unused
 """
 
-CAP_KRB_ERROR_CODES = 20
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -34,7 +34,7 @@ def accumulate(s, ex, is_fwd, source_type):
     if ex.get("krb_etypes"):
         for e in ex["krb_etypes"]:
             s["krb_etypes"].add(e)
-    if ex.get("krb_error_code") is not None and len(s["krb_error_codes"]) < CAP_KRB_ERROR_CODES:
+    if ex.get("krb_error_code") is not None:
         s["krb_error_codes"].append({"code": ex["krb_error_code"], "name": ex.get("krb_error_name", "")})
 
 
@@ -44,3 +44,4 @@ def serialize(s):
     s["krb_cnames"] = sorted(s["krb_cnames"])
     s["krb_snames"] = sorted(s["krb_snames"])
     s["krb_etypes"] = sorted(s["krb_etypes"])
+    cap_list(s, "krb_error_codes")

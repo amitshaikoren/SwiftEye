@@ -13,9 +13,7 @@ Key variables:
 """
 
 from parser.ja3_db import lookup_ja3
-
-CAP_TLS_CIPHERS = 15
-CAP_TLS_CIPHER_SUITES = 10
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -49,7 +47,7 @@ def accumulate(s, ex, is_fwd, source_type):
     if ex.get("tls_selected_cipher"):
         s["tls_selected_ciphers"].add(ex["tls_selected_cipher"])
     if ex.get("tls_cipher_suites"):
-        for cs in ex["tls_cipher_suites"][:CAP_TLS_CIPHER_SUITES]:
+        for cs in ex["tls_cipher_suites"]:
             s["tls_ciphers"].add(cs)
     if ex.get("tls_cert") and s["tls_cert"] is None:
         s["tls_cert"] = ex["tls_cert"]
@@ -87,7 +85,8 @@ def accumulate(s, ex, is_fwd, source_type):
 def serialize(s):
     s["tls_snis"] = sorted(s["tls_snis"])
     s["tls_versions"] = sorted(s["tls_versions"])
-    s["tls_ciphers"] = sorted(s["tls_ciphers"])[:CAP_TLS_CIPHERS]
+    s["tls_ciphers"] = sorted(s["tls_ciphers"])
+    cap_list(s, "tls_ciphers")
     s["tls_selected_ciphers"] = sorted(s["tls_selected_ciphers"])
     s["tls_fwd_alpn_offered"] = sorted(s["tls_fwd_alpn_offered"])
     s["tls_fwd_supported_versions"] = sorted(s["tls_fwd_supported_versions"])

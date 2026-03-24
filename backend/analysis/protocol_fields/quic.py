@@ -8,9 +8,7 @@ Key variables:
     source_type — unused
 """
 
-CAP_QUIC_CIDS = 10
-CAP_QUIC_TLS_CIPHERS = 15
-CAP_TLS_CIPHER_SUITES = 10  # input cap for tls_ciphers list slicing
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -44,16 +42,19 @@ def accumulate(s, ex, is_fwd, source_type):
         for v in ex["quic_tls_versions"]:
             s["quic_tls_versions"].add(v)
     if ex.get("quic_tls_ciphers"):
-        for c in ex["quic_tls_ciphers"][:CAP_TLS_CIPHER_SUITES]:
+        for c in ex["quic_tls_ciphers"]:
             s["quic_tls_ciphers"].add(c)
 
 
 def serialize(s):
     s["quic_versions"] = sorted(s["quic_versions"])
-    s["quic_dcids"] = sorted(s["quic_dcids"])[:CAP_QUIC_CIDS]
-    s["quic_scids"] = sorted(s["quic_scids"])[:CAP_QUIC_CIDS]
+    s["quic_dcids"] = sorted(s["quic_dcids"])
+    cap_list(s, "quic_dcids")
+    s["quic_scids"] = sorted(s["quic_scids"])
+    cap_list(s, "quic_scids")
     s["quic_snis"] = sorted(s["quic_snis"])
     s["quic_alpn"] = sorted(s["quic_alpn"])
     s["quic_packet_types"] = sorted(s["quic_packet_types"])
     s["quic_tls_versions"] = sorted(s["quic_tls_versions"])
-    s["quic_tls_ciphers"] = sorted(s["quic_tls_ciphers"])[:CAP_QUIC_TLS_CIPHERS]
+    s["quic_tls_ciphers"] = sorted(s["quic_tls_ciphers"])
+    cap_list(s, "quic_tls_ciphers")

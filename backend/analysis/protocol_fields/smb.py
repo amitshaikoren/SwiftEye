@@ -11,8 +11,7 @@ Key variables:
     source_type — unused for SMB (no Zeek SMB adapter yet)
 """
 
-CAP_SMB_STATUS_CODES = 30
-CAP_SMB_FILENAMES = 20
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -33,10 +32,9 @@ def accumulate(s, ex, is_fwd, source_type):
     if is_fwd and ex.get("smb_command"):
         s["smb_fwd_operations"].add(ex["smb_command"])
     if not is_fwd and ex.get("smb_status_name"):
-        if len(s["smb_rev_status_codes"]) < CAP_SMB_STATUS_CODES:
-            s["smb_rev_status_codes"].append(
-                {"code": ex.get("smb_status", 0), "name": ex["smb_status_name"]}
-            )
+        s["smb_rev_status_codes"].append(
+            {"code": ex.get("smb_status", 0), "name": ex["smb_status_name"]}
+        )
     if ex.get("smb_tree_path"):
         s["smb_tree_paths"].add(ex["smb_tree_path"])
     if ex.get("smb_filename"):
@@ -47,6 +45,7 @@ def serialize(s):
     """Convert SMB working fields to JSON-safe output."""
     s["smb_versions"] = sorted(s["smb_versions"])
     s["smb_fwd_operations"] = sorted(s["smb_fwd_operations"])
-    s["smb_rev_status_codes"] = s["smb_rev_status_codes"][:CAP_SMB_STATUS_CODES]
+    cap_list(s, "smb_rev_status_codes")
     s["smb_tree_paths"] = sorted(s["smb_tree_paths"])
-    s["smb_filenames"] = sorted(s["smb_filenames"])[:CAP_SMB_FILENAMES]
+    s["smb_filenames"] = sorted(s["smb_filenames"])
+    cap_list(s, "smb_filenames")

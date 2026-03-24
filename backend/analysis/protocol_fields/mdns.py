@@ -8,7 +8,7 @@ Key variables:
     source_type — unused
 """
 
-CAP_MDNS_TXT_RECORDS = 30
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -30,7 +30,7 @@ def accumulate(s, ex, is_fwd, source_type):
         s["mdns_service_names"].add(ex["mdns_service_name"])
     if ex.get("mdns_hostname"):
         s["mdns_hostnames"].add(ex["mdns_hostname"])
-    if ex.get("mdns_txt_records") and len(s["mdns_txt_records"]) < CAP_MDNS_TXT_RECORDS:
+    if ex.get("mdns_txt_records"):
         for t in ex["mdns_txt_records"]:
             if t not in s["mdns_txt_records"]:
                 s["mdns_txt_records"].append(t)
@@ -41,4 +41,4 @@ def serialize(s):
     s["mdns_service_types"] = sorted(s["mdns_service_types"])
     s["mdns_service_names"] = sorted(s["mdns_service_names"])
     s["mdns_hostnames"] = sorted(s["mdns_hostnames"])
-    s["mdns_txt_records"] = s["mdns_txt_records"][:CAP_MDNS_TXT_RECORDS]
+    cap_list(s, "mdns_txt_records")

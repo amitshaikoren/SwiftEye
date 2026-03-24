@@ -14,7 +14,7 @@ Key variables:
     source_type — unused for DNS currently
 """
 
-CAP_DNS_QUERIES = 50
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -27,7 +27,7 @@ def init():
 def accumulate(s, ex, is_fwd, source_type):
     if ex.get("dns_qclass_name"):
         s["dns_qclass_names"].add(ex["dns_qclass_name"])
-    if not ex.get("dns_query") or len(s["dns_queries"]) >= CAP_DNS_QUERIES:
+    if not ex.get("dns_query"):
         return
     dns_entry = {
         "query": ex["dns_query"],
@@ -52,4 +52,4 @@ def accumulate(s, ex, is_fwd, source_type):
 
 def serialize(s):
     s["dns_qclass_names"] = sorted(s["dns_qclass_names"])
-    # dns_queries stays as list of dicts — no sorting needed
+    cap_list(s, "dns_queries")

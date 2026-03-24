@@ -8,8 +8,7 @@ Key variables:
     source_type — unused
 """
 
-CAP_LDAP_RESULT_CODES = 20
-CAP_LDAP_ENTRY_DNS = 20
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -32,7 +31,7 @@ def accumulate(s, ex, is_fwd, source_type):
         s["ldap_bind_mechanisms"].add(ex["ldap_bind_mechanism"])
     if ex.get("ldap_search_base"):
         s["ldap_search_bases"].add(ex["ldap_search_base"])
-    if ex.get("ldap_result_code") is not None and len(s["ldap_result_codes"]) < CAP_LDAP_RESULT_CODES:
+    if ex.get("ldap_result_code") is not None:
         s["ldap_result_codes"].append({"code": ex["ldap_result_code"], "name": ex.get("ldap_result_name", "")})
     if ex.get("ldap_entry_dn"):
         s["ldap_entry_dns"].add(ex["ldap_entry_dn"])
@@ -43,4 +42,6 @@ def serialize(s):
     s["ldap_bind_dns"] = sorted(s["ldap_bind_dns"])
     s["ldap_bind_mechanisms"] = sorted(s["ldap_bind_mechanisms"])
     s["ldap_search_bases"] = sorted(s["ldap_search_bases"])
-    s["ldap_entry_dns"] = sorted(s["ldap_entry_dns"])[:CAP_LDAP_ENTRY_DNS]
+    cap_list(s, "ldap_result_codes")
+    s["ldap_entry_dns"] = sorted(s["ldap_entry_dns"])
+    cap_list(s, "ldap_entry_dns")

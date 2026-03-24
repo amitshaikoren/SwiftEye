@@ -12,8 +12,7 @@ Key variables:
     source_type — "zeek" triggers both-direction accumulation
 """
 
-CAP_HTTP_URIS = 30
-CAP_HTTP_STATUS_CODES = 50
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -44,7 +43,7 @@ def accumulate(s, ex, is_fwd, source_type):
             s["http_fwd_user_agents"].add(ex["http_user_agent"])
         if ex.get("http_method"):
             s["http_fwd_methods"].add(ex["http_method"])
-        if ex.get("http_uri") and len(s["http_fwd_uris"]) < CAP_HTTP_URIS:
+        if ex.get("http_uri"):
             s["http_fwd_uris"].append(ex["http_uri"])
         if ex.get("http_referer"):
             s["http_fwd_referers"].add(ex["http_referer"])
@@ -61,7 +60,7 @@ def accumulate(s, ex, is_fwd, source_type):
     if not is_fwd or _zeek:
         if ex.get("http_server"):
             s["http_rev_servers"].add(ex["http_server"])
-        if ex.get("http_status") and len(s["http_rev_status_codes"]) < CAP_HTTP_STATUS_CODES:
+        if ex.get("http_status"):
             s["http_rev_status_codes"].append(ex["http_status"])
         if ex.get("http_content_type"):
             s["http_rev_content_types"].add(ex["http_content_type"])
@@ -75,10 +74,11 @@ def serialize(s):
     s["http_hosts"] = sorted(s["http_hosts"])
     s["http_fwd_user_agents"] = sorted(s["http_fwd_user_agents"])
     s["http_fwd_methods"] = sorted(s["http_fwd_methods"])
-    s["http_fwd_uris"] = list(dict.fromkeys(s["http_fwd_uris"]))[:CAP_HTTP_URIS]
+    s["http_fwd_uris"] = list(dict.fromkeys(s["http_fwd_uris"]))
+    cap_list(s, "http_fwd_uris")
     s["http_fwd_referers"] = sorted(s["http_fwd_referers"])
     s["http_rev_servers"] = sorted(s["http_rev_servers"])
-    s["http_rev_status_codes"] = s["http_rev_status_codes"][:CAP_HTTP_STATUS_CODES]
+    cap_list(s, "http_rev_status_codes")
     s["http_rev_content_types"] = sorted(s["http_rev_content_types"])
     s["http_rev_redirects"] = sorted(s["http_rev_redirects"])
     s["http_fwd_auth_types"] = sorted(s["http_fwd_auth_types"])

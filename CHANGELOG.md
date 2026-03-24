@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.10.5 — March 2026
+- **Zero data loss alignment** — all 21 `CAP_*` constants removed from protocol field accumulators and `sessions.py`. Data now accumulates unbounded during session building; a shared `cap_list()` applies a generous `SERIALIZE_CAP = 500` at serialization time with `_total` companion keys for frontend "X of Y" display. Dissector-level caps removed from `dissect_dns.py`. Lazy protocol init replaces `all_init()` — protocol fields only appear on sessions that actually contain that protocol's traffic. Uses try/except KeyError pattern in `all_accumulate()`.
+- **Session boundary detection** — `build_sessions()` now splits flows that reuse the same 5-tuple into separate sessions using three heuristic signals: (1) TCP FIN/RST close + SYN reopen, (2) timestamp gap >60s for UDP / >120s for TCP, (3) TCP seq jump >1M + time gap >5s. Split sessions get suffixed IDs (`…#1`, `…#2`). Conservative thresholds — false non-splits preferred over false splits.
+
 ### v0.10.4 — March 2026
 - **Zero data loss documentation** — codified the zero data loss principle in HANDOFF.md §1 and DEVELOPERS.md §3/§4. Documented current violations (silent accumulation caps, eager protocol init), 6-step execution plan, decision tree for when limits are acceptable vs. violations, and memory/compute tradeoffs. Added HIGH PRIORITY roadmap item for the alignment work.
 - **Visualize time slider debounce** — slider no longer rebuilds the D3 graph on every frame during drag. Slider position updates instantly; `filteredRows`/`graphData` recompute after a 300ms debounce.

@@ -11,7 +11,7 @@ Key variables:
     source_type — unused for ICMP currently
 """
 
-CAP_ICMP_PAYLOAD_SAMPLES = 10
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -37,7 +37,7 @@ def accumulate(s, ex, is_fwd, source_type):
         s[f"icmp_{d}_identifiers"].add(ex["icmp_id"])
     if ex.get("icmp_payload_size") is not None:
         s[f"icmp_{d}_payload_sizes"].append(ex["icmp_payload_size"])
-    if ex.get("icmp_payload_hex") and len(s[f"icmp_{d}_payload_samples"]) < CAP_ICMP_PAYLOAD_SAMPLES:
+    if ex.get("icmp_payload_hex"):
         hex_val = ex["icmp_payload_hex"]
         if hex_val not in s[f"icmp_{d}_payload_samples"]:
             s[f"icmp_{d}_payload_samples"].append(hex_val)
@@ -56,3 +56,5 @@ def serialize(s):
     s["icmp_rev_types"] = _type_counts(s["icmp_rev_types"])
     s["icmp_fwd_identifiers"] = sorted(s["icmp_fwd_identifiers"])
     s["icmp_rev_identifiers"] = sorted(s["icmp_rev_identifiers"])
+    cap_list(s, "icmp_fwd_payload_samples")
+    cap_list(s, "icmp_rev_payload_samples")

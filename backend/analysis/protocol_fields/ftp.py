@@ -11,9 +11,7 @@ Key variables:
     source_type — unused for FTP currently
 """
 
-CAP_FTP_COMMANDS = 50
-CAP_FTP_RESPONSE_CODES = 50
-CAP_FTP_TRANSFER_FILES = 20
+from analysis.protocol_fields import cap_list
 
 
 def init():
@@ -30,12 +28,12 @@ def init():
 
 def accumulate(s, ex, is_fwd, source_type):
     if is_fwd:
-        if ex.get("ftp_command") and len(s["ftp_fwd_commands"]) < CAP_FTP_COMMANDS:
+        if ex.get("ftp_command"):
             s["ftp_fwd_commands"].append(ex["ftp_command"])
         if ex.get("ftp_transfer_mode") and s["ftp_fwd_transfer_mode"] is None:
             s["ftp_fwd_transfer_mode"] = ex["ftp_transfer_mode"]
     else:
-        if ex.get("ftp_response_code") and len(s["ftp_rev_response_codes"]) < CAP_FTP_RESPONSE_CODES:
+        if ex.get("ftp_response_code"):
             s["ftp_rev_response_codes"].append(ex["ftp_response_code"])
         if ex.get("ftp_server_banner") and s["ftp_rev_server_banner"] is None:
             s["ftp_rev_server_banner"] = ex["ftp_server_banner"]
@@ -48,7 +46,8 @@ def accumulate(s, ex, is_fwd, source_type):
 
 
 def serialize(s):
-    s["ftp_fwd_commands"] = s["ftp_fwd_commands"][:CAP_FTP_COMMANDS]
-    s["ftp_rev_response_codes"] = s["ftp_rev_response_codes"][:CAP_FTP_RESPONSE_CODES]
+    cap_list(s, "ftp_fwd_commands")
+    cap_list(s, "ftp_rev_response_codes")
     s["ftp_usernames"] = sorted(s["ftp_usernames"])
-    s["ftp_transfer_files"] = list(dict.fromkeys(s["ftp_transfer_files"]))[:CAP_FTP_TRANSFER_FILES]
+    s["ftp_transfer_files"] = list(dict.fromkeys(s["ftp_transfer_files"]))
+    cap_list(s, "ftp_transfer_files")

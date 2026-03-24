@@ -115,17 +115,17 @@ def dissect_dns(pkt) -> Dict[str, Any]:
 
     # Answer section (structured records)
     if dns.an and dns.ancount > 0:
-        answer_records = _parse_rr_section(dns.an, min(dns.ancount, 20))
+        answer_records = _parse_rr_section(dns.an, dns.ancount)
         info["dns_answer_records"] = answer_records
         # Flat list of answer data strings for backwards compat
         info["dns_answers"] = [r.get("data", "") for r in answer_records if r.get("data")]
 
     # Authority section (NS, SOA)
     if dns.ns and dns.nscount > 0:
-        info["dns_authority_records"] = _parse_rr_section(dns.ns, min(dns.nscount, 10))
+        info["dns_authority_records"] = _parse_rr_section(dns.ns, dns.nscount)
 
     # Additional section (e.g. EDNS0 OPT, glue records)
     if dns.ar and dns.arcount > 0:
-        info["dns_additional_records"] = _parse_rr_section(dns.ar, min(dns.arcount, 10))
+        info["dns_additional_records"] = _parse_rr_section(dns.ar, dns.arcount)
 
     return info
