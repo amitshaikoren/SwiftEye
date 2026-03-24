@@ -72,10 +72,10 @@ def _check_boundary(flow_state: dict, pkt: PacketRecord, is_tcp: bool) -> bool:
         is_ack = "ACK" in flags
         if is_syn and not is_ack:
             split = True  # pure SYN after close — always a new connection
-        elif is_syn and is_ack and pkt.seq_num > 0:
+        elif is_syn and is_ack:
             # SYN-ACK: split if the ISN doesn't match the previous responder ISN
-            last_resp_isn = flow_state.get("last_resp_isn", 0)
-            if last_resp_isn > 0 and pkt.seq_num != last_resp_isn:
+            last_resp_isn = flow_state["last_resp_isn"]
+            if last_resp_isn is not None and pkt.seq_num != last_resp_isn:
                 split = True  # new ISN on SYN-ACK — missed SYN, new connection
         # Grace period fallback — not elif: SYN-ACK ISN check above may enter
         # its branch without setting split (e.g. last_resp_isn was reset).
@@ -94,9 +94,9 @@ def _check_boundary(flow_state: dict, pkt: PacketRecord, is_tcp: bool) -> bool:
     # ── Signal 3: TCP seq jump + moderate time gap ──
     # Uses wraparound-safe delta: min(|a-b|, 2^32-|a-b|) so legitimate
     # sequence wraps near 2^32 aren't mistaken for jumps.
-    if not split and is_tcp and pkt.seq_num > 0:
+    if not split and is_tcp:
         last_seq = flow_state["last_seq"]
-        if last_seq > 0:
+        if last_seq is not None:
             raw_delta = abs(pkt.seq_num - last_seq)
             delta = min(raw_delta, TCP_SEQ_SPACE - raw_delta)
             gap = pkt.timestamp - last_ts if last_ts > 0 else 0
@@ -118,17 +118,16 @@ def _check_boundary(flow_state: dict, pkt: PacketRecord, is_tcp: bool) -> bool:
             # with the other side's FIN-ACK, which would extend the grace window)
             if flow_state["closed_at"] == 0:
                 flow_state["closed_at"] = pkt.timestamp
-        if pkt.seq_num > 0:
-            flow_state["last_seq"] = pkt.seq_num
-            # Track responder ISN for Wireshark-style SYN-ACK detection
-            if "SYN" in flags and "ACK" in flags:
-                flow_state["last_resp_isn"] = pkt.seq_num
+        flow_state["last_seq"] = pkt.seq_num
+        # Track responder ISN for Wireshark-style SYN-ACK detection
+        if "SYN" in flags and "ACK" in flags:
+            flow_state["last_resp_isn"] = pkt.seq_num
 
     if split:
         # Reset all state for the new generation
         flow_state["closed_at"] = 0
-        flow_state["last_seq"] = 0
-        flow_state["last_resp_isn"] = 0
+        flow_state["last_seq"] = None
+        flow_state["last_resp_isn"] = None
 
     return split
 
@@ -159,7 +158,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         # ── Boundary detection ──
         if base_key not in flow_generation:
             flow_generation[base_key] = 0
-            flow_state[base_key] = {"closed_at": 0, "last_ts": 0, "last_seq": 0}
+            flow_state[base_key] = {"closed_at": 0, "last_ts": 0, "last_seq": None, "last_resp_isn": None}
             # Seed flow state from the first packet (result always False, discarded)
             _check_boundary(flow_state[base_key], pkt, is_tcp)
         elif _check_boundary(flow_state[base_key], pkt, is_tcp):
