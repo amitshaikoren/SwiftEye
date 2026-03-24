@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.10.5 | March 2026**
+**Version 0.10.6 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -101,7 +101,7 @@ swifteye/
 │   ├── index.html                   # Vite entry point (Plotly.js CDN loaded here)
 │   └── src/
 │       ├── main.jsx                 # React entry point
-│       ├── version.js               # Single source of truth: VERSION = '0.10.5'
+│       ├── version.js               # Single source of truth: VERSION = '0.10.6'
 │       ├── App.jsx                  # Pure layout + routing (~220 lines)
 │       ├── hooks/
 │       │   └── useCapture.js        # All state, effects, handlers (~340 lines)

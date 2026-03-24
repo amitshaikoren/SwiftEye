@@ -3,15 +3,21 @@ SwiftEye Test Suite — minimal skeleton covering the critical path.
 
 Run: pytest backend/tests/ -v
 """
-import pytest
-import sys
+import importlib
 import os
+import sys
+
+import pytest
 
 # Add backend to path so imports work
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from parser.packet import PacketRecord
+from parser.pcap_reader import read_pcap
 from analysis import build_graph, build_sessions, compute_global_stats, filter_packets, build_time_buckets, build_mac_split_map
+from plugins import register_plugin, run_global_analysis, get_global_results, AnalysisContext, _plugins, _global_results
+from plugins.analyses.node_centrality import NodeCentralityAnalysis
+from plugins.analyses.traffic_characterisation import TrafficCharacterisationAnalysis
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
@@ -338,7 +344,6 @@ class TestSessionBoundaryPcap:
     def pcap_data(self):
         if not os.path.exists(self.PCAP_PATH):
             pytest.skip('test2.pcapng not found')
-        from parser.pcap_reader import read_pcap
         packets = read_pcap(self.PCAP_PATH)
         sessions = build_sessions(packets)
         return packets, sessions
@@ -390,7 +395,6 @@ class TestPluginLoads:
     """Verify that all insight plugins load and produce results."""
 
     def test_insight_plugins_load(self, packets, sessions):
-        from plugins import register_plugin, run_global_analysis, get_global_results, AnalysisContext, _plugins, _global_results
         # Clear any existing state
         _plugins.clear()
         _global_results.clear()
@@ -405,7 +409,6 @@ class TestPluginLoads:
         loaded = 0
         for module_path, class_name in plugin_specs:
             try:
-                import importlib
                 mod = importlib.import_module(module_path)
                 cls = getattr(mod, class_name)
                 register_plugin(cls())
@@ -426,8 +429,6 @@ class TestAnalysisPlugins:
     """Verify analysis plugins produce valid _display output."""
 
     def test_node_centrality(self, packets, sessions):
-        from plugins.analyses.node_centrality import NodeCentralityAnalysis
-        from plugins import AnalysisContext
         graph = build_graph(packets)
         ctx = AnalysisContext(packets=packets, sessions=sessions)
         ctx.nodes = graph['nodes']
@@ -438,8 +439,6 @@ class TestAnalysisPlugins:
         assert len(result['ranked']) == 3  # 3 nodes
 
     def test_traffic_characterisation(self, packets, sessions):
-        from plugins.analyses.traffic_characterisation import TrafficCharacterisationAnalysis
-        from plugins import AnalysisContext
         ctx = AnalysisContext(packets=packets, sessions=sessions)
         result = TrafficCharacterisationAnalysis().compute(ctx)
         assert '_display' in result

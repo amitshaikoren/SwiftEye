@@ -1,11 +1,11 @@
 # SwiftEye — Handoff Document
-## Version 0.10.5 | March 2026
+## Version 0.10.6 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.10.5** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.10.6** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.10.5)
+### Recent highlights (v0.10.6)
 - Zero data loss alignment: lazy protocol init (no empty fields), caps moved to serialize layer with `_total` counts
 - Session boundary detection: FIN/RST+SYN splits, timestamp gap splits (60s UDP, 120s TCP), seq jump heuristic, protocol-specific boundary checkers
 - DHCP transaction ID splitting via pluggable `check_boundary()` contract
@@ -571,6 +571,7 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Document `AnalysisContext` (`ctx`) in DEVELOPERS.md** — add a dedicated subsection under the plugins section explaining what `ctx` is, its fields (`packets`, `sessions`, `nodes`, `edges`, `time_range`, `target_node_id`, `target_edge_id`, `target_session_id`), where it's constructed (in `server.py` before plugin calls), and how plugins use it. Currently `ctx` appears in code examples but is never formally explained.
 - [ ] **Session detail readability overhaul** — the SessionDetail panel has poor visual hierarchy. Labels, values, and section headers blend together with inconsistent font sizes. Hard to visually separate sections (HTTP, TLS, Advanced, etc.) and distinguish field names from values. Applies to both pcap and Zeek sessions. Needs: clearer section dividers, consistent typography, better label/value contrast, breathing room between fields.
 - [ ] **Subnet node visual redesign** — change how subnet entity nodes look visually on the graph. Current rendering doesn't clearly distinguish subnets from regular nodes.
+- [ ] **In-function imports full audit** — the v0.10.1 cleanup covered 8 backend files, but test files and any new code may still have imports inside function bodies. Do a full codebase audit (`grep -rn "^\s*import \|^\s*from .* import" --include="*.py"` inside function defs) and move all to top level. Exceptions: dpkt (optional dep), reportlab (optional), scapy layer try/except.
 - [ ] **Variable naming cleanup** — many core variables use terse single-letter names that obscure intent. `s` for a session dict, `e` for an edge, `n` for a node, `d` for direction, `ex` for `pkt.extra`, `c` for the capture hook object. These are fine locally but become unreadable when passed across function boundaries or used 200 lines from their declaration. Rename to descriptive names (`session`, `edge`, `node`, `direction`, `extra`, `capture`) in key files: `sessions.py`, `aggregator.py`, `server.py`, `useCapture.js`, `SessionDetail.jsx`, `App.jsx`. Low priority — no functional impact, purely readability. Do incrementally per-file to keep diffs reviewable.
 - [ ] **Neo4j graph backend** — secondary graph store for advanced traversal queries (path finding, community detection). Not a primary event store. *Prerequisites:* SQLite backend (ETL Phase 2). Status: long-term.
 

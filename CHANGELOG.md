@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.10.6 — March 2026
+- **Test suite import cleanup** — moved all in-function imports to top level in `test_core.py`. Added roadmap item for full codebase audit of remaining in-function imports.
+
 ### v0.10.5 — March 2026
 - **Zero data loss alignment** — all 21 `CAP_*` constants removed from protocol field accumulators and `sessions.py`. Data now accumulates unbounded during session building; a shared `cap_list()` applies a generous `SERIALIZE_CAP = 500` at serialization time with `_total` companion keys for frontend "X of Y" display. Dissector-level caps removed from `dissect_dns.py`. Lazy protocol init replaces `all_init()` — protocol fields only appear on sessions that actually contain that protocol's traffic. Uses try/except KeyError pattern in `all_accumulate()`.
 - **Session boundary detection** — `build_sessions()` now splits flows that reuse the same 5-tuple into separate sessions using three generic transport signals plus protocol-specific boundary checkers: (1) TCP FIN/RST close + SYN reopen, (2) timestamp gap >60s for UDP / >120s for TCP, (3) TCP seq jump >1M + time gap >5s, (4) protocol-specific `check_boundary()` from protocol_fields modules (OR logic — any signal triggers a split). Split sessions get suffixed IDs (`…#1`, `…#2`). Conservative thresholds — false non-splits preferred over false splits.
