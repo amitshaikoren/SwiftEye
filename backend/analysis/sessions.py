@@ -38,6 +38,8 @@ UDP_GAP_THRESHOLD = 60.0         # seconds before a UDP flow is considered stale
 TCP_GAP_THRESHOLD = 120.0        # seconds — TCP can have long keepalives
 SEQ_JUMP_THRESHOLD = 1_000_000   # seq delta that suggests a new connection (not retransmit)
 SEQ_JUMP_GAP = 5.0               # seconds — seq jump alone isn't enough, needs a time gap too
+CLOSE_GRACE_PERIOD = 5.0         # seconds after FIN/RST before a SYN can trigger a split
+                                 # allows teardown to complete (FIN-ACK, retransmits, in-flight data)
 
 
 def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
@@ -53,10 +55,12 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
     """
     split = False
 
-    # ── Signal 1: TCP FIN/RST close → SYN reopen ──
-    if is_tcp and flow_state["closed"] and pkt.tcp_flags_list:
+    # ── Signal 1: TCP FIN/RST close → grace period → SYN reopen ──
+    closed_at = flow_state["closed_at"]
+    if is_tcp and closed_at > 0 and pkt.tcp_flags_list:
         if "SYN" in pkt.tcp_flags_list and "ACK" not in pkt.tcp_flags_list:
-            split = True
+            if pkt.timestamp - closed_at > CLOSE_GRACE_PERIOD:
+                split = True
 
     # ── Signal 2: timestamp gap ──
     last_ts = flow_state["last_ts"]
@@ -83,13 +87,16 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
     flow_state["last_ts"] = pkt.timestamp
     if is_tcp and pkt.tcp_flags_list:
         if "FIN" in pkt.tcp_flags_list or "RST" in pkt.tcp_flags_list:
-            flow_state["closed"] = True
+            # Record when the close happened (only first FIN/RST — don't overwrite
+            # with the other side's FIN-ACK, which would extend the grace window)
+            if flow_state["closed_at"] == 0:
+                flow_state["closed_at"] = pkt.timestamp
     if is_tcp and pkt.seq_num > 0:
         flow_state["last_seq"] = pkt.seq_num
 
     if split:
         # Reset state for the new generation
-        flow_state["closed"] = False
+        flow_state["closed_at"] = 0
         flow_state["last_seq"] = 0
 
     return split
@@ -121,7 +128,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         # ── Boundary detection ──
         if base_key not in flow_generation:
             flow_generation[base_key] = 0
-            flow_state[base_key] = {"closed": False, "last_ts": 0, "last_seq": 0}
+            flow_state[base_key] = {"closed_at": 0, "last_ts": 0, "last_seq": 0}
             # Seed flow state from the first packet (result always False, discarded)
             _check_boundary(flow_state[base_key], pkt, is_tcp)
         elif _check_boundary(flow_state[base_key], pkt, is_tcp):
