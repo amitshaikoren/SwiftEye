@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.11.1 — March 2026
+- **Boundary detection audit** — fixed 3 bugs: TCP sequence wraparound false splits (now wraparound-safe), `last_resp_isn` leaking across session generations, `elif` chain preventing grace period fallback after SYN-ACK ISN check. Removed incorrect `seq_num > 0` guards (TCP seq 0 is valid). Cached TCP flags as frozenset for efficiency.
+- **Session boundary documentation** — full developer-facing docs in DEVELOPERS.md covering all four boundary checks, flow state lifecycle, generation tracking, and how to add new protocol boundary checkers. Written for clarity without assumed project jargon.
+
 ### v0.10.6 — March 2026
 - **Test suite import cleanup** — moved all in-function imports to top level in `test_core.py`. Added roadmap item for full codebase audit of remaining in-function imports.
 

@@ -1,11 +1,11 @@
 # SwiftEye — Handoff Document
-## Version 0.10.6 | March 2026
+## Version 0.11.1 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.10.6** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.11.1** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.10.6)
+### Recent highlights (v0.11.1)
 - Zero data loss alignment: lazy protocol init (no empty fields), caps moved to serialize layer with `_total` counts
 - Session boundary detection: FIN/RST+SYN splits, timestamp gap splits (60s UDP, 120s TCP), seq jump heuristic, protocol-specific boundary checkers
 - DHCP transaction ID splitting via pluggable `check_boundary()` contract
