@@ -1,15 +1,15 @@
 # SwiftEye — Handoff Document
-## Version 0.11.1 | March 2026
+## Version 0.11.2 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.11.1** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.11.2** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.11.1)
-- Zero data loss alignment: lazy protocol init (no empty fields), caps moved to serialize layer with `_total` counts
+### Recent highlights (v0.11.2)
+- Session detail readability overhaul: metric summary cards, card-wrapped collapses, accent layer headers, stronger label/value contrast, directional traffic cards, seq/ack cell grid
 - Session boundary detection: FIN/RST+SYN splits, timestamp gap splits (60s UDP, 120s TCP), seq jump heuristic, protocol-specific boundary checkers
+- Boundary detection audit: 3 bug fixes (seq wraparound, ISN leak, elif chain), documentation rewrite
 - DHCP transaction ID splitting via pluggable `check_boundary()` contract
-- Dissector-level caps removed (DNS answer/authority/additional sections no longer truncated)
 
 ### Previous highlights (v0.10.3)
 - Zeek multi-log enrichment (dns.log, http.log, ssl.log) with 5-tuple session joining
@@ -557,6 +557,7 @@ All v0.8.x bug details preserved in §4a.
   DCE/RPC: EPM on port 135, interface UUIDs, service names (see roadmap — needs connection tracker).
 - [ ] **Aggregator/entity-resolution plugin tier** — pre-aggregation plugins that return an IP→canonical map; `build_graph` applies it. Design agreed, not scheduled.
 - [x] **Expand OUI vendor table** (v0.9.81) — expanded from ~688 to ~1050 entries, focused on Microsoft ecosystem (Intel, Realtek, Dell, HP, Lenovo, ASUS, Acer, MSI, Gigabyte), network infrastructure (Cisco, Juniper, Aruba, Ubiquiti, Palo Alto, Fortinet, MikroTik, Huawei, TP-Link, Netgear), VMs (VMware, VirtualBox, QEMU/KVM, Xen, Hyper-V), and printers (HP Printer, Canon, Epson, Brother, Lexmark, Xerox, Ricoh, Konica Minolta).
+- [ ] **Alerts panel** — dedicated panel for security-relevant alerts and findings. Details TBD.
 - [ ] **Interactive research dashboard** — Plotly charts with cross-filtering across sessions/nodes
 - [ ] **File extraction** — reconstruct files from HTTP/FTP/SMB streams (FTP dissector already surfaces filenames/credentials)
 - [ ] **Multi-capture comparison** — side-by-side or overlay view of two captures
@@ -569,7 +570,7 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Multi-source search compatibility** — ensure all log sources (Zeek, and future sources) are searchable through both the Wireshark-style BPF display filter and the generic keyword search. Currently these are optimized for pcap fields. Zeek sessions should be searchable by UID, conn_state, service, and other Zeek-specific fields. Transitively, every new log source adapter should declare its searchable fields so the filter system picks them up automatically.
 - [ ] **Variable reference headers in source files** — add a comment block at the top of key files documenting the most-used variables: what they are, how they're initialized, and where they come from. Reduces the need to trace variable origins across hundreds of lines. Priority files: `sessions.py` (`s` = session dict, `ex` = `pkt.extra`, `d` = direction prefix), `aggregator.py`, `server.py` (`store`), `useCapture.js` (`c`), `SessionDetail.jsx` (`s`), plugin files (`ctx`). Format: short table or comment block immediately after imports.
 - [ ] **Document `AnalysisContext` (`ctx`) in DEVELOPERS.md** — add a dedicated subsection under the plugins section explaining what `ctx` is, its fields (`packets`, `sessions`, `nodes`, `edges`, `time_range`, `target_node_id`, `target_edge_id`, `target_session_id`), where it's constructed (in `server.py` before plugin calls), and how plugins use it. Currently `ctx` appears in code examples but is never formally explained.
-- [ ] **Session detail readability overhaul** — the SessionDetail panel has poor visual hierarchy. Labels, values, and section headers blend together with inconsistent font sizes. Hard to visually separate sections (HTTP, TLS, Advanced, etc.) and distinguish field names from values. Applies to both pcap and Zeek sessions. Needs: clearer section dividers, consistent typography, better label/value contrast, breathing room between fields.
+- [x] **Session detail readability overhaul** (v0.11.2) — summary metric cards for top 3 stats, card backgrounds on collapse bodies, accent-colored layer headers with 2px border, dimmer labels / brighter values with font-weight 500, directional traffic as colored cards (green →, blue ←), seq/ack labeled cell grid, increased spacing and chevron size.
 - [ ] **Subnet node visual redesign** — change how subnet entity nodes look visually on the graph. Current rendering doesn't clearly distinguish subnets from regular nodes.
 - [ ] **Full coding best practices audit** — comprehensive codebase audit covering: consistent error handling patterns, proper use of type hints, docstring completeness, dead code removal, consistent naming conventions, proper separation of concerns, test coverage gaps, hardcoded values, logging consistency, and any anti-patterns. Covers both backend and frontend. Do incrementally per-file/module.
 - [ ] **Parquet ingestion** — ingest `.parquet` files as a data source alongside pcap and Zeek logs. Parquet is common in large-scale log pipelines (Splunk exports, AWS VPC flow logs, Databricks). Needs: column-to-PacketRecord mapping config, auto-detection of common schemas, chunked reading for large files. Should integrate with the existing multi-source architecture.

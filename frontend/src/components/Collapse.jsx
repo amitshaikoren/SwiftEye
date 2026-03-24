@@ -6,7 +6,7 @@ import React, { useState, useEffect, useContext, createContext } from 'react';
 // Titles NOT in the map fall back to the component's `open` prop default.
 export const CollapseContext = createContext(null);
 
-export default function Collapse({ title, children, open: defaultOpen = false, level }) {
+export default function Collapse({ title, children, open: defaultOpen = false, level, card = true }) {
   const ctx = useContext(CollapseContext);
   // If context has an explicit entry for this title, use it; otherwise use defaultOpen
   const externalOpen = ctx ? (ctx.state.has(title) ? ctx.state.get(title) : defaultOpen) : undefined;
@@ -30,11 +30,12 @@ export default function Collapse({ title, children, open: defaultOpen = false, l
           fontSize: isLayer ? 11 : 10,
           fontWeight: 600,
           textTransform: 'uppercase',
-          letterSpacing: isLayer ? '.08em' : '.1em',
-          color: isLayer ? 'var(--tx)' : 'var(--txM)',
+          letterSpacing: isLayer ? '.1em' : '.1em',
+          color: isLayer ? 'var(--ac)' : 'var(--txM)',
           marginBottom: isOpen ? 6 : 0,
+          padding: isLayer ? undefined : '8px 0 6px',
           cursor: 'pointer',
-          ...(isLayer ? { marginTop: 14, paddingBottom: 4, borderBottom: '1px solid var(--bd)' } : {}),
+          ...(isLayer ? { marginTop: 20, paddingBottom: 6, borderBottom: '2px solid var(--bgH)', fontFamily: 'var(--fd)' } : {}),
         }}
       >
         <span
@@ -42,14 +43,19 @@ export default function Collapse({ title, children, open: defaultOpen = false, l
             display: 'inline-block',
             transform: isOpen ? 'rotate(90deg)' : 'rotate(0)',
             transition: 'transform .15s',
-            fontSize: 8,
+            fontSize: 9,
+            color: 'var(--txD)',
           }}
         >
           ▶
         </span>{' '}
         {title}
       </div>
-      {isOpen && <div className="fi">{children}</div>}
+      {isOpen && (
+        <div className={'fi' + (card && !isLayer ? ' cb' : '')}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }

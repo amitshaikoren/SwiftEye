@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.11.2 — March 2026
+- **Session detail readability overhaul** — improved visual hierarchy in SessionDetail panel. Top metrics (packets, bytes, duration) displayed as summary cards. Collapse sections wrapped in card backgrounds for visual grouping. Layer headers (L3/L4/L5+) use accent color with thicker border. Row labels dimmer, values brighter with font-weight 500 for stronger contrast. Directional traffic as colored direction cards (green →, blue ←). Seq/Ack numbers in labeled cell grid instead of flat text. More breathing room between sections. Chevron size increased. Notes textarea contrast fixed against card body.
+
 ### v0.11.1 — March 2026
 - **Boundary detection audit** — fixed 3 bugs: TCP sequence wraparound false splits (now wraparound-safe), `last_resp_isn` leaking across session generations, `elif` chain preventing grace period fallback after SYN-ACK ISN check. Removed incorrect `seq_num > 0` guards (TCP seq 0 is valid). Cached TCP flags as frozenset for efficiency.
 - **Session boundary documentation** — full developer-facing docs in DEVELOPERS.md covering all four boundary checks, flow state lifecycle, generation tracking, and how to add new protocol boundary checkers. Written for clarity without assumed project jargon.

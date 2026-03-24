@@ -371,19 +371,82 @@ input[type=range]::-webkit-slider-thumb {
 .rw {
   display: flex;
   justify-content: space-between;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--bd);
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--bgH);
   font-size: 11px;
 }
-.rl { color: var(--txM); }
-.rv { color: var(--tx); text-align: right; max-width: 65%; word-break: break-all; }
+.rw:last-child { border-bottom: none; }
+.rl { color: var(--txD); font-size: 10px; white-space: nowrap; padding-right: 12px; }
+.rv { color: var(--tx); text-align: right; max-width: 65%; word-break: break-all; font-weight: 500; }
 
 /* Collapse toggle */
 .ch {
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   user-select: none;
 }
 .ch:hover { color: var(--ac); }
+
+/* Collapse card body — wraps content in opened collapses */
+.cb {
+  padding: 8px 10px;
+  background: var(--bgC);
+  border: 1px solid var(--bgH);
+  border-radius: 6px;
+}
+
+/* Session detail: metric summary cards */
+.sd-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sd-metric {
+  background: var(--bgC);
+  border: 1px solid var(--bgH);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+}
+.sd-metric-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tx);
+  font-family: var(--fd);
+  margin-bottom: 2px;
+}
+.sd-metric-lbl {
+  font-size: 9px;
+  color: var(--txD);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+/* Session detail: directional traffic rows */
+.sd-dir {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  background: var(--bgC);
+  border: 1px solid var(--bgH);
+}
+.sd-dir-lbl { font-size: 10px; color: var(--txD); }
+.sd-dir-val { font-size: 11px; font-weight: 500; color: var(--tx); }
+
+/* Session detail: seq/ack cell grid */
+.sd-seq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sd-seq-cell {
+  background: var(--bg);
+  border: 1px solid var(--bgH);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.sd-seq-lbl { font-size: 9px; color: var(--txD); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+.sd-seq-val { font-size: 11px; font-family: var(--fn); color: var(--tx); font-weight: 500; }

@@ -76,7 +76,7 @@ logging.getLogger("uvicorn.error").addHandler(_rfh)
 app = FastAPI(
     title="SwiftEye",
     description="Network Traffic Visualization Platform",
-    version="0.11.1",
+    version="0.11.2",
 )
 
 app.add_middleware(

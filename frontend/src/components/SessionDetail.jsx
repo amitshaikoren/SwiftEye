@@ -242,17 +242,35 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
       {tab === 'overview' && (
         <div>
           {/* ═══════════════ GENERAL ═══════════════ */}
-          <Row l="Packets" v={fN(s.packet_count)} />
-          <Row l="Total bytes" v={fB(s.total_bytes)} />
-          <Row l="Duration" v={fD(s.duration)} />
+          <div className="sd-metrics">
+            <div className="sd-metric"><div className="sd-metric-val">{fN(s.packet_count)}</div><div className="sd-metric-lbl">Packets</div></div>
+            <div className="sd-metric"><div className="sd-metric-val">{fB(s.total_bytes)}</div><div className="sd-metric-lbl">Total bytes</div></div>
+            <div className="sd-metric"><div className="sd-metric-val">{fD(s.duration)}</div><div className="sd-metric-lbl">Duration</div></div>
+          </div>
           {s.initiator_ip && <Row l="Initiator" v={s.initiator_ip + ':' + s.initiator_port} />}
           {s.responder_ip && <Row l="Responder" v={s.responder_ip + ':' + s.responder_port} />}
 
-          <Collapse title="Directional Traffic">
-            <Row l="→ Initiator sent" v={fN(s.fwd_packets) + ' pkts / ' + fB(s.fwd_bytes)} />
-            {s.fwd_payload_bytes > 0 && <Row l="  payload" v={fB(s.fwd_payload_bytes)} />}
-            <Row l="← Responder sent" v={fN(s.rev_packets) + ' pkts / ' + fB(s.rev_bytes)} />
-            {s.rev_payload_bytes > 0 && <Row l="  payload" v={fB(s.rev_payload_bytes)} />}
+          <Collapse title="Directional Traffic" card={false}>
+            <div className="sd-dir">
+              <div className="sd-dir-lbl"><span style={{ color: 'var(--acG)' }}>→</span> Initiator sent</div>
+              <div className="sd-dir-val">{fN(s.fwd_packets)} pkts <span style={{ color: 'var(--txD)', fontWeight: 400 }}>/</span> {fB(s.fwd_bytes)}</div>
+            </div>
+            {s.fwd_payload_bytes > 0 && (
+              <div className="sd-dir" style={{ paddingLeft: 20 }}>
+                <div className="sd-dir-lbl">payload</div>
+                <div className="sd-dir-val">{fB(s.fwd_payload_bytes)}</div>
+              </div>
+            )}
+            <div className="sd-dir">
+              <div className="sd-dir-lbl"><span style={{ color: 'var(--ac)' }}>←</span> Responder sent</div>
+              <div className="sd-dir-val">{fN(s.rev_packets)} pkts <span style={{ color: 'var(--txD)', fontWeight: 400 }}>/</span> {fB(s.rev_bytes)}</div>
+            </div>
+            {s.rev_payload_bytes > 0 && (
+              <div className="sd-dir" style={{ paddingLeft: 20 }}>
+                <div className="sd-dir-lbl">payload</div>
+                <div className="sd-dir-val">{fB(s.rev_payload_bytes)}</div>
+              </div>
+            )}
           </Collapse>
 
           {/* ═══════════════ NETWORK (L3) ═══════════════ */}
@@ -368,8 +386,8 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
                     {Object.entries(s.flag_counts || {}).filter(([, v]) => v > 0).map(([f, c]) => (
                       <div key={f} style={{
-                        background: 'var(--bgC)', border: '1px solid var(--bd)',
-                        borderRadius: 'var(--rs)', padding: '5px 8px',
+                        background: 'var(--bg)', border: '1px solid var(--bgH)',
+                        borderRadius: 6, padding: '6px 10px',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       }}>
                         <FlagBadge f={f} />
@@ -382,14 +400,14 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
 
               {s.seq_first > 0 && (
                 <Collapse title="Seq / Ack">
-                  <div style={{ fontSize: 9, color: 'var(--txD)', marginBottom: 4 }}>Use CHARTS tab for visual view</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                    {s.seq_isn_init > 0 && <><div style={{ fontSize: 9, color: 'var(--txD)' }}>ISN initiator</div><div style={{ fontSize: 10, fontFamily: 'var(--fn)' }}>{fN(s.seq_isn_init)}</div></>}
-                    {s.seq_isn_resp > 0 && <><div style={{ fontSize: 9, color: 'var(--txD)' }}>ISN responder</div><div style={{ fontSize: 10, fontFamily: 'var(--fn)' }}>{fN(s.seq_isn_resp)}</div></>}
-                    <div style={{ fontSize: 9, color: 'var(--txD)' }}>First seq</div><div style={{ fontSize: 10, fontFamily: 'var(--fn)' }}>{fN(s.seq_first)}</div>
-                    <div style={{ fontSize: 9, color: 'var(--txD)' }}>Last seq</div><div style={{ fontSize: 10, fontFamily: 'var(--fn)' }}>{fN(s.seq_last)}</div>
-                    <div style={{ fontSize: 9, color: 'var(--txD)' }}>First ack</div><div style={{ fontSize: 10, fontFamily: 'var(--fn)' }}>{fN(s.ack_first)}</div>
-                    <div style={{ fontSize: 9, color: 'var(--txD)' }}>Last ack</div><div style={{ fontSize: 10, fontFamily: 'var(--fn)' }}>{fN(s.ack_last)}</div>
+                  <div style={{ fontSize: 9, color: 'var(--txD)', marginBottom: 6 }}>Use CHARTS tab for visual view</div>
+                  <div className="sd-seq-grid">
+                    {s.seq_isn_init > 0 && <div className="sd-seq-cell"><div className="sd-seq-lbl">ISN initiator</div><div className="sd-seq-val">{fN(s.seq_isn_init)}</div></div>}
+                    {s.seq_isn_resp > 0 && <div className="sd-seq-cell"><div className="sd-seq-lbl">ISN responder</div><div className="sd-seq-val">{fN(s.seq_isn_resp)}</div></div>}
+                    <div className="sd-seq-cell"><div className="sd-seq-lbl">First seq</div><div className="sd-seq-val">{fN(s.seq_first)}</div></div>
+                    <div className="sd-seq-cell"><div className="sd-seq-lbl">Last seq</div><div className="sd-seq-val">{fN(s.seq_last)}</div></div>
+                    <div className="sd-seq-cell"><div className="sd-seq-lbl">First ack</div><div className="sd-seq-val">{fN(s.ack_first)}</div></div>
+                    <div className="sd-seq-cell"><div className="sd-seq-lbl">Last ack</div><div className="sd-seq-val">{fN(s.ack_last)}</div></div>
                   </div>
                 </Collapse>
               )}
@@ -626,7 +644,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
           rows={3}
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: 'var(--bgC)', border: '1px solid var(--bd)', borderRadius: 4,
+            background: 'var(--bg)', border: '1px solid var(--bgH)', borderRadius: 4,
             padding: '6px 8px', fontSize: 10, color: 'var(--txM)',
             fontFamily: 'inherit', resize: 'vertical', outline: 'none',
             lineHeight: 1.5,
