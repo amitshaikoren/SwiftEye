@@ -42,15 +42,6 @@ def _make_pkt(src_ip, dst_ip, src_port, dst_port, protocol, transport,
         tcp_options=[],
         extra={},
         payload_preview=b'',
-        session_key='',
-        dscp=0,
-        ecn=0,
-        ip_id=0,
-        ip_flags=0,
-        frag_offset=0,
-        ip_checksum=0,
-        ip6_flow_label=0,
-        tcp_checksum=0,
     )
 
 
@@ -225,6 +216,172 @@ class TestSessionTimeScoping:
         protos = {s['protocol'] for s in scoped_sessions}
         assert 'SSH' not in protos
         assert 'HTTPS' in protos or 'DNS' in protos
+
+
+# ── Session boundary detection tests ───────────────────────────────────────
+
+class TestSessionBoundary:
+    """Tests for session boundary detection (FIN/RST+SYN, grace period, seq jump, protocol timeouts)."""
+
+    def test_fin_syn_splits(self):
+        """FIN then SYN on same 5-tuple should create two sessions."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 1.0,
+                       tcp_flags_list=['SYN']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 2.0,
+                       tcp_flags_list=['FIN', 'ACK']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 2.5,
+                       tcp_flags_list=['SYN']),
+        ]
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 2
+
+    def test_fin_teardown_stays_together(self):
+        """FIN → FIN-ACK → ACK within grace period should be one session."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 1.0,
+                       tcp_flags_list=['SYN']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 2.0,
+                       tcp_flags_list=['FIN', 'ACK']),
+            _make_pkt('10.0.0.2', '10.0.0.1', 80, 12345, 'HTTP', 'TCP', 2.5,
+                       tcp_flags_list=['FIN', 'ACK']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 2.6,
+                       tcp_flags_list=['ACK']),
+        ]
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 1
+
+    def test_grace_period_blocks_early_split(self):
+        """Non-SYN packet within 5s of RST should stay in same session."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 1.0,
+                       tcp_flags_list=['SYN']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 2.0,
+                       tcp_flags_list=['RST']),
+            _make_pkt('10.0.0.2', '10.0.0.1', 80, 12345, 'HTTP', 'TCP', 4.0,
+                       tcp_flags_list=['ACK']),
+        ]
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 1
+
+    def test_grace_period_expires_splits(self):
+        """Any packet after grace period (5s) past FIN should split."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 1.0,
+                       tcp_flags_list=['SYN']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 2.0,
+                       tcp_flags_list=['FIN', 'ACK']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 12.0,
+                       tcp_flags_list=['ACK']),
+        ]
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 2
+
+    def test_udp_gap_splits(self):
+        """UDP packets 90s apart should split (generic 60s threshold)."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 5000, 161, 'SNMP', 'UDP', 100.0),
+            _make_pkt('10.0.0.1', '10.0.0.2', 5000, 161, 'SNMP', 'UDP', 190.0),
+        ]
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 2
+
+    def test_udp_small_gap_stays(self):
+        """UDP packets 30s apart should stay together."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 5000, 161, 'SNMP', 'UDP', 100.0),
+            _make_pkt('10.0.0.1', '10.0.0.2', 5000, 161, 'SNMP', 'UDP', 130.0),
+        ]
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 1
+
+    def test_dns_inactivity_timeout(self):
+        """DNS queries >10s apart should split (Zeek-style timeout)."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 5000, 53, 'DNS', 'UDP', 100.0),
+            _make_pkt('10.0.0.1', '10.0.0.2', 5000, 53, 'DNS', 'UDP', 115.0),
+        ]
+        pkts[0].extra = {'dns_query': 'a.com', 'dns_qr': 'query'}
+        pkts[1].extra = {'dns_query': 'b.com', 'dns_qr': 'query'}
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 2
+
+    def test_dhcp_xid_splits(self):
+        """Different DHCP transaction IDs on same 5-tuple should split."""
+        pkts = [
+            _make_pkt('0.0.0.0', '255.255.255.255', 68, 67, 'DHCP', 'UDP', 1.0),
+            _make_pkt('0.0.0.0', '255.255.255.255', 68, 67, 'DHCP', 'UDP', 1.2),
+        ]
+        pkts[0].extra = {'dhcp_xid': 1000, 'dhcp_msg_type': 'DISCOVER'}
+        pkts[1].extra = {'dhcp_xid': 2000, 'dhcp_msg_type': 'DISCOVER'}
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 2
+
+    def test_dhcp_same_xid_stays(self):
+        """Same DHCP transaction ID should stay together."""
+        pkts = [
+            _make_pkt('0.0.0.0', '255.255.255.255', 68, 67, 'DHCP', 'UDP', 1.0),
+            _make_pkt('0.0.0.0', '255.255.255.255', 68, 67, 'DHCP', 'UDP', 1.5),
+        ]
+        pkts[0].extra = {'dhcp_xid': 1000, 'dhcp_msg_type': 'DISCOVER'}
+        pkts[1].extra = {'dhcp_xid': 1000, 'dhcp_msg_type': 'REQUEST'}
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 1
+
+
+class TestSessionBoundaryPcap:
+    """Boundary detection tests against real traffic (tests/test2.pcapng)."""
+
+    PCAP_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'tests', 'test2.pcapng')
+
+    @pytest.fixture
+    def pcap_data(self):
+        if not os.path.exists(self.PCAP_PATH):
+            pytest.skip('test2.pcapng not found')
+        from parser.pcap_reader import read_pcap
+        packets = read_pcap(self.PCAP_PATH)
+        sessions = build_sessions(packets)
+        return packets, sessions
+
+    def test_pcap_parses(self, pcap_data):
+        packets, _ = pcap_data
+        assert len(packets) > 1000
+
+    def test_sessions_built(self, pcap_data):
+        _, sessions = pcap_data
+        assert len(sessions) > 50
+
+    def test_all_packets_assigned(self, pcap_data):
+        """Every packet with src+dst IP should end up in a session."""
+        packets, sessions = pcap_data
+        total_in_sessions = sum(s['packet_count'] for s in sessions)
+        ip_packets = [p for p in packets if p.src_ip and p.dst_ip]
+        assert total_in_sessions == len(ip_packets)
+
+    def test_boundary_detection_fires(self, pcap_data):
+        """Real traffic should have some split sessions."""
+        _, sessions = pcap_data
+        split = [s for s in sessions if '#' in s['id']]
+        assert len(split) > 0, 'Expected boundary detection to fire on real traffic'
+
+    def test_split_sessions_have_packets(self, pcap_data):
+        """Every split session should have at least 1 packet."""
+        _, sessions = pcap_data
+        split = [s for s in sessions if '#' in s['id']]
+        for s in split:
+            assert s['packet_count'] > 0
+
+    def test_no_empty_sessions(self, pcap_data):
+        """No session should have 0 packets."""
+        _, sessions = pcap_data
+        for s in sessions:
+            assert s['packet_count'] > 0, f'Empty session: {s["id"]}'
+
+    def test_session_times_valid(self, pcap_data):
+        """end_time >= start_time for every session."""
+        _, sessions = pcap_data
+        for s in sessions:
+            assert s['end_time'] >= s['start_time'], f'Invalid times: {s["id"]}'
 
 
 # ── Plugin tests ────────────────────────────────────────────────────────────
