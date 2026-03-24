@@ -8,10 +8,13 @@ handled by auto-discovered modules in analysis/protocol_fields/.
 
 Session boundary detection splits flows that reuse the same 5-tuple
 (src/dst IP + ports + transport) into separate sessions using three
-heuristic signals:
+generic transport signals plus optional protocol-specific signals:
   1. TCP FIN/RST close followed by SYN reopen
   2. Large timestamp gap (60s UDP, 120s TCP)
   3. TCP sequence number jump + moderate time gap (catches lost FIN/RST)
+  4. Protocol-specific: any check_boundary() from protocol_fields/ modules
+     (e.g. DHCP transaction ID change)
+OR logic — any signal that fires triggers a split.
 False non-splits are preferred over false splits — when in doubt, keep
 packets in the same session.
 
@@ -25,7 +28,7 @@ from typing import List, Dict, Any
 from collections import defaultdict
 
 from parser.packet import PacketRecord
-from analysis.protocol_fields import all_accumulate, all_serialize
+from analysis.protocol_fields import all_accumulate, all_serialize, any_boundary
 
 logger = logging.getLogger("swifteye.sessions")
 
@@ -40,6 +43,10 @@ SEQ_JUMP_GAP = 5.0               # seconds — seq jump alone isn't enough, need
 def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
     """
     Decide whether *pkt* starts a new session on an existing 5-tuple.
+
+    Checks generic transport signals first, then protocol-specific boundary
+    checkers (auto-discovered from protocol_fields/ modules). OR logic —
+    any signal returning True triggers a split.
 
     Returns True if a boundary is detected (caller should bump generation).
     Mutates flow_state to track close/timestamp/seq for future checks.
@@ -67,6 +74,10 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
             gap = pkt.timestamp - last_ts if last_ts > 0 else 0
             if delta > SEQ_JUMP_THRESHOLD and gap > SEQ_JUMP_GAP:
                 split = True
+
+    # ── Signal 4: protocol-specific boundary checkers ──
+    if not split and pkt.extra:
+        split = any_boundary(flow_state, pkt.extra)
 
     # ── Update flow state ──
     flow_state["last_ts"] = pkt.timestamp
@@ -111,6 +122,8 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         if base_key not in flow_generation:
             flow_generation[base_key] = 0
             flow_state[base_key] = {"closed": False, "last_ts": 0, "last_seq": 0}
+            # Seed flow state from the first packet (result always False, discarded)
+            _check_boundary(flow_state[base_key], pkt, is_tcp)
         elif _check_boundary(flow_state[base_key], pkt, is_tcp):
             flow_generation[base_key] += 1
 

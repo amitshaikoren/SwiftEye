@@ -73,7 +73,8 @@ def _extract(payload: bytes) -> Dict[str, Any]:
 
         # Fixed fields
         # op=1 client→server, op=2 server→client
-        # ciaddr=12, yiaddr=16, siaddr=20, giaddr=24, chaddr=28
+        # xid=4..8, ciaddr=12, yiaddr=16, siaddr=20, giaddr=24, chaddr=28
+        info["dhcp_xid"] = struct.unpack("!I", payload[4:8])[0]
         ciaddr = payload[12:16]
         yiaddr = payload[16:20]
         siaddr = payload[20:24]

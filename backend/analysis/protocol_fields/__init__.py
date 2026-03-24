@@ -1,10 +1,11 @@
 """
 Auto-discovery registry for protocol field handlers.
 
-Each module in this package defines three functions:
+Each module in this package defines three required functions and one optional:
     init()                              → dict of initial session fields for this protocol
     accumulate(s, ex, is_fwd, source_type) → mutate session dict from one packet's extra
     serialize(s)                        → convert working fields (sets, etc.) to JSON-safe output
+    check_boundary(flow_state, ex)      → (optional) return True to split session on this packet
 
 Modules are auto-discovered on import. Drop a new file here and it just works —
 no changes to sessions.py needed.
@@ -62,6 +63,10 @@ def cap_list(s: dict, key: str, limit: int = SERIALIZE_CAP):
 # Each entry: (init_fn, accumulate_fn, serialize_fn)
 _REGISTRY: List[Tuple[Callable, Callable, Callable]] = []
 
+# Protocol-specific boundary checkers: [(check_boundary_fn, ...)]
+# Called by sessions.py to detect application-layer session boundaries.
+_BOUNDARY_CHECKERS: List[Callable] = []
+
 
 def _discover():
     """Import all sibling modules and collect their init/accumulate/serialize."""
@@ -72,6 +77,17 @@ def _discover():
         ser_fn = getattr(mod, "serialize", None)
         if init_fn and acc_fn and ser_fn:
             _REGISTRY.append((init_fn, acc_fn, ser_fn))
+        boundary_fn = getattr(mod, "check_boundary", None)
+        if boundary_fn:
+            _BOUNDARY_CHECKERS.append(boundary_fn)
+
+
+def any_boundary(flow_state: dict, ex: dict) -> bool:
+    """Run all protocol boundary checkers. Returns True if any says split."""
+    for fn in _BOUNDARY_CHECKERS:
+        if fn(flow_state, ex):
+            return True
+    return False
 
 
 def all_accumulate(s: dict, ex: dict, is_fwd: bool, source_type: str = None):

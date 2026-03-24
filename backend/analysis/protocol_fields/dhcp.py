@@ -12,6 +12,16 @@ Key variables:
 """
 
 
+def check_boundary(flow_state, ex):
+    """Split session when DHCP transaction ID changes."""
+    xid = ex.get("dhcp_xid")
+    if not xid:
+        return False
+    last = flow_state.get("last_dhcp_xid")
+    flow_state["last_dhcp_xid"] = xid
+    return last is not None and xid != last
+
+
 def init():
     """Return initial session fields for DHCP."""
     return {
