@@ -334,6 +334,47 @@ class TestSessionBoundary:
         sessions = build_sessions(pkts)
         assert len(sessions) == 1
 
+    def test_seq_wraparound_no_false_split(self):
+        """TCP seq wrapping near 2^32 should NOT cause a false split."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 1.0,
+                       tcp_flags_list=['ACK']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 8.0,
+                       tcp_flags_list=['ACK']),
+        ]
+        # Seq near the top of the 32-bit space, then wraps to near 0
+        pkts[0].seq_num = 4_294_967_290
+        pkts[1].seq_num = 5
+        sessions = build_sessions(pkts)
+        assert len(sessions) == 1, 'Seq wraparound should not trigger a split'
+
+    def test_resp_isn_reset_across_generations(self):
+        """Responder ISN from gen N should not leak into gen N+1."""
+        pkts = [
+            # Gen 0: normal connection
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 1.0,
+                       tcp_flags_list=['SYN']),
+            _make_pkt('10.0.0.2', '10.0.0.1', 80, 12345, 'HTTP', 'TCP', 1.1,
+                       tcp_flags_list=['SYN', 'ACK']),
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 2.0,
+                       tcp_flags_list=['FIN', 'ACK']),
+            # Gen 1: new SYN
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 2.5,
+                       tcp_flags_list=['SYN']),
+            # Gen 1: FIN
+            _make_pkt('10.0.0.1', '10.0.0.2', 12345, 80, 'HTTP', 'TCP', 3.0,
+                       tcp_flags_list=['FIN', 'ACK']),
+            # Gen 2 attempt: SYN-ACK with same ISN as gen 0's responder
+            # This should still split because last_resp_isn was reset
+            _make_pkt('10.0.0.2', '10.0.0.1', 80, 12345, 'HTTP', 'TCP', 10.0,
+                       tcp_flags_list=['SYN', 'ACK']),
+        ]
+        pkts[1].seq_num = 9999  # Gen 0 responder ISN
+        pkts[5].seq_num = 9999  # Same ISN — would NOT split if leaked
+        sessions = build_sessions(pkts)
+        # After grace period (10.0 - 3.0 = 7s > 5s), any packet splits
+        assert len(sessions) == 3
+
 
 class TestSessionBoundaryPcap:
     """Boundary detection tests against real traffic (tests/test2.pcapng)."""

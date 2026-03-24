@@ -42,7 +42,10 @@ CLOSE_GRACE_PERIOD = 5.0         # seconds after FIN/RST before a SYN can trigge
                                  # allows teardown to complete (FIN-ACK, retransmits, in-flight data)
 
 
-def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
+TCP_SEQ_SPACE = 2**32  # TCP sequence number wraps at 4 GiB
+
+
+def _check_boundary(flow_state: dict, pkt: PacketRecord, is_tcp: bool) -> bool:
     """
     Decide whether *pkt* starts a new session on an existing 5-tuple.
 
@@ -54,6 +57,7 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
     Mutates flow_state to track close/timestamp/seq for future checks.
     """
     split = False
+    flags = frozenset(pkt.tcp_flags_list) if pkt.tcp_flags_list else frozenset()
 
     # ── Signal 1: TCP FIN/RST close → split ──
     # After FIN/RST: pure SYN splits immediately (no ambiguity).
@@ -64,15 +68,19 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
     closed_at = flow_state["closed_at"]
     if is_tcp and closed_at > 0:
         since_close = pkt.timestamp - closed_at
-        if pkt.tcp_flags_list and "SYN" in pkt.tcp_flags_list and "ACK" not in pkt.tcp_flags_list:
+        is_syn = "SYN" in flags
+        is_ack = "ACK" in flags
+        if is_syn and not is_ack:
             split = True  # pure SYN after close — always a new connection
-        elif (pkt.tcp_flags_list and "SYN" in pkt.tcp_flags_list
-              and "ACK" in pkt.tcp_flags_list and pkt.seq_num > 0):
+        elif is_syn and is_ack and pkt.seq_num > 0:
             # SYN-ACK: split if the ISN doesn't match the previous responder ISN
             last_resp_isn = flow_state.get("last_resp_isn", 0)
             if last_resp_isn > 0 and pkt.seq_num != last_resp_isn:
                 split = True  # new ISN on SYN-ACK — missed SYN, new connection
-        elif since_close > CLOSE_GRACE_PERIOD:
+        # Grace period fallback — not elif: SYN-ACK ISN check above may enter
+        # its branch without setting split (e.g. last_resp_isn was reset).
+        # The grace period must still fire as a catch-all.
+        if not split and since_close > CLOSE_GRACE_PERIOD:
             split = True  # grace period expired — any packet starts a new session
 
     # ── Signal 2: timestamp gap ──
@@ -84,36 +92,43 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
             split = True
 
     # ── Signal 3: TCP seq jump + moderate time gap ──
+    # Uses wraparound-safe delta: min(|a-b|, 2^32-|a-b|) so legitimate
+    # sequence wraps near 2^32 aren't mistaken for jumps.
     if not split and is_tcp and pkt.seq_num > 0:
         last_seq = flow_state["last_seq"]
         if last_seq > 0:
-            delta = abs(pkt.seq_num - last_seq)
+            raw_delta = abs(pkt.seq_num - last_seq)
+            delta = min(raw_delta, TCP_SEQ_SPACE - raw_delta)
             gap = pkt.timestamp - last_ts if last_ts > 0 else 0
             if delta > SEQ_JUMP_THRESHOLD and gap > SEQ_JUMP_GAP:
                 split = True
 
     # ── Signal 4: protocol-specific boundary checkers ──
+    # Protocol checkers store their state in flow_state with protocol-prefixed
+    # keys (e.g. "last_dhcp_xid", "last_dns_ts") to avoid collision with
+    # the generic keys above ("closed_at", "last_ts", "last_seq").
     if not split and pkt.extra:
         split = any_boundary(flow_state, pkt.extra, pkt.timestamp)
 
     # ── Update flow state ──
     flow_state["last_ts"] = pkt.timestamp
-    if is_tcp and pkt.tcp_flags_list:
-        if "FIN" in pkt.tcp_flags_list or "RST" in pkt.tcp_flags_list:
+    if is_tcp:
+        if "FIN" in flags or "RST" in flags:
             # Record when the close happened (only first FIN/RST — don't overwrite
             # with the other side's FIN-ACK, which would extend the grace window)
             if flow_state["closed_at"] == 0:
                 flow_state["closed_at"] = pkt.timestamp
-    if is_tcp and pkt.seq_num > 0:
-        flow_state["last_seq"] = pkt.seq_num
-        # Track responder ISN for Wireshark-style SYN-ACK detection
-        if pkt.tcp_flags_list and "SYN" in pkt.tcp_flags_list and "ACK" in pkt.tcp_flags_list:
-            flow_state["last_resp_isn"] = pkt.seq_num
+        if pkt.seq_num > 0:
+            flow_state["last_seq"] = pkt.seq_num
+            # Track responder ISN for Wireshark-style SYN-ACK detection
+            if "SYN" in flags and "ACK" in flags:
+                flow_state["last_resp_isn"] = pkt.seq_num
 
     if split:
-        # Reset state for the new generation
+        # Reset all state for the new generation
         flow_state["closed_at"] = 0
         flow_state["last_seq"] = 0
+        flow_state["last_resp_isn"] = 0
 
     return split
 
