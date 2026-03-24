@@ -469,6 +469,99 @@ Per-session fields include:
 - DHCP: `dhcp_hostnames`, `dhcp_vendor_classes`, `dhcp_msg_types`
 - SMB: `smb_versions`, `smb_commands`, `smb_tree_paths`, `smb_filenames`
 
+### Session Boundary Detection
+
+When multiple TCP/UDP conversations reuse the same 5-tuple (src/dst IP + ports + transport), `build_sessions()` splits them into separate sessions using heuristic boundary detection. This is implemented in `_check_boundary()` in `sessions.py`.
+
+#### Design philosophy
+
+- **OR logic** — any signal firing triggers a split. Signals are checked in order; once one fires, the rest are skipped for that packet.
+- **Conservative** — false non-splits are preferred over false splits. When in doubt, packets stay in the same session. A researcher can always look closer at a large session; a false split loses context.
+- **No TCP state machine** — we don't track full TCP states (ESTABLISHED, TIME_WAIT, etc.). This is deliberate: out-of-order packets, missing data, and multi-source ingestion make a full state machine fragile and complex. Heuristic signals achieve ~95% accuracy with ~5% of the complexity.
+- **Pluggable** — protocol-specific signals live in protocol_fields/ modules, not in sessions.py.
+
+#### Per-5-tuple flow state
+
+Each unique `session_key` gets a `flow_state` dict tracking:
+
+| Key | Type | Purpose |
+|-----|------|---------|
+| `closed_at` | float | Timestamp of first FIN/RST seen (0 = not closed). Only the first FIN/RST sets this — subsequent FIN-ACKs from the other side don't extend the grace window. |
+| `last_ts` | float | Timestamp of last packet on this 5-tuple. |
+| `last_seq` | int or None | Last TCP sequence number seen (`None` = no TCP seq yet). |
+| `last_resp_isn` | int or None | ISN from the most recent SYN-ACK (`None` = not seen). Used for Wireshark-style ISN comparison. |
+
+Protocol checkers add their own prefixed keys (e.g. `last_dhcp_xid`, `last_dns_ts`) to the same dict. To avoid collision, protocol keys must be prefixed with their protocol name.
+
+On split, `closed_at` resets to 0, and `last_seq`/`last_resp_isn` reset to `None`. `last_ts` retains the split-triggering packet's timestamp (it's the first packet of the new generation).
+
+#### Signal 1: TCP close → reopen
+
+After a FIN or RST is recorded (`closed_at > 0`):
+
+| Packet type | Behavior |
+|-------------|----------|
+| Pure SYN (no ACK) | **Immediate split.** Unambiguous new connection. |
+| SYN-ACK with new ISN | **Immediate split.** Wireshark-style: the responder saw a SYN we missed — the new ISN proves it's a different connection. A retransmitted SYN-ACK (same ISN) is correctly ignored. |
+| Any packet after grace period (5s) | **Split.** The connection is done — whatever comes next belongs to a new session. This catches dropped SYNs: if the SYN was lost but subsequent data arrives, the grace period ensures it starts a new session. |
+| Any packet within grace period | **No split.** Allows teardown traffic to land (FIN-ACK, final ACKs, retransmits, in-flight data). After RST, one side killed the connection but the other may still have packets in flight — those belong to the same session. |
+
+The grace period is anchored to the **first** FIN/RST, not subsequent ones. If side A sends FIN at t=2 and side B sends FIN-ACK at t=2.5, the grace window runs from t=2.
+
+#### Signal 2: Timestamp gap
+
+If the gap between consecutive packets on the same 5-tuple exceeds a threshold, split.
+
+| Transport | Threshold | Rationale |
+|-----------|-----------|-----------|
+| TCP | 120 seconds | TCP keepalives can maintain connections for minutes. 120s avoids splitting idle-but-alive connections. |
+| UDP | 60 seconds | UDP has no keepalive mechanism. 60s balances between bursty protocols (DNS) and long-lived ones (SNMP polling). |
+
+Protocol-specific timeouts (Signal 4) override these for protocols where tighter thresholds are appropriate.
+
+#### Signal 3: TCP sequence number jump
+
+If the TCP sequence number jumps by more than 1,000,000 AND the time gap exceeds 5 seconds, split. This catches cases where a FIN/RST was lost (never recorded) but the new connection has a vastly different ISN.
+
+- **Wraparound-safe**: uses `min(abs(a-b), 2^32 - abs(a-b))` so legitimate wraps near the 32-bit boundary don't trigger false splits.
+- **Time guard**: a large seq jump alone isn't enough (could be a burst of data). The 5-second gap adds confidence that it's a different connection, not a retransmit storm.
+- **TCP seq 0 is valid**: the ISN can be 0. Flow state uses `None` (not 0) to represent "no seq seen yet."
+
+#### Signal 4: Protocol-specific boundary checkers
+
+Protocol field modules in `protocol_fields/` can optionally define:
+
+```python
+def check_boundary(flow_state: dict, ex: dict, ts: float) -> bool:
+```
+
+These are auto-discovered by the registry alongside `init/accumulate/serialize`. They store their state in the shared `flow_state` dict with protocol-prefixed keys.
+
+| Protocol | Signal | Threshold | Source |
+|----------|--------|-----------|--------|
+| DNS | Inactivity timeout | 10 seconds | Zeek default |
+| HTTP | Inactivity timeout | 30 seconds | Zeek default |
+| DHCP | Transaction ID change OR inactivity timeout | 10 seconds / xid mismatch | Zeek default + RFC |
+
+DHCP transaction ID splitting is critical for broadcast traffic: multiple clients on the same subnet share the 5-tuple `0.0.0.0:68 → 255.255.255.255:67`. Without xid splitting, all DHCP from all clients would be one session.
+
+#### Generation tracking
+
+Split sessions get suffixed IDs: `10.0.0.1|10.0.0.2|12345|80|TCP` → `…#1`, `…#2`, etc. Generation 0 has no suffix (backward compatible with pre-split session IDs).
+
+Two dicts track state per 5-tuple:
+- `flow_generation[base_key]` — current generation counter (int)
+- `flow_state[base_key]` — mutable state dict for `_check_boundary()`
+
+The first packet on each 5-tuple seeds flow state (runs `_check_boundary` but discards the result, which is always False). This ensures protocol-specific state like `last_dhcp_xid` is initialized from packet 1 so packet 2 can detect a change.
+
+#### Adding a new protocol boundary checker
+
+1. Add `check_boundary(flow_state, ex, ts)` to your protocol's module in `protocol_fields/`.
+2. Use protocol-prefixed keys in `flow_state` (e.g. `last_myproto_ts`, not `last_ts`).
+3. Return `True` to split, `False` to keep together. Only fire on packets relevant to your protocol — check for your protocol's keys in `ex` first.
+4. The registry auto-discovers it on import. No changes to `sessions.py` needed.
+
 ### `analysis/protocol_fields/` — Protocol Field Handlers
 
 Auto-discovered modules that handle protocol-specific session field init, accumulation, and serialization. Each module exports three functions:
