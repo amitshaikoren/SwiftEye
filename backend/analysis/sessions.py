@@ -55,12 +55,17 @@ def _check_boundary(flow_state: dict, pkt, is_tcp: bool) -> bool:
     """
     split = False
 
-    # ── Signal 1: TCP FIN/RST close → grace period → SYN reopen ──
+    # ── Signal 1: TCP FIN/RST close → split ──
+    # After FIN/RST: pure SYN splits immediately (no ambiguity).
+    # Any other packet splits only after the grace period expires
+    # (allows teardown ACKs, retransmits, and in-flight data to land).
     closed_at = flow_state["closed_at"]
-    if is_tcp and closed_at > 0 and pkt.tcp_flags_list:
-        if "SYN" in pkt.tcp_flags_list and "ACK" not in pkt.tcp_flags_list:
-            if pkt.timestamp - closed_at > CLOSE_GRACE_PERIOD:
-                split = True
+    if is_tcp and closed_at > 0:
+        since_close = pkt.timestamp - closed_at
+        if pkt.tcp_flags_list and "SYN" in pkt.tcp_flags_list and "ACK" not in pkt.tcp_flags_list:
+            split = True  # pure SYN after close — always a new connection
+        elif since_close > CLOSE_GRACE_PERIOD:
+            split = True  # grace period expired — any packet starts a new session
 
     # ── Signal 2: timestamp gap ──
     last_ts = flow_state["last_ts"]
