@@ -10,6 +10,7 @@ Usage:
 """
 
 import os
+import shutil
 import sys
 import time
 import uuid
@@ -418,46 +419,55 @@ async def upload_pcap(files: List[UploadFile] = File(...)):
     file_names  = []
     t0 = time.time()
 
-    for file in files:
-        if not file.filename:
-            continue
+    # Save all uploaded files into one shared temp directory so adapters can
+    # find sibling files (e.g. tshark protocol CSVs need metadata.csv nearby).
+    tmp_dir = tempfile.mkdtemp(prefix="swifteye_upload_")
+    tmp_files: list[Path] = []
 
-        content   = await file.read()
-        file_size = len(content)
-        if file_size == 0:
-            raise HTTPException(400, f"File is empty: {file.filename}")
-        if file_size > MAX_FILE_SIZE:
-            raise HTTPException(413, f"File too large: {file.filename} "
-                                     f"({file_size/1024/1024:.1f}MB, max {MAX_FILE_SIZE//1024//1024}MB)")
+    try:
+        # Phase 1: save all files to shared temp dir with original names
+        for file in files:
+            if not file.filename:
+                continue
 
-        total_size += file_size
-        file_names.append(file.filename)
+            content   = await file.read()
+            file_size = len(content)
+            if file_size == 0:
+                raise HTTPException(400, f"File is empty: {file.filename}")
+            if file_size > MAX_FILE_SIZE:
+                raise HTTPException(413, f"File too large: {file.filename} "
+                                         f"({file_size/1024/1024:.1f}MB, max {MAX_FILE_SIZE//1024//1024}MB)")
 
-        ext = Path(file.filename).suffix.lower()
-        tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
-        try:
-            tmp.write(content)
-            tmp.close()
+            total_size += file_size
+            file_names.append(file.filename)
 
-            # Detect adapter by extension + header sniffing
-            tmp_path = Path(tmp.name)
-            adapter = detect_adapter(tmp_path)
-            if not adapter:
-                raise HTTPException(400, f"Unsupported file type: {file.filename}")
+            # Use original filename so sibling lookups work (e.g. metadata.csv)
+            safe_name = Path(file.filename).name
+            tmp_path = Path(tmp_dir) / safe_name
+            tmp_path.write_bytes(content)
+            tmp_files.append(tmp_path)
 
-            logger.info(f"Parsing {file.filename} ({file_size/1024/1024:.1f}MB) with {adapter.name}...")
-            packets = adapter.parse(tmp_path)
-            logger.info(f"  {len(packets)} records from {file.filename}")
-            all_packets.extend(packets)
-        except HTTPException:
-            raise
-        except ValueError as e:
-            raise HTTPException(400, str(e))
-        except Exception as e:
-            logger.exception(f"Parse error on {file.filename}")
-            raise HTTPException(500, f"Parse error: {e}")
-        finally:
-            os.unlink(tmp.name)
+        # Phase 2: detect and parse each file
+        for tmp_path in tmp_files:
+            try:
+                adapter = detect_adapter(tmp_path)
+                if not adapter:
+                    raise HTTPException(400, f"Unsupported file type: {tmp_path.name}")
+
+                logger.info(f"Parsing {tmp_path.name} ({tmp_path.stat().st_size/1024/1024:.1f}MB) with {adapter.name}...")
+                packets = adapter.parse(tmp_path)
+                logger.info(f"  {len(packets)} records from {tmp_path.name}")
+                all_packets.extend(packets)
+            except HTTPException:
+                raise
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+            except Exception as e:
+                logger.exception(f"Parse error on {tmp_path.name}")
+                raise HTTPException(500, f"Parse error: {e}")
+    finally:
+        # Clean up temp directory and all files
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     if not all_packets:
         raise HTTPException(400, "No packets found in uploaded file(s)")
