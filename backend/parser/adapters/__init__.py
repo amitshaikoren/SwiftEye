@@ -6,10 +6,11 @@ Adapters are registered via @register_adapter and auto-detected by
 file extension and header sniffing.
 
 To add a new adapter:
-  1. Create a new file in this directory (e.g. my_adapter.py)
+  1. Create a new file in the appropriate subdirectory
+     (e.g. zeek/mylog.py for Zeek logs, or a new subdir for other sources)
   2. Subclass IngestionAdapter
   3. Decorate with @register_adapter
-  4. Import in this __init__.py
+  4. Import in the subdirectory's __init__.py
 """
 
 import logging
@@ -69,9 +70,4 @@ def detect_adapter(path: Path) -> Optional[IngestionAdapter]:
 
 # ── Import adapters so they register themselves ──────────────────────────
 from . import pcap_adapter  # noqa: E402, F401
-from . import zeek_conn     # noqa: E402, F401
-from . import zeek_dns      # noqa: E402, F401
-from . import zeek_http     # noqa: E402, F401
-from . import zeek_ssl      # noqa: E402, F401
-from . import zeek_smb      # noqa: E402, F401
-from . import zeek_dce_rpc  # noqa: E402, F401
+from . import zeek            # noqa: E402, F401  — registers all Zeek log adapters

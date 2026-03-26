@@ -74,13 +74,15 @@ swifteye/
 │   │   └── adapters/               # Ingestion adapters (multi-source support)
 │   │       ├── __init__.py          # IngestionAdapter base, registry, detect_adapter()
 │   │       ├── pcap_adapter.py      # pcap/pcapng files via pcap_reader
-│   │       ├── zeek_common.py       # Shared Zeek log parsing utilities
-│   │       ├── zeek_conn.py         # Zeek conn.log → base sessions
-│   │       ├── zeek_dns.py          # Zeek dns.log → DNS enrichment
-│   │       ├── zeek_http.py         # Zeek http.log → HTTP enrichment
-│   │       ├── zeek_ssl.py          # Zeek ssl.log → TLS enrichment
-│   │       ├── zeek_smb.py          # Zeek smb_files.log + smb_mapping.log → SMB enrichment
-│   │       └── zeek_dce_rpc.py      # Zeek dce_rpc.log → DCE/RPC enrichment
+│   │       └── zeek/               # All Zeek log adapters
+│   │           ├── __init__.py      # Imports all Zeek modules to register them
+│   │           ├── common.py        # Shared Zeek log parsing utilities
+│   │           ├── conn.py          # conn.log → base sessions
+│   │           ├── dns.py           # dns.log → DNS enrichment
+│   │           ├── http.py          # http.log → HTTP enrichment
+│   │           ├── ssl.py           # ssl.log → TLS enrichment
+│   │           ├── smb.py           # smb_files.log + smb_mapping.log → SMB enrichment
+│   │           └── dce_rpc.py       # dce_rpc.log → DCE/RPC enrichment
 │   ├── analysis/                    # LAYER 2: Structural data organisation
 │   │   ├── aggregator.py            # Graph building, filtering, entity_map, OUI+JA3 lookup
 │   │   ├── sessions.py              # Session reconstruction + per-protocol aggregation

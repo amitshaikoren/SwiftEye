@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from parser.packet import PacketRecord
-from . import IngestionAdapter, register_adapter
-from .zeek_common import parse_zeek_log, safe_int, safe_float, is_zeek_log
+from .. import IngestionAdapter, register_adapter
+from .common import parse_zeek_log, safe_int, safe_float, is_zeek_log
 
 logger = logging.getLogger("swifteye.adapters.zeek_dce_rpc")
 
