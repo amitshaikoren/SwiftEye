@@ -73,3 +73,5 @@ from . import zeek_conn     # noqa: E402, F401
 from . import zeek_dns      # noqa: E402, F401
 from . import zeek_http     # noqa: E402, F401
 from . import zeek_ssl      # noqa: E402, F401
+from . import zeek_smb      # noqa: E402, F401
+from . import zeek_dce_rpc  # noqa: E402, F401

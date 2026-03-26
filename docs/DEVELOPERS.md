@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.13.1 | March 2026**
+**Version 0.13.2 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -71,6 +71,16 @@ swifteye/
 │   │       ├── dissect_llmnr.py     # LLMNR: queries, answers (DNS wire format on port 5355)
 │   │       ├── dissect_dcerpc.py   # DCE/RPC: packet type, interface UUID, service name, opnum
 │   │       └── dissect_quic.py    # QUIC: version, connection IDs, SNI from Initial (Phase 1)
+│   │   └── adapters/               # Ingestion adapters (multi-source support)
+│   │       ├── __init__.py          # IngestionAdapter base, registry, detect_adapter()
+│   │       ├── pcap_adapter.py      # pcap/pcapng files via pcap_reader
+│   │       ├── zeek_common.py       # Shared Zeek log parsing utilities
+│   │       ├── zeek_conn.py         # Zeek conn.log → base sessions
+│   │       ├── zeek_dns.py          # Zeek dns.log → DNS enrichment
+│   │       ├── zeek_http.py         # Zeek http.log → HTTP enrichment
+│   │       ├── zeek_ssl.py          # Zeek ssl.log → TLS enrichment
+│   │       ├── zeek_smb.py          # Zeek smb_files.log + smb_mapping.log → SMB enrichment
+│   │       └── zeek_dce_rpc.py      # Zeek dce_rpc.log → DCE/RPC enrichment
 │   ├── analysis/                    # LAYER 2: Structural data organisation
 │   │   ├── aggregator.py            # Graph building, filtering, entity_map, OUI+JA3 lookup
 │   │   ├── sessions.py              # Session reconstruction + per-protocol aggregation

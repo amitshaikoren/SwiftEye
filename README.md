@@ -7,7 +7,9 @@
 
 ---
 
-Drop a `.pcap` or `.pcapng` file, get an interactive force-directed graph of who talked to whom, over what protocols — with full session reconstruction, protocol dissection, TLS fingerprinting, an extensible plugin system, and a Wireshark-style display filter.
+Drop a `.pcap`, `.pcapng`, or Zeek logs, get an interactive force-directed graph of who talked to whom, over what protocols — with full session reconstruction, protocol dissection, TLS fingerprinting, an extensible plugin system, and a Wireshark-style display filter.
+
+**Supported Zeek logs:** conn.log, dns.log, http.log, ssl.log, smb_files.log, smb_mapping.log, dce_rpc.log. Upload alongside conn.log for session enrichment, or standalone.
 
 ## Quick Start
 

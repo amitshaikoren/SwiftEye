@@ -1,5 +1,12 @@
 # SwiftEye — Changelog
 
+### v0.13.2 — March 2026
+- **Zeek SMB adapters** — two new ingestion adapters for Zeek SMB logs:
+  - `smb_files.log` — file access operations (open, read, write, delete, rename). Maps Zeek's `action`, `path`, `name`, `size` to SMB session fields (`smb_command`, `smb_tree_path`, `smb_filename`).
+  - `smb_mapping.log` — share tree connects. Maps `path`, `service`, `share_type`, `native_file_system` to SMB session fields. Produces `TREE_CONNECT` operations.
+- **Zeek DCE/RPC adapter** — new ingestion adapter for `dce_rpc.log`. Maps Zeek's `endpoint`, `operation`, `named_pipe` to DCE/RPC session fields. Includes a reverse-map from ~12 well-known Zeek endpoint names to interface UUIDs for compatibility with pcap dissector output.
+- **Enhanced protocol_fields** — SMB protocol_fields gains `smb_services` and `smb_share_types` (from Zeek smb_mapping.log). DCE/RPC protocol_fields gains `dcerpc_operations` (named function calls) and `dcerpc_named_pipes` (from Zeek dce_rpc.log). Both are accumulated and serialized alongside existing fields.
+
 ### v0.13.1 — March 2026
 - **Pathfinding** — right-click a node → "Find paths to..." → click a target node. Backend finds all simple paths (up to `max_paths=10`, `cutoff=5` hops) and returns **aggregated** hop-layer and edge-set data — individual paths are never sent to the frontend. The PathDetail panel shows:
   - **Hop layers** — nodes grouped by minimum BFS distance from source. Each node is collapsible: expand to see its edges on the path with protocol tags and byte counts.
