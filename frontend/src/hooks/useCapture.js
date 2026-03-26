@@ -70,6 +70,13 @@ export function useCapture() {
   const [labelThreshold, setLabelThreshold] = useState(0); // hide labels below this bytes value (0 = show all)
 
   const [subnetPrefix, setSubnetPrefix] = useState(24);
+  const [debouncedSubnetPrefix, setDebouncedSubnetPrefix] = useState(24);
+  const spTimerRef = useRef(null);
+  const setSubnetPrefixOuter = useCallback((v) => {
+    setSubnetPrefix(v);
+    clearTimeout(spTimerRef.current);
+    spTimerRef.current = setTimeout(() => setDebouncedSubnetPrefix(v), 400);
+  }, []);
   const [mergeByMac, setMergeByMac] = useState(false);
   const [includeIPv6, setIncludeIPv6] = useState(true);
   const [showHostnames, setShowHostnames] = useState(true);
@@ -336,7 +343,7 @@ export function useCapture() {
       if (enabledP.size < allKeys.length)
         params.protocolFilters = Array.from(enabledP).join(',');
     }
-    if (subnetG) { params.subnetGrouping = true; params.subnetPrefix = subnetPrefix; }
+    if (subnetG) { params.subnetGrouping = true; params.subnetPrefix = debouncedSubnetPrefix; }
     if (mergeByMac)   params.mergeByMac = true;
     if (!includeIPv6) params.includeIPv6 = false;
     if (!showHostnames) params.showHostnames = false;
@@ -351,7 +358,7 @@ export function useCapture() {
       if (e.name !== 'AbortError') console.error(e);
     });
     return () => ctrl.abort();
-  }, [loaded, debouncedTR, enabledP, stats, subnetG, subnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, clusterAlgo, clusterResolution, timeline, protocols]);
+  }, [loaded, debouncedTR, enabledP, stats, subnetG, debouncedSubnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, clusterAlgo, clusterResolution, timeline, protocols]);
 
   // Re-evaluate display filter when graph data changes
   useEffect(() => {
@@ -909,7 +916,7 @@ export function useCapture() {
     bucketSec, setBucketSec,
     subnetG, setSubnetG, toggleSubnetG,
     labelThreshold, setLabelThreshold,
-    subnetPrefix, setSubnetPrefix,
+    subnetPrefix, setSubnetPrefix: setSubnetPrefixOuter,
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,
     showHostnames, setShowHostnames,
