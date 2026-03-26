@@ -11,7 +11,7 @@ Drop a `.pcap`, `.pcapng`, or Zeek logs, get an interactive force-directed graph
 
 **Supported Zeek logs:** conn.log, dns.log, http.log, ssl.log, smb_files.log, smb_mapping.log, dce_rpc.log. Upload alongside conn.log for session enrichment, or standalone.
 
-**Supported tshark CSV exports:** ARP (`tshark -T fields` tab-separated format). More coming.
+**Supported tshark CSV exports:** metadata (full packet data), ARP, DNS (request + response), HTTP (request + response), SMB, DCE/RPC. All `tshark -T fields` tab-separated format. Protocol CSVs auto-join with metadata.csv by frame number for IP resolution.
 
 ## Quick Start
 

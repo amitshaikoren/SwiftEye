@@ -6,4 +6,4 @@ via @register_adapter. Import this package from the parent adapters
 __init__.py to register all tshark adapters.
 """
 
-from . import arp  # noqa: F401
+from . import metadata, arp, dns, http, smb, dce_rpc  # noqa: F401

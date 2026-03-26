@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.13.3 | March 2026**
+**Version 0.14.0 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -85,8 +85,13 @@ swifteye/
 │   │       │   └── dce_rpc.py       # dce_rpc.log → DCE/RPC enrichment
 │   │       └── tshark/              # Tshark CSV export adapters
 │   │           ├── __init__.py      # Imports all tshark modules to register them
-│   │           ├── common.py        # Shared tshark CSV parsing (tab-sep, row-index handling)
-│   │           └── arp.py           # ARP CSV → ARP packet records
+│   │           ├── common.py        # Shared CSV parsing, metadata index loader
+│   │           ├── metadata.py      # metadata.csv → full L2-L4 packet records
+│   │           ├── arp.py           # arp.csv → ARP packet records
+│   │           ├── dns.py           # dns_request/response.csv → DNS records
+│   │           ├── http.py          # http_request/response.csv → HTTP records
+│   │           ├── smb.py           # smb.csv → SMB packet records
+│   │           └── dce_rpc.py       # dce_rpc.csv → DCE/RPC packet records
 │   ├── analysis/                    # LAYER 2: Structural data organisation
 │   │   ├── aggregator.py            # Graph building, filtering, entity_map, OUI+JA3 lookup
 │   │   ├── sessions.py              # Session reconstruction + per-protocol aggregation

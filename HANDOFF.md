@@ -1,13 +1,20 @@
 # SwiftEye — Handoff Document
-## Version 0.13.3 | March 2026
+## Version 0.14.0 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.13.3** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.14.0** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.13.3)
-- Tshark ARP CSV adapter: ingests tab-separated ARP exports from tshark (`-T fields`). Detects via header field sniffing (`arpOpcode`, `arpSourceMac`, etc.). Handles pandas-style row-index column offset.
-- New `adapters/tshark/` subdirectory with shared CSV parsing utilities (`common.py`)
+### Recent highlights (v0.14.0)
+- Full tshark CSV adapter suite — 8 adapters for hunt-workshop dataset:
+  - `metadata.csv` — base packet adapter (826K packets), full L2-L4 fields, port-based protocol resolution
+  - `arp.csv` — ARP requests/replies with opcode names and broadcast detection
+  - `dns_request.csv` + `dns_response.csv` — DNS queries, answers, rcodes, query type resolution
+  - `http_request.csv` + `http_response.csv` — HTTP methods, URIs, headers, status codes, User-Agent/Host extraction
+  - `smb.csv` — SMB commands, status, version, TID
+  - `dce_rpc.csv` — DCE/RPC endpoints, operations, UUID resolution
+- Protocol CSVs join with metadata.csv by frameNumber to get 5-tuple (shared `load_metadata_index` in common.py)
+- `adapters/tshark/` directory mirrors `adapters/zeek/` structure
 
 ### Previous highlights (v0.13.2)
 - Zeek SMB adapter: smb_files.log (file operations) + smb_mapping.log (tree connects)

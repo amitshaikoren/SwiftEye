@@ -7,7 +7,7 @@ Format: tshark -T fields -e frame.number -e frame.time_epoch -e ... > out.csv
 
 import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 logger = logging.getLogger("swifteye.adapters.tshark")
 
@@ -70,3 +70,59 @@ def is_tshark_csv(header: bytes, *required_fields: str) -> bool:
     except Exception:
         return False
     return all(f in first_line for f in required_fields)
+
+
+# ── Metadata index for protocol CSV adapters ─────────────────────────────────
+
+# Module-level cache: directory path → {frameNumber → row dict}
+_metadata_cache: Dict[str, Dict[str, Dict[str, str]]] = {}
+
+
+def load_metadata_index(directory: Path) -> Optional[Dict[str, Dict[str, str]]]:
+    """Load metadata.csv from a directory and index by frameNumber.
+
+    Returns dict mapping frameNumber (str) → row dict, or None if not found.
+    Cached per directory so multiple protocol adapters don't re-read.
+    """
+    key = str(directory)
+    if key in _metadata_cache:
+        return _metadata_cache[key]
+
+    meta_path = directory / "metadata.csv"
+    if not meta_path.exists():
+        logger.warning("No metadata.csv found in %s — protocol CSVs cannot resolve IPs", directory)
+        _metadata_cache[key] = None
+        return None
+
+    rows = parse_tshark_csv(meta_path)
+    if not rows:
+        _metadata_cache[key] = None
+        return None
+
+    index = {}
+    for row in rows:
+        fn = row.get("frameNumber", "")
+        if fn:
+            index[fn] = row
+
+    logger.info("Loaded metadata index: %d frames from %s", len(index), meta_path.name)
+    _metadata_cache[key] = index
+    return index
+
+
+def meta_to_network(meta_row: Dict[str, str]) -> Dict[str, any]:
+    """Extract network 5-tuple + MACs from a metadata row."""
+    ip_proto = int(safe_float(meta_row.get("ipProtoType", "0")))
+    transport = {6: "TCP", 17: "UDP", 1: "ICMP", 58: "ICMPv6"}.get(ip_proto, "")
+    return {
+        "src_ip": meta_row.get("sourceIp", ""),
+        "dst_ip": meta_row.get("destIp", ""),
+        "src_port": int(safe_float(meta_row.get("sourcePort", "0"))),
+        "dst_port": int(safe_float(meta_row.get("destPort", "0"))),
+        "src_mac": meta_row.get("sourceMac", ""),
+        "dst_mac": meta_row.get("destMac", ""),
+        "transport": transport,
+        "ip_proto": ip_proto,
+        "timestamp": safe_float(meta_row.get("ts", "0")),
+        "ttl": int(safe_float(meta_row.get("ipTtl", "0"))),
+    }

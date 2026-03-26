@@ -1,8 +1,17 @@
 # SwiftEye — Changelog
 
-### v0.13.3 — March 2026
-- **Tshark ARP CSV adapter** — new ingestion adapter for tshark-exported ARP CSV files (tab-separated, `tshark -T fields` format). Detects files by header field sniffing for `arpOpcode`, `arpSourceMac`, `arpSourceIp`, `arpDestIp`. Maps ARP opcode numbers to names (request/reply/RARP request/RARP reply), extracts source/dest MAC+IP, detects broadcast destinations. Handles pandas-style exports where data rows have a leading row-index column (N+1 values for N header fields).
-- **Tshark adapter directory** — new `adapters/tshark/` package mirroring the `adapters/zeek/` structure. Shared `common.py` provides `parse_tshark_csv()` (tab-separated parsing with row-index handling) and `is_tshark_csv()` (header field sniffing). Future tshark CSV adapters (DNS, HTTP, etc.) just drop a module in this directory.
+### v0.14.0 — March 2026
+- **Full tshark CSV adapter suite** — 8 ingestion adapters for tshark `‑T fields` tab-separated exports (hunt-workshop dataset format):
+  - `metadata.csv` — base packet adapter producing full L2–L4 PacketRecords (MACs, IPs, ports, TCP flags/seq/ack/window, ICMP type/code, TTL, IP ID/flags). Port-based protocol resolution via `WELL_KNOWN_PORTS`. Parsed 826K packets from the hunt-workshop dataset.
+  - `arp.csv` — ARP requests/replies. Opcode name resolution, broadcast detection.
+  - `dns_request.csv` — DNS queries with query name, type (A/AAAA/CNAME/MX/etc.), transaction ID.
+  - `dns_response.csv` — DNS responses with answers (name/type/data/TTL), response codes (NOERROR/NXDOMAIN/SERVFAIL/REFUSED).
+  - `http_request.csv` — HTTP requests with method, URI, version. Extracts Host, User-Agent, Content-Type from headers dict.
+  - `http_response.csv` — HTTP responses with status code/phrase. Extracts Server, Content-Type from headers dict.
+  - `smb.csv` — SMB commands with command name, hex code, status, version, TID, flags.
+  - `dce_rpc.csv` — DCE/RPC endpoints with operation number and ~12 well-known endpoint→UUID resolution (EPM, DRSUAPI, SAMR, LSARPC, NETLOGON, etc.).
+- **Metadata join for protocol CSVs** — protocol-specific CSVs (DNS, HTTP, SMB, DCE/RPC) lack IP addresses. They join with `metadata.csv` by `frameNumber` to get the 5-tuple. Shared `load_metadata_index()` in `common.py` reads metadata.csv once and caches the index per directory so multiple adapters don't re-read.
+- **`adapters/tshark/` directory** — 7 modules (metadata, arp, dns, http, smb, dce_rpc) plus shared `common.py`, mirroring the `adapters/zeek/` structure.
 
 ### v0.13.2 — March 2026
 - **Zeek SMB adapters** — two new ingestion adapters for Zeek SMB logs:
