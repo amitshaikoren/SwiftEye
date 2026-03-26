@@ -92,7 +92,8 @@ class TsharkMetadataAdapter(IngestionAdapter):
     def _row_to_packet(self, row: Dict[str, str]) -> Optional[PacketRecord]:
         src_ip = row.get("sourceIp", "")
         dst_ip = row.get("destIp", "")
-        if not src_ip or not dst_ip:
+        _SKIP_IPS = ("", "0.0.0.0", "255.255.255.255")
+        if src_ip in _SKIP_IPS or dst_ip in _SKIP_IPS:
             return None
 
         timestamp = safe_float(row.get("ts", "0"))
@@ -102,10 +103,14 @@ class TsharkMetadataAdapter(IngestionAdapter):
         ip_proto = int(safe_float(row.get("ipProtoType", "0")))
         transport = IP_PROTO_MAP.get(ip_proto, "")
 
-        src_port = int(safe_float(row.get("sourcePort", "0")))
-        dst_port = int(safe_float(row.get("destPort", "0")))
+        # ICMP error messages encapsulate the original packet header — tshark
+        # extracts the inner packet's ports into sourcePort/destPort. Ignore
+        # those for ICMP; use 0 ports and skip port-based protocol resolution.
+        is_icmp = ip_proto in (1, 58)
+        src_port = 0 if is_icmp else int(safe_float(row.get("sourcePort", "0")))
+        dst_port = 0 if is_icmp else int(safe_float(row.get("destPort", "0")))
 
-        protocol = resolve_protocol(transport, src_port, dst_port) if transport else ""
+        protocol = resolve_protocol(transport, src_port, dst_port) if transport and not is_icmp else transport
 
         tcp_flags_raw = int(safe_float(row.get("tcpFlags", "0")))
 

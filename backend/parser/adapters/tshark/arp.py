@@ -68,7 +68,9 @@ class TsharkArpAdapter(IngestionAdapter):
     def _row_to_packet(self, row: Dict[str, str]) -> Optional[PacketRecord]:
         src_ip = row.get("arpSourceIp", "")
         dst_ip = row.get("arpDestIp", "")
-        if not src_ip or not dst_ip:
+        # Skip non-routable IPs (ARP probes use 0.0.0.0, broadcasts use 255.255.255.255)
+        _SKIP_IPS = ("", "0.0.0.0", "255.255.255.255")
+        if src_ip in _SKIP_IPS or dst_ip in _SKIP_IPS:
             return None
 
         timestamp = safe_float(row.get("ts", "0"))

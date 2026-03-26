@@ -113,9 +113,11 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
     return merged;
   }, [sessions, fetchedSessions, edgeFilter]);
 
-  // Resolve a node ID to a real searchable IP (handles cluster IDs)
+  // Resolve a node ID to a real searchable IP (handles cluster IDs, MAC-split IDs)
   const resolveSearchIp = useCallback((id) => {
     if (!id || id.includes('/')) return ''; // subnet CIDR, can't search directly
+    // MAC-split node IDs: "192.168.1.1::aa:bb:cc:dd:ee:ff" → strip the MAC
+    if (id.includes('::')) return id.split('::')[0];
     if (!id.startsWith('cluster:')) return id;
     // For clusters, use the first member IP
     const n = nodes.find(nd => nd.id === id);
