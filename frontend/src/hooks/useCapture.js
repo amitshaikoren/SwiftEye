@@ -23,9 +23,11 @@ import {
   uploadPcap, uploadMetadata,
   fetchAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
   fetchSynthetic, createSynthetic, updateSynthetic, deleteSynthetic,
+  fetchPaths,
 } from '../api';
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
+import { applyClusterView } from '../clusterView';
 
 const SESSIONS_FETCH_LIMIT = 1000;
 const TIME_RANGE_DEBOUNCE_MS = 300;
@@ -43,7 +45,7 @@ export function useCapture() {
   // ── Server data ──────────────────────────────────────────────────
   const [stats, setStats]           = useState(null);
   const [timeline, setTimeline]     = useState([]);
-  const [graph, setGraph]           = useState({ nodes: [], edges: [] });
+  const [rawGraph, setRawGraph]      = useState({ nodes: [], edges: [], clusters: null });
   const [sessions, setSessions]     = useState([]);
   const [sessionTotal, setSessionTotal] = useState(0);
   const [protocols, setProtocols]   = useState([]);
@@ -72,6 +74,45 @@ export function useCapture() {
   const [includeIPv6, setIncludeIPv6] = useState(true);
   const [showHostnames, setShowHostnames] = useState(true);
   const [subnetExclusions, setSubnetExclusions] = useState(new Set());
+  const [clusterAlgo, setClusterAlgo] = useState('');  // '' | 'louvain' | 'kcore' | 'hub_spoke' | 'shared_neighbor'
+  const [clusterResolution, setClusterResolution] = useState(1.0);
+  const [clusterNames, setClusterNames] = useState({});  // cluster_id -> custom name
+  const [clusterExclusions, setClusterExclusions] = useState(new Set());  // cluster_ids left expanded
+  const [manualClusters, setManualClusters] = useState({});  // node_id -> cluster_id (user-created groups)
+  // Clear custom names and exclusions when algorithm changes
+  const prevAlgoRef = useRef(clusterAlgo);
+  useEffect(() => {
+    if (clusterAlgo !== prevAlgoRef.current) {
+      setClusterNames({});
+      setClusterExclusions(new Set());
+      setManualClusters({});
+      prevAlgoRef.current = clusterAlgo;
+    }
+  }, [clusterAlgo]);
+
+  // ── Derived graph (applies cluster view transform) ──────────────
+  // rawGraph holds the real backend data (never mutated).
+  // `graph` is what components see — clustered view when active, raw otherwise.
+  // Toggling clustering off is instant (no API call) because raw data is preserved.
+  const graph = useMemo(() => {
+    const algoClusters = (clusterAlgo && rawGraph.clusters) ? rawGraph.clusters : {};
+    const hasManual = Object.keys(manualClusters).length > 0;
+    const hasAlgo = Object.keys(algoClusters).length > 0;
+    if (!hasAlgo && !hasManual) return rawGraph;
+    // Merge: manual clusters override algo assignments for the same node
+    const merged = hasManual ? { ...algoClusters, ...manualClusters } : algoClusters;
+    const view = applyClusterView(rawGraph.nodes || [], rawGraph.edges || [], merged, clusterExclusions);
+    return { ...rawGraph, nodes: view.nodes, edges: view.edges };
+  }, [rawGraph, clusterAlgo, clusterExclusions, manualClusters]);
+
+  // Expose setGraph for synthetic node/edge additions — these mutate rawGraph
+  const setGraph = useCallback((updater) => {
+    if (typeof updater === 'function') {
+      setRawGraph(prev => updater(prev));
+    } else {
+      setRawGraph(updater);
+    }
+  }, []);
 
   // ── Display filter ────────────────────────────────────────────────
   const [dfExpr, setDfExpr]       = useState('');
@@ -146,6 +187,23 @@ export function useCapture() {
   const [investigatedIp, setInvestigatedIp]       = useState('');
   const [investigationNodes, setInvestigationNodes] = useState(null);
   const [hiddenNodes, setHiddenNodes]             = useState(new Set());
+  // ── Pathfinding ────────────────────────────────────────────────────
+  const [pathfindSource, setPathfindSource]       = useState(null);  // node ID awaiting target pick
+  const [pathfindResult, setPathfindResult]       = useState(null);  // aggregated {hop_layers, edges, nodes, ...}
+  const [pathfindLoading, setPathfindLoading]     = useState(false);
+  // Clear stale pathfind results when graph data changes (time range, filters, etc.)
+  const prevRawGraphRef = useRef(rawGraph);
+  useEffect(() => {
+    if (rawGraph !== prevRawGraphRef.current) {
+      prevRawGraphRef.current = rawGraph;
+      if (pathfindResult) {
+        setPathfindResult(null);
+        setPathfindSource(null);
+        setInvestigatedIp('');
+        setInvestigationNodes(null);
+      }
+    }
+  }, [rawGraph]); // eslint-disable-line react-hooks/exhaustive-deps
   const [seqAckSessionId, setSeqAckSessionId]     = useState('');
 
   // Per-session collapse state memory: Map<sessionId, Set<title>>
@@ -283,13 +341,17 @@ export function useCapture() {
     if (!includeIPv6) params.includeIPv6 = false;
     if (!showHostnames) params.showHostnames = false;
     if (subnetExclusions.size > 0) params.subnetExclusions = subnetExclusions;
+    if (clusterAlgo) {
+      params.clusterAlgorithm = clusterAlgo;
+      if (clusterAlgo === 'louvain') params.clusterResolution = clusterResolution;
+    }
 
     const ctrl = new AbortController();
-    fetchGraph(params, ctrl.signal).then(d => setGraph(d)).catch(e => {
+    fetchGraph(params, ctrl.signal).then(d => setRawGraph(d)).catch(e => {
       if (e.name !== 'AbortError') console.error(e);
     });
     return () => ctrl.abort();
-  }, [loaded, debouncedTR, enabledP, stats, subnetG, subnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, timeline, protocols]);
+  }, [loaded, debouncedTR, enabledP, stats, subnetG, subnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, clusterAlgo, clusterResolution, timeline, protocols]);
 
   // Re-evaluate display filter when graph data changes
   useEffect(() => {
@@ -599,7 +661,48 @@ export function useCapture() {
     clearSel();
   }
 
-  function exitInvestigation() { setInvestigatedIp(''); setInvestigationNodes(null); }
+  function exitInvestigation() {
+    setInvestigatedIp('');
+    setInvestigationNodes(null);
+    setPathfindSource(null);
+    setPathfindResult(null);
+  }
+
+  // ── Pathfinding ──────────────────────────────────────────────────
+
+  function startPathfind(sourceNodeId) {
+    setPathfindSource(sourceNodeId);
+    setPathfindResult(null);
+  }
+
+  function cancelPathfind() {
+    setPathfindSource(null);
+    setPathfindResult(null);
+  }
+
+  async function executePathfind(targetNodeId, opts = {}) {
+    const src = opts.source || pathfindSource;
+    if (!src || src === targetNodeId) return;
+    setPathfindLoading(true);
+    try {
+      const data = await fetchPaths(src, targetNodeId, { directed: opts.directed || false });
+      setPathfindResult(data);
+      if (data.path_count > 0) {
+        setInvestigationNodes(new Set(data.nodes || []));
+        setInvestigatedIp(`${data.source} → ${data.target}`);
+      }
+    } catch (err) {
+      console.error('Pathfinding failed:', err);
+      setPathfindResult({ source: src, target: targetNodeId, directed: false, path_count: 0, hop_layers: {}, edges: [], nodes: [] });
+    } finally {
+      setPathfindLoading(false);
+      setPathfindSource(null);
+    }
+  }
+
+  function runPathfindFromPanel(source, target, opts = {}) {
+    executePathfind(target, { source, directed: opts.directed || false });
+  }
 
   // ── Hide nodes ────────────────────────────────────────────────────
 
@@ -644,76 +747,19 @@ export function useCapture() {
 
   // ── Synthetic elements ────────────────────────────────────────────
 
-  async function handleCreateSyntheticCluster(nodeIds) {
+  function handleCreateManualCluster(nodeIds) {
     if (!nodeIds || nodeIds.length < 2) return;
-    const nodes = graph.nodes || [];
-    const edges = graph.edges || [];
-    const memberNodes = nodes.filter(n => nodeIds.includes(n.id));
-    if (!memberNodes.length) return;
-
-    // Build cluster node — aggregates IPs, hostnames, bytes from members
-    const clusterId = 'cluster:' + crypto.randomUUID().slice(0, 8);
-    const labels = memberNodes.map(n =>
-      n.metadata?.name || (n.hostnames?.[0]) || n.id
-    );
-    const label = labels.slice(0, 2).join(', ') + (labels.length > 2 ? ` +${labels.length - 2}` : '');
-    const allIps = memberNodes.flatMap(n => n.ips || [n.id]);
-    const totalBytes = memberNodes.reduce((s, n) => s + (n.total_bytes || 0), 0);
-
-    const clusterNode = {
-      id: clusterId, type: 'node', synthetic: true,
-      label, color: '#bc8cff',
-      ips: allIps, macs: [], protocols: [], hostnames: memberNodes.flatMap(n => n.hostnames || []),
-      total_bytes: totalBytes, packet_count: 0,
-      is_private: memberNodes.some(n => n.is_private),
-      is_subnet: false, ttls_out: [], ttls_in: [],
-      cluster_members: nodeIds,  // remember who's inside
-    };
-
-    // Re-route all external edges (edges where exactly one endpoint is a member)
-    const memberSet = new Set(nodeIds);
-    const newEdges = [];
-    const seenEdgeKeys = new Set();
-    edges.forEach(e => {
-      const s = typeof e.source === 'object' ? e.source.id : e.source;
-      const t = typeof e.target === 'object' ? e.target.id : e.target;
-      const sIn = memberSet.has(s), tIn = memberSet.has(t);
-      if (sIn && tIn) return; // internal edge — drop it
-      if (!sIn && !tIn) return; // unrelated — keep as-is (handled by existing graph)
-      // External edge — reroute to cluster node
-      const newSrc = sIn ? clusterId : s;
-      const newTgt = tIn ? clusterId : t;
-      const key = [newSrc, newTgt, e.protocol].sort().join('|');
-      if (seenEdgeKeys.has(key)) return; // deduplicate
-      seenEdgeKeys.add(key);
-      newEdges.push({
-        ...e,
-        id: clusterId + ':' + e.id,
-        source: newSrc,
-        target: newTgt,
-        synthetic: true,
-      });
+    // Find the next available cluster_id (above any existing algo or manual cluster)
+    const algoClusters = (clusterAlgo && rawGraph.clusters) ? rawGraph.clusters : {};
+    const allIds = [...Object.values(algoClusters), ...Object.values(manualClusters)];
+    const nextId = allIds.length > 0 ? Math.max(...allIds) + 1 : 0;
+    // Assign all selected nodes to this new cluster
+    setManualClusters(prev => {
+      const updated = { ...prev };
+      for (const id of nodeIds) updated[id] = nextId;
+      return updated;
     });
-
-    // Hide member nodes and their original edges, add cluster node + rerouted edges
-    setHiddenNodes(prev => new Set([...prev, ...nodeIds]));
-    setSynthetic(prev => [...prev, clusterNode, ...newEdges]);
-    setGraph(prev => ({
-      nodes: [...(prev.nodes || []), clusterNode],
-      edges: [
-        ...(prev.edges || []).filter(e => {
-          const s = typeof e.source === 'object' ? e.source.id : e.source;
-          const t = typeof e.target === 'object' ? e.target.id : e.target;
-          return !memberSet.has(s) || !memberSet.has(t); // keep external edges (they'll be hidden via hiddenNodes)
-        }),
-        ...newEdges,
-      ],
-    }));
     clearSel();
-    try {
-      await createSynthetic(clusterNode);
-      for (const e of newEdges) await createSynthetic(e);
-    } catch (err) { console.error(err); }
   }
 
   async function handleAddSyntheticNode(nodeData) {
@@ -780,6 +826,14 @@ export function useCapture() {
     setSubnetExclusions(prev => new Set([...prev, subnetId]));
   }
 
+  function handleExpandCluster(clusterId) {
+    setClusterExclusions(prev => new Set([...prev, clusterId]));
+  }
+
+  function handleCollapseCluster(clusterId) {
+    setClusterExclusions(prev => { const s = new Set(prev); s.delete(clusterId); return s; });
+  }
+
   function toggleSubnetG() {
     setSubnetG(prev => {
       // When turning grouping OFF, clear all exclusions so re-enabling starts fresh
@@ -841,7 +895,7 @@ export function useCapture() {
     handleUpload, handleDrop, handleFileInput, handleMetadataInput,
 
     // Data
-    stats, timeline, graph, sessions, sessionTotal,
+    stats, timeline, graph, rawGraph, sessions, sessionTotal,
     protocols, pColors, pluginResults, pluginSlots,
 
     // Derived
@@ -859,7 +913,10 @@ export function useCapture() {
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,
     showHostnames, setShowHostnames,
-
+    clusterAlgo, setClusterAlgo,
+    clusterResolution, setClusterResolution,
+    clusterNames, renameCluster: (id, name) => setClusterNames(prev => ({ ...prev, [id]: name })),
+    clusterExclusions, handleExpandCluster, handleCollapseCluster,
 
     // Display filter
     dfExpr, setDfExpr,
@@ -873,7 +930,7 @@ export function useCapture() {
 
     // Synthetic
     handleAddSyntheticNode, handleAddSyntheticEdge, handleDeleteSynthetic,
-    handleUpdateSyntheticNode, handleSaveNote, handleCreateSyntheticCluster,
+    handleUpdateSyntheticNode, handleSaveNote, handleCreateManualCluster,
     handleUnclusterSubnet,
 
     // Selection
@@ -885,6 +942,10 @@ export function useCapture() {
     // Investigation & hidden
     investigatedIp, investigationNodes,
     hiddenNodes, handleHideNode, handleUnhideAll,
+
+    // Pathfinding
+    pathfindSource, startPathfind, cancelPathfind, executePathfind,
+    pathfindResult, pathfindLoading, runPathfindFromPanel,
     seqAckSessionId, setSeqAckSessionId,
 
     // Panel

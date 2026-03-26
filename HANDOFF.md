@@ -1,11 +1,29 @@
 # SwiftEye — Handoff Document
-## Version 0.11.2 | March 2026
+## Version 0.13.1 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.11.2** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.13.1** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.11.2)
+### Recent highlights (v0.13.1)
+- Pathfinding: find paths between two nodes, BFS hop layers, directed/undirected toggle, IP text inputs
+- PathDetail panel: aggregated hop layers + edges (not individual paths), collapsible per-node edges, clickable navigation with back button
+- Graph algorithm architecture: shared `graph_core.py`, clustering + pathfinding as separate modules
+- Pathfind auto-clears on time/filter change, disabled for cluster/subnet mega-nodes
+
+### Previous highlights (v0.12.2)
+- Expand cluster: right-click → uncollapse individual members with real edges (client-side exclusion set)
+- Manual clustering: lasso-group creates real clusters (not synthetic nodes), works without algorithm
+- Edge detail shows cluster names, session search resolves to member IPs
+- Cluster detail rename, clickable member IPs (opens NodeDetail), simplified legend
+- Lasso union fix (winding number), context menu overflow fix
+
+### Previous highlights (v0.12.1)
+- Graph clustering: 4 algorithms (Louvain, k-core, hub-spoke, shared-neighbor) with hexagon mega-nodes
+- Architecture refactor: view transform decoupling — backend returns cluster assignments as metadata, frontend does visual collapse client-side. Graph data is NEVER mutated by view options. Toggling clustering off is instant (no API call).
+- Context menu redesigned into verb-based categories (§10), graph view plugin architecture (§9)
+
+### Previous highlights (v0.11.2)
 - Session detail readability overhaul: metric summary cards, card-wrapped collapses, accent layer headers, stronger label/value contrast, directional traffic cards, seq/ack cell grid
 - Session boundary detection: FIN/RST+SYN splits, timestamp gap splits (60s UDP, 120s TCP), seq jump heuristic, protocol-specific boundary checkers
 - Boundary detection audit: 3 bug fixes (seq wraparound, ISN leak, elif chain), documentation rewrite
@@ -320,6 +338,7 @@ These reduce what the user *sees* without losing data. The full capture is alway
 | **Investigate neighbours** | ✅ Implemented | Right-click a node → "Investigate neighbours" (depth-1) or "Investigate component" (full BFS). Isolates the relevant subgraph without manually filtering. |
 | **Hide node** | ✅ Implemented | Right-click → Hide. Removes noisy nodes (broadcast addresses, multicast) from the view. Unhide all badge to restore. |
 | **Label threshold** | ✅ Implemented | Configurable minimum connection count for node labels. Low-connection nodes render without labels, reducing visual clutter at low zoom. |
+| **Graph clustering** | 🔨 In progress | Collapse dense subgraphs into expandable cluster nodes. Multiple algorithms available as a Graph Option dropdown: Louvain community detection, k-core decomposition, hub-and-spoke collapse, shared-neighbor grouping. Backend computes cluster assignments, frontend renders cluster nodes (similar to subnet grouping). See §9 for full design. |
 | **Large graph layout** | ❌ Not yet | For 1000+ node graphs, the D3 force simulation is slow to converge. Candidate approaches: WebGL renderer (e.g. pixi.js or deck.gl), level-of-detail rendering (show subnet hulls when zoomed out, expand to individual nodes on zoom), or server-side layout computation with pre-positioned coordinates. |
 
 ### Compute-side strategies
@@ -484,13 +503,29 @@ All v0.8.x bug details preserved in §4a.
 ## 6. Roadmap
 
 ### Pending
+- [x] **Graph clustering** (v0.12.1) — 4 algorithms (Louvain, k-core, hub-spoke, shared-neighbor). Backend returns cluster assignments, frontend renders expandable hexagon mega-nodes.
+- [x] **Cluster detail panel** (v0.12.2) — dedicated ClusterDetail component with member list, protocol breakdown, rename, expand/collapse.
+- [x] **Pathfinding** (v0.13.1) — find paths between nodes. BFS hop layers, aggregated edge sets, directed/undirected toggle, PathDetail panel with IP inputs and collapsible per-node edges.
+- [ ] **Node-agnostic graph algorithm contract** — graph algorithms (pathfinding, clustering, future centrality) currently operate on the raw IP-level graph. They should work on whatever nodes are in the current visible graph — clusters, subnets, or any future node type (processes, users, firewall rules, sysmon events). The contract: algorithms accept `(nodes, edges)` where each node has an `id` and each edge has `source`/`target`, with no knowledge of what the IDs represent. Requires: (1) frontend passes cluster-transformed graph to pathfinding when clusters are active, (2) backend endpoint accepts pre-transformed node/edge lists, (3) PathDetail renders IDs without IP-specific formatting. See DEVELOPERS.md §13 for full details.
+- [ ] **Graph algorithm plugin registry** — when a 3rd algorithm module is added, extract a formal registry (auto-discovery like protocol_fields). Current approach: separate modules with shared `graph_core.py`.
+- [ ] **Ensemble clustering** — combine multiple clustering algorithms for better results. E.g. run Louvain for community detection, then hub-spoke within each community to collapse remaining stars. Or weighted voting across algorithms. Research needed on which combinations work best for network traffic patterns.
+- [ ] **Graph direction visualization** — show traffic direction on edges. Inspired by Arkime's "color by direction" feature. Options: animated particles along edges, arrowheads, or color-coding (e.g. green for outbound, blue for inbound relative to a selected "home" node/subnet). Should be a Graph Options toggle. Pairs well with the existing protocol coloring — user picks which coloring mode to use.
+- [ ] **Investigate subgraph scoped overview** — when "Investigate neighbours" or "Isolate connected graph" is active, the right panel overview should change to show scoped stats for the investigated subgraph instead of the full capture overview. Currently the overview stays global which is confusing during investigation.
+- [ ] **Graph weight metric selector** — let the user choose what drives node size and edge thickness: bytes, packets, or session count. Currently hardcoded to bytes. Dropdown in Graph Options panel. Low effort (data already available on nodes/edges), high visual impact. Inspired by Arkime connections page.
+- [ ] **Graph-by-field mode** — allow graphing by port or protocol as the node identity instead of IP. E.g. "show me which IPs talk on which ports" with port numbers as nodes. Completely different view of the same data. Inspired by Arkime's src/dst field selector. Requires a backend mode that builds nodes from port/protocol instead of IP.
+- [ ] **Graph PNG/SVG export** — one-click screenshot of the current graph canvas for reports and incident documentation. Trivial with `canvas.toDataURL()` or SVG serialization. Quick win.
+- [ ] **Graph layout modes** — offer alternative layouts beyond force-directed: hierarchical (by subnet tiers), radial (selected node at center), geographic (if geo data available). Helps with hairball problem alongside clustering. Inspired by PcapXray/Tcpviz.
+- [ ] **Surface Zeek files.log in sessions** — Zeek's `files.log` lists extracted/observed files (hashes, MIME types, sizes). Display these in session detail as a "Files" section. Pure viewer feature — showing what Zeek already extracted. Inspired by NetworkMiner's file extraction view, but aligned with viewer philosophy (we show, not extract).
+- [ ] **Suricata alert source** — ingest Suricata `eve.json` as a new source type. Alerts overlay on the graph as edge/node annotations. Natural extension of multi-source architecture. Inspired by Malcolm's Zeek+Suricata correlation. High effort, high value.
 - [ ] **dpkt dissector parity** — port all dissectors to work on raw bytes so dpkt and scapy paths produce identical `pkt.extra` output. DNS is the most important (hostnames rely on it). Once done, lower the dpkt threshold back from 500MB. See note in `dpkt_reader.py` `_PayloadProxy`.
 - [ ] **Save/load workspaces** — serialize annotations, synthetic elements, hidden nodes, pinned positions to a JSON file for reload
 - [x] **Synthetic node size** (v0.9.5) — synthetic nodes always have `packet_count: 0` so `gR(node)` returns the minimum radius (5px) in `GraphCanvas.jsx`. Fix: give synthetic nodes a configurable `size` field (default e.g. 12px equivalent) set at creation time, and have `gR()` use it when `node.synthetic` is true. The creation form already has color; add a size slider (small / medium / large). Backend: add `size` field to the node object in `create_synthetic()` and expose it via the `PUT /api/synthetic/{id}` update endpoint.
 - [x] **Synthetic node detail editing** (v0.9.5) — when a synthetic node is selected, its NodeDetail panel should be editable. Currently shows read-only data. Add inline edit for: `label` (the display name), `ip` (the address it represents), `color`, `size`, and a freeform `notes` field. Changes should PUT to `/api/synthetic/{id}` immediately (no save button needed — same pattern as annotation inline edit). The notes field should render as a small textarea, not a single-line input.
 - [x] **Researcher notes on every node** (v0.9.5) — add a collapsible "Notes" section to NodeDetail (and EdgeDetail) for all nodes, not just synthetic ones. A researcher should be able to attach a free-text note to any real node or edge during investigation. Notes are stored in `store.annotations` as a special annotation type (add `annotation_type: "note"` field alongside the existing `node_id`/`edge_id` fields, or use a separate `store.notes` dict keyed by node/edge ID). Notes persist across graph re-fetches (keyed by node ID, same as node annotations) and are included in workspace save/load. This is separate from researcher metadata JSON (which is pre-loaded structured data) — notes are ad-hoc, written during investigation, and not tied to a specific capture file structure.
 - [x] **Multi-pcap ingestion** — done in v0.9.15. UI accepts multiple files, TopBar shows "N files". Backend merges by timestamp.
+- [ ] **Frontend architecture audit** — comprehensive review of scalability, code readability, component decoupling/dependency, and maintainability of the React frontend. Codebase has grown organically; needs a pass to identify: oversized components that should be split, prop drilling that should use context, tightly coupled state, missing error boundaries, performance bottlenecks (unnecessary re-renders, large useMemo deps), inconsistent patterns across components, and opportunities for shared abstractions. Output: a prioritized list of refactors with effort/impact ratings.
 - [ ] **Large pcap support (>500MB)** — profile the pipeline; likely bottlenecks are scapy's per-packet overhead and full-list scans in `build_graph`/`build_sessions`. Candidate approaches in priority order: (1) streaming/chunked parse, (2) background loading with progress API via `/api/status`, (3) indexed packet store by session_key/IP/time for O(1) queries above ~500K packets.
+- [ ] **Source-aware overview labels** — the Overview panel says "PACKETS" and "avg X KB/pkt" regardless of source type. For Zeek, each record is an HTTP transaction (or conn summary), not a packet. Labels should adapt: "RECORDS" instead of "PACKETS", "avg X KB/record" instead of "avg X KB/pkt". The "DATA" value (e.g. 1.41 GB) is correct — it's the wire data Zeek observed, not the log file size — but could benefit from a clarifying label like "WIRE DATA". Harder case: mixed pcap + Zeek sources in one graph. Possible approaches: show both counts separately ("42K packets + 144K records"), use a neutral term ("EVENTS"), or break down by source in the overview. Ties into the UI capabilities system.
 - [ ] **Multi-threaded pcap parsing** — low priority. Each packet is parsed independently so it's parallelisable via `ProcessPoolExecutor`, but the real bottleneck is scapy's per-packet overhead. Multi-processing adds serialization cost that eats much of the gain (estimated 30s→12s for 100MB, not transformative). The bigger win is dpkt parity (5-10x faster than scapy). For multi-source data (Zeek, Splunk, Sysmon), parsing is text-based and already fast — this optimization is pcap-specific. *Recommendation:* pursue dpkt parity and the EventRecord abstraction first. Revisit multi-threading only if profiling confirms the parser is still the bottleneck after dpkt parity.
 - [x] **SESSION FIELD EXPLOSION** (v0.10.2) — `sessions.py` gutted from 884→280 lines. All protocol-specific field handling (init, accumulate, serialize) extracted to auto-discovered modules in `analysis/protocol_fields/`. 18 protocol files: TLS (includes JA3/JA4), HTTP, SSH, FTP, ICMP, DNS, DHCP, SMB, Kerberos, LDAP, SMTP, mDNS, SSDP, LLMNR, DCE/RPC, QUIC, Zeek metadata. Drop a new file in `protocol_fields/`, it registers automatically via `pkgutil.iter_modules`. Core transport logic (direction, TCP state, IP headers, window/seq/ack) stays in `sessions.py`. **Future:** fully dynamic accumulation with type inference (no per-protocol code at all) — see roadmap.
 - [x] **Zero data loss alignment** (v0.10.5) — two architectural changes to align the codebase with the zero data loss principle (§1):
@@ -1053,6 +1088,141 @@ Document the plan now so everyone knows where the boundaries *should* be. Implem
 - [x] SSH/FTP/DHCP/SMB/ICMPv6 dissectors (v0.8.6)
 - [x] Sessions panel local search + scope badge (v0.8.5)
 - [x] Hide node, retransmission, PCAP slice (v0.8.3)
+
+---
+
+## 9. Architecture Plan: Graph Clustering & View Transforms
+
+### Problem
+
+Large network captures (and especially Zeek logs with many unique endpoints) produce dense "hairball" graphs where clique-like clusters of nodes obscure the network's actual structure. Subnet grouping helps when the dense group shares an IP range, but fails when clients span subnets or when the density comes from behavioral patterns (many hosts hitting the same servers).
+
+### Core principle: Graph Options are view transforms, not data mutations
+
+**Graph Options must NEVER mutate the graph data.** They change how the data is *viewed*, not what the data *is*. This is the same principle as zoom/pan — the camera moves, the world doesn't.
+
+Concretely:
+- The backend **always returns the full, unclustered graph** — the real nodes and edges, untouched.
+- View transforms (clustering, coloring, sizing, layout) return **metadata alongside the graph**, not a rewritten graph. E.g. `{ nodes: [...], edges: [...], clusters: { "10.0.0.1": 0, "10.0.0.2": 0, ... }, cluster_labels: { 0: "HTTP servers", 1: "DNS resolvers" } }`.
+- The **frontend applies view metadata** to render differently — collapsing clusters into mega-nodes, recoloring, resizing — without losing access to the original graph.
+- Toggling a view transform on/off is **instant** (no API call needed, the full graph is already in memory).
+- Multiple view transforms can **compose**: clustering + coloring + custom sizing can all be active simultaneously, each reading from the same underlying data.
+
+This decoupling enables:
+- Instant expand/collapse of individual clusters (just stop collapsing that group)
+- Pathfinding always runs on the real graph, even when the view is clustered
+- Future: researchers can write custom view plugins without risk of corrupting graph data
+- Future: save/load view configurations independently of capture data
+
+### Graph view plugins (future architecture)
+
+Graph view transforms should follow the same plugin pattern as analysis and research chart plugins:
+
+| Plugin tier | Location | Contract |
+|-------------|----------|----------|
+| Analysis plugins | `backend/plugins/analyses/` | `run(ctx) → results` for insight cards |
+| Research chart plugins | `backend/plugins/research_charts/` | `run(params) → chart data` |
+| **Graph view plugins** | `backend/plugins/graph_views/` *(future)* | `compute(nodes, edges, params) → metadata` |
+
+Each graph view plugin declares:
+- **name** and **description** (shown in Graph Options dropdown)
+- **type**: `clustering`, `coloring`, `sizing`, or `layout`
+- **params_schema**: what controls to render (sliders, toggles, dropdowns)
+- **compute()**: takes `(nodes, edges, params)`, returns metadata (cluster assignments, color maps, size maps, layout hints). **Never returns rewritten nodes/edges.**
+
+The first four built-in graph view plugins are the clustering algorithms. Future examples: "color by ASN", "size by entropy", "group by TLS cert issuer", "layout by subnet tier".
+
+> **Pragmatic note:** don't build the plugin discovery/registration machinery until the 5th or 6th view transform. For now, the principle (compute returns metadata, never mutates) is what matters. The four clustering algorithms can be hardcoded with this contract.
+
+### Clustering algorithms
+
+| Algorithm | What it does | Best for | Complexity |
+|-----------|-------------|----------|-----------|
+| **Louvain** | Community detection — maximizes modularity, finds groups more connected internally than externally | General-purpose structure discovery. Good default. | O(n log n) |
+| **K-core** | Peels away low-degree nodes layer by layer, revealing the dense "core" of the graph | Finding the backbone. Periphery collapses, core stays. | O(n + m) |
+| **Hub-and-spoke** | Finds high-degree hub nodes, collapses their leaf neighbors into a cluster | HTTP/TLS traffic where many clients → few servers. Star patterns. | O(n + m) |
+| **Shared neighbors** | Groups nodes that connect to the exact same set of peers (structural equivalence) | Hosts with identical communication patterns (e.g. DHCP/DNS clients) | O(n² × d) |
+
+All algorithms run in <50ms for graphs under 1000 nodes. `networkx` provides Louvain and k-core built-in; hub-spoke and shared-neighbor are custom but trivial.
+
+### Implementation status
+
+**Backend** (`backend/analysis/clustering.py`) — implemented:
+- `compute_clusters(nodes, edges, algorithm, **params) → Dict[node_id, cluster_id]`
+- `collapse_clusters(nodes, edges, clusters) → (new_nodes, new_edges)` — **NOTE: this currently mutates the graph data, which violates the view transform principle above. Must be refactored to return metadata instead, with frontend handling the visual collapse.**
+- Louvain resolution slider (0.1–3.0)
+
+**Frontend** — implemented but needs refactor:
+- Cluster dropdown in Graph Options (None / Louvain / K-core / Hub-spoke / Shared neighbors)
+- Hexagon rendering with member count for cluster mega-nodes
+- Cluster-aware force layout (scaled collision, charge, link distance)
+- View transform decoupling: backend returns cluster assignments as metadata, frontend does visual collapse client-side via `applyClusterView()` in `clusterView.js`
+- Cluster legend overlay (read-only color/label mapping, click to select)
+- Cluster detail panel with member list, protocol breakdown, connections, sessions, notes, click-to-rename header
+- Clickable members in cluster detail (opens NodeDetail using rawGraph data)
+- Expand cluster: right-click → "Expand cluster" adds cluster_id to `clusterExclusions` set. `applyClusterView` skips excluded clusters, showing members as individual nodes. Exclusions reset on algorithm change.
+
+### Planned features (priority order)
+
+1. ~~Cluster legend~~ — done (v0.12.1). Read-only overlay, click to select cluster on graph.
+2. ~~Cluster detail panel~~ — done (v0.12.1). Clickable members, rename, notes.
+3. ~~Right-click expand~~ — done (v0.12.2). Single "Expand cluster" item (no distinction between internal-only and with-connections — expanding always shows all real edges).
+4. **Find paths between nodes** — `networkx.all_simple_paths` with cutoff. Runs on real (unclustered) graph. Highlighted overlay on the graph.
+5. ~~Manual clustering~~ — done (v0.12.2). Lasso-select → "Group selected" creates a real cluster via `manualClusters` state merged into the view transform. Works with or without an algorithm running.
+6. **Custom rule-based clustering** — "group by protocol", "group by ASN", "group all with < N connections". Precursor to full graph view plugins.
+7. **Multi-layer / ensemble clustering** — run Louvain for communities, then hub-spoke within each. Or weighted voting across algorithms. Research needed.
+
+### Viewer philosophy
+
+Clustering is a **visualization strategy**, not an analysis judgment. Like subnet grouping, it changes what the researcher *sees* without changing what the data *contains*. The algorithm is chosen explicitly by the researcher (not auto-applied), and the full graph is always one click away. This keeps it firmly in the viewer layer.
+
+---
+
+## 10. Architecture Plan: Context Menu Design
+
+### Principle: verb-based categories
+
+The right-click context menu is organized by **what the user wants to do** (verbs), not by feature area. This keeps the menu stable as new features are added — a new feature slots into an existing verb category rather than growing the menu unpredictably.
+
+| Category | Verb | What belongs here |
+|----------|------|-------------------|
+| **Inspect** | "Show me details" | Opens a detail/info panel. One option per object type. |
+| **Investigate** | "Show me context" | Changes graph visibility to focus on this object's neighborhood. |
+| **Pathfinding** | "Show me relationships" | Queries relationships between two objects. |
+| **Annotate** | "Let me mark this" | Adds researcher-created metadata (annotations, tags, notes). |
+| **Edit** | "Let me change this" | Mutates object state (hide, delete, create, pin position). |
+
+**Rule for adding new features:** ask "what verb is this?" If it's a new verb that doesn't fit any category, that's a signal to add a new category — but this should be rare. If a category grows too long, it gets a submenu. Top-level categories stay stable.
+
+### Menu by object type
+
+**Regular node:**
+- **Inspect:** Node detail
+- **Investigate:** Investigate neighbours · Isolate connected graph *(renamed from "Investigate component")*
+- **Pathfinding:** Find paths to...
+- **Annotate:** Add annotation
+- **Edit:** Hide node · Draw edge from here · *Delete (synthetic only)*
+
+**Cluster mega-node:**
+- **Inspect:** Cluster detail *(opens ClusterDetail panel)*
+- **Expand:** Expand cluster *(adds cluster_id to exclusion set — members appear as individual nodes with real edges)*
+- **Investigate:** Investigate neighbours
+- **Pathfinding:** Find paths to...
+- **Annotate:** Add annotation
+- **Edit:** Hide cluster
+
+**Edge:**
+- **Inspect:** Edge detail
+- **Annotate:** Add annotation
+- **Edit:** *Delete (synthetic only)*
+
+**Empty canvas:**
+- **Selection:** Group selected into cluster *(only if lasso selection active)*
+- **Create:** Add annotation · Add synthetic node · Add synthetic edge
+
+### Visual design
+
+Categories separated by thin divider lines — no nested submenus (they're annoying and slow). Conditional items (synthetic-only, lasso-only, subnet-only) appear/disappear without affecting the category structure.
 
 ---
 

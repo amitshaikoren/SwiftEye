@@ -27,9 +27,21 @@ function JA3Badge({ hash, apps = [] }) {
   );
 }
 
-export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes = [], onSelectSession, annotations = [], onSaveNote }) {
+export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes = [], onSelectSession, annotations = [], onSaveNote, clusterNames }) {
   const src = e ? (typeof e.source === 'object' ? e.source.id : e.source) : '';
   const tgt = e ? (typeof e.target === 'object' ? e.target.id : e.target) : '';
+
+  // Resolve cluster node IDs to display names
+  const resolveDisplay = (id) => {
+    if (!id.startsWith('cluster:')) return id;
+    const n = nodes.find(nd => nd.id === id);
+    const cid = n?.cluster_id;
+    if (clusterNames?.[cid]) return clusterNames[cid];
+    if (n?.member_count) return `Cluster ${cid} (${n.member_count} nodes)`;
+    return id;
+  };
+  const srcDisplay = resolveDisplay(src);
+  const tgtDisplay = resolveDisplay(tgt);
   const edgeId = e?.id || '';
 
   // Notes
@@ -101,16 +113,26 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
     return merged;
   }, [sessions, fetchedSessions, edgeFilter]);
 
+  // Resolve a node ID to a real searchable IP (handles cluster IDs)
+  const resolveSearchIp = useCallback((id) => {
+    if (!id || id.includes('/')) return ''; // subnet CIDR, can't search directly
+    if (!id.startsWith('cluster:')) return id;
+    // For clusters, use the first member IP
+    const n = nodes.find(nd => nd.id === id);
+    if (n?.ips?.length > 0) return n.ips[0];
+    return '';
+  }, [nodes]);
+
   // "Show more" fetches sessions from the API using one of the edge IPs
   const loadMoreSessions = useCallback(() => {
-    const searchIp = !src.includes('/') ? src : !tgt.includes('/') ? tgt : '';
+    const searchIp = resolveSearchIp(src) || resolveSearchIp(tgt);
     if (!searchIp) return;
     setLoadingMore(true);
     fetchSessions(5000, searchIp)
       .then(d => setFetchedSessions(d.sessions || []))
       .catch(() => {})
       .finally(() => setLoadingMore(false));
-  }, [src, tgt]);
+  }, [src, tgt, resolveSearchIp]);
 
   if (!e) return null;
 
@@ -142,8 +164,8 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
       )}
 
       <div style={{ marginTop: 10 }}>
-        <Row l="Source" v={src} />
-        <Row l="Target" v={tgt} />
+        <Row l="Source" v={srcDisplay} />
+        <Row l="Target" v={tgtDisplay} />
         <Row l="Packets" v={fN(e.packet_count)} />
         <Row l="Traffic volume" v={fB(e.total_bytes)} />
         {e.first_seen && <Row l="Time range" v={fT(e.first_seen) + ' — ' + fT(e.last_seen)} />}

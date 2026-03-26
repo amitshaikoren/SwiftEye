@@ -1,5 +1,34 @@
 # SwiftEye — Changelog
 
+### v0.13.1 — March 2026
+- **Pathfinding** — right-click a node → "Find paths to..." → click a target node. Backend finds all simple paths (up to `max_paths=10`, `cutoff=5` hops) and returns **aggregated** hop-layer and edge-set data — individual paths are never sent to the frontend. The PathDetail panel shows:
+  - **Hop layers** — nodes grouped by minimum BFS distance from source. Each node is collapsible: expand to see its edges on the path with protocol tags and byte counts.
+  - **All Edges** — flat list of every unique edge across all discovered paths.
+  - **IP text inputs** — pre-filled from graph pick, manually editable for direct entry. "Find" button re-runs the query.
+  - **Directed/undirected toggle** — directed mode uses `nx.DiGraph` (respects initiator→responder direction), undirected uses `nx.Graph`.
+  - Clicking any node/edge in PathDetail opens NodeDetail/EdgeDetail with a "← Back to Path Analysis" link.
+  - Summary bar: path count, node count, edge count, max hops.
+- **Graph algorithm architecture** — `graph_core.py` is the shared networkx graph builder used by both `clustering.py` and `pathfinding.py`. Adding a new graph algorithm module: create `analysis/your_module.py`, import `build_nx_graph`, add an API endpoint. See DEVELOPERS.md §13.
+- **Pathfinding safety** — "Find paths to..." context menu item hidden for cluster/subnet mega-nodes (pathfinding operates on raw IP graph, not cluster-transformed). Pathfind state auto-clears when graph data changes (time range, filters, etc.) to prevent stale overlays.
+- **API**: `GET /api/paths?source=X&target=Y&cutoff=5&max_paths=10&directed=false` — returns `{source, target, directed, path_count, hop_layers, edges, nodes}`.
+
+### v0.12.2 — March 2026
+- **Expand cluster** — right-click a cluster mega-node → "Expand cluster" to uncollapse it back into individual member nodes with their real edges. Uses a client-side exclusion set in `applyClusterView`; no API call needed. Exclusions reset when the clustering algorithm changes.
+- **Manual clustering (lasso group)** — lasso-select nodes → right-click → "Group selected" now creates a real cluster (hexagon mega-node), not a synthetic node. Uses `manualClusters` state merged with backend cluster assignments in the view transform. Manual clusters are expandable, renamable, and work even without an algorithm running.
+- **Edge detail cluster fix** — edges between clusters now show cluster names instead of raw `cluster:N` IDs. Session search resolves cluster IDs to real member IPs before querying the API.
+- **Cluster detail rename** — click the cluster name in the ClusterDetail panel header to rename it. Dashed underline hint. Custom names display in both ClusterDetail and ClusterLegend. Names reset on algorithm change.
+- **Clickable cluster members** — clicking a member IP in ClusterDetail opens NodeDetail for that node. App.jsx merges rawGraph nodes into the detail view so NodeDetail can find members even in clustered view.
+- **Lasso union fix** — replaced ray-casting (even/odd rule) with winding number algorithm for point-in-polygon. Self-overlapping lasso paths now produce a union of enclosed regions instead of XOR.
+- **Context menu overflow fix** — menu now repositions above/left of click point when it would overflow the canvas bottom or right edge.
+- **ClusterLegend simplified** — removed rename/editing from legend overlay; it's now read-only. Rename lives in ClusterDetail panel only.
+
+### v0.12.1 — March 2026
+- Graph clustering: 4 algorithms (Louvain, k-core, hub-spoke, shared-neighbor) with hexagon mega-nodes
+- Architecture refactor: view transform decoupling — backend returns cluster assignments as metadata, frontend does visual collapse client-side
+- Cluster legend overlay with color/label mapping
+- Cluster detail panel with member list, protocol breakdown, connections, sessions, notes
+- Context menu redesigned into verb-based categories (Inspect/Investigate/Expand/Annotate/Edit)
+
 ### v0.11.2 — March 2026
 - **Session detail readability overhaul** — improved visual hierarchy in SessionDetail panel. Top metrics (packets, bytes, duration) displayed as summary cards. Collapse sections wrapped in card backgrounds for visual grouping. Layer headers (L3/L4/L5+) use accent color with thicker border. Row labels dimmer, values brighter with font-weight 500 for stronger contrast. Directional traffic as colored direction cards (green →, blue ←). Seq/Ack numbers in labeled cell grid instead of flat text. More breathing room between sections. Chevron size increased. Notes textarea contrast fixed against card body.
 

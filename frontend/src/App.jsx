@@ -26,6 +26,9 @@ import SettingsPanel from './components/SettingsPanel';
 import AnalysisPage from './components/AnalysisPage';
 import InvestigationPage from './components/InvestigationPage';
 import VisualizePage from './components/VisualizePage';
+import ClusterLegend from './components/ClusterLegend';
+import ClusterDetail from './components/ClusterDetail';
+import PathDetail from './components/PathDetail';
 
 export default function App() {
   const c = useCapture();
@@ -109,6 +112,20 @@ export default function App() {
   }
 
   // ── Right panel content (non-full-width panels) ──────────────────
+  // Back-to-path link shown on detail views when pathfindResult is active
+  const pathBackLink = c.pathfindResult?.path_count > 0 ? (
+    <div
+      onClick={c.clearSel}
+      style={{
+        fontSize: 10, color: 'var(--ac)', cursor: 'pointer', padding: '6px 14px',
+        borderBottom: '1px solid var(--bd)', fontFamily: 'var(--fn)',
+        display: 'flex', alignItems: 'center', gap: 5,
+      }}
+    >
+      <span style={{ fontSize: 9 }}>←</span> Back to Path Analysis
+    </div>
+  ) : null;
+
   let rightContent;
   if (c.selSession) {
     rightContent = (
@@ -129,29 +146,61 @@ export default function App() {
     );
   } else if (c.selEdge) {
     rightContent = (
-      <EdgeDetail
-        edge={c.selEdge} pColors={c.pColors}
-        onClear={c.clearSel}
-        sessions={c.sessions} nodes={c.visibleNodes}
-        onSelectSession={c.selectSessionWithContext}
-        annotations={c.annotations}
-        onSaveNote={c.handleSaveNote}
-      />
+      <>
+        {pathBackLink}
+        <EdgeDetail
+          edge={c.selEdge} pColors={c.pColors}
+          onClear={c.clearSel}
+          sessions={c.sessions} nodes={c.visibleNodes}
+          onSelectSession={c.selectSessionWithContext}
+          annotations={c.annotations}
+          onSaveNote={c.handleSaveNote}
+          clusterNames={c.clusterNames}
+        />
+      </>
     );
   } else if (c.selNodes.length === 1) {
-    rightContent = (
-      <NodeDetail
-        nodeId={c.selNodes[0]} nodes={c.graph.nodes || []} edges={c.graph.edges || []}
-        sessions={c.sessions} pColors={c.pColors}
-        onClear={c.clearSel}
-        onSelectEdge={e => c.handleGSel('edge', e, false)}
-        onSelectSession={c.selectSession}
-        pluginResults={c.pluginResults} uiSlots={c.pluginSlots}
-        annotations={c.annotations}
-        onSaveNote={c.handleSaveNote}
-        onUpdateSynthetic={c.handleUpdateSyntheticNode}
-      />
-    );
+    // Check if the selected node is a cluster or subnet (both use ClusterDetail)
+    const selNodeObj = (c.graph.nodes || []).find(n => n.id === c.selNodes[0]);
+    if (selNodeObj?.is_cluster || selNodeObj?.is_subnet) {
+      rightContent = (
+        <ClusterDetail
+          nodeId={c.selNodes[0]} nodes={c.graph.nodes || []} edges={c.graph.edges || []}
+          sessions={c.sessions} pColors={c.pColors}
+          onClear={c.clearSel}
+          onSelectNode={c.selectNodePanel}
+          onSelectEdge={e => c.handleGSel('edge', e, false)}
+          onSelectSession={c.selectSession}
+          clusterNames={c.clusterNames} onRenameCluster={c.renameCluster}
+          rawGraph={c.rawGraph}
+          annotations={c.annotations} onSaveNote={c.handleSaveNote}
+        />
+      );
+    } else {
+      // In clustered view, member nodes only exist in rawGraph — merge so NodeDetail can find them
+      const detailNodes = c.clusterAlgo && c.rawGraph?.nodes
+        ? [...(c.graph.nodes || []), ...c.rawGraph.nodes.filter(rn => !(c.graph.nodes || []).some(gn => gn.id === rn.id))]
+        : (c.graph.nodes || []);
+      const detailEdges = c.clusterAlgo && c.rawGraph?.edges
+        ? [...(c.graph.edges || []), ...c.rawGraph.edges.filter(re => !(c.graph.edges || []).some(ge => ge.id === re.id))]
+        : (c.graph.edges || []);
+      rightContent = (
+        <>
+          {pathBackLink}
+          <NodeDetail
+            nodeId={c.selNodes[0]} nodes={detailNodes} edges={detailEdges}
+            sessions={c.sessions} pColors={c.pColors}
+            onClear={c.clearSel}
+            onSelectEdge={e => c.handleGSel('edge', e, false)}
+            onSelectSession={c.selectSession}
+            pluginResults={c.pluginResults} uiSlots={c.pluginSlots}
+            annotations={c.annotations}
+            onSaveNote={c.handleSaveNote}
+            onUpdateSynthetic={c.handleUpdateSyntheticNode}
+          />
+        </>
+      );
+    }
   } else if (c.selNodes.length > 1) {
     rightContent = (
       <MultiSelectPanel
@@ -160,6 +209,19 @@ export default function App() {
         onSelectNode={c.selectNodePanel}
         onSelectEdge={e => c.handleGSel('edge', e, false)}
         onSelectSession={c.selectSession}
+      />
+    );
+  } else if (c.pathfindResult) {
+    rightContent = (
+      <PathDetail
+        pathResult={c.pathfindResult}
+        onClear={c.exitInvestigation}
+        onSelectNode={c.selectNodePanel}
+        onSelectEdge={e => c.handleGSel('edge', e, false)}
+        onRunPathfind={c.runPathfindFromPanel}
+        pColors={c.pColors}
+        allNodes={c.graph.nodes || []}
+        allEdges={c.graph.edges || []}
       />
     );
   } else if (c.rPanel === 'sessions') {
@@ -221,6 +283,8 @@ export default function App() {
           mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
           includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
           showHostnames={c.showHostnames} setShowHostnames={c.setShowHostnames}
+          clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
+          clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
           onApplyDisplayFilter={expr => { c.setDfExpr(expr); c.handleDfApply(expr); }}
           activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
           osGuesses={c.osGuesses}
@@ -300,6 +364,28 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Pathfind pick-target banner */}
+                {c.pathfindSource && (
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 11,
+                    background: 'rgba(227,179,65,.12)', borderBottom: '1px solid rgba(227,179,65,.3)',
+                    padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e3b341" strokeWidth="2">
+                      <circle cx="5" cy="19" r="3"/><circle cx="19" cy="5" r="3"/>
+                      <path d="M5 16V9a4 4 0 014-4h6"/><polyline points="15 1 19 5 15 9"/>
+                    </svg>
+                    <span style={{ fontSize: 11, color: '#e3b341', fontFamily: 'var(--fn)' }}>
+                      Find paths from <strong>{c.pathfindSource}</strong> — click a target node
+                    </span>
+                    <button onClick={c.cancelPathfind} style={{
+                      marginLeft: 'auto', fontSize: 10, color: '#8b949e',
+                      background: 'none', border: '1px solid #30363d', borderRadius: 4,
+                      padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--fn)',
+                    }}>Cancel</button>
+                  </div>
+                )}
+
                 {/* Investigation banner */}
                 {c.investigatedIp && (
                   <div style={{
@@ -311,10 +397,12 @@ export default function App() {
                       <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
                     </svg>
                     <span style={{ fontSize: 11, color: '#58a6ff', fontFamily: 'var(--fn)' }}>
-                      Investigating: <strong>{c.investigatedIp}</strong>
-                      {c.investigationNodes && (
+                      {c.pathfindResult ? 'Paths' : 'Investigating'}: <strong>{c.investigatedIp}</strong>
+                      {c.pathfindResult ? (
+                        <span style={{ color: '#484f58', fontWeight: 400 }}> — {c.pathfindResult.path_count} path(s) found, {c.investigationNodes?.size || 0} nodes</span>
+                      ) : c.investigationNodes ? (
                         <span style={{ color: '#484f58', fontWeight: 400 }}> — {c.investigationNodes.size} nodes in component</span>
-                      )}
+                      ) : null}
                     </span>
                     <button onClick={c.exitInvestigation} style={{
                       marginLeft: 'auto', fontSize: 10, color: '#8b949e',
@@ -359,7 +447,12 @@ export default function App() {
                   onAddSyntheticEdge={c.handleAddSyntheticEdge}
                   onDeleteSynthetic={c.handleDeleteSynthetic}
                   onUnclusterSubnet={c.handleUnclusterSubnet}
-                  onCreateSyntheticCluster={c.handleCreateSyntheticCluster}
+                  onExpandCluster={c.handleExpandCluster}
+                  onCreateManualCluster={c.handleCreateManualCluster}
+                  onStartPathfind={c.startPathfind}
+                  pathfindSource={c.pathfindSource}
+                  onPathfindTarget={c.executePathfind}
+                  onCancelPathfind={c.cancelPathfind}
                   labelThreshold={c.labelThreshold}
                 />
 
@@ -368,6 +461,13 @@ export default function App() {
                     No data matches filters
                   </div>
                 )}
+
+                {/* Cluster legend (only renders when clustering active) */}
+                <ClusterLegend
+                  nodes={c.visibleNodes}
+                  onSelect={c.handleGSel}
+                  clusterNames={c.clusterNames}
+                />
 
                 {/* Legend */}
                 <div style={{

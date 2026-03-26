@@ -51,6 +51,10 @@ export async function fetchGraph(params = {}, signal) {
   if (params.showHostnames === false) p.set('show_hostnames', 'false');
   if (params.subnetExclusions && params.subnetExclusions.size > 0)
     p.set('subnet_exclusions', Array.from(params.subnetExclusions).join(','));
+  if (params.clusterAlgorithm) {
+    p.set('cluster_algorithm', params.clusterAlgorithm);
+    if (params.clusterResolution != null) p.set('cluster_resolution', params.clusterResolution);
+  }
   return api(`/api/graph?${p}`, signal ? { signal } : undefined);
 }
 
@@ -60,6 +64,11 @@ export async function fetchSessions(limit = 1000, search = '', timeParams = {}) 
   if (timeParams.timeStart != null) p.set('time_start', timeParams.timeStart);
   if (timeParams.timeEnd   != null) p.set('time_end',   timeParams.timeEnd);
   return api(`/api/sessions?${p}`);
+}
+
+export async function fetchPaths(source, target, { cutoff = 5, maxPaths = 10, directed = false } = {}) {
+  const p = new URLSearchParams({ source, target, cutoff, max_paths: maxPaths, directed });
+  return api(`/api/paths?${p}`);
 }
 
 export async function fetchSessionDetail(sessionId, packetLimit = 200) {

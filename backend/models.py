@@ -30,6 +30,7 @@ class GraphResponse(BaseModel):
     edges: List[Dict[str, Any]]
     filtered_count: int
     filtered_bytes: int
+    clusters: Optional[Dict[str, int]] = None  # node_id -> cluster_id (view metadata, never mutates graph)
 
 
 class SessionsResponse(BaseModel):

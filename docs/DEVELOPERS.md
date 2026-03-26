@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.11.2 | March 2026**
+**Version 0.13.1 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -20,6 +20,7 @@
 10. [Data Flow](#10-data-flow)
 11. [Adding Features](#11-adding-features)
 12. [File Format Reference](#12-file-format-reference)
+13. [Graph Algorithms](#13-graph-algorithms)
 
 ---
 
@@ -73,7 +74,10 @@ swifteye/
 │   ├── analysis/                    # LAYER 2: Structural data organisation
 │   │   ├── aggregator.py            # Graph building, filtering, entity_map, OUI+JA3 lookup
 │   │   ├── sessions.py              # Session reconstruction + per-protocol aggregation
-│   │   └── stats.py                 # Global statistics
+│   │   ├── stats.py                 # Global statistics
+│   │   ├── graph_core.py            # Shared networkx graph builder (used by clustering + pathfinding)
+│   │   ├── clustering.py            # 4 clustering algorithms (Louvain, k-core, hub-spoke, shared-neighbor)
+│   │   └── pathfinding.py           # Path analysis: hop layers, edge sets, directed/undirected
 │   ├── plugins/                     # LAYER 3: Plugin system (insights + analyses)
 │   │   ├── __init__.py              # PluginBase, registry, UI slot system, display helpers
 │   │   ├── insights/                # Per-node/per-session interpretation
@@ -108,6 +112,7 @@ swifteye/
 │       ├── api.js                   # All backend API calls
 │       ├── utils.js                 # Formatting helpers (fN, fB, fD, fT, fTtime)
 │       ├── displayFilter.js         # Wireshark-style filter: tokeniser → parser → evaluator
+│       ├── clusterView.js           # applyClusterView: cluster collapse transform (client-side)
 │       └── components/
 │           ├── GraphCanvas.jsx      # D3 force simulation on canvas + annotation overlays
 │           ├── TopBar.jsx           # Logo, filename, search, theme toggle
@@ -122,6 +127,7 @@ swifteye/
 │           ├── ResearchPage.jsx     # On-demand Plotly charts + ChartErrorBoundary
 │           ├── TimelinePanel.jsx    # Session Gantt + time scope
 │           ├── HelpPanel.jsx        # Keyboard shortcuts and feature reference
+│           ├── PathDetail.jsx       # Pathfinding results: hop layers, edges, IP inputs
 │           ├── LogsPanel.jsx        # Auto-refreshing server log viewer
 │           ├── Sparkline.jsx        # Time-bucketed packet count canvas sparkline
 │           ├── PluginSection.jsx    # Generic renderer for plugin _display data
@@ -699,11 +705,19 @@ D3 force simulation on HTML canvas (not SVG — performance). Key rules:
 
 Node label priority: researcher metadata `name` → first DNS hostname → IP address. Hostnames render in cyan.
 
-**Lasso select** — `Shift + right-click-drag` draws a selection rectangle. Implemented via `pointerdown` with `e.button === 2 && e.shiftKey`. The lasso rect is a React overlay div. On `pointerup`, nodes whose screen-space position falls within the rect are selected. `contextmenu` is suppressed if `lassoRef.current` is set (to prevent the context menu firing immediately after lasso release).
+**Lasso select** — `Shift + right-click-drag` draws a freehand selection polygon. Implemented via `pointerdown` with `e.button === 2 && e.shiftKey`. The lasso path is rendered as an SVG polygon overlay. On `pointerup`, nodes whose screen-space position falls within the polygon are selected using a **winding number** point-in-polygon test (non-zero winding = inside). This gives union behavior on self-overlapping paths — circling an area twice keeps it selected, unlike ray-casting which would XOR it back out. `contextmenu` is suppressed if `lassoRef.current` is set (to prevent the context menu firing immediately after lasso release).
 
 **Relayout** — `doRelayout()` function inside GraphCanvas. Deletes `fx`/`fy` from all nodes (unpins them) then calls `simRef.current.alpha(0.9).alphaTarget(0).restart()`. Exposed via the ↺ Relayout button overlay (top-right of canvas).
 
-**Synthetic cluster** — `onCreateSyntheticCluster(nodeIds)` prop. Called from the canvas context menu when ≥2 nodes are selected. Implemented in `useCapture.handleCreateSyntheticCluster`: creates a purple synthetic node aggregating member IPs/bytes, hides member nodes via `hiddenNodes`, re-routes external edges. `cluster_members` field on the node tracks membership.
+**Manual cluster (lasso group)** — `onCreateManualCluster(nodeIds)` prop. Called from the canvas context menu when ≥2 nodes are lasso-selected. Implemented in `useCapture.handleCreateManualCluster`: assigns all selected nodes to a new cluster_id in the `manualClusters` state (a `nodeId → clusterId` map). The `graph` useMemo merges `manualClusters` with backend `rawGraph.clusters` and feeds the combined map to `applyClusterView`. This means manual groups produce real hexagon mega-nodes — expandable, renamable, and part of the view transform. Works even when no clustering algorithm is running. Manual clusters reset on algorithm change.
+
+**Expand cluster** — `onExpandCluster(clusterId)` prop. Adds the cluster_id to `clusterExclusions` (a `Set<number>` in useCapture). The `graph` useMemo passes this set to `applyClusterView(nodes, edges, clusters, exclusions)`, which skips excluded cluster_ids during grouping — their member nodes stay as individual nodes with their real edges. Purely client-side, no API call. `clusterExclusions` resets when the clustering algorithm changes (via `useEffect` on `clusterAlgo`). Collapse back is possible via `handleCollapseCluster(clusterId)` which removes the id from the set.
+
+**Cluster rename** — `renameCluster(clusterId, name)` in useCapture sets `clusterNames[clusterId] = name`. ClusterDetail header renders an `EditableClusterName` component (click to edit, Enter/blur to save, Escape to cancel). ClusterLegend reads `clusterNames` for display but is not editable. Names reset on algorithm change alongside exclusions.
+
+- `clusterExclusions` — set of cluster_ids that have been manually expanded; cleared when `clusterAlgo` changes (use the algo change effect, not manual clearing)
+- `clusterNames` — map of cluster_id → custom name string; cleared alongside exclusions on algo change
+- `manualClusters` — map of node_id → cluster_id for user-created groups (lasso → "Group selected"). Merged with `rawGraph.clusters` in the `graph` useMemo. Cleared on algo change.
 
 **Investigate split** — two props: `onInvestigateNeighbours` (depth-1: node + direct peers) and `onInvestigate` (full BFS connected component). Both appear as separate context menu items.
 
@@ -1120,3 +1134,93 @@ Key fields beyond the basics:
 | `dhcp_vendor_classes` | list[str] | Option 60 vendor class strings |
 | `smb_tree_paths` | list[str] | Share paths from TREE_CONNECT requests |
 | `smb_filenames` | list[str] | Filenames from CREATE requests |
+
+---
+
+## 13. Graph Algorithms
+
+Graph algorithms live in `backend/analysis/` and share a common networkx graph builder. They operate on the node/edge topology produced by the aggregator — currently IPs and connections, but the contract is **node-agnostic** by design (see roadmap).
+
+### Architecture
+
+```
+analysis/
+├── graph_core.py      # Shared: build_nx_graph(nodes, edges) → nx.Graph
+├── clustering.py      # 4 algorithms → {node_id: cluster_id} assignments
+└── pathfinding.py     # Path analysis → hop layers + edge sets
+```
+
+**Shared core** — `graph_core.py` owns `build_nx_graph(nodes, edges)`, which converts SwiftEye node/edge dicts into a weighted, undirected networkx `Graph`. All graph-theory modules import from here. Edges are weighted by `total_bytes` (summed when the same pair has multiple protocol edges).
+
+**Adding a new algorithm module:**
+1. Create `analysis/your_module.py`
+2. Import `build_nx_graph` from `graph_core`
+3. Accept `(nodes, edges, **params)` — same contract as clustering/pathfinding
+4. Add an API endpoint in `server.py` that calls `build_graph(store.packets)` and passes results to your module
+5. When a 3rd algorithm module is added, extract a formal plugin registry (see roadmap)
+
+### Clustering (`clustering.py`)
+
+Four algorithms, each returning `{node_id: cluster_id}`:
+
+| Algorithm | What it does | When to use |
+|-----------|-------------|-------------|
+| `louvain` | Modularity optimisation (Louvain method). Resolution param controls granularity. | General community detection |
+| `kcore` | k-core decomposition. Labels by core number. | Find densely-connected cores |
+| `hub_spoke` | Classifies high-degree nodes as hubs, their exclusive neighbours as spokes. | Identify star topologies (NAT, proxies) |
+| `shared_neighbor` | Agglomerative clustering by Jaccard similarity of neighbour sets. | Find peers that talk to the same hosts |
+
+Backend returns cluster assignments as metadata (`clusters: {node_id: cluster_id}`). The frontend does visual collapse client-side via `applyClusterView()` in `clusterView.js`. Graph data is **never mutated** by clustering — toggling off is instant (no API call).
+
+### Pathfinding (`pathfinding.py`)
+
+`find_paths(nodes, edges, source, target, cutoff, max_paths, directed)` finds simple paths between two nodes and returns **aggregated** results:
+
+```python
+{
+    "source": "10.0.0.1",
+    "target": "10.0.0.5",
+    "directed": False,
+    "path_count": 7,
+    "hop_layers": {"0": ["10.0.0.1"], "1": ["10.0.0.2", "10.0.0.3"], "2": ["10.0.0.5"]},
+    "edges": [{"source": "10.0.0.1", "target": "10.0.0.2", "protocols": ["TCP"], "total_bytes": 1234, "session_count": 3}],
+    "nodes": ["10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.5"]
+}
+```
+
+**Key design decisions:**
+- Individual paths are **never** returned to the frontend. Only the union of nodes/edges across all paths, with hop distances.
+- `hop_layers` — each node's minimum distance from source across all discovered paths. Gives BFS-style layered view.
+- `directed` mode uses `nx.DiGraph` (respects edge direction = initiator→responder). Undirected uses `nx.Graph`.
+- Hard ceilings: `MAX_PATHS=20`, `MAX_CUTOFF=10` to prevent runaway computation.
+- Uses `nx.all_simple_paths` with early termination at `max_paths`.
+
+**API:** `GET /api/paths?source=X&target=Y&cutoff=5&max_paths=10&directed=false`
+
+### Frontend: PathDetail panel (`PathDetail.jsx`)
+
+Right panel component shown when pathfinding results are active. Renders:
+- **Source/target IP inputs** — pre-filled from graph pick, manually editable. Enter or "Find" button re-runs the query.
+- **Directed/undirected toggle** — re-runs with changed mode.
+- **Hop layers** — nodes grouped by BFS distance from source. Source and target highlighted. Each node is collapsible: click the arrow to expand and see its edges on the path (protocol tags, byte counts).
+- **All Edges** — flat list of every unique edge across all paths.
+- **Clickable navigation** — clicking a node opens NodeDetail, clicking an edge opens EdgeDetail. A "← Back to Path Analysis" link returns to PathDetail.
+
+**State in useCapture:**
+- `pathfindSource` — node ID awaiting target pick (crosshair cursor mode)
+- `pathfindResult` — aggregated response object from API (or null)
+- `pathfindLoading` — boolean for loading state
+- `runPathfindFromPanel(source, target, {directed})` — re-run from PathDetail inputs
+- Pathfind state **auto-clears** when `rawGraph` changes (time range, filters, etc.) to prevent stale overlays
+
+**Investigation overlay** — when pathfinding results are active, `investigationNodes` is set to the union of all path nodes. Non-path nodes dim to ~10% opacity on the canvas. The investigation banner shows path count and node count.
+
+### Limitations and future work
+
+- **Operates on raw graph only.** Currently pathfinding uses `build_graph(store.packets)` which returns the raw IP-level topology. When clustering is active, cluster mega-nodes are not valid pathfinding targets — the "Find paths to..." context menu item is hidden for cluster/subnet nodes.
+- **Node-agnostic contract (ROADMAP).** Graph algorithms should operate on the current visible graph topology, not assume IP-level nodes. When clustering is active, a cluster is a valid node with edges. Beyond network captures, the same algorithms should work on any node type (processes, users, firewall rules, sysmon events). The contract is: accept `(nodes, edges)` where each node has an `id` and each edge has `source`/`target` — the algorithm doesn't know or care what the IDs represent. This requires:
+  1. Frontend passes the cluster-transformed graph to pathfinding (not raw)
+  2. Backend endpoint accepts pre-transformed node/edge lists (or the frontend sends them)
+  3. Edge metadata aggregation works regardless of what the node IDs look like
+  4. PathDetail renders node IDs without assuming they're IPs (no IP-specific formatting)
+- **Plugin registry.** When a 3rd algorithm module is added, extract a formal registry pattern (auto-discovery like protocol_fields) so new algorithms are drop-in files.

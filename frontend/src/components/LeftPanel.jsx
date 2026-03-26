@@ -10,6 +10,8 @@ export default function LeftPanel({
   includeIPv6 = true, setIncludeIPv6,
   showHostnames = true, setShowHostnames,
   labelThreshold = 0, setLabelThreshold,
+  clusterAlgo = '', setClusterAlgo,
+  clusterResolution = 1.0, setClusterResolution,
   onApplyDisplayFilter, activeOsFilter, osGuesses = [],
 }) {
   const [collapsed, setCollapsed] = useState({});
@@ -347,6 +349,59 @@ export default function LeftPanel({
             </div>
           );
         })()}
+
+        {/* Graph clustering */}
+        {setClusterAlgo && (
+          <div style={{ marginTop: 8, padding: '4px' }}
+            title="Cluster nodes using graph algorithms. Nodes in the same cluster share a colored ring.">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+              <span style={{ fontSize: 11, color: clusterAlgo ? 'var(--tx)' : 'var(--txD)', fontWeight: clusterAlgo ? 500 : 400 }}>
+                Cluster
+              </span>
+              {clusterAlgo && (
+                <button className="btn" onClick={() => setClusterAlgo('')}
+                  style={{ fontSize: 8, padding: '0 4px' }}>off</button>
+              )}
+            </div>
+            <select
+              value={clusterAlgo}
+              onChange={e => setClusterAlgo(e.target.value)}
+              style={{
+                width: '100%', fontSize: 10, padding: '3px 4px',
+                background: 'var(--bg)', color: 'var(--tx)',
+                border: '1px solid var(--bgH)', borderRadius: 3,
+              }}
+            >
+              <option value="">None</option>
+              <option value="louvain">Louvain (communities)</option>
+              <option value="kcore">K-core (dense core)</option>
+              <option value="hub_spoke">Hub &amp; spoke (stars)</option>
+              <option value="shared_neighbor">Shared neighbors</option>
+            </select>
+            <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 2 }}>
+              {clusterAlgo === 'louvain' && 'Groups densely connected communities'}
+              {clusterAlgo === 'kcore' && 'Reveals the dense backbone of the graph'}
+              {clusterAlgo === 'hub_spoke' && 'Collapses leaf nodes around hubs'}
+              {clusterAlgo === 'shared_neighbor' && 'Groups nodes with identical peers'}
+              {!clusterAlgo && 'No clustering applied'}
+            </div>
+            {clusterAlgo === 'louvain' && (
+              <div style={{ marginTop: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <span style={{ fontSize: 10, color: 'var(--txD)' }}>Resolution</span>
+                  <span style={{ fontSize: 9, fontFamily: 'var(--fn)', color: 'var(--txM)' }}>{clusterResolution.toFixed(1)}</span>
+                </div>
+                <input type="range" min={0.1} max={3.0} step={0.1}
+                  value={clusterResolution}
+                  onChange={e => setClusterResolution(parseFloat(e.target.value))}
+                  style={{ width: '100%' }} />
+                <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 1 }}>
+                  {clusterResolution < 0.8 ? 'Few large communities' : clusterResolution > 1.5 ? 'Many small communities' : 'Balanced'}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* View info */}

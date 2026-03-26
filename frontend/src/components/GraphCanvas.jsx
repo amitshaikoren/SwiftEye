@@ -9,7 +9,8 @@
  *      toggling so drag and zoom never conflict.
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
+import { CLUSTER_COLORS } from '../clusterView';
 import * as d3 from 'd3';
 
 export default function GraphCanvas({
@@ -20,7 +21,8 @@ export default function GraphCanvas({
   annotations = [], onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
   onAddNodeAnnotation, onAddEdgeAnnotation,
   onAddSyntheticNode, onAddSyntheticEdge, onDeleteSynthetic, onUnclusterSubnet,
-  onRelayout, onCreateSyntheticCluster,
+  onExpandCluster, onRelayout, onCreateManualCluster,
+  onStartPathfind, pathfindSource, onPathfindTarget, onCancelPathfind,
   labelThreshold = 0,
 }) {
   const cRef = useRef(null);
@@ -42,7 +44,8 @@ export default function GraphCanvas({
   const dfEdgesRef = useRef(displayFilterEdges);
   const renRef = useRef(null);
   const rafRef = useRef(null);
-  const [ctxMenu, setCtxMenu] = useState(null); // {x, y, nodeId, nodeLabel, edgeId, isSynthetic, isSyntheticEdge, canvasX, canvasY}
+  const [ctxMenu, setCtxMenu] = useState(null); // {x, y, nodeId, nodeLabel, edgeId, isSynthetic, isSyntheticEdge, isCluster, isSubnet, canvasX, canvasY}
+  const menuRef = useRef(null);
   const [lasso, setLasso] = useState(null);      // {points:[{x,y}]} — freehand lasso polygon
   const lassoRef = useRef(null);                 // ref mirror for event handlers
   const [transformVersion, setTransformVersion] = useState(0); // bumped on zoom/pan to reposition annotation overlays
@@ -53,6 +56,23 @@ export default function GraphCanvas({
   const annotationsRef = useRef(annotations);
   useEffect(() => { annotationsRef.current = annotations; }, [annotations]);
 
+  // Reposition context menu if it overflows the canvas bottom or right edge
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    const container = cRef.current?.parentElement;
+    if (!el || !container || !ctxMenu) return;
+    const cW = container.clientWidth;
+    const cH = container.clientHeight;
+    const mW = el.offsetWidth;
+    const mH = el.offsetHeight;
+    let x = ctxMenu.x + 2;
+    let y = ctxMenu.y + 2;
+    if (x + mW > cW) x = Math.max(0, ctxMenu.x - mW - 2);
+    if (y + mH > cH) y = Math.max(0, ctxMenu.y - mH - 2);
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+  }, [ctxMenu]);
+
   // Keep refs in sync with props
   useEffect(() => { selNRef.current = new Set(selectedNodes); }, [selectedNodes]);
   useEffect(() => { selERef.current = selectedEdge; }, [selectedEdge]);
@@ -60,6 +80,10 @@ export default function GraphCanvas({
   useEffect(() => { onSelRef.current = onSelect; }, [onSelect]);
   useEffect(() => { onInvRef.current = onInvestigate; }, [onInvestigate]);
   useEffect(() => { onInvNbRef.current = onInvestigateNeighbours; }, [onInvestigateNeighbours]);
+  const pathfindSourceRef = useRef(pathfindSource);
+  const onPathfindTargetRef = useRef(onPathfindTarget);
+  useEffect(() => { pathfindSourceRef.current = pathfindSource; }, [pathfindSource]);
+  useEffect(() => { onPathfindTargetRef.current = onPathfindTarget; }, [onPathfindTarget]);
   useEffect(() => {
     invNodesRef.current = investigationNodes;
     if (renRef.current) {
@@ -166,11 +190,23 @@ export default function GraphCanvas({
     eRef.current = ne;
     if (simRef.current) simRef.current.stop();
 
+    // Cluster-aware forces: mega-nodes need more room
+    const hasAnyClusters = nn.some(n => n.is_cluster);
     const sim = d3.forceSimulation(nn)
-      .force('charge', d3.forceManyBody().strength(-350).distanceMax(450))
-      .force('link', d3.forceLink(ne).id(d => d.id).distance(130).strength(0.4))
+      .force('charge', d3.forceManyBody()
+        .strength(d => d.is_cluster ? -350 - (d.member_count || 0) * 30 : -350)
+        .distanceMax(hasAnyClusters ? 600 : 450))
+      .force('link', d3.forceLink(ne).id(d => d.id)
+        .distance(d => {
+          const s = typeof d.source === 'object' ? d.source : null;
+          const t = typeof d.target === 'object' ? d.target : null;
+          if (s?.is_cluster || t?.is_cluster) return 200;
+          return 130;
+        })
+        .strength(0.4))
       .force('center', d3.forceCenter(width / 2, height / 2).strength(0.04))
-      .force('collision', d3.forceCollide().radius(d => gR(d) + 10))
+      .force('collision', d3.forceCollide().radius(d =>
+        d.is_cluster ? gR(d) * 1.8 + 15 : gR(d) + 10))
       .force('x', d3.forceX(width / 2).strength(0.015))
       .force('y', d3.forceY(height / 2).strength(0.015))
       .alphaDecay(0.02)
@@ -179,6 +215,7 @@ export default function GraphCanvas({
     simRef.current = sim;
 
     function gR(n) {
+      if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
       if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
       return Math.max(5, Math.min(28, Math.sqrt(n.packet_count) * 2 + 3));
     }
@@ -207,6 +244,7 @@ export default function GraphCanvas({
       const nodeExternalS = cv('--node-external-s')|| '#9060cc';
       const nodeSubnet    = cv('--node-subnet')   || '#253545';
       const nodeSubnetS   = cv('--node-subnet-s') || '#557080';
+      // Cluster palette imported from clusterView.js (shared with ClusterLegend)
       const nodeGateway   = cv('--node-gateway')  || '#3d3018';
       const nodeGatewayS  = cv('--node-gateway-s')|| '#e0b020';
       const nodeLabel     = cv('--node-label')    || '#a0aab5';
@@ -316,7 +354,32 @@ export default function GraphCanvas({
 
         // Shape
         const isGateway = node.plugin_data?.network_role?.role === 'gateway';
-        if (node.is_subnet) {
+        if (node.is_cluster) {
+          // Hexagon for cluster mega-nodes
+          const cc = CLUSTER_COLORS[(node.cluster_id || 0) % CLUSTER_COLORS.length];
+          const hr = r * 1.8;
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i - Math.PI / 6;
+            const hx = node.x + hr * Math.cos(angle);
+            const hy = node.y + hr * Math.sin(angle);
+            if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+          }
+          ctx.closePath();
+          ctx.fillStyle = isSel ? cc + '44' : cc + '18';
+          ctx.fill();
+          ctx.strokeStyle = isSel ? '#fff' : isH ? acGColor : cc;
+          ctx.lineWidth = isSel || isH ? 2.5 : 2;
+          ctx.stroke();
+          // Member count badge inside
+          if (node.member_count && t.k > 0.3) {
+            ctx.font = `bold ${Math.max(9, 11 / t.k)}px JetBrains Mono, monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = cc;
+            ctx.fillText(String(node.member_count), node.x, node.y);
+          }
+        } else if (node.is_subnet) {
           const s = r * 1.7;
           ctx.beginPath();
           ctx.rect(node.x - s / 2, node.y - s / 2, s, s);
@@ -386,8 +449,8 @@ export default function GraphCanvas({
           // instead of the UUID that serves as the node's internal ID.
           const displayName = node.metadata?.name
             || (node.hostnames?.length ? node.hostnames[0] : null)
-            || (node.synthetic && node.label ? node.label : null);
-          const rawId = node.synthetic && node.label ? node.label : node.id;
+            || ((node.synthetic || node.is_cluster) && node.label ? node.label : null);
+          const rawId = (node.synthetic || node.is_cluster) && node.label ? node.label : node.id;
           const lb = displayName
             ? (displayName.length > 22 ? displayName.slice(0, 20) + '…' : displayName)
             : (rawId.length > 22 ? rawId.slice(0, 20) + '…' : rawId);
@@ -465,6 +528,7 @@ export default function GraphCanvas({
     let zoomEnabled = true;
 
     function gR(n) {
+      if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
       if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
       return Math.max(5, Math.min(28, Math.sqrt(n.packet_count) * 2 + 3));
     }
@@ -587,15 +651,18 @@ export default function GraphCanvas({
         const pts = lassoRef.current.points;
         if (pts.length >= 3) {
           const t = tRef.current;
-          // Ray-casting point-in-polygon
+          // Winding-number point-in-polygon (non-zero = inside, gives union on self-overlap)
           function inPolygon(px, py) {
-            let inside = false;
+            let wn = 0;
             for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
               const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
-              const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
-              if (intersect) inside = !inside;
+              if (yj <= py) {
+                if (yi > py && ((xi - xj) * (py - yj) - (px - xj) * (yi - yj)) > 0) wn++;
+              } else {
+                if (yi <= py && ((xi - xj) * (py - yj) - (px - xj) * (yi - yj)) < 0) wn--;
+              }
             }
-            return inside;
+            return wn !== 0;
           }
           const selected = nRef.current
             .filter(n => {
@@ -632,6 +699,11 @@ export default function GraphCanvas({
       const r = c.getBoundingClientRect();
       const mx = e.clientX - r.left, my = e.clientY - r.top;
       const n = gN(mx, my);
+      // Pathfind pick-target mode: clicking a node completes the pathfind
+      if (pathfindSourceRef.current && n) {
+        onPathfindTargetRef.current?.(n.id);
+        return;
+      }
       if (n) { onSelRef.current('node', n.id, e.shiftKey); return; }
       const ed = gE(mx, my);
       if (ed) { onSelRef.current('edge', ed, false); return; }
@@ -660,7 +732,7 @@ export default function GraphCanvas({
       const n = gN(cx, cy);
       if (n) {
         const label = n.metadata?.name || (n.hostnames?.length ? n.hostnames[0] : n.id);
-        setCtxMenu({ x: cx, y: cy, nodeId: n.id, nodeLabel: label, isSynthetic: !!n.synthetic, canvasX: null, canvasY: null, edgeId: null });
+        setCtxMenu({ x: cx, y: cy, nodeId: n.id, nodeLabel: label, isSynthetic: !!n.synthetic, isCluster: !!n.is_cluster, isSubnet: !!n.is_subnet, clusterId: n.cluster_id, canvasX: null, canvasY: null, edgeId: null });
       } else {
         // Check if we right-clicked an edge
         const ed = gE(cx, cy);
@@ -704,6 +776,9 @@ export default function GraphCanvas({
         {icon}<span>{children}</span>
       </div>
     );
+  }
+  function MenuDivider() {
+    return <div style={{ height: 1, background: 'var(--bd)', margin: '3px 0' }} />;
   }
 
   // ── Synthetic node form ──────────────────────────────────────────
@@ -847,7 +922,7 @@ export default function GraphCanvas({
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <canvas ref={cRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+      <canvas ref={cRef} style={{ width: '100%', height: '100%', display: 'block', cursor: pathfindSource ? 'crosshair' : undefined }} />
 
       {/* Relayout button — bottom-right of graph (avoids overlap with hidden nodes badge) */}
       <button onClick={doRelayout} title="Reset layout — unpins all nodes and re-runs the force simulation"
@@ -890,9 +965,9 @@ export default function GraphCanvas({
             onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }}
           />
           {/* Menu */}
-          <div style={{
+          <div ref={menuRef} style={{
             position: 'absolute',
-            left: Math.min(ctxMenu.x + 2, (cRef.current?.clientWidth || 600) - 180),
+            left: ctxMenu.x + 2,
             top: ctxMenu.y + 2,
             zIndex: 100,
             background: 'var(--bgC)',
@@ -905,7 +980,7 @@ export default function GraphCanvas({
           }}>
             {ctxMenu.nodeId ? (
             <>
-            {/* Node context menu */}
+            {/* ── Node / Cluster context menu ── */}
             <div style={{
               padding: '5px 12px 6px', borderBottom: '1px solid var(--bd)',
               fontSize: 10, color: 'var(--txD)',
@@ -913,25 +988,67 @@ export default function GraphCanvas({
               display: 'flex', alignItems: 'center', gap: 4,
             }}>
               {ctxMenu.isSynthetic && <span style={{ fontSize: 8, color: '#f0883e', border: '1px solid #f0883e', borderRadius: 3, padding: '0 3px' }}>synthetic</span>}
+              {ctxMenu.isCluster && <span style={{ fontSize: 8, color: '#bc8cff', border: '1px solid #bc8cff', borderRadius: 3, padding: '0 3px' }}>cluster</span>}
               {ctxMenu.nodeLabel}
             </div>
+
+            {/* INSPECT */}
+            <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--txM)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>}
+              onClick={() => { onSelRef.current('node', ctxMenu.nodeId, false); setCtxMenu(null); }}>
+              {ctxMenu.isCluster ? 'Cluster detail' : 'Node detail'}
+            </MenuItem>
+
+            <MenuDivider />
+
+            {/* INVESTIGATE */}
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>}
               onClick={() => { onInvNbRef.current?.(ctxMenu.nodeId); setCtxMenu(null); }}>Investigate neighbours</MenuItem>
-            <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>}
-              onClick={() => { onInvRef.current?.(ctxMenu.nodeId); setCtxMenu(null); }}>Investigate component</MenuItem>
-            <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--txM)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>}
-              onClick={() => { onSelRef.current('node', ctxMenu.nodeId, false); setCtxMenu(null); }}>Node detail</MenuItem>
+            {!ctxMenu.isCluster && (
+              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>}
+                onClick={() => { onInvRef.current?.(ctxMenu.nodeId); setCtxMenu(null); }}>Isolate connected graph</MenuItem>
+            )}
+
+            <MenuDivider />
+
+            {/* PATHFINDING (not available on cluster/subnet mega-nodes) */}
+            {!ctxMenu.isCluster && !ctxMenu.isSubnet && (
+              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e3b341" strokeWidth="2"><circle cx="5" cy="19" r="3"/><circle cx="19" cy="5" r="3"/><path d="M5 16V9a4 4 0 014-4h6"/><polyline points="15 1 19 5 15 9"/></svg>}
+                onClick={() => { onStartPathfind?.(ctxMenu.nodeId); setCtxMenu(null); }}>Find paths to…</MenuItem>
+            )}
+
+            {/* EXPAND (cluster only) */}
+            {ctxMenu.isCluster && (
+              <>
+                <MenuDivider />
+                <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d29922" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>}
+                  onClick={() => { onExpandCluster?.(ctxMenu.clusterId); setCtxMenu(null); }}>Expand cluster</MenuItem>
+              </>
+            )}
+
+            {/* UNCLUSTER (subnet only) */}
+            {ctxMenu.isSubnet && (
+              <>
+                <MenuDivider />
+                <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d29922" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>}
+                  onClick={() => { onUnclusterSubnet?.(ctxMenu.nodeId); setCtxMenu(null); }}>Uncluster subnet</MenuItem>
+              </>
+            )}
+
+            <MenuDivider />
+
+            {/* ANNOTATE */}
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
               onClick={() => { onAddNodeAnnotation?.(ctxMenu.nodeId, ctxMenu.nodeLabel); setCtxMenu(null); }}>Add annotation</MenuItem>
-            {/* Uncluster is only offered for subnet nodes (id contains '/') */}
-            {ctxMenu.nodeId?.includes('/') && (
-              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d29922" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>}
-                onClick={() => { onUnclusterSubnet?.(ctxMenu.nodeId); setCtxMenu(null); }}>Uncluster subnet</MenuItem>
-            )}
+
+            <MenuDivider />
+
+            {/* EDIT */}
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--txD)" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>}
-              onClick={() => { onHideNode?.(ctxMenu.nodeId); setCtxMenu(null); }}>Hide node</MenuItem>
-            <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3fb950" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>}
-              onClick={() => { setSynEdgeSrc(ctxMenu.nodeId); setCtxMenu(null); setShowSyntheticEdgeForm(true); }}>Draw synthetic edge from here</MenuItem>
+              onClick={() => { onHideNode?.(ctxMenu.nodeId); setCtxMenu(null); }}>{ctxMenu.isCluster ? 'Hide cluster' : 'Hide node'}</MenuItem>
+            {!ctxMenu.isCluster && (
+              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3fb950" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>}
+                onClick={() => { setSynEdgeSrc(ctxMenu.nodeId); setCtxMenu(null); setShowSyntheticEdgeForm(true); }}>Draw edge from here</MenuItem>
+            )}
             {ctxMenu.isSynthetic && (
               <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--acR)" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>}
                 onClick={() => { onDeleteSynthetic?.(ctxMenu.nodeId); setCtxMenu(null); }}>Delete synthetic</MenuItem>
@@ -939,7 +1056,7 @@ export default function GraphCanvas({
             </>
           ) : ctxMenu.edgeId ? (
             <>
-            {/* Edge context menu */}
+            {/* ── Edge context menu ── */}
             <div style={{
               padding: '5px 12px 6px', borderBottom: '1px solid var(--bd)',
               fontSize: 10, color: 'var(--txD)',
@@ -949,25 +1066,43 @@ export default function GraphCanvas({
               {ctxMenu.isSyntheticEdge && <span style={{ fontSize: 8, color: '#f0883e', border: '1px solid #f0883e', borderRadius: 3, padding: '0 3px' }}>synthetic</span>}
               Edge
             </div>
+
+            {/* INSPECT */}
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--txM)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>}
               onClick={() => { const ed = eRef.current.find(e => e.id === ctxMenu.edgeId); if (ed) onSelRef.current('edge', ed, false); setCtxMenu(null); }}>Edge detail</MenuItem>
+
+            <MenuDivider />
+
+            {/* ANNOTATE */}
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bc8cff" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
               onClick={() => { onAddEdgeAnnotation?.(ctxMenu.edgeId); setCtxMenu(null); }}>Add annotation</MenuItem>
+
+            {/* EDIT */}
             {ctxMenu.isSyntheticEdge && (
-              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--acR)" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>}
-                onClick={() => { onDeleteSynthetic?.(ctxMenu.edgeId); setCtxMenu(null); }}>Delete synthetic</MenuItem>
+              <>
+                <MenuDivider />
+                <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--acR)" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>}
+                  onClick={() => { onDeleteSynthetic?.(ctxMenu.edgeId); setCtxMenu(null); }}>Delete synthetic</MenuItem>
+              </>
             )}
             </>
           ) : (
             <>
-            {/* Empty canvas menu */}
+            {/* ── Empty canvas menu ── */}
+
+            {/* SELECTION */}
             {selNRef.current.size >= 2 && (
-              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bc8cff" strokeWidth="2"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="12" cy="19" r="2"/><line x1="7" y1="12" x2="10" y2="12"/><line x1="12" y1="7" x2="12" y2="10"/><line x1="14" y1="12" x2="17" y2="12"/><line x1="12" y1="14" x2="12" y2="17"/></svg>}
-                onClick={() => {
-                  onCreateSyntheticCluster?.(Array.from(selNRef.current));
-                  setCtxMenu(null);
-                }}>Cluster selected ({selNRef.current.size} nodes)</MenuItem>
+              <>
+                <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bc8cff" strokeWidth="2"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="12" cy="19" r="2"/><line x1="7" y1="12" x2="10" y2="12"/><line x1="12" y1="7" x2="12" y2="10"/><line x1="14" y1="12" x2="17" y2="12"/><line x1="12" y1="14" x2="12" y2="17"/></svg>}
+                  onClick={() => {
+                    onCreateManualCluster?.(Array.from(selNRef.current));
+                    setCtxMenu(null);
+                  }}>Group selected ({selNRef.current.size} nodes)</MenuItem>
+                <MenuDivider />
+              </>
             )}
+
+            {/* CREATE */}
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f0883e" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
               onClick={() => { onAddAnnotation?.(ctxMenu.canvasX, ctxMenu.canvasY); setCtxMenu(null); }}>Add annotation</MenuItem>
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3fb950" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>}

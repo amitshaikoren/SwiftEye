@@ -40,6 +40,8 @@ from parser import read_pcap, PacketRecord, MAX_FILE_SIZE
 from parser.adapters import detect_adapter, ADAPTERS
 from constants import PROTOCOL_COLORS
 from analysis import build_time_buckets, build_graph, filter_packets, build_sessions, compute_global_stats, get_subnets, build_mac_split_map
+from analysis.clustering import compute_clusters
+from analysis.pathfinding import find_paths
 from plugins.insights.node_merger import build_entity_map
 from plugins import (
     register_plugin, run_global_analysis, get_global_results,
@@ -552,6 +554,8 @@ async def get_graph(
     include_ipv6: bool = True,
     show_hostnames: bool = True,
     subnet_exclusions: Optional[str] = None,   # comma-separated subnet strings to un-cluster
+    cluster_algorithm: Optional[str] = None,   # louvain | kcore | hub_spoke | shared_neighbor
+    cluster_resolution: float = 1.0,           # Louvain resolution (< 1 = fewer/larger, > 1 = more/smaller)
 ):
     """Get filtered graph data (nodes + edges)."""
     _require_capture()
@@ -616,6 +620,22 @@ async def get_graph(
     all_results = get_global_results()
     _enrich_nodes_with_plugins(result["nodes"], all_results)
 
+    # ── Graph clustering (optional) ──
+    # Returns cluster assignments as metadata — the graph data is NEVER mutated.
+    # Frontend applies the visual collapse client-side.
+    if cluster_algorithm:
+        try:
+            params = {}
+            if cluster_algorithm == 'louvain':
+                params['resolution'] = cluster_resolution
+            result["clusters"] = compute_clusters(
+                result["nodes"], result["edges"], algorithm=cluster_algorithm,
+                params=params,
+            )
+        except Exception as _cl_err:
+            logger.error(f"Clustering [{cluster_algorithm}] failed: {_cl_err}")
+            result["clusters"] = {}
+
     # Run analyses lazily on first graph build — use an UNFILTERED graph
     # so analyses always see the full capture, not a filtered subset.
     if not get_analysis_results():
@@ -631,6 +651,31 @@ async def get_graph(
             result["edges"] = result["edges"] + syn_edges
 
     return GraphResponse(**result)
+
+
+@app.get("/api/paths")
+async def get_paths(
+    source: str,
+    target: str,
+    cutoff: int = 5,
+    max_paths: int = 10,
+    directed: bool = False,
+):
+    """Find simple paths between two nodes on the raw graph.
+
+    Returns aggregated hop-layer and edge-set data (not individual paths).
+    """
+    _require_capture()
+
+    # Build a minimal raw graph — pathfinding only needs node IDs and edges
+    result = build_graph(store.packets)
+
+    return find_paths(
+        result["nodes"], result["edges"],
+        source=source, target=target,
+        cutoff=cutoff, max_paths=max_paths,
+        directed=directed,
+    )
 
 
 def _enrich_nodes_with_plugins(nodes: list, plugin_results: dict):

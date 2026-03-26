@@ -37,6 +37,8 @@ Open **http://localhost:8642** and drop a pcap file.
 - **Connection Gantt** — full-width Plotly Gantt of all sessions in the Timeline page. Click Run to render.
 - **Search** — universal keyword search filters both the graph and Sessions panel. Matches IPs, MACs, hostnames, protocols, ports, and TCP flags simultaneously.
 - **Display filter bar** — Wireshark-style expression filter. Supports `ip`, `ip.src`, `ip.dst`, `mac`, `hostname`, `protocol`, `port`, `bytes`, `packets`, `tls.sni`, `http.host`, `dns`, `os`, `private`, `subnet` fields with `==`, `!=`, `>`, `<`, `contains`, `matches`, `&&`, `||`, `!`, `()` and CIDR notation. Client-side, instant feedback.
+- **Graph clustering** — Louvain, k-core, hub-spoke, shared-neighbor algorithms. Clusters render as hexagon mega-nodes. Expand/collapse, rename, lasso-group to create manual clusters.
+- **Pathfinding** — right-click a node → "Find paths to..." → click a target. Results show BFS hop layers and all edges across discovered paths. Directed/undirected toggle. IP text inputs for manual entry.
 - **Graph Options** — Subnet grouping (/8–/32 prefix), Merge by MAC (dual-stack IPv4+IPv6 hosts become one node), Show IPv6 toggle, Show hostnames toggle. Right-click any subnet node → **Uncluster subnet** to expand just that subnet.
 - **Node detail** — IPs, MACs with vendor name (Apple, Cisco, Intel, Espressif, etc.), TTLs, OS fingerprint, DNS hostnames, connections by direction, plugin sections.
 - **MAC vendor lookup** — ~700 OUI prefixes covering major vendors.
