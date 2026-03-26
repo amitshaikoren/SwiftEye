@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.13.2 | March 2026**
+**Version 0.13.3 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -74,15 +74,19 @@ swifteye/
 │   │   └── adapters/               # Ingestion adapters (multi-source support)
 │   │       ├── __init__.py          # IngestionAdapter base, registry, detect_adapter()
 │   │       ├── pcap_adapter.py      # pcap/pcapng files via pcap_reader
-│   │       └── zeek/               # All Zeek log adapters
-│   │           ├── __init__.py      # Imports all Zeek modules to register them
-│   │           ├── common.py        # Shared Zeek log parsing utilities
-│   │           ├── conn.py          # conn.log → base sessions
-│   │           ├── dns.py           # dns.log → DNS enrichment
-│   │           ├── http.py          # http.log → HTTP enrichment
-│   │           ├── ssl.py           # ssl.log → TLS enrichment
-│   │           ├── smb.py           # smb_files.log + smb_mapping.log → SMB enrichment
-│   │           └── dce_rpc.py       # dce_rpc.log → DCE/RPC enrichment
+│   │       ├── zeek/               # All Zeek log adapters
+│   │       │   ├── __init__.py      # Imports all Zeek modules to register them
+│   │       │   ├── common.py        # Shared Zeek log parsing utilities
+│   │       │   ├── conn.py          # conn.log → base sessions
+│   │       │   ├── dns.py           # dns.log → DNS enrichment
+│   │       │   ├── http.py          # http.log → HTTP enrichment
+│   │       │   ├── ssl.py           # ssl.log → TLS enrichment
+│   │       │   ├── smb.py           # smb_files.log + smb_mapping.log → SMB enrichment
+│   │       │   └── dce_rpc.py       # dce_rpc.log → DCE/RPC enrichment
+│   │       └── tshark/              # Tshark CSV export adapters
+│   │           ├── __init__.py      # Imports all tshark modules to register them
+│   │           ├── common.py        # Shared tshark CSV parsing (tab-sep, row-index handling)
+│   │           └── arp.py           # ARP CSV → ARP packet records
 │   ├── analysis/                    # LAYER 2: Structural data organisation
 │   │   ├── aggregator.py            # Graph building, filtering, entity_map, OUI+JA3 lookup
 │   │   ├── sessions.py              # Session reconstruction + per-protocol aggregation

@@ -71,3 +71,4 @@ def detect_adapter(path: Path) -> Optional[IngestionAdapter]:
 # ── Import adapters so they register themselves ──────────────────────────
 from . import pcap_adapter  # noqa: E402, F401
 from . import zeek            # noqa: E402, F401  — registers all Zeek log adapters
+from . import tshark          # noqa: E402, F401  — registers all tshark CSV adapters

@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.13.3 — March 2026
+- **Tshark ARP CSV adapter** — new ingestion adapter for tshark-exported ARP CSV files (tab-separated, `tshark -T fields` format). Detects files by header field sniffing for `arpOpcode`, `arpSourceMac`, `arpSourceIp`, `arpDestIp`. Maps ARP opcode numbers to names (request/reply/RARP request/RARP reply), extracts source/dest MAC+IP, detects broadcast destinations. Handles pandas-style exports where data rows have a leading row-index column (N+1 values for N header fields).
+- **Tshark adapter directory** — new `adapters/tshark/` package mirroring the `adapters/zeek/` structure. Shared `common.py` provides `parse_tshark_csv()` (tab-separated parsing with row-index handling) and `is_tshark_csv()` (header field sniffing). Future tshark CSV adapters (DNS, HTTP, etc.) just drop a module in this directory.
+
 ### v0.13.2 — March 2026
 - **Zeek SMB adapters** — two new ingestion adapters for Zeek SMB logs:
   - `smb_files.log` — file access operations (open, read, write, delete, rename). Maps Zeek's `action`, `path`, `name`, `size` to SMB session fields (`smb_command`, `smb_tree_path`, `smb_filename`).

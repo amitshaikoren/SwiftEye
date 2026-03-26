@@ -1,11 +1,15 @@
 # SwiftEye — Handoff Document
-## Version 0.13.2 | March 2026
+## Version 0.13.3 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.13.2** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.13.3** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.13.2)
+### Recent highlights (v0.13.3)
+- Tshark ARP CSV adapter: ingests tab-separated ARP exports from tshark (`-T fields`). Detects via header field sniffing (`arpOpcode`, `arpSourceMac`, etc.). Handles pandas-style row-index column offset.
+- New `adapters/tshark/` subdirectory with shared CSV parsing utilities (`common.py`)
+
+### Previous highlights (v0.13.2)
 - Zeek SMB adapter: smb_files.log (file operations) + smb_mapping.log (tree connects)
 - Zeek DCE/RPC adapter: dce_rpc.log (RPC operations, named pipes, endpoints)
 - Enhanced protocol_fields: SMB gains services/share_types, DCE/RPC gains operations/named_pipes
