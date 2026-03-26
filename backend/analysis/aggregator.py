@@ -265,6 +265,18 @@ def build_mac_split_map(packets: List[PacketRecord]) -> Dict[str, set]:
         if pkt.src_ip and pkt.src_mac and not _skip_mac(pkt.src_mac):
             ip_to_macs[pkt.src_ip].add(pkt.src_mac)
 
+    # Gateway heuristic: a MAC that appears as src_mac for many different IPs
+    # is a router/gateway, not a host. A real host has 1-4 IPs (dual-stack);
+    # a gateway forwards for dozens. Exclude MACs seen on 8+ distinct IPs.
+    mac_ip_count: Dict[str, int] = defaultdict(int)
+    for ip, macs in ip_to_macs.items():
+        for mac in macs:
+            mac_ip_count[mac] += 1
+    gateway_macs = {mac for mac, count in mac_ip_count.items() if count >= 8}
+    if gateway_macs:
+        for ip in ip_to_macs:
+            ip_to_macs[ip] -= gateway_macs
+
     # Only return IPs with 2+ distinct MACs
     return {ip: macs for ip, macs in ip_to_macs.items() if len(macs) >= 2}
 
