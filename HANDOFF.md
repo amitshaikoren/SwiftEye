@@ -3,13 +3,16 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.14.1** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.14.2** — see `CHANGELOG.md` for full version history.
 
-### Recent highlights (v0.14.1)
+> **Before each session:** Update the "Continue working on..." section at the bottom of `init_prompt.md` with the current priority. This tells the next LLM session what to work on without wasting tokens on context-gathering.
+
+### Recent highlights (v0.14.2)
+- **Graph query system plan** — full design documented in §6 roadmap, DEVELOPERS.md §14, and `query_system_design.html`. Persistent NetworkX analysis graph, engine-agnostic `POST /api/query` contract, categorized dropdown with "count of" meta-operator.
+- **Multi-capture platform vision** — documented in §6 "Long-term vision". SwiftEye grows from single-capture single-user into multi-capture, multi-user with Neo4j/SQL/PySpark query layers.
 - Removed MAC split feature — IPs are nodes, MACs are metadata. No more `IP::MAC` hybrid node IDs.
 - **Hide broadcasts** Graph Options toggle — filters broadcast (255.255.255.255, 0.0.0.0) and multicast (224.0.0.0/4, ff00::/8) addresses from the graph.
 - **ARP enrichment** — pcap reader and tshark adapter now extract ARP opcode, sender/target MACs and IPs into `pkt.extra`. New `protocol_fields/arp.py` accumulates into sessions. Dedicated `session_sections/arp.jsx` renders opcodes as tags with counts.
-- Timeline playback animation added to roadmap.
 
 ### Recent highlights (v0.14.0)
 - Full tshark CSV adapter suite — 8 adapters for hunt-workshop dataset:
