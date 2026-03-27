@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.14.1 | March 2026**
+**Version 0.14.2 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -21,6 +21,7 @@
 11. [Adding Features](#11-adding-features)
 12. [File Format Reference](#12-file-format-reference)
 13. [Graph Algorithms](#13-graph-algorithms)
+14. [Analysis Graph & Query System](#14-analysis-graph--query-system)
 
 ---
 
@@ -33,6 +34,8 @@ SwiftEye is a network traffic visualization platform for security researchers. I
 **What it does**: Displays network traffic visually — who talked to whom, over what protocols, with what TCP behavior. Researchers bring the expertise; SwiftEye shows the data.
 
 **What the core does NOT do**: Make security judgments, flag threats, or generate alerts. The core viewer and analysis layers present evidence for the researcher to interpret. Threat detection, alerting, and security scoring belong in the plugin system — specifically the analyses tier (graph-wide computation), where they can correlate across sessions and nodes without polluting the core viewer.
+
+**Long-term vision**: SwiftEye's single-capture, single-user mode is Phase 1. The platform will grow into a **multi-capture, multi-user data platform** where teams of researchers work across many captures, correlate findings, and query at scale. Architectural decisions today (engine-agnostic query contracts, stateless graph building, plugin isolation) are made with this future in mind. See HANDOFF.md §6 "Long-term vision: multi-capture platform" for the full roadmap.
 
 ---
 
@@ -1245,3 +1248,179 @@ Right panel component shown when pathfinding results are active. Renders:
   3. Edge metadata aggregation works regardless of what the node IDs look like
   4. PathDetail renders node IDs without assuming they're IPs (no IP-specific formatting)
 - **Plugin registry.** When a 3rd algorithm module is added, extract a formal registry pattern (auto-discovery like protocol_fields) so new algorithms are drop-in files.
+
+## 14. Analysis Graph & Query System
+
+### Overview
+
+The analysis graph is a persistent NetworkX graph built once at capture load time. It serves structured queries ("find all nodes with >1 MAC") independently of the stateless view graph (`build_graph()`) that handles filtered visualization.
+
+Two separate paths from the same data store:
+- **View graph** — `build_graph()`, stateless, rebuilt per filter change. What you see on the canvas.
+- **Analysis graph** — `build_analysis_graph()`, built once on upload, persists for capture lifetime. What you query against.
+
+Query results (matched node/edge IDs) overlay onto the view graph as highlights, groups, or filters — no view graph rebuild needed.
+
+### Data structure under the hood
+
+NetworkX stores everything as nested Python dicts. This is the actual internal representation:
+
+```python
+# Node storage — G._node (or G.nodes)
+# Each key is an IP address, value is a dict of accumulated attributes
+G._node = {
+    "192.168.1.50": {
+        "macs":       {"aa:bb:cc:11:22:33", "aa:bb:cc:44:55:66"},
+        "protocols":  {"DNS", "HTTP", "SMB"},
+        "ports":      {53, 80, 443, 445},
+        "hostnames":  {"workstation-5"},
+        "ja3s":       {"e7d705b6..."},
+        "ttls":       {64, 128},
+        "vendors":    {"Intel"},
+        "packets":    1482,
+        "bytes":      924810,
+        "os_guess":   "Windows 10",
+        "is_private": True,
+        "arp_seen":   True,
+    },
+    "10.0.0.1": { ... },
+}
+
+# Edge storage — G._adj (adjacency dict)
+# Nested dict: G._adj[u][v] = edge attributes
+G._adj = {
+    "192.168.1.50": {
+        "10.0.0.1": {
+            "sessions":      ["s1", "s2", "s3"],   # session IDs (keys into store.sessions)
+            "protocols":     {"DNS", "HTTPS"},
+            "ports":         {53, 443},
+            "packets":       312,
+            "bytes":         48200,
+            "has_handshake": True,
+            "has_reset":     False,
+            "ja3s":          {"e7d705b6..."},
+            "dns_queries":   ["example.com"],
+            "http_hosts":    ["example.com"],
+            "first_seen":    1711612800.0,
+            "last_seen":     1711614600.0,
+        },
+    },
+}
+```
+
+This structure serializes to JSON trivially (`nx.node_link_data(G)`) and maps naturally to:
+- **Neo4j**: nodes → Neo4j nodes with properties, edges → relationships with properties
+- **SQL**: nodes table + edges table + attribute columns
+- **Parquet/Spark**: node DataFrame + edge DataFrame
+
+### Query API contract
+
+`POST /api/query` accepts engine-agnostic structured JSON:
+
+```json
+{
+  "target": "nodes",
+  "conditions": [
+    { "field": "protocols", "op": "contains", "value": "ARP" },
+    { "field": "macs", "op": "count_gt", "value": 1 }
+  ],
+  "logic": "AND",
+  "action": "highlight"
+}
+```
+
+The `op` field determines the operator. Operators are grouped by the type of field they apply to:
+
+**Numeric operators** (for `packets`, `bytes`, `degree`, `sessions`):
+`>`, `<`, `=`, `!=`, `>=`, `<=`
+
+**Count-of operators** (for any set field — MACs, protocols, ports, JA3s, hostnames, etc.):
+`count_gt`, `count_lt`, `count_eq` — applies `len(field)` then compares. This is the generic alternative to pre-baked fields like `mac_count`. "Count of MACs > 1" = `{"field": "macs", "op": "count_gt", "value": 1}`.
+
+**Set operators** (for set-valued fields):
+`contains`, `contains_all`, `contains_any`, `is_empty`, `not_empty`
+
+**String operators** (for text fields like `os_guess`, `hostnames`):
+`equals`, `starts_with`, `matches` (regex)
+
+**Boolean operators** (for flags like `is_private`, `has_handshake`):
+`is_true`, `is_false`
+
+**Topology operators** (graph structure queries):
+`connects_to`, `connects_only_to`, `same_neighbors_as`, `path_exists`
+
+### Response format
+
+```json
+{
+  "matched_nodes": [
+    { "id": "192.168.1.50", "match_details": { "macs": ["aa:bb:cc:11:22:33", "aa:bb:cc:44:55:66"] } }
+  ],
+  "matched_edges": [],
+  "action": "highlight",
+  "total_matched": 1,
+  "total_searched": 48,
+  "summary": "1 of 48 nodes matching query"
+}
+```
+
+### Frontend query builder
+
+The dropdown organizes fields into categories with subcategories. The operator dropdown adapts based on the field type:
+
+```
+── Counts (numeric) ────────────
+  Total packets
+  Total bytes
+  Degree (connected peers)
+  Session count
+
+── Count of... (any set) ───────
+  MACs                    ← "count of MACs > 1" replaces hardcoded mac_count
+  Protocols
+  Ports
+  JA3 fingerprints
+  Hostnames
+  TTLs
+  Vendors
+
+── Contains (set membership) ───
+  Protocols               ← "protocols contains DNS"
+  Ports                   ← "ports contains 443"
+  MACs
+  JA3 fingerprints
+  Hostnames
+  DNS queries (edges)
+  HTTP hosts (edges)
+
+── Flags (boolean) ─────────────
+  Is private
+  Has handshake (edges)
+  Has reset (edges)
+  ARP seen
+
+── Text (string match) ─────────
+  OS guess
+  Hostnames (regex)
+
+── Topology (graph structure) ──
+  Connects to [IP]
+  Connects only to [IP]
+  Same neighbors as [IP]
+  Path exists to [IP]
+```
+
+The field list is **dynamic** — built from whatever attributes exist on the loaded capture's analysis graph. New protocol_fields or plugin attributes appear automatically without frontend changes. Categories are determined by the field's Python type (set → "Count of" + "Contains" categories, int/float → "Counts", bool → "Flags", str → "Text").
+
+### Engine migration path
+
+The `POST /api/query` contract is engine-agnostic. The backend resolver can swap without API or frontend changes:
+
+| Phase | Engine | When |
+|-------|--------|------|
+| Phase 1 (now) | NetworkX in-memory | Single-capture, single-user |
+| Phase 2 | SQLite + NetworkX | Persistent single-user, capture survives restart |
+| Phase 3 | Neo4j / KùzuDB | Multi-capture correlation, Cypher queries |
+| Phase 4 | Postgres + Spark | Multi-user platform, large-scale analytics |
+
+See HANDOFF.md §6 "Graph query system" for implementation phases and roadmap. See `query_system_design.html` for visual architecture diagram and UI mockups.

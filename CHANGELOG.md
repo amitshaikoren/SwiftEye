@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.14.2 — March 2026
+- **Graph query system design** — documented the full plan for a structured query engine over a persistent NetworkX analysis graph. Categorized field dropdown (Counts, Count-of, Contains, Flags, Text, Topology) with dynamic field population. Engine-agnostic `POST /api/query` contract designed for future migration to Neo4j/SQL/PySpark. Three implementation phases: foundation (attribute queries + highlight/select), topology + actions (group/hide/isolate), power user (raw DSL, compound queries, regex). Visual design mockup in `query_system_design.html`. See DEVELOPERS.md §14 and HANDOFF.md §6.
+- **Multi-capture platform vision** — documented the long-term vision: SwiftEye grows from single-capture single-user into a multi-capture, multi-user data platform with workspaces, projects, team features, graph DB backend, and SQL/PySpark query layers. Added to HANDOFF.md §6 and DEVELOPERS.md §1.
+
 ### v0.14.1 — March 2026
 - **MAC split removed** — the `build_mac_split_map()` feature that created `IP::MAC` hybrid node IDs has been removed. IPs are nodes, MACs are metadata. The "Merge by MAC" toggle remains for combining nodes that share a MAC.
 - **Hide broadcasts toggle** — new Graph Options toggle that filters broadcast (255.255.255.255, 0.0.0.0) and multicast (224.0.0.0/4, ff00::/8) addresses from the graph. Backend `exclude_broadcasts` param threaded through `filter_packets()` → `build_graph()` → API → frontend.

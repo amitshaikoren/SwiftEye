@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SwiftEye — Graph Query System Design</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 30px; min-width: 1100px; }
+  h1 { text-align: center; color: #58a6ff; margin-bottom: 4px; font-size: 26px; }
+  .subtitle { text-align: center; color: #666; font-size: 12px; margin-bottom: 36px; }
+
+  .section {
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px; padding: 24px; margin-bottom: 24px;
+  }
+  .section-label {
+    font-size: 13px; font-weight: 600; color: #58a6ff; text-transform: uppercase;
+    letter-spacing: 2px; margin-bottom: 16px;
+  }
+
+  /* ── Architecture rows ── */
+  .flow-row { display: flex; align-items: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+  .flow-arrow { color: #58a6ff; font-size: 16px; flex-shrink: 0; }
+  .flow-arrow.new { color: #f0883e; }
+  .arrow-label { font-size: 9px; color: #666; font-style: italic; padding: 2px 6px; background: #0d1117; }
+
+  .box {
+    padding: 10px 16px; border-radius: 8px; font-size: 11px; text-align: center;
+    font-weight: 500; min-width: 120px;
+  }
+  .box-title { font-weight: 600; font-size: 12px; }
+  .box-label { font-size: 9px; color: #666; margin-top: 3px; }
+
+  .box-store   { background: #2a1f0a; border: 1.5px solid #d29922; color: #e3b341; }
+  .box-compute { background: #0d1f3a; border: 1.5px solid #58a6ff; color: #79c0ff; }
+  .box-new     { background: #2a1a08; border: 2px solid #f0883e; color: #f5a623; }
+  .box-plugin  { background: #1f0d2a; border: 1.5px solid #bc8cff; color: #d2a8ff; }
+  .box-output  { background: #0d2a24; border: 1.5px solid #3fb950; color: #7ee787; }
+  .box-api     { background: #2a0d0d; border: 2px dashed #f85149; color: #ffa198; }
+  .box-ui      { background: #1f0d2a; border: 1.5px solid #bc8cff; color: #d2a8ff; }
+
+  .new-badge {
+    display: inline-block; font-size: 8px; font-weight: 700; color: #0d1117;
+    background: #f0883e; padding: 1px 5px; border-radius: 3px; margin-left: 4px;
+    vertical-align: middle;
+  }
+
+  /* ── UI Mockup ── */
+  .mockup-container {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+    overflow: hidden;
+  }
+  .mockup-header {
+    background: #1c2128; padding: 10px 16px; border-bottom: 1px solid #30363d;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .mockup-title { font-size: 12px; font-weight: 600; color: #e0e0e0; }
+  .mockup-body { padding: 16px; }
+
+  /* Query builder UI mock */
+  .qb-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .qb-label { font-size: 11px; color: #8b949e; min-width: 40px; }
+  .qb-select {
+    background: #21262d; border: 1px solid #30363d; color: #e0e0e0;
+    padding: 5px 10px; border-radius: 6px; font-size: 11px;
+    font-family: inherit; cursor: pointer; min-width: 100px;
+  }
+  .qb-select:hover { border-color: #58a6ff; }
+  .qb-input {
+    background: #21262d; border: 1px solid #30363d; color: #e0e0e0;
+    padding: 5px 10px; border-radius: 6px; font-size: 11px;
+    font-family: inherit; width: 140px;
+  }
+  .qb-condition {
+    background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
+    padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .qb-remove {
+    background: none; border: none; color: #f85149; cursor: pointer;
+    font-size: 14px; padding: 0 4px; opacity: 0.6;
+  }
+  .qb-remove:hover { opacity: 1; }
+  .qb-add {
+    background: rgba(88,166,255,0.1); border: 1px dashed #58a6ff;
+    color: #58a6ff; padding: 4px 12px; border-radius: 6px; font-size: 10px;
+    cursor: pointer; font-family: inherit;
+  }
+  .qb-add:hover { background: rgba(88,166,255,0.2); }
+  .qb-run {
+    background: rgba(63,185,80,0.15); border: 1px solid #3fb950; color: #7ee787;
+    padding: 6px 24px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .qb-run:hover { background: rgba(63,185,80,0.3); }
+  .qb-divider { border-top: 1px solid #21262d; margin: 12px 0; }
+
+  .qb-result {
+    background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
+    padding: 12px 16px; margin-top: 12px;
+  }
+  .qb-result-header {
+    font-size: 11px; font-weight: 600; color: #7ee787; margin-bottom: 6px;
+  }
+  .qb-result-item {
+    display: flex; align-items: center; gap: 8px; padding: 4px 0;
+    font-size: 11px; border-bottom: 1px solid #21262d;
+  }
+  .qb-result-item:last-child { border: none; }
+  .qb-result-ip { color: #79c0ff; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 11px; }
+  .qb-result-detail { color: #8b949e; font-size: 10px; }
+  .qb-result-badge {
+    font-size: 8px; padding: 2px 6px; border-radius: 3px;
+    font-weight: 600;
+  }
+
+  /* ── Tabs in mockup ── */
+  .mock-tabs { display: flex; gap: 0; margin-bottom: 12px; }
+  .mock-tab {
+    padding: 6px 14px; font-size: 10px; font-weight: 500;
+    border: 1px solid #30363d; cursor: pointer; color: #8b949e;
+    background: #161b22;
+  }
+  .mock-tab:first-child { border-radius: 6px 0 0 6px; }
+  .mock-tab:last-child { border-radius: 0 6px 6px 0; }
+  .mock-tab.active { background: #21262d; color: #e0e0e0; border-color: #58a6ff; }
+
+  /* ── Graph overlay mockup ── */
+  .graph-mock {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 10px;
+    height: 300px; position: relative; overflow: hidden;
+  }
+  .graph-node {
+    position: absolute; width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 7px; font-weight: 600; z-index: 2; transition: all 0.3s;
+  }
+  .graph-node.normal { background: #1c2d4a; border: 2px solid #58a6ff; color: #79c0ff; }
+  .graph-node.highlighted { background: #3a2a08; border: 2px solid #f0883e; color: #f5a623; box-shadow: 0 0 12px rgba(240,136,62,0.4); }
+  .graph-node.dimmed { background: #161b22; border: 2px solid #30363d; color: #484f58; opacity: 0.4; }
+  .graph-node.grouped { background: #1f0d2a; border: 2px solid #bc8cff; color: #d2a8ff; }
+  .graph-edge {
+    position: absolute; height: 1px; transform-origin: left center; z-index: 1;
+  }
+  .graph-edge.normal { background: rgba(88,166,255,0.2); }
+  .graph-edge.highlighted { background: rgba(240,136,62,0.6); height: 2px; }
+  .graph-edge.dimmed { background: rgba(88,166,255,0.05); }
+
+  .graph-label {
+    position: absolute; font-size: 7px; color: #8b949e; z-index: 3;
+    font-family: 'Cascadia Code', monospace;
+  }
+  .graph-label.highlighted { color: #f5a623; font-weight: 600; }
+
+  .graph-overlay-badge {
+    position: absolute; top: 10px; right: 10px; background: rgba(240,136,62,0.15);
+    border: 1px solid #f0883e; border-radius: 6px; padding: 6px 10px; z-index: 5;
+    font-size: 10px; color: #f5a623;
+  }
+
+  .graph-group-ring {
+    position: absolute; border: 2px dashed #bc8cff; border-radius: 50%; opacity: 0.4;
+    z-index: 0;
+  }
+
+  /* ── Example queries ── */
+  .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .example-card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 16px; transition: border-color 0.2s;
+  }
+  .example-card:hover { border-color: #58a6ff; }
+  .example-title { font-size: 12px; font-weight: 600; color: #e0e0e0; margin-bottom: 8px; }
+  .example-query {
+    font-size: 10px; color: #8b949e; line-height: 1.5;
+    background: #0d1117; border-radius: 6px; padding: 8px 10px;
+    font-family: 'Cascadia Code', monospace; margin-bottom: 8px;
+  }
+  .example-query .kw { color: #ff7b72; }
+  .example-query .field { color: #79c0ff; }
+  .example-query .op { color: #d2a8ff; }
+  .example-query .val { color: #7ee787; }
+  .example-nx {
+    font-size: 9px; color: #666; padding: 6px 10px; background: #0d1117;
+    border-radius: 6px; font-family: 'Cascadia Code', monospace;
+    border-left: 2px solid #58a6ff;
+  }
+  .example-label { font-size: 9px; color: #58a6ff; margin-bottom: 3px; font-weight: 600; }
+
+  /* ── JSON/code block ── */
+  .code-block {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 14px 18px; font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11px; line-height: 1.6; overflow-x: auto; color: #c9d1d9;
+  }
+  .code-block .key { color: #79c0ff; }
+  .code-block .str { color: #a5d6ff; }
+  .code-block .num { color: #79c0ff; }
+  .code-block .cmt { color: #484f58; }
+  .code-block .kw { color: #ff7b72; }
+  .code-block .fn { color: #d2a8ff; }
+
+  /* ── Comparison table ── */
+  .cmp-table {
+    width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 12px;
+  }
+  .cmp-table th {
+    text-align: left; padding: 8px 12px; border-bottom: 2px solid #21262d;
+    color: #58a6ff; font-weight: 600; font-size: 10px;
+  }
+  .cmp-table td {
+    padding: 6px 12px; border-bottom: 1px solid #161b22; color: #c9d1d9;
+  }
+  .cmp-table tr:hover td { background: rgba(88,166,255,0.03); }
+  .cmp-good { color: #7ee787; }
+  .cmp-bad { color: #f85149; }
+  .cmp-meh { color: #d29922; }
+
+  .note {
+    margin-top: 16px; padding: 14px 16px; border-radius: 0 8px 8px 0;
+    font-size: 11px; line-height: 1.6; color: #8b949e;
+  }
+  .note-blue { background: rgba(88,166,255,0.06); border-left: 3px solid #58a6ff; }
+  .note-orange { background: rgba(240,136,62,0.06); border-left: 3px solid #f0883e; }
+  .note strong { color: #e0e0e0; }
+  .note code { background: #21262d; padding: 1px 5px; border-radius: 3px; font-size: 10px; color: #79c0ff; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .pill { display: inline-block; font-size: 9px; padding: 2px 8px; border-radius: 10px; margin: 2px; }
+  .pill-node { background: rgba(88,166,255,0.15); color: #79c0ff; border: 1px solid rgba(88,166,255,0.3); }
+  .pill-edge { background: rgba(63,185,80,0.15); color: #7ee787; border: 1px solid rgba(63,185,80,0.3); }
+  .pill-topo { background: rgba(188,140,255,0.15); color: #d2a8ff; border: 1px solid rgba(188,140,255,0.3); }
+  .pill-action { background: rgba(240,136,62,0.15); color: #f5a623; border: 1px solid rgba(240,136,62,0.3); }
+</style>
+</head>
+<body>
+
+<h1>SwiftEye Query System</h1>
+<p class="subtitle">Graph query engine design — structured queries over a persistent analysis graph</p>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: Architecture -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">1. Architecture — Where It Fits</div>
+
+  <div class="flow-row">
+    <div class="box box-store">
+      <div class="box-title">Data Store</div>
+      <div class="box-label">packets + sessions</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="box box-new">
+      <div class="box-title">Analysis Graph <span class="new-badge">NEW</span></div>
+      <div class="box-label">NetworkX — built once on upload</div>
+      <div class="box-label" style="color:#f5a623">persists for capture lifetime</div>
+    </div>
+    <div class="flow-arrow new">→</div>
+    <div class="box box-new">
+      <div class="box-title">Query Engine <span class="new-badge">NEW</span></div>
+      <div class="box-label">POST /api/query</div>
+    </div>
+    <div class="flow-arrow new">→</div>
+    <div class="box box-output">
+      <div class="box-title">Matched IDs</div>
+      <div class="box-label">node/edge IDs + action</div>
+    </div>
+  </div>
+
+  <div class="flow-row" style="margin-top: 4px;">
+    <div class="box box-store" style="opacity: 0.5;">
+      <div class="box-title">Data Store</div>
+    </div>
+    <div class="flow-arrow" style="opacity: 0.4;">→</div>
+    <div class="box box-compute" style="opacity: 0.5;">
+      <div class="box-title">build_graph()</div>
+      <div class="box-label">stateless — unchanged</div>
+    </div>
+    <div class="flow-arrow" style="opacity: 0.4;">→</div>
+    <div class="box box-output" style="opacity: 0.5;">
+      <div class="box-title">View Graph</div>
+      <div class="box-label">{ nodes, edges }</div>
+    </div>
+    <div style="font-size: 10px; color: #484f58; margin-left: 8px;">existing, no change</div>
+  </div>
+
+  <div class="note note-blue" style="margin-top: 16px;">
+    <strong>Two separate paths, same data source.</strong>
+    The view graph (build_graph) handles filtered visualization — what you see.
+    The analysis graph handles structured queries — what you ask.
+    Both read from the same Data Store. Query results overlay onto the view graph as highlights/groups/filters.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: Analysis Graph Structure -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">2. Analysis Graph — What Gets Built</div>
+
+  <div class="two-col">
+    <div>
+      <div style="font-size: 12px; font-weight: 600; color: #79c0ff; margin-bottom: 10px;">Node Attributes (per IP)</div>
+      <div class="code-block">
+<span class="cmt"># Built from packets + sessions</span>
+G.nodes[<span class="str">"192.168.1.50"</span>] = {
+  <span class="key">"macs"</span>:       {<span class="str">"aa:bb:cc:11:22:33"</span>, <span class="str">"aa:bb:cc:44:55:66"</span>},
+  <span class="key">"mac_count"</span>:  <span class="num">2</span>,
+  <span class="key">"protocols"</span>:  {<span class="str">"DNS"</span>, <span class="str">"HTTP"</span>, <span class="str">"SMB"</span>},
+  <span class="key">"ports"</span>:      {<span class="num">53</span>, <span class="num">80</span>, <span class="num">443</span>, <span class="num">445</span>},
+  <span class="key">"hostnames"</span>:  {<span class="str">"workstation-5"</span>},
+  <span class="key">"ja3s"</span>:       {<span class="str">"e7d7..."</span>, <span class="str">"abc1..."</span>},
+  <span class="key">"ttls"</span>:       {<span class="num">64</span>, <span class="num">128</span>},
+  <span class="key">"packets"</span>:    <span class="num">1482</span>,
+  <span class="key">"bytes"</span>:      <span class="num">924810</span>,
+  <span class="key">"degree"</span>:     <span class="num">7</span>,         <span class="cmt"># connected peers</span>
+  <span class="key">"os_guess"</span>:   <span class="str">"Windows 10"</span>,
+  <span class="key">"is_private"</span>: <span class="num">True</span>,
+  <span class="key">"vendors"</span>:    {<span class="str">"Intel"</span>},
+  <span class="key">"arp_seen"</span>:   <span class="num">True</span>,
+}
+      </div>
+    </div>
+    <div>
+      <div style="font-size: 12px; font-weight: 600; color: #7ee787; margin-bottom: 10px;">Edge Attributes (per IP pair)</div>
+      <div class="code-block">
+<span class="cmt"># Built from sessions on this pair</span>
+G.edges[<span class="str">"192.168.1.50"</span>, <span class="str">"10.0.0.1"</span>] = {
+  <span class="key">"sessions"</span>:    [<span class="str">"s1"</span>, <span class="str">"s2"</span>, <span class="str">"s3"</span>],
+  <span class="key">"session_count"</span>: <span class="num">3</span>,
+  <span class="key">"protocols"</span>:   {<span class="str">"DNS"</span>, <span class="str">"HTTPS"</span>},
+  <span class="key">"ports"</span>:       {<span class="num">53</span>, <span class="num">443</span>},
+  <span class="key">"packets"</span>:     <span class="num">312</span>,
+  <span class="key">"bytes"</span>:       <span class="num">48200</span>,
+  <span class="key">"has_handshake"</span>: <span class="num">True</span>,
+  <span class="key">"has_reset"</span>:    <span class="num">False</span>,
+  <span class="key">"ja3s"</span>:        {<span class="str">"e7d7..."</span>},
+  <span class="key">"dns_queries"</span>: [<span class="str">"example.com"</span>],
+  <span class="key">"http_hosts"</span>:  [<span class="str">"example.com"</span>],
+  <span class="key">"first_seen"</span>:  <span class="num">1711612800.0</span>,
+  <span class="key">"last_seen"</span>:   <span class="num">1711614600.0</span>,
+  <span class="key">"duration"</span>:    <span class="num">1800.0</span>,
+}
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 16px;">
+    <div style="font-size: 11px; color: #8b949e; margin-bottom: 8px;">Queryable field types:</div>
+    <div>
+      <span class="pill pill-node">mac_count</span>
+      <span class="pill pill-node">protocols</span>
+      <span class="pill pill-node">ja3s</span>
+      <span class="pill pill-node">ports</span>
+      <span class="pill pill-node">packets</span>
+      <span class="pill pill-node">bytes</span>
+      <span class="pill pill-node">degree</span>
+      <span class="pill pill-node">hostnames</span>
+      <span class="pill pill-node">os_guess</span>
+      <span class="pill pill-node">ttls</span>
+      <span class="pill pill-node">is_private</span>
+      <span class="pill pill-node">vendors</span>
+      <span class="pill pill-edge">session_count</span>
+      <span class="pill pill-edge">dns_queries</span>
+      <span class="pill pill-edge">http_hosts</span>
+      <span class="pill pill-edge">has_handshake</span>
+      <span class="pill pill-edge">has_reset</span>
+      <span class="pill pill-edge">duration</span>
+      <span class="pill pill-topo">connects_to</span>
+      <span class="pill pill-topo">connects_only_to</span>
+      <span class="pill pill-topo">neighbors_of</span>
+      <span class="pill pill-topo">same_neighbors_as</span>
+      <span class="pill pill-topo">path_exists</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: UI Mockup — Query Builder -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">3. Frontend — Query Builder Panel</div>
+
+  <div class="two-col">
+    <!-- Left: Query Builder -->
+    <div>
+      <div class="mockup-container">
+        <div class="mockup-header">
+          <div class="mockup-title">Query Builder</div>
+          <div style="font-size: 9px; color: #484f58;">Panel opens from left sidebar</div>
+        </div>
+        <div class="mockup-body">
+          <!-- Target selector -->
+          <div class="qb-row">
+            <span class="qb-label">Find</span>
+            <select class="qb-select" style="min-width: 80px;">
+              <option selected>nodes</option>
+              <option>edges</option>
+            </select>
+            <span class="qb-label">where</span>
+          </div>
+
+          <!-- Condition 1 -->
+          <div class="qb-condition" style="margin-bottom: 8px;">
+            <select class="qb-select">
+              <option>packets</option>
+              <option>bytes</option>
+              <option selected>mac_count</option>
+              <option>degree</option>
+              <option>protocols</option>
+              <option>ja3s</option>
+              <option>ports</option>
+              <option>os_guess</option>
+              <option>ttls</option>
+              <option>hostnames</option>
+            </select>
+            <select class="qb-select" style="min-width: 70px;">
+              <option>&gt;</option>
+              <option selected>&gt;</option>
+              <option>&lt;</option>
+              <option>=</option>
+              <option>!=</option>
+            </select>
+            <input class="qb-input" value="1" style="width: 80px;" />
+            <button class="qb-remove">&times;</button>
+          </div>
+
+          <!-- AND -->
+          <div style="text-align: center; margin: 4px 0;">
+            <select class="qb-select" style="min-width: 60px; font-size: 9px; padding: 3px 8px; text-align: center;">
+              <option selected>AND</option>
+              <option>OR</option>
+            </select>
+          </div>
+
+          <!-- Condition 2 -->
+          <div class="qb-condition" style="margin-bottom: 8px;">
+            <select class="qb-select">
+              <option selected>protocols</option>
+            </select>
+            <select class="qb-select" style="min-width: 80px;">
+              <option>contains</option>
+              <option selected>contains</option>
+              <option>not contains</option>
+              <option>is empty</option>
+            </select>
+            <input class="qb-input" value="ARP" style="width: 80px;" />
+            <button class="qb-remove">&times;</button>
+          </div>
+
+          <div style="margin: 8px 0;">
+            <button class="qb-add">+ Add condition</button>
+          </div>
+
+          <div class="qb-divider"></div>
+
+          <!-- Action -->
+          <div class="qb-row">
+            <span class="qb-label">Then</span>
+            <select class="qb-select">
+              <option selected>highlight</option>
+              <option>select</option>
+              <option>group</option>
+              <option>hide</option>
+              <option>isolate</option>
+              <option>export</option>
+            </select>
+            <div style="flex: 1;"></div>
+            <button class="qb-run">Run</button>
+          </div>
+
+          <div class="qb-divider"></div>
+
+          <!-- Results -->
+          <div class="qb-result">
+            <div class="qb-result-header">2 nodes matched</div>
+            <div class="qb-result-item">
+              <span class="qb-result-ip">192.168.1.50</span>
+              <span class="qb-result-badge" style="background: rgba(240,136,62,0.2); color: #f5a623;">2 MACs</span>
+              <span class="qb-result-detail">aa:bb:cc:11:22:33, aa:bb:cc:44:55:66</span>
+            </div>
+            <div class="qb-result-item">
+              <span class="qb-result-ip">10.0.0.12</span>
+              <span class="qb-result-badge" style="background: rgba(240,136,62,0.2); color: #f5a623;">3 MACs</span>
+              <span class="qb-result-detail">de:ad:be:ef:00:01, de:ad:be:ef:00:02, de:ad:be:ef:00:03</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Graph with highlights -->
+    <div>
+      <div class="mockup-container">
+        <div class="mockup-header">
+          <div class="mockup-title">Graph View — with query overlay</div>
+        </div>
+        <div class="graph-mock">
+          <div class="graph-overlay-badge">Query: 2 nodes highlighted</div>
+
+          <!-- Nodes -->
+          <div class="graph-node highlighted" style="left: 180px; top: 90px;">.50</div>
+          <div class="graph-node highlighted" style="left: 320px; top: 180px;">.12</div>
+          <div class="graph-node dimmed" style="left: 100px; top: 200px;">.1</div>
+          <div class="graph-node dimmed" style="left: 260px; top: 60px;">.100</div>
+          <div class="graph-node dimmed" style="left: 400px; top: 100px;">.254</div>
+          <div class="graph-node dimmed" style="left: 80px; top: 110px;">.5</div>
+          <div class="graph-node dimmed" style="left: 350px; top: 240px;">.20</div>
+          <div class="graph-node dimmed" style="left: 460px; top: 200px;">.30</div>
+
+          <!-- Labels -->
+          <div class="graph-label highlighted" style="left: 170px; top: 75px;">192.168.1.50</div>
+          <div class="graph-label highlighted" style="left: 310px; top: 165px;">10.0.0.12</div>
+
+          <!-- Edges (simplified as colored divs) -->
+          <div class="graph-edge highlighted" style="left: 196px; top: 106px; width: 132px; transform: rotate(30deg);"></div>
+          <div class="graph-edge dimmed" style="left: 116px; top: 200px; width: 80px; transform: rotate(-55deg);"></div>
+          <div class="graph-edge dimmed" style="left: 200px; top: 95px; width: 70px; transform: rotate(-20deg);"></div>
+          <div class="graph-edge dimmed" style="left: 340px; top: 190px; width: 60px; transform: rotate(25deg);"></div>
+          <div class="graph-edge dimmed" style="left: 410px; top: 110px; width: 70px; transform: rotate(55deg);"></div>
+          <div class="graph-edge dimmed" style="left: 350px; top: 195px; width: 120px; transform: rotate(2deg);"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: Example Queries — Your Four -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">4. Your Four Queries — Concrete Examples</div>
+
+  <div class="example-grid">
+    <!-- Query 1 -->
+    <div class="example-card">
+      <div class="example-title">1. Nodes with more than one MAC</div>
+      <div class="example-query">
+        <span class="kw">FIND</span> <span class="field">nodes</span> <span class="kw">WHERE</span> <span class="field">mac_count</span> <span class="op">&gt;</span> <span class="val">1</span> <span class="kw">THEN</span> <span class="val">highlight</span>
+      </div>
+      <div class="example-label">API Request</div>
+      <div class="code-block" style="font-size: 10px; padding: 8px 12px;">
+{ <span class="key">"target"</span>: <span class="str">"nodes"</span>,
+  <span class="key">"conditions"</span>: [{ <span class="key">"field"</span>: <span class="str">"mac_count"</span>, <span class="key">"op"</span>: <span class="str">">"</span>, <span class="key">"value"</span>: <span class="num">1</span> }],
+  <span class="key">"action"</span>: <span class="str">"highlight"</span> }
+      </div>
+      <div class="example-label" style="margin-top: 8px;">NetworkX Implementation</div>
+      <div class="example-nx">
+[ip <span style="color:#ff7b72;">for</span> ip, d <span style="color:#ff7b72;">in</span> G.nodes(data=<span style="color:#79c0ff;">True</span>)<br>
+ <span style="color:#ff7b72;">if</span> d[<span style="color:#a5d6ff;">"mac_count"</span>] > <span style="color:#79c0ff;">1</span>]
+      </div>
+    </div>
+
+    <!-- Query 2 -->
+    <div class="example-card">
+      <div class="example-title">2. Edges with both DNS and SMB sessions</div>
+      <div class="example-query">
+        <span class="kw">FIND</span> <span class="field">edges</span> <span class="kw">WHERE</span> <span class="field">protocols</span> <span class="op">contains_all</span> <span class="val">[DNS, SMB]</span> <span class="kw">THEN</span> <span class="val">highlight</span>
+      </div>
+      <div class="example-label">API Request</div>
+      <div class="code-block" style="font-size: 10px; padding: 8px 12px;">
+{ <span class="key">"target"</span>: <span class="str">"edges"</span>,
+  <span class="key">"conditions"</span>: [{ <span class="key">"field"</span>: <span class="str">"protocols"</span>,
+    <span class="key">"op"</span>: <span class="str">"contains_all"</span>, <span class="key">"value"</span>: [<span class="str">"DNS"</span>, <span class="str">"SMB"</span>] }],
+  <span class="key">"action"</span>: <span class="str">"highlight"</span> }
+      </div>
+      <div class="example-label" style="margin-top: 8px;">NetworkX Implementation</div>
+      <div class="example-nx">
+[(u,v) <span style="color:#ff7b72;">for</span> u,v,d <span style="color:#ff7b72;">in</span> G.edges(data=<span style="color:#79c0ff;">True</span>)<br>
+ <span style="color:#ff7b72;">if</span> {<span style="color:#a5d6ff;">"DNS"</span>,<span style="color:#a5d6ff;">"SMB"</span>} &lt;= d[<span style="color:#a5d6ff;">"protocols"</span>]]
+      </div>
+    </div>
+
+    <!-- Query 3 -->
+    <div class="example-card">
+      <div class="example-title">3. Group nodes connected ONLY to one server</div>
+      <div class="example-query">
+        <span class="kw">FIND</span> <span class="field">nodes</span> <span class="kw">WHERE</span> <span class="field">connects_only_to</span> <span class="op">=</span> <span class="val">192.168.1.1</span> <span class="kw">THEN</span> <span class="val">group</span>
+      </div>
+      <div class="example-label">API Request</div>
+      <div class="code-block" style="font-size: 10px; padding: 8px 12px;">
+{ <span class="key">"target"</span>: <span class="str">"nodes"</span>,
+  <span class="key">"conditions"</span>: [{ <span class="key">"type"</span>: <span class="str">"topology"</span>,
+    <span class="key">"op"</span>: <span class="str">"connects_only_to"</span>, <span class="key">"value"</span>: <span class="str">"192.168.1.1"</span> }],
+  <span class="key">"action"</span>: <span class="str">"group"</span> }
+      </div>
+      <div class="example-label" style="margin-top: 8px;">NetworkX Implementation</div>
+      <div class="example-nx">
+[n <span style="color:#ff7b72;">for</span> n <span style="color:#ff7b72;">in</span> G.neighbors(<span style="color:#a5d6ff;">"192.168.1.1"</span>)<br>
+ <span style="color:#ff7b72;">if</span> <span style="color:#d2a8ff;">set</span>(G.neighbors(n)) == {<span style="color:#a5d6ff;">"192.168.1.1"</span>}]
+      </div>
+    </div>
+
+    <!-- Query 4 -->
+    <div class="example-card">
+      <div class="example-title">4. Highlight nodes with HTTP + specific JA3</div>
+      <div class="example-query">
+        <span class="kw">FIND</span> <span class="field">nodes</span> <span class="kw">WHERE</span> <span class="field">protocols</span> <span class="op">contains</span> <span class="val">HTTP</span><br>
+        &nbsp;&nbsp;<span class="kw">AND</span> <span class="field">ja3s</span> <span class="op">contains</span> <span class="val">e7d7...abc</span> <span class="kw">THEN</span> <span class="val">highlight</span>
+      </div>
+      <div class="example-label">API Request</div>
+      <div class="code-block" style="font-size: 10px; padding: 8px 12px;">
+{ <span class="key">"target"</span>: <span class="str">"nodes"</span>,
+  <span class="key">"conditions"</span>: [
+    { <span class="key">"field"</span>: <span class="str">"protocols"</span>, <span class="key">"op"</span>: <span class="str">"contains"</span>, <span class="key">"value"</span>: <span class="str">"HTTP"</span> },
+    { <span class="key">"field"</span>: <span class="str">"ja3s"</span>, <span class="key">"op"</span>: <span class="str">"contains"</span>, <span class="key">"value"</span>: <span class="str">"e7d7...abc"</span> }
+  ],
+  <span class="key">"action"</span>: <span class="str">"highlight"</span> }
+      </div>
+      <div class="example-label" style="margin-top: 8px;">NetworkX Implementation</div>
+      <div class="example-nx">
+[ip <span style="color:#ff7b72;">for</span> ip, d <span style="color:#ff7b72;">in</span> G.nodes(data=<span style="color:#79c0ff;">True</span>)<br>
+ <span style="color:#ff7b72;">if</span> <span style="color:#a5d6ff;">"HTTP"</span> <span style="color:#ff7b72;">in</span> d[<span style="color:#a5d6ff;">"protocols"</span>]<br>
+ <span style="color:#ff7b72;">and</span> <span style="color:#a5d6ff;">"e7d7...abc"</span> <span style="color:#ff7b72;">in</span> d[<span style="color:#a5d6ff;">"ja3s"</span>]]
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 5: Group action — visual -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">5. Actions — What Happens on the Graph</div>
+
+  <div class="example-grid">
+    <!-- Highlight -->
+    <div class="mockup-container">
+      <div class="mockup-header">
+        <div class="mockup-title">Action: highlight</div>
+        <div style="font-size: 9px; color: #484f58;">Matched = orange glow, rest = dimmed</div>
+      </div>
+      <div class="graph-mock" style="height: 180px;">
+        <div class="graph-node highlighted" style="left: 80px; top: 60px; width: 28px; height: 28px; font-size: 6px;">A</div>
+        <div class="graph-node highlighted" style="left: 200px; top: 100px; width: 28px; height: 28px; font-size: 6px;">B</div>
+        <div class="graph-node dimmed" style="left: 140px; top: 30px; width: 28px; height: 28px; font-size: 6px;">C</div>
+        <div class="graph-node dimmed" style="left: 300px; top: 50px; width: 28px; height: 28px; font-size: 6px;">D</div>
+        <div class="graph-node dimmed" style="left: 260px; top: 130px; width: 28px; height: 28px; font-size: 6px;">E</div>
+        <div class="graph-edge highlighted" style="left: 96px; top: 74px; width: 110px; transform: rotate(18deg);"></div>
+        <div class="graph-edge dimmed" style="left: 156px; top: 44px; width: 70px; transform: rotate(-8deg);"></div>
+        <div class="graph-edge dimmed" style="left: 220px; top: 106px; width: 50px; transform: rotate(30deg);"></div>
+      </div>
+    </div>
+
+    <!-- Group -->
+    <div class="mockup-container">
+      <div class="mockup-header">
+        <div class="mockup-title">Action: group</div>
+        <div style="font-size: 9px; color: #484f58;">Matched nodes collapsed into a cluster</div>
+      </div>
+      <div class="graph-mock" style="height: 180px;">
+        <div class="graph-group-ring" style="left: 55px; top: 30px; width: 120px; height: 120px;"></div>
+        <div class="graph-node grouped" style="left: 70px; top: 50px; width: 28px; height: 28px; font-size: 6px;">A</div>
+        <div class="graph-node grouped" style="left: 110px; top: 45px; width: 28px; height: 28px; font-size: 6px;">B</div>
+        <div class="graph-node grouped" style="left: 90px; top: 90px; width: 28px; height: 28px; font-size: 6px;">C</div>
+        <div class="graph-node normal" style="left: 260px; top: 70px; width: 36px; height: 36px; font-size: 7px;">SRV</div>
+        <div class="graph-edge normal" style="left: 130px; top: 70px; width: 130px; transform: rotate(0deg);"></div>
+        <div style="position: absolute; left: 65px; top: 155px; font-size: 8px; color: #bc8cff;">
+          "connects only to SRV" (3 nodes)
+        </div>
+      </div>
+    </div>
+
+    <!-- Isolate -->
+    <div class="mockup-container">
+      <div class="mockup-header">
+        <div class="mockup-title">Action: isolate</div>
+        <div style="font-size: 9px; color: #484f58;">Hide everything except matched + their edges</div>
+      </div>
+      <div class="graph-mock" style="height: 180px;">
+        <div class="graph-node normal" style="left: 120px; top: 60px; width: 28px; height: 28px; font-size: 6px;">A</div>
+        <div class="graph-node normal" style="left: 260px; top: 80px; width: 28px; height: 28px; font-size: 6px;">B</div>
+        <div class="graph-node normal" style="left: 190px; top: 120px; width: 28px; height: 28px; font-size: 6px;">C</div>
+        <div class="graph-edge normal" style="left: 136px; top: 74px; width: 130px; transform: rotate(8deg);"></div>
+        <div class="graph-edge normal" style="left: 140px; top: 74px; width: 65px; transform: rotate(45deg);"></div>
+        <div class="graph-edge normal" style="left: 210px; top: 126px; width: 65px; transform: rotate(-35deg);"></div>
+        <div style="position: absolute; bottom: 10px; left: 10px; font-size: 8px; color: #484f58;">
+          5 nodes hidden, 8 edges hidden
+        </div>
+      </div>
+    </div>
+
+    <!-- Hide -->
+    <div class="mockup-container">
+      <div class="mockup-header">
+        <div class="mockup-title">Action: hide</div>
+        <div style="font-size: 9px; color: #484f58;">Remove matched from view (inverse of isolate)</div>
+      </div>
+      <div class="graph-mock" style="height: 180px;">
+        <div class="graph-node normal" style="left: 140px; top: 40px; width: 28px; height: 28px; font-size: 6px;">C</div>
+        <div class="graph-node normal" style="left: 300px; top: 50px; width: 28px; height: 28px; font-size: 6px;">D</div>
+        <div class="graph-node normal" style="left: 260px; top: 120px; width: 28px; height: 28px; font-size: 6px;">E</div>
+        <div class="graph-node normal" style="left: 100px; top: 120px; width: 28px; height: 28px; font-size: 6px;">F</div>
+        <div class="graph-edge normal" style="left: 156px; top: 50px; width: 150px; transform: rotate(3deg);"></div>
+        <div class="graph-edge normal" style="left: 120px; top: 126px; width: 145px; transform: rotate(-2deg);"></div>
+        <div style="position: absolute; bottom: 10px; left: 10px; font-size: 8px; color: #484f58;">
+          2 matched nodes hidden (A, B)
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 6: Operator Reference -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">6. Operator Reference</div>
+
+  <table class="cmp-table">
+    <tr>
+      <th style="width: 130px;">Operator</th>
+      <th style="width: 120px;">Field Types</th>
+      <th>Example</th>
+      <th style="width: 200px;">NetworkX</th>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">&gt;  &lt;  =  !=  &gt;=  &lt;=</code></td>
+      <td>numeric</td>
+      <td>packets &gt; 1000</td>
+      <td><code style="color:#79c0ff;">d["packets"] > 1000</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">contains</code></td>
+      <td>set / string</td>
+      <td>protocols contains "DNS"</td>
+      <td><code style="color:#79c0ff;">"DNS" in d["protocols"]</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">contains_all</code></td>
+      <td>set</td>
+      <td>protocols contains_all [DNS, SMB]</td>
+      <td><code style="color:#79c0ff;">{"DNS","SMB"} &lt;= d["protocols"]</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">contains_any</code></td>
+      <td>set</td>
+      <td>ports contains_any [22, 3389]</td>
+      <td><code style="color:#79c0ff;">d["ports"] & {22,3389}</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">is_empty / not_empty</code></td>
+      <td>set / string</td>
+      <td>hostnames is_empty</td>
+      <td><code style="color:#79c0ff;">len(d["hostnames"]) == 0</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">matches</code></td>
+      <td>string</td>
+      <td>hostnames matches ".*\.ru$"</td>
+      <td><code style="color:#79c0ff;">re.search(pat, h)</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">connects_to</code></td>
+      <td><span class="pill pill-topo" style="margin:0;">topology</span></td>
+      <td>connects_to 192.168.1.1</td>
+      <td><code style="color:#79c0ff;">G.has_edge(n, target)</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">connects_only_to</code></td>
+      <td><span class="pill pill-topo" style="margin:0;">topology</span></td>
+      <td>connects_only_to 10.0.0.1</td>
+      <td><code style="color:#79c0ff;">set(G.neighbors(n)) == {t}</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">degree</code></td>
+      <td><span class="pill pill-topo" style="margin:0;">topology</span></td>
+      <td>degree &gt; 20</td>
+      <td><code style="color:#79c0ff;">G.degree(n) > 20</code></td>
+    </tr>
+    <tr>
+      <td><code style="color:#d2a8ff;">same_neighbors_as</code></td>
+      <td><span class="pill pill-topo" style="margin:0;">topology</span></td>
+      <td>same_neighbors_as 10.0.0.5</td>
+      <td><code style="color:#79c0ff;">set(G.neighbors(n)) == set(G.neighbors(t))</code></td>
+    </tr>
+  </table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 7: API Response Flow -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">7. Full Request/Response Flow</div>
+
+  <div class="two-col">
+    <div>
+      <div style="font-size: 11px; font-weight: 600; color: #f5a623; margin-bottom: 8px;">POST /api/query</div>
+      <div class="code-block">
+{
+  <span class="key">"target"</span>: <span class="str">"nodes"</span>,
+  <span class="key">"conditions"</span>: [
+    {
+      <span class="key">"field"</span>: <span class="str">"mac_count"</span>,
+      <span class="key">"op"</span>: <span class="str">">"</span>,
+      <span class="key">"value"</span>: <span class="num">1</span>
+    },
+    {
+      <span class="key">"field"</span>: <span class="str">"protocols"</span>,
+      <span class="key">"op"</span>: <span class="str">"contains"</span>,
+      <span class="key">"value"</span>: <span class="str">"ARP"</span>
+    }
+  ],
+  <span class="key">"logic"</span>: <span class="str">"AND"</span>,
+  <span class="key">"action"</span>: <span class="str">"highlight"</span>
+}
+      </div>
+    </div>
+    <div>
+      <div style="font-size: 11px; font-weight: 600; color: #7ee787; margin-bottom: 8px;">Response</div>
+      <div class="code-block">
+{
+  <span class="key">"matched_nodes"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="str">"192.168.1.50"</span>,
+      <span class="key">"match_details"</span>: {
+        <span class="key">"mac_count"</span>: <span class="num">2</span>,
+        <span class="key">"macs"</span>: [<span class="str">"aa:bb:cc:11:22:33"</span>,
+                <span class="str">"aa:bb:cc:44:55:66"</span>],
+        <span class="key">"protocols"</span>: [<span class="str">"ARP"</span>, <span class="str">"DNS"</span>]
+      }
+    },
+    {
+      <span class="key">"id"</span>: <span class="str">"10.0.0.12"</span>,
+      <span class="key">"match_details"</span>: { <span class="cmt">...</span> }
+    }
+  ],
+  <span class="key">"matched_edges"</span>: [],
+  <span class="key">"action"</span>: <span class="str">"highlight"</span>,
+  <span class="key">"total_matched"</span>: <span class="num">2</span>,
+  <span class="key">"total_searched"</span>: <span class="num">48</span>,
+  <span class="key">"summary"</span>: <span class="str">"2 of 48 nodes with mac_count > 1 AND protocols contains ARP"</span>
+}
+      </div>
+    </div>
+  </div>
+
+  <div class="note note-blue" style="margin-top: 16px;">
+    <strong>Frontend receives matched IDs</strong> and applies the action as a client-side overlay on the current view graph.
+    The view graph itself is NOT rebuilt. This means queries are instant — no <code>build_graph()</code> call, no re-layout.
+    The graph just re-colors/hides/groups existing nodes.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 8: Why not Neo4j -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">8. Why NetworkX, Not Neo4j</div>
+
+  <table class="cmp-table">
+    <tr>
+      <th style="width: 140px;"></th>
+      <th>NetworkX (in-memory)</th>
+      <th>Neo4j (external DB)</th>
+    </tr>
+    <tr>
+      <td>Setup</td>
+      <td class="cmp-good">pip install (already a dependency)</td>
+      <td class="cmp-bad">Java runtime + server process + auth</td>
+    </tr>
+    <tr>
+      <td>Query latency</td>
+      <td class="cmp-good">&lt; 1ms (in-process, no network)</td>
+      <td class="cmp-meh">5-50ms (Bolt protocol over TCP)</td>
+    </tr>
+    <tr>
+      <td>Memory</td>
+      <td class="cmp-meh">Python dicts (~2-5x raw data size)</td>
+      <td class="cmp-bad">JVM heap + page cache + separate from Python</td>
+    </tr>
+    <tr>
+      <td>Query language</td>
+      <td class="cmp-meh">Python list comprehensions (wrapped in API)</td>
+      <td class="cmp-good">Cypher (purpose-built for graphs)</td>
+    </tr>
+    <tr>
+      <td>Scale ceiling</td>
+      <td class="cmp-meh">~1M nodes (fine for pcap analysis)</td>
+      <td class="cmp-good">Billions (overkill for single-capture)</td>
+    </tr>
+    <tr>
+      <td>Persistence</td>
+      <td class="cmp-meh">In-memory only (lost on restart)</td>
+      <td class="cmp-good">Disk-backed (survives restart)</td>
+    </tr>
+    <tr>
+      <td>Deployment</td>
+      <td class="cmp-good">Zero config, bundled with SwiftEye</td>
+      <td class="cmp-bad">Separate service, docker-compose or install</td>
+    </tr>
+    <tr>
+      <td>User friction</td>
+      <td class="cmp-good">None — drag pcap, query immediately</td>
+      <td class="cmp-bad">"Install Neo4j first" in README</td>
+    </tr>
+  </table>
+
+  <div class="note note-orange" style="margin-top: 16px;">
+    <strong>When Neo4j WOULD make sense:</strong> If SwiftEye grows to support persistent investigations across multiple captures,
+    correlation between captures over time, or multi-user shared analysis — that's when a real graph DB pays off.
+    For single-capture, single-researcher analysis, NetworkX gives you the same query power with zero infrastructure.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION 9: Implementation Phases -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">9. Implementation Phases</div>
+
+  <div style="display: flex; gap: 16px;">
+    <!-- Phase 1 -->
+    <div style="flex: 1; background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px;">
+      <div style="font-size: 11px; font-weight: 600; color: #7ee787; margin-bottom: 8px;">Phase 1 — Foundation</div>
+      <div style="font-size: 10px; color: #8b949e; line-height: 1.6;">
+        <div style="margin-bottom: 4px;">&#9744; <code>build_analysis_graph()</code> in aggregator.py</div>
+        <div style="margin-bottom: 4px;">&#9744; Build at capture load, store on CaptureStore</div>
+        <div style="margin-bottom: 4px;">&#9744; <code>POST /api/query</code> endpoint</div>
+        <div style="margin-bottom: 4px;">&#9744; Attribute conditions (numeric, set, string)</div>
+        <div style="margin-bottom: 4px;">&#9744; Actions: highlight, select</div>
+        <div>&#9744; Basic query builder UI in left panel</div>
+      </div>
+    </div>
+
+    <!-- Phase 2 -->
+    <div style="flex: 1; background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px;">
+      <div style="font-size: 11px; font-weight: 600; color: #d29922; margin-bottom: 8px;">Phase 2 — Topology + Actions</div>
+      <div style="font-size: 10px; color: #8b949e; line-height: 1.6;">
+        <div style="margin-bottom: 4px;">&#9744; Topology operators (connects_to, degree, etc.)</div>
+        <div style="margin-bottom: 4px;">&#9744; Actions: group, hide, isolate</div>
+        <div style="margin-bottom: 4px;">&#9744; AND/OR logic combinator</div>
+        <div style="margin-bottom: 4px;">&#9744; Query history / saved queries</div>
+        <div style="margin-bottom: 4px;">&#9744; Result detail panel (expand matched nodes)</div>
+        <div>&#9744; Export matched set as CSV</div>
+      </div>
+    </div>
+
+    <!-- Phase 3 -->
+    <div style="flex: 1; background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px;">
+      <div style="font-size: 11px; font-weight: 600; color: #bc8cff; margin-bottom: 8px;">Phase 3 — Power User</div>
+      <div style="font-size: 10px; color: #8b949e; line-height: 1.6;">
+        <div style="margin-bottom: 4px;">&#9744; Raw query textbox (simple DSL or Python subset)</div>
+        <div style="margin-bottom: 4px;">&#9744; Compound queries (pipe result of Q1 into Q2)</div>
+        <div style="margin-bottom: 4px;">&#9744; Time-scoped queries ("in the last 5 minutes of capture")</div>
+        <div style="margin-bottom: 4px;">&#9744; Regex matching on hostnames/queries</div>
+        <div style="margin-bottom: 4px;">&#9744; Plugin-provided query fields (OS, risk scores)</div>
+        <div>&#9744; Query-based alerting ("flag if mac_count > 1")</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
