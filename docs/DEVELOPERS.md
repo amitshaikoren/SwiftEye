@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.14.0 | March 2026**
+**Version 0.14.1 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 

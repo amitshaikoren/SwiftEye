@@ -40,7 +40,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from parser import read_pcap, PacketRecord, MAX_FILE_SIZE
 from parser.adapters import detect_adapter, ADAPTERS
 from constants import PROTOCOL_COLORS
-from analysis import build_time_buckets, build_graph, filter_packets, build_sessions, compute_global_stats, get_subnets, build_mac_split_map
+from analysis import build_time_buckets, build_graph, filter_packets, build_sessions, compute_global_stats, get_subnets
 from analysis.clustering import compute_clusters
 from analysis.pathfinding import find_paths
 from plugins.insights.node_merger import build_entity_map
@@ -563,6 +563,7 @@ async def get_graph(
     merge_by_mac: bool = False,
     include_ipv6: bool = True,
     show_hostnames: bool = True,
+    exclude_broadcasts: bool = False,
     subnet_exclusions: Optional[str] = None,   # comma-separated subnet strings to un-cluster
     cluster_algorithm: Optional[str] = None,   # louvain | kcore | hub_spoke | shared_neighbor
     cluster_resolution: float = 1.0,           # Louvain resolution (< 1 = fewer/larger, > 1 = more/smaller)
@@ -593,16 +594,6 @@ async def get_graph(
         except Exception as _em_err:
             logger.error(f"Node merger failed, continuing without merging: {_em_err}")
 
-    # Detect IPs with multiple distinct source MACs (same IP, different physical host)
-    # This runs always — it's a data-correctness step, not a user toggle.
-    try:
-        mac_split_map = build_mac_split_map(store.packets)
-        if mac_split_map:
-            logger.debug(f"MAC split map: {len(mac_split_map)} IPs with multiple MACs")
-    except Exception as _ms_err:
-        logger.error(f"build_mac_split_map failed: {_ms_err}")
-        mac_split_map = {}
-
     # Get hostname map from DNS resolver plugin results
     dns_results = get_global_results().get("dns_resolver", {})
     hostname_map = dns_results.get("dns_hostnames", {})
@@ -623,7 +614,7 @@ async def get_graph(
         entity_map=entity_map,
         include_ipv6=include_ipv6,
         subnet_exclusions=set(subnet_exclusions.split(',')) if subnet_exclusions else None,
-        mac_split_map=mac_split_map,
+        exclude_broadcasts=exclude_broadcasts,
     )
 
     # Enrich nodes with plugin data + os_guess shortcut field

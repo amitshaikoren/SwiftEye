@@ -86,6 +86,8 @@ class TsharkArpAdapter(IngestionAdapter):
             "source_type": "tshark",
             "arp_opcode": opcode,
             "arp_opcode_name": opcode_name,
+            "arp_src_ip": src_ip,
+            "arp_dst_ip": dst_ip,
         }
 
         if src_mac:

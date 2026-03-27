@@ -1,9 +1,15 @@
 # SwiftEye — Handoff Document
-## Version 0.14.0 | March 2026
+## Version 0.14.1 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.14.0** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.14.1** — see `CHANGELOG.md` for full version history.
+
+### Recent highlights (v0.14.1)
+- Removed MAC split feature — IPs are nodes, MACs are metadata. No more `IP::MAC` hybrid node IDs.
+- **Hide broadcasts** Graph Options toggle — filters broadcast (255.255.255.255, 0.0.0.0) and multicast (224.0.0.0/4, ff00::/8) addresses from the graph.
+- **ARP enrichment** — pcap reader and tshark adapter now extract ARP opcode, sender/target MACs and IPs into `pkt.extra`. New `protocol_fields/arp.py` accumulates into sessions. Dedicated `session_sections/arp.jsx` renders opcodes as tags with counts.
+- Timeline playback animation added to roadmap.
 
 ### Recent highlights (v0.14.0)
 - Full tshark CSV adapter suite — 8 adapters for hunt-workshop dataset:
@@ -625,6 +631,7 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Process tree visualization** — process tree panel for Sysmon data. Nodes = processes, edges = parent→child spawns + network connections to IP nodes. *Prerequisites:* Sysmon adapter. Status: long-term.
 - [ ] **UI capabilities system** — the UI should only show sections when the data source actually provides that data. E.g. L3 IP header details (DSCP, ECN, fragmentation) should not appear for Zeek sessions since Zeek doesn't provide raw IP headers. Each UI section declares what `extra` fields it needs; sections with no matching data are hidden. This is the "capabilities follow data, not source" principle from §7.
 - [x] **Timeline slider performance** (v0.10.1) — debounced `timeRange` in useCapture.js (300ms). Slider movement updates the UI instantly but API calls (sessions, stats, graph) only fire after the user stops dragging. Combined with MAX_RAW_BUCKETS=15000 cap from v0.9.83.
+- [ ] **Timeline playback animation** — play button on the timeline strip that auto-advances a fixed-width window from start to end across the bucket range. Speed selector (1x/2x/5x/10x). The window slides one bucket at a time, updating the Start/End range sliders as it moves. **Scope constraint:** this should be self-contained within the timeline/sparkline component — it just drives the existing `timeRange` state. If it needs to touch graph fetching, session fetching, or other components beyond the existing debounced `timeRange` watcher, the approach is wrong. A previous attempt caused cascading errors from over-coupling. The play button should only manipulate slider positions; the existing debounced effects handle the rest.
 - [x] **Investigation bar overlaps hidden nodes bar** (v0.10.1) — hidden nodes badge now shifts down (top: 38px) when the investigation banner is visible.
 - [ ] **Multi-source search compatibility** — ensure all log sources (Zeek, and future sources) are searchable through both the Wireshark-style BPF display filter and the generic keyword search. Currently these are optimized for pcap fields. Zeek sessions should be searchable by UID, conn_state, service, and other Zeek-specific fields. Transitively, every new log source adapter should declare its searchable fields so the filter system picks them up automatically.
 - [ ] **Variable reference headers in source files** — add a comment block at the top of key files documenting the most-used variables: what they are, how they're initialized, and where they come from. Reduces the need to trace variable origins across hundreds of lines. Priority files: `sessions.py` (`s` = session dict, `ex` = `pkt.extra`, `d` = direction prefix), `aggregator.py`, `server.py` (`store`), `useCapture.js` (`c`), `SessionDetail.jsx` (`s`), plugin files (`ctx`). Format: short table or comment block immediately after imports.

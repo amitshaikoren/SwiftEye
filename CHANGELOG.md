@@ -1,5 +1,10 @@
 # SwiftEye — Changelog
 
+### v0.14.1 — March 2026
+- **MAC split removed** — the `build_mac_split_map()` feature that created `IP::MAC` hybrid node IDs has been removed. IPs are nodes, MACs are metadata. The "Merge by MAC" toggle remains for combining nodes that share a MAC.
+- **Hide broadcasts toggle** — new Graph Options toggle that filters broadcast (255.255.255.255, 0.0.0.0) and multicast (224.0.0.0/4, ff00::/8) addresses from the graph. Backend `exclude_broadcasts` param threaded through `filter_packets()` → `build_graph()` → API → frontend.
+- **ARP enrichment** — pcap reader now extracts ARP opcode, sender/target MACs and IPs into `pkt.extra`. Tshark ARP adapter updated to include `arp_src_ip`/`arp_dst_ip`. New `protocol_fields/arp.py` accumulates ARP fields into sessions (opcode counts, sender/target MACs and IPs, broadcast count). New `session_sections/arp.jsx` renders ARP data with opcode tags.
+
 ### v0.14.0 — March 2026
 - **Full tshark CSV adapter suite** — 8 ingestion adapters for tshark `‑T fields` tab-separated exports (hunt-workshop dataset format):
   - `metadata.csv` — base packet adapter producing full L2–L4 PacketRecords (MACs, IPs, ports, TCP flags/seq/ack/window, ICMP type/code, TTL, IP ID/flags). Port-based protocol resolution via `WELL_KNOWN_PORTS`. Parsed 826K packets from the hunt-workshop dataset.

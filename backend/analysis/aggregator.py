@@ -18,7 +18,7 @@ import math
 import logging
 from typing import List, Dict, Any, Optional, Set
 from collections import defaultdict
-from ipaddress import IPv4Network, IPv4Address
+from ipaddress import IPv4Address, IPv4Network, IPv4Address
 
 from parser.packet import PacketRecord
 from parser.oui import lookup_vendor
@@ -140,6 +140,22 @@ def build_time_buckets(
     return result
 
 
+def _is_broadcast_or_multicast(ip: str) -> bool:
+    """Check if an IP is broadcast or multicast."""
+    if not ip:
+        return False
+    if ip == "255.255.255.255" or ip == "0.0.0.0":
+        return True
+    if ":" in ip:
+        # IPv6 multicast: ff00::/8
+        return ip.lower().startswith("ff")
+    try:
+        addr = IPv4Address(ip)
+        return addr.is_multicast  # 224.0.0.0/4
+    except Exception:
+        return False
+
+
 def filter_packets(
     packets: List[PacketRecord],
     time_range: Optional[tuple] = None,
@@ -149,6 +165,7 @@ def filter_packets(
     port_filter: str = "",
     search_query: str = "",
     include_ipv6: bool = True,
+    exclude_broadcasts: bool = False,
 ) -> List[PacketRecord]:
     """
     Apply standard packet filters and return the filtered list.
@@ -174,6 +191,11 @@ def filter_packets(
 
     if not include_ipv6:
         filtered = [p for p in filtered if ":" not in p.src_ip and ":" not in p.dst_ip]
+
+    if exclude_broadcasts:
+        filtered = [p for p in filtered
+                    if not _is_broadcast_or_multicast(p.src_ip)
+                    and not _is_broadcast_or_multicast(p.dst_ip)]
 
     if time_range:
         t_start, t_end = time_range
@@ -226,61 +248,6 @@ def filter_packets(
     return filtered
 
 
-def build_mac_split_map(packets: List[PacketRecord]) -> Dict[str, set]:
-    """
-    Detect IPs that appear with more than one distinct source MAC address.
-
-    This handles the case where two physically different hosts share the same
-    IP (e.g. during an IP conflict, after a DHCP reassignment, or in lab
-    environments with cloned VMs). Without this, both hosts collapse into one
-    node because the node ID is the IP.
-
-    Returns a dict: { ip → set_of_macs } but ONLY for IPs that have ≥ 2
-    distinct MACs. The caller passes this to build_graph() as mac_split_map.
-    When an IP appears in this dict, get_node_id() appends ::mac to the node
-    ID so each (ip, mac) pair becomes a separate node.
-
-    Caveats / exclusions (same as node_merger):
-    - Only src_ip/src_mac pairs — dst_mac is next-hop, not destination host
-    - Skip broadcast/multicast MACs and known infrastructure vendor MACs
-    - Skip blank or zero MACs
-    """
-    _INFRA_VENDORS = {
-        "cisco", "juniper", "aruba", "ubiquiti", "palo alto",
-        "fortinet", "sophos", "watchguard", "brocade", "extreme",
-        "arista", "mikrotik", "ruckus", "meraki",
-    }
-
-    def _skip_mac(mac: str) -> bool:
-        if not mac or mac in ("00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"):
-            return True
-        m = mac.lower()
-        if m.startswith("33:33:") or m.startswith("01:00:5e:"):
-            return True  # multicast
-        vendor = (lookup_vendor(mac) or "").lower()
-        return any(v in vendor for v in _INFRA_VENDORS)
-
-    ip_to_macs: Dict[str, set] = defaultdict(set)
-    for pkt in packets:
-        if pkt.src_ip and pkt.src_mac and not _skip_mac(pkt.src_mac):
-            ip_to_macs[pkt.src_ip].add(pkt.src_mac)
-
-    # Gateway heuristic: a MAC that appears as src_mac for many different IPs
-    # is a router/gateway, not a host. A real host has 1-4 IPs (dual-stack);
-    # a gateway forwards for dozens. Exclude MACs seen on 8+ distinct IPs.
-    mac_ip_count: Dict[str, int] = defaultdict(int)
-    for ip, macs in ip_to_macs.items():
-        for mac in macs:
-            mac_ip_count[mac] += 1
-    gateway_macs = {mac for mac, count in mac_ip_count.items() if count >= 8}
-    if gateway_macs:
-        for ip in ip_to_macs:
-            ip_to_macs[ip] -= gateway_macs
-
-    # Only return IPs with 2+ distinct MACs
-    return {ip: macs for ip, macs in ip_to_macs.items() if len(macs) >= 2}
-
-
 def build_graph(
     packets: List[PacketRecord],
     time_range: Optional[tuple] = None,
@@ -297,7 +264,7 @@ def build_graph(
     entity_map: Optional[Dict[str, str]] = None,
     include_ipv6: bool = True,
     subnet_exclusions: Optional[set] = None,
-    mac_split_map: Optional[Dict[str, set]] = None,
+    exclude_broadcasts: bool = False,
 ) -> Dict[str, Any]:
     """
     Build a graph (nodes + edges) from packets with filtering.
@@ -343,6 +310,7 @@ def build_graph(
             ip_filter=ip_filter,
             port_filter=port_filter,
             include_ipv6=True,   # already handled above
+            exclude_broadcasts=exclude_broadcasts,
         )
     else:
         filtered = filter_packets(
@@ -353,6 +321,7 @@ def build_graph(
             ip_filter=ip_filter,
             port_filter=port_filter,
             include_ipv6=include_ipv6,
+            exclude_broadcasts=exclude_broadcasts,
         )
 
     if flag_filter:
@@ -374,20 +343,13 @@ def build_graph(
     
     # Build graph
     _excl = subnet_exclusions or set()
-    _mac_split = mac_split_map or {}  # IP → set of MACs (only IPs with 2+ distinct MACs)
-    def get_node_id(ip: str, mac: str = "") -> Optional[str]:
+    def get_node_id(ip: str) -> Optional[str]:
         if not ip:
             return None
-        # Apply entity map first (merge same-host IPs into canonical),
-        # then check mac_split_map to keep same-IP different-MAC hosts separate
         canonical = resolve(ip)
-        if canonical in _mac_split and mac:
-            # IP appears with multiple distinct MACs → differentiate by MAC
-            canonical = f"{canonical}::{mac}"
-        if subnet_grouping and "::" not in canonical and ":" not in canonical.split("::")[0] and canonical != "ARP":
+        if subnet_grouping and ":" not in canonical and canonical != "ARP":
             try:
-                base_ip = canonical.split("::")[0] if "::" in canonical else canonical
-                net = IPv4Network(f"{base_ip}/{subnet_prefix}", strict=False)
+                net = IPv4Network(f"{canonical}/{subnet_prefix}", strict=False)
                 net_str = str(net)
                 if net_str in _excl:
                     return canonical
@@ -400,8 +362,8 @@ def build_graph(
     edge_map: Dict[str, Dict] = {}
     
     for pkt in filtered:
-        src_id = get_node_id(pkt.src_ip, pkt.src_mac)
-        dst_id = get_node_id(pkt.dst_ip, pkt.dst_mac)
+        src_id = get_node_id(pkt.src_ip)
+        dst_id = get_node_id(pkt.dst_ip)
         if not src_id or not dst_id or src_id == dst_id:
             continue
         

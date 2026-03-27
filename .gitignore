@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 backend/swifteye.log
 .claude/
+init_prompt.md
 /tests/

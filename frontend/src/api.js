@@ -49,6 +49,7 @@ export async function fetchGraph(params = {}, signal) {
   if (params.mergeByMac)     p.set('merge_by_mac',     'true');
   if (params.includeIPv6 === false) p.set('include_ipv6', 'false');
   if (params.showHostnames === false) p.set('show_hostnames', 'false');
+  if (params.excludeBroadcasts) p.set('exclude_broadcasts', 'true');
   if (params.subnetExclusions && params.subnetExclusions.size > 0)
     p.set('subnet_exclusions', Array.from(params.subnetExclusions).join(','));
   if (params.clusterAlgorithm) {

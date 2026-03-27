@@ -149,6 +149,16 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
         rec.dst_mac = rec.dst_mac or (arp.hwdst or "")
         rec.transport = "ARP"
         rec.protocol = "ARP"
+        _ARP_OPCODES = {1: "request", 2: "reply", 3: "RARP request", 4: "RARP reply"}
+        opcode = arp.op or 0
+        rec.extra["arp_opcode"] = opcode
+        rec.extra["arp_opcode_name"] = _ARP_OPCODES.get(opcode, f"opcode_{opcode}")
+        rec.extra["arp_src_mac"] = arp.hwsrc or ""
+        rec.extra["arp_dst_mac"] = arp.hwdst or ""
+        rec.extra["arp_src_ip"] = arp.psrc or ""
+        rec.extra["arp_dst_ip"] = arp.pdst or ""
+        if rec.dst_mac in ("00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"):
+            rec.extra["arp_broadcast"] = True
         return rec
     
     # ── Layer 3: IPv4 ────────────────────────────────────────────────

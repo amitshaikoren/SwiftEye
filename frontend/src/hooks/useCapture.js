@@ -80,6 +80,7 @@ export function useCapture() {
   const [mergeByMac, setMergeByMac] = useState(false);
   const [includeIPv6, setIncludeIPv6] = useState(true);
   const [showHostnames, setShowHostnames] = useState(true);
+  const [excludeBroadcasts, setExcludeBroadcasts] = useState(false);
   const [subnetExclusions, setSubnetExclusions] = useState(new Set());
   const [clusterAlgo, setClusterAlgo] = useState('');  // '' | 'louvain' | 'kcore' | 'hub_spoke' | 'shared_neighbor'
   const [clusterResolution, setClusterResolution] = useState(1.0);
@@ -347,6 +348,7 @@ export function useCapture() {
     if (mergeByMac)   params.mergeByMac = true;
     if (!includeIPv6) params.includeIPv6 = false;
     if (!showHostnames) params.showHostnames = false;
+    if (excludeBroadcasts) params.excludeBroadcasts = true;
     if (subnetExclusions.size > 0) params.subnetExclusions = subnetExclusions;
     if (clusterAlgo) {
       params.clusterAlgorithm = clusterAlgo;
@@ -358,7 +360,7 @@ export function useCapture() {
       if (e.name !== 'AbortError') console.error(e);
     });
     return () => ctrl.abort();
-  }, [loaded, debouncedTR, enabledP, stats, subnetG, debouncedSubnetPrefix, mergeByMac, includeIPv6, showHostnames, subnetExclusions, clusterAlgo, clusterResolution, timeline, protocols]);
+  }, [loaded, debouncedTR, enabledP, stats, subnetG, debouncedSubnetPrefix, mergeByMac, includeIPv6, showHostnames, excludeBroadcasts, subnetExclusions, clusterAlgo, clusterResolution, timeline, protocols]);
 
   // Re-evaluate display filter when graph data changes
   useEffect(() => {
@@ -920,6 +922,7 @@ export function useCapture() {
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,
     showHostnames, setShowHostnames,
+    excludeBroadcasts, setExcludeBroadcasts,
     clusterAlgo, setClusterAlgo,
     clusterResolution, setClusterResolution,
     clusterNames, renameCluster: (id, name) => setClusterNames(prev => ({ ...prev, [id]: name })),

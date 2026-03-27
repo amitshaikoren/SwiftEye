@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from parser.packet import PacketRecord
 from parser.pcap_reader import read_pcap
-from analysis import build_graph, build_sessions, compute_global_stats, filter_packets, build_time_buckets, build_mac_split_map
+from analysis import build_graph, build_sessions, compute_global_stats, filter_packets, build_time_buckets
 from plugins import register_plugin, run_global_analysis, get_global_results, AnalysisContext, _plugins, _global_results
 from plugins.analyses.node_centrality import NodeCentralityAnalysis
 from plugins.analyses.traffic_characterisation import TrafficCharacterisationAnalysis
@@ -189,17 +189,6 @@ class TestBuildTimeBuckets:
         buckets = build_time_buckets(packets, bucket_seconds=1)
         total = sum(b['packet_count'] for b in buckets)
         assert total == len(packets)
-
-
-class TestBuildMacSplitMap:
-    def test_returns_dict(self, packets):
-        result = build_mac_split_map(packets)
-        assert isinstance(result, dict)
-
-    def test_no_splits_in_fixture(self, packets):
-        # Our fixture uses consistent MACs, so no splits expected
-        result = build_mac_split_map(packets)
-        assert len(result) == 0
 
 
 # ── Regression tests ────────────────────────────────────────────────────────

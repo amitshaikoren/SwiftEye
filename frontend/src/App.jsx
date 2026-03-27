@@ -283,6 +283,7 @@ export default function App() {
           mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
           includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
           showHostnames={c.showHostnames} setShowHostnames={c.setShowHostnames}
+          excludeBroadcasts={c.excludeBroadcasts} setExcludeBroadcasts={c.setExcludeBroadcasts}
           clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
           clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
           onApplyDisplayFilter={expr => { c.setDfExpr(expr); c.handleDfApply(expr); }}

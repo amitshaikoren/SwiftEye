@@ -9,6 +9,7 @@ export default function LeftPanel({
   mergeByMac, setMergeByMac,
   includeIPv6 = true, setIncludeIPv6,
   showHostnames = true, setShowHostnames,
+  excludeBroadcasts = false, setExcludeBroadcasts,
   labelThreshold = 0, setLabelThreshold,
   clusterAlgo = '', setClusterAlgo,
   clusterResolution = 1.0, setClusterResolution,
@@ -301,9 +302,10 @@ export default function LeftPanel({
 
         {/* Merge + IPv6 toggles */}
         {[
-          [mergeByMac,    setMergeByMac,    'Merge by MAC',   'Merge IPs sharing a MAC address into one node'],
-          [includeIPv6,   setIncludeIPv6,  'Show IPv6',       'Toggle off to hide IPv6 nodes (fe80::, ff02::, etc.) and reduce noise in dual-stack captures'],
-          [showHostnames, setShowHostnames, 'Show hostnames',  'Show DNS-resolved hostnames as node labels (cyan). Toggle off to always show raw IP addresses.'],
+          [mergeByMac,    setMergeByMac,    'Merge by MAC',         'Merge IPs sharing a MAC address into one node'],
+          [includeIPv6,   setIncludeIPv6,  'Show IPv6',            'Toggle off to hide IPv6 nodes (fe80::, ff02::, etc.) and reduce noise in dual-stack captures'],
+          [showHostnames, setShowHostnames, 'Show hostnames',       'Show DNS-resolved hostnames as node labels (cyan). Toggle off to always show raw IP addresses.'],
+          [excludeBroadcasts, setExcludeBroadcasts, 'Hide broadcasts', 'Hide broadcast (255.255.255.255) and multicast (224.0.0.0/4, ff00::/8) addresses'],
         ].map(([val, setter, label, tip]) => (
           <div key={label}
             onClick={() => setter(!val)}
