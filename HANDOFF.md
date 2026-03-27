@@ -5,7 +5,7 @@
 
 **Latest version: v0.14.2** — see `CHANGELOG.md` for full version history.
 
-> **Before each session:** Update the "Continue working on..." section at the bottom of `init_prompt.md` with the current priority. This tells the next LLM session what to work on without wasting tokens on context-gathering.
+> **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
 
 ### Recent highlights (v0.14.2)
 - **Graph query system plan** — full design documented in §6 roadmap, DEVELOPERS.md §14, and `query_system_design.html`. Persistent NetworkX analysis graph, engine-agnostic `POST /api/query` contract, categorized dropdown with "count of" meta-operator.
