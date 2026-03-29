@@ -552,7 +552,7 @@ export function useCapture() {
   async function handleUpload(files) {
     setLoading(true); setError(''); setLoadMsg('Uploading...');
     try {
-      setLoadMsg('Parsing pcap...');
+      setLoadMsg('Parsing capture data...');
       const res = await uploadPcap(files);
       setFileName(res.file_name);
       setSourceFiles(res.source_files || [res.file_name]);
@@ -568,7 +568,7 @@ export function useCapture() {
   function handleDrop(e) {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files).filter(f =>
-      ['.pcap', '.pcapng', '.cap', '.log'].some(ext => f.name.toLowerCase().endsWith(ext))
+      ['.pcap', '.pcapng', '.cap', '.log', '.csv'].some(ext => f.name.toLowerCase().endsWith(ext))
     );
     if (files.length) handleUpload(files);
   }

@@ -1,15 +1,23 @@
 # SwiftEye — Handoff Document
-## Version 0.14.2 | March 2026
+## Version 0.15.0 | March 2026
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.14.2** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.1** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
 
+### Recent highlights (v0.15.1)
+- **Backend query parsing** — `POST /api/query/parse` with Cypher (custom parser) + SQL/Spark SQL (sqlglot). Frontend wired to backend, regex parsers deleted. `count()` support. 52 pytest tests.
+- **Two-mode deployment architecture** — documented portable (on-the-go, embedded) vs enterprise (Spark/Databricks integration, petabyte-scale slicing) deployment modes. PySpark → SQL translation plan (Python `ast` module). Query router abstraction. See §6 "Long-term vision".
+- **Query UX overhaul** — dialect selector (Cypher/SQL/Spark SQL) instead of auto-detect. Debounced error display (no flashing). Gantt chart capped at 2000 sessions.
+
+### Recent highlights (v0.15.0)
+- **Graph query system — Phase 1** — persistent analysis graph (`build_analysis_graph()`) built at capture load alongside sessions/stats. `POST /api/query` endpoint with structured JSON queries. Operators: numeric (>, <, =, !=, >=, <=), count-of (count_gt, count_lt, count_eq), set (contains, contains_any, is_empty, not_empty), string (equals, starts_with, matches), boolean (is_true, is_false). AND/OR logic combinator. Actions: highlight, select. Frontend query builder panel in left sidebar with dynamic categorized field dropdown. Query results overlay as highlights on the existing view graph.
+
 ### Recent highlights (v0.14.2)
 - **Graph query system plan** — full design documented in §6 roadmap, DEVELOPERS.md §14, and `query_system_design.html`. Persistent NetworkX analysis graph, engine-agnostic `POST /api/query` contract, categorized dropdown with "count of" meta-operator.
-- **Multi-capture platform vision** — documented in §6 "Long-term vision". SwiftEye grows from single-capture single-user into multi-capture, multi-user with Neo4j/SQL/PySpark query layers.
+- **Two-mode platform vision** — documented in §6 "Long-term vision". Portable (embedded, zero-setup) vs Enterprise (Spark/Databricks integration, petabyte-scale). PySpark-first audience. Query router abstraction.
 - Removed MAC split feature — IPs are nodes, MACs are metadata. No more `IP::MAC` hybrid node IDs.
 - **Hide broadcasts** Graph Options toggle — filters broadcast (255.255.255.255, 0.0.0.0) and multicast (224.0.0.0/4, ff00::/8) addresses from the graph.
 - **ARP enrichment** — pcap reader and tshark adapter now extract ARP opcode, sender/target MACs and IPs into `pkt.extra`. New `protocol_fields/arp.py` accumulates into sessions. Dedicated `session_sections/arp.jsx` renders opcodes as tags with counts.
@@ -640,6 +648,7 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **Variable reference headers in source files** — add a comment block at the top of key files documenting the most-used variables: what they are, how they're initialized, and where they come from. Reduces the need to trace variable origins across hundreds of lines. Priority files: `sessions.py` (`s` = session dict, `ex` = `pkt.extra`, `d` = direction prefix), `aggregator.py`, `server.py` (`store`), `useCapture.js` (`c`), `SessionDetail.jsx` (`s`), plugin files (`ctx`). Format: short table or comment block immediately after imports.
 - [ ] **Document `AnalysisContext` (`ctx`) in DEVELOPERS.md** — add a dedicated subsection under the plugins section explaining what `ctx` is, its fields (`packets`, `sessions`, `nodes`, `edges`, `time_range`, `target_node_id`, `target_edge_id`, `target_session_id`), where it's constructed (in `server.py` before plugin calls), and how plugins use it. Currently `ctx` appears in code examples but is never formally explained.
 - [x] **Session detail readability overhaul** (v0.11.2) — summary metric cards for top 3 stats, card backgrounds on collapse bodies, accent-colored layer headers with 2px border, dimmer labels / brighter values with font-weight 500, directional traffic as colored cards (green →, blue ←), seq/ack labeled cell grid, increased spacing and chevron size.
+- [ ] **Session detail layer classification for non-IP protocols** — ARP and ICMP protocol fields currently render under "Application (L5+)" in session detail, which is technically wrong and looks unprofessional. ARP is a Layer 2.5 protocol (link-layer address resolution), ICMP is Layer 3.5 (control messages for IP). The session section auto-discovery system groups everything that isn't Transport (L4) or Network (L3) into the L5+ bucket. Fix: add an optional `layer` property to session section components (e.g. `layer: "Link (L2)"` for ARP, `layer: "Network (L3)"` for ICMP) that the section renderer uses instead of the default L5+ grouping. Alternatively, define a `PROTOCOL_LAYERS` mapping in a shared constants file. Low effort — purely a labeling/grouping change in the session detail renderer, no data model changes.
 - [ ] **Subnet node visual redesign** — change how subnet entity nodes look visually on the graph. Current rendering doesn't clearly distinguish subnets from regular nodes.
 - [ ] **Full coding best practices audit** — comprehensive codebase audit covering: consistent error handling patterns, proper use of type hints, docstring completeness, dead code removal, consistent naming conventions, proper separation of concerns, test coverage gaps, hardcoded values, logging consistency, and any anti-patterns. Covers both backend and frontend. Do incrementally per-file/module.
 - [ ] **Parquet ingestion** — ingest `.parquet` files as a data source alongside pcap and Zeek logs. Parquet is common in large-scale log pipelines (Splunk exports, AWS VPC flow logs, Databricks). Needs: column-to-PacketRecord mapping config, auto-detection of common schemas, chunked reading for large files. Should integrate with the existing multi-source architecture.
@@ -647,21 +656,32 @@ All v0.8.x bug details preserved in §4a.
 - [ ] **In-function imports full audit** — the v0.10.1 cleanup covered 8 backend files, but test files and any new code may still have imports inside function bodies. Do a full codebase audit (`grep -rn "^\s*import \|^\s*from .* import" --include="*.py"` inside function defs) and move all to top level. Exceptions: dpkt (optional dep), reportlab (optional), scapy layer try/except.
 - [ ] **Documentation clarity audit** — review all documentation (DEVELOPERS.md, HANDOFF.md, code docstrings) for project-specific jargon used without explanation. Terms like "signal", "generation", "accumulator", "5-tuple", "flow state", "boundary checker" should be defined on first use or have a glossary. Goal: a developer unfamiliar with the project should be able to read the docs without needing to reverse-engineer terminology from the code.
 - [ ] **Variable naming cleanup** — many core variables use terse single-letter names that obscure intent. `s` for a session dict, `e` for an edge, `n` for a node, `d` for direction, `ex` for `pkt.extra`, `c` for the capture hook object. These are fine locally but become unreadable when passed across function boundaries or used 200 lines from their declaration. Rename to descriptive names (`session`, `edge`, `node`, `direction`, `extra`, `capture`) in key files: `sessions.py`, `aggregator.py`, `server.py`, `useCapture.js`, `SessionDetail.jsx`, `App.jsx`. Low priority — no functional impact, purely readability. Do incrementally per-file to keep diffs reviewable.
-- [ ] **Graph query system** — structured query engine over a persistent analysis graph. Three phases:
+- [x] **Graph query system — Phase 1** (v0.15.0) — structured query engine over a persistent analysis graph. Three phases:
   - **Phase 1 — Foundation:** `build_analysis_graph()` builds a persistent NetworkX graph at capture load (alongside sessions/stats/time_buckets). Nodes = IPs with accumulated attributes (MACs, protocols, ports, hostnames, JA3s, TTLs, vendors, OS guess, byte/packet counts). Edges = IP pairs with session references, protocol sets, port sets, traffic stats. New `POST /api/query` endpoint accepts structured JSON queries. Frontend query builder panel with categorized field dropdown, operator selector, value input, AND/OR combinator, and action selector (highlight, select). Results return matched node/edge IDs; frontend overlays them on the existing view graph (no rebuild).
-  - **Phase 2 — Topology + Actions:** Topology operators (connects_to, connects_only_to, degree, same_neighbors_as). Additional actions: group (collapse matches into cluster), hide (remove from view), isolate (hide everything else). Query history and saved queries. Export matched set as CSV.
-  - **Phase 3 — Power User:** Raw query textbox (simple DSL or Python subset). Compound queries (pipe Q1 results into Q2). Time-scoped queries. Regex matching on string fields. Plugin-provided query fields. Query-based alerting. This phase also lays groundwork for future Cypher/SQL/PySpark backends — the `POST /api/query` JSON contract is engine-agnostic; only the backend resolver changes.
+  - **Phase 1.5 — Multi-syntax freehand query (v0.15.1):** Freehand text input alongside a visual builder, accepting Cypher and SQL/Spark SQL. Two parsing layers:
+    - **Frontend:** Calls `POST /api/query/parse` with raw query text. The backend returns the parsed JSON contract (or an error). Live parse preview debounced at 300ms. Frontend regex parsers (`parsers.js`) have been deleted.
+    - **Backend (implemented):** `POST /api/query/parse` endpoint. Frontend sends raw query text, backend parses with proper libraries and returns the JSON contract. Libraries:
+      - **Cypher:** Custom tokenizer + recursive-descent parser for the WHERE-clause subset. `graphglot` (tested v0.5.0) is a GQL/ISO parser, not a practical openCypher parser — it fails on AND/OR, CONTAINS, STARTS WITH, and regex. Our custom parser handles all operators needed by the query contract.
+      - **SQL / Spark SQL:** `sqlglot` (PyPI, v30.1.0) — zero dependencies, proper AST, battle-tested. Handles 31+ SQL dialects including Spark SQL via `dialect="spark"`. Can also **transpile between dialects** — critical for the multi-backend future.
+    - **Syntaxes supported:**
+      - **Cypher** (primary — graph-native): `MATCH (n) WHERE n.packets > 1000 AND n.protocols CONTAINS "DNS" RETURN highlight`
+      - **SQL**: `SELECT * FROM nodes WHERE packets > 1000 AND protocols CONTAINS 'DNS'`
+      - **Spark SQL**: Same as SQL but parsed with `dialect="spark"` for Spark-specific syntax.
+    - **PySpark DataFrame API** (`.filter(col("x") > y)`) dropped — it's a Python API, not a query language. Anything expressible in PySpark is equally expressible in Spark SQL strings.
+    - Key files: `frontend/src/query/queryExamples.js` (canned examples), `backend/analysis/query_parser.py` (Cypher + sqlglot parsing, 47 pytest tests), `backend/tests/test_query_parser.py`
+  - **Phase 2 — Topology + Actions:** Topology operators (connects_to, connects_only_to, degree, same_neighbors_as). Additional actions: group (collapse matches into cluster), hide (remove from view), isolate (hide everything else). Query history and saved queries. Export matched set as CSV. Cypher topology syntax: `MATCH (n)--(m) WHERE m.ip = "10.0.0.1" RETURN highlight`. These require proper AST parsing — the regex parsers cannot handle topology patterns.
+  - **Phase 3 — Real backend engines:** When the backend migrates to a real DB, queries skip the parse→JSON→resolve pipeline and go straight to the engine:
+    - **Neo4j:** Cypher strings pass through directly. SQL queries transpiled to Cypher via sqlglot.
+    - **PostgreSQL:** SQL strings pass through directly. Cypher queries transpiled to SQL via graphglot/sqlglot.
+    - **PySpark:** Spark SQL strings pass through directly.
+    - The `POST /api/query` JSON contract remains as a universal fallback and as the visual builder's output format. The `POST /api/query/parse` endpoint becomes a thin validation + transpilation layer rather than a full parse→resolve pipeline.
+    - Compound queries (pipe Q1 results into Q2). Time-scoped queries. Plugin-provided query fields. Query-based alerting.
 
-  **Dropdown design — categories, not flat lists:** Fields are organized into categories with subcategories. The operator determines the shape, not the field:
-  - **Counts** (numeric operators: `> < = != >= <=`): packets, bytes, degree, sessions. Plus **"count of"** as a meta-operator that works on any set field — "count of MACs > 1" instead of a hardcoded `mac_count` field. This scales to any future attribute (count of hostnames, count of JA3s, count of ports, etc.) without adding fields.
-  - **Sets** (set operators: `contains`, `contains_all`, `contains_any`, `is_empty`, `not_empty`): protocols, ports, MACs, JA3 fingerprints, hostnames, TTLs, vendors, dns_queries, http_hosts.
-  - **Flags** (boolean: `is true`, `is false`): is_private, has_handshake, has_reset, arp_seen.
-  - **Text** (string operators: `equals`, `starts_with`, `matches` regex): os_guess, hostnames, dns_queries.
-  - **Topology** (graph operators): connects_to, connects_only_to, same_neighbors_as, path_exists.
+  **Frontend query UI — two modes:**
+  - **Visual builder:** Flat field dropdown (with `<optgroup>` for visual grouping), operator auto-adapts to field type, value input, "Then" action selector. For quick common queries. Produces JSON contract directly.
+  - **Freehand text:** Single textarea, monospace, with detected-syntax badge (Cypher/SQL/Spark SQL). Auto-detect or manual override. Both modes produce the same JSON and hit the same `runQuery()` API call.
 
-  New fields auto-populate from whatever attributes exist on the loaded capture's analysis graph — the dropdown is dynamic, not hardcoded. Plugin-provided attributes appear automatically.
-
-  **Engine-agnostic design:** The `POST /api/query` JSON contract is independent of the backend engine. Phase 1 uses NetworkX (in-memory, zero setup, already a dependency). Future migration paths: NetworkX → Neo4j (for multi-capture correlation), NetworkX → SQLite/Postgres (for persistence), NetworkX → PySpark (for massive datasets). The frontend and query contract never change — only the backend resolver swaps.
+  **Engine-agnostic design:** The `POST /api/query` JSON contract is independent of the backend engine. Phase 1 uses NetworkX (in-memory, zero setup, already a dependency). Future migration paths: NetworkX → Neo4j (for multi-capture correlation), → SQLite/Postgres (for persistence), → PySpark (for massive datasets). The frontend and query contract never change — only the backend resolver swaps. The `graphglot` + `sqlglot` parsing layer enables cross-dialect transpilation so users can write in any supported syntax regardless of which backend engine is active.
 
   See `query_system_design.html` for visual architecture diagram, UI mockups, operator reference, and implementation phases. See DEVELOPERS.md §14 for the analysis graph data structure.
 
@@ -677,18 +697,162 @@ All v0.8.x bug details preserved in §4a.
 - [x] **DCE/RPC dissector** (v0.9.81) — payload fingerprinting on any port. See changelog.
 - [ ] **Investigation panel: notes aggregation** — the Investigation panel's Markdown editor gets a sidebar showing all notes created on nodes, edges, and sessions across the capture. Each note card shows the target (node IP/hostname, edge endpoints, session reference hash), the note text, a "Go to ↗" link (selects target on graph, opens detail panel), and "+ Add to timeline" to promote the note into the investigation narrative. The sidebar is a helper — it doesn't replace the Markdown area, it augments it. Researchers can reference their scattered notes in one place while writing their investigation report.
 
-### Long-term vision: multi-capture platform
+### Long-term vision: two deployment modes
 
-SwiftEye's current single-capture, single-user mode is Phase 1. The long-term vision is a **multi-capture, multi-user data platform** — a hosted environment where teams of researchers work across many captures, correlate findings, and query at scale. The single-capture viewer is the foundation, not the ceiling.
+SwiftEye has two deployment modes with different architectures but a **shared frontend and query contract**.
 
-- [ ] **User workspaces** — each user gets a persistent workspace. Authentication, user profiles, workspace persistence (database-backed, not in-memory). Workspaces survive server restarts. Foundation for everything below.
-- [ ] **Projects** — a workspace contains multiple projects (e.g. "Incident Response — March 2026", "Quarterly Audit Q1"). A project groups related analyses around a single investigation topic. Projects have metadata (name, description, created date, status).
-- [ ] **Sub-projects (analysis units)** — each project contains sub-projects. A sub-project is what SwiftEye is today: a self-contained pcap analysis with its own graph, sessions, plugins, notes, annotations, and synthetic elements. The Visualize panel also becomes a first-class sub-project type — a custom data visualization workspace that doesn't require a pcap. Sub-project types: `capture` (current SwiftEye), `visualization` (standalone Visualize), potentially others later (Zeek logs, Sysmon, etc.).
-- [ ] **Project-level investigation** — the investigation lives at the project level and can reference findings from any sub-project. The Markdown editor + notes sidebar spans all sub-projects. Cross-references link to specific nodes/edges/sessions in specific sub-projects. Each sub-project can also have a mini-investigation for local notes that feed up into the project investigation.
-- [ ] **Multi-capture correlation** — with multiple capture sub-projects in one project, enable cross-capture queries: "show me all sessions to this IP across all captures", timeline view spanning captures, shared entity resolution (same MAC across captures = same host).
-- [ ] **Graph DB backend (Neo4j or equivalent)** — when the platform manages many captures for many users, an in-memory NetworkX graph per capture doesn't scale. A graph database (Neo4j, or lighter alternatives like Memgraph/KùzuDB) enables: cross-capture Cypher queries, persistent graph state, shared graph views between team members, and graph analytics at dataset scale. The `POST /api/query` contract is engine-agnostic — the frontend and API layer stay the same; only the backend resolver swaps from NetworkX to Cypher.
-- [ ] **SQL/PySpark query layer** — for large-scale tabular queries (session/packet aggregation, time-series, statistical analysis), expose a SQL endpoint backed by SQLite (single-user) or Postgres/Spark (platform mode). Complements the graph query system — graph queries for topology, SQL queries for aggregation.
-- [ ] **Team features** — shared investigations, role-based access (analyst/lead/viewer), activity feeds, @mentions in investigation notes, audit trail. Requires authentication and workspace persistence.
+#### Portable mode (on-the-go)
+
+Single-user, zero-setup, runs on a laptop. This is SwiftEye today and will always exist.
+
+- **Data source:** pcap upload, CSV import, Zeek logs, local files
+- **Data size:** MBs–low GBs, single captures
+- **Graph engine:** NetworkX in-memory (current). May add LadybugDB (embedded Cypher DB, MIT, Kuzu fork) if it proves stable — this would give native Cypher without custom parsing.
+- **Query execution:** Local. Custom Cypher parser + sqlglot for SQL/Spark SQL + PySpark→SQL translator (Python `ast` module). All resolve against the local NetworkX graph via `resolve_query()`.
+- **User model:** Single user, no auth, no persistence across restarts.
+- **Packaging:** Single `pip install` or standalone executable. No Docker, no JVM, no external services.
+
+#### Enterprise mode (integrated)
+
+Multi-user, connected to the organization's existing data infrastructure. SwiftEye is a **lens** over the company's data — it doesn't warehouse anything.
+
+- **Data source:** Company's Spark/Databricks cluster, data lake (Parquet/Delta Lake/Iceberg), SIEM exports, or any system reachable via Spark SQL.
+- **Data size:** PBs of tabular data. The researcher requests a **slice** ("all traffic from 10.0.0.0/8 last Tuesday") and SwiftEye consumes that slice on demand.
+- **Data flow:**
+  ```
+  Researcher requests slice → SwiftEye sends Spark SQL to cluster
+    → Cluster returns tabular results (packets/sessions/events)
+    → SwiftEye builds graph locally from results (same build_analysis_graph() logic)
+    → Researcher explores graph, writes queries, investigates
+    → Queries can go back to the cluster for deeper data pulls
+  ```
+- **Graph engine:** Graph DB (Neo4j, LadybugDB, or Postgres+AGE) for persistent cross-capture correlation. NetworkX for per-slice in-memory graphs.
+- **Query execution:** Remote. PySpark/SQL queries route to the company's Spark cluster. Cypher queries route to the graph DB. SwiftEye orchestrates.
+- **User model:** Multi-user with workspaces, projects, RBAC, SSO/SAML.
+
+**Key architectural principle:** The company's petabytes stay where they are. SwiftEye never copies the full dataset. The researcher pulls slices, builds graphs from those slices, and investigates. If they need more data, they widen the slice. SwiftEye is the visualization/analysis frontend; Spark is the data engine.
+
+#### Query language strategy (both modes)
+
+**Target audiences:**
+- **Primary audience:** PySpark-fluent — SOC analysts, threat hunters, data engineers working in Spark/Databricks environments. They think in DataFrames.
+- **Secondary (wider) audience:** SQL/KQL/Cypher-fluent — security researchers, network analysts, graph-savvy investigators. Familiar with query languages from Splunk, Elastic, Neo4j, or traditional RDBMS.
+
+All syntaxes are first-class — the primary/secondary distinction affects default examples and documentation tone, not feature completeness:
+
+| Syntax | Who uses it | Backend (portable) | Backend (enterprise) |
+|--------|------------|-------------------|---------------------|
+| **PySpark** | Primary audience (SOC, threat hunters, data engineers) | Translated to SQL via Python `ast` → sqlglot → local resolver | Translated to Spark SQL → sent to Spark cluster |
+| **SQL / Spark SQL** | Wider audience, data analysts | Parsed by sqlglot → local resolver | Sent directly to Spark/Postgres |
+| **Cypher** | Graph-savvy researchers | Custom parser → local resolver (or native if LadybugDB) | Sent directly to Neo4j/graph DB |
+
+**PySpark → SQL translation** uses Python's built-in `ast` module (not regex) to parse PySpark DataFrame expressions as actual Python code, then generates equivalent SQL:
+
+| PySpark expression | Generated SQL |
+|-------------------|---------------|
+| `nodes.filter(col("packets") > 100)` | `SELECT * FROM nodes WHERE packets > 100` |
+| `edges.filter(col("protocols").contains("DNS"))` | `SELECT * FROM edges WHERE ARRAY_CONTAINS(protocols, 'DNS')` |
+| `.filter(col("x") > 1).filter(col("y") < 5)` | `WHERE x > 1 AND y < 5` (chained = AND) |
+| `nodes.filter(col("macs").isNotNull())` | `SELECT * FROM nodes WHERE macs IS NOT NULL` |
+| `nodes.filter(col("is_private") == True)` | `SELECT * FROM nodes WHERE is_private IS TRUE` |
+| `edges.filter(col("protocol").isin("TCP", "UDP"))` | `SELECT * FROM edges WHERE protocol IN ('TCP', 'UDP')` |
+
+**Supported PySpark subset** (query box scope):
+- `.filter()` / `.where()` — condition expressions
+- `col()` comparisons — `>`, `<`, `==`, `!=`, `>=`, `<=`
+- `col().contains()`, `.startswith()`, `.endswith()`, `.isNull()`, `.isNotNull()`, `.isin()`, `.between()`
+- Chained filters — `.filter(...).filter(...)` → AND
+- `count()` / `size()` — for set-length checks
+
+**Explicitly out of scope** (use your Spark notebook for these):
+- UDFs (`filter(my_custom_udf(col("x")))`) — arbitrary Python, untranslatable
+- Joins (`df1.join(df2, ...)`) — requires multiple DataFrame context
+- GroupBy + agg pipelines — complex multi-step transformations
+- `withColumn()` / `explode()` / `pivot()` — DataFrame mutations
+- Variable references (`threshold = 100; df.filter(col("x") > threshold)`) — requires Python evaluation
+
+The boundary is clear: **SwiftEye supports PySpark filter expressions for querying. For complex pipelines, use your Spark notebook and export/connect results to SwiftEye.**
+
+#### Enterprise integration architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    SwiftEye Frontend                 │
+│  Query box (PySpark / SQL / Cypher) + Graph viewer  │
+└────────────────┬────────────────────────────────────┘
+                 │ POST /api/query/parse  +  POST /api/query
+                 ▼
+┌─────────────────────────────────────────────────────┐
+│                   SwiftEye Backend                   │
+│                                                     │
+│  ┌─────────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │ PySpark→SQL  │  │ sqlglot  │  │ Cypher parser │  │
+│  │ (ast module) │  │ (SQL/    │  │ (custom or    │  │
+│  │              │  │  Spark)  │  │  LadybugDB)   │  │
+│  └──────┬──────┘  └────┬─────┘  └──────┬────────┘  │
+│         │              │               │            │
+│         ▼              ▼               ▼            │
+│  ┌─────────────────────────────────────────────┐    │
+│  │          Query Router                        │    │
+│  │  Portable: → resolve_query(NetworkX)         │    │
+│  │  Enterprise: → Spark cluster (SQL/PySpark)   │    │
+│  │              → Graph DB (Cypher)              │    │
+│  │              → resolve_query(local slice)     │    │
+│  └─────────────────────────────────────────────┘    │
+└────────┬──────────────────┬────────────────────┬────┘
+         │                  │                    │
+    ┌────▼────┐     ┌──────▼───────┐     ┌──────▼──────┐
+    │NetworkX │     │ Spark/       │     │ Neo4j/      │
+    │(local)  │     │ Databricks   │     │ LadybugDB/  │
+    │         │     │ cluster      │     │ Graph DB    │
+    └─────────┘     └──────────────┘     └─────────────┘
+    Portable mode    Enterprise mode      Enterprise mode
+```
+
+**The query router is the key abstraction.** The frontend and query parsers are identical in both modes. Only the router changes: in portable mode it resolves locally; in enterprise mode it dispatches to the appropriate remote engine.
+
+#### Platform features (enterprise mode)
+
+- [ ] **User workspaces** — persistent workspace per user. Auth, profiles, survives restarts.
+- [ ] **Projects** — group related analyses (e.g. "Incident Response — March 2026"). Metadata: name, description, created date, status.
+- [ ] **Sub-projects** — each project contains multiple analysis units. Types: `capture` (current SwiftEye), `visualization` (standalone), `spark-slice` (data pulled from cluster), Zeek logs, Sysmon, etc.
+- [ ] **Project-level investigation** — investigation spans sub-projects. Cross-references to specific nodes/edges/sessions.
+- [ ] **Multi-capture correlation** — cross-capture queries: "show me all sessions to this IP across all captures", timeline spanning captures, shared entity resolution.
+- [ ] **Spark connector** — connect to a Spark/Databricks cluster. Send Spark SQL, receive tabular results. Build graphs from results. Configuration: cluster URL, auth token, default database/schema.
+- [ ] **Graph DB backend** — Neo4j, LadybugDB, or Postgres+AGE for persistent graph state and cross-capture Cypher queries. The `POST /api/query` contract is engine-agnostic — only the resolver swaps.
+- [ ] **Notebook integration (SwiftEye as visualization backend)** — researchers do heavy computation in Jupyter/Databricks, then push results to SwiftEye for graph visualization. SwiftEye is the **display**, the notebook is the **compute engine**. This aligns with viewer-not-analyzer: the notebook interprets, SwiftEye shows.
+
+  **SwiftEye Python SDK** (`pip install swifteye-sdk`) — REST client that connects to a running SwiftEye instance. Works in any Python environment (Jupyter, Databricks, VS Code, scripts). Core API:
+  ```python
+  from swifteye import connect
+  se = connect("http://localhost:8000")
+
+  # Push a DataFrame to SwiftEye — builds and displays a graph
+  se.show(df)                          # DataFrame with src_ip, dst_ip, ... → graph
+
+  # Highlight nodes/edges on the existing graph
+  se.highlight(ip_list)                # orange overlay on matching nodes
+  se.highlight(df.select("src_ip"))    # from a DataFrame column
+
+  # Annotate nodes
+  se.annotate("10.0.0.5", "C2 beacon - 30s interval")
+
+  # Read current graph data back into the notebook
+  nodes_df = se.nodes()                # all node attributes as DataFrame
+  edges_df = se.edges()                # all edge attributes as DataFrame
+
+  # Run a query from the notebook
+  results = se.query("MATCH (n) WHERE n.packets > 1000 RETURN n")
+  ```
+
+  **The flow:** Notebook (compute) → `se.show(df)` → SwiftEye (visualize) → researcher explores graph → clicks node → goes back to notebook for deeper analysis → `se.highlight(results)` → SwiftEye updates.
+
+  Implementation layers:
+  1. **SDK** — pure Python REST client around existing API endpoints. `se.show(df)` calls a new `POST /api/ingest/dataframe` endpoint. `se.highlight()` calls `POST /api/query`. Zero new dependencies for the SDK itself.
+  2. **Jupyter magic commands** — `%se_show df` / `%se_highlight results` / `%se_query "MATCH ..."`. Thin wrapper.
+  3. **Export to notebook** — "Open in Jupyter" button in SwiftEye generates a `.ipynb` pre-loaded with current graph data as DataFrames + query history.
+  4. Future: embedded notebook panel inside SwiftEye UI (Jupyter server REST API). Evaluate after SDK proves the pattern.
+- [ ] **Team features** — RBAC (analyst/lead/viewer), activity feeds, @mentions, audit trail, SSO/SAML.
 - [x] **Backend test suite** (v0.9.50) — pytest tests for the critical path: `build_graph()`, `build_mac_split_map()`, `filter_packets()`, `build_sessions()`, `compute_global_stats()`, plugin `analyze_global()` methods, analysis plugin `compute()` methods, and the v0.9.43 session scoping regression. Run: `cd backend && pytest tests/ -v`.
 - [x] **Address type annotation in NodeDetail** (v0.9.54) — show the type of each IP address in the IPs list in NodeDetail. Known types to detect and label: Private (RFC1918), APIPA (169.254.x.x), Loopback (127.x/::1), Link-local IPv6 (fe80::), Multicast IPv4 (224.x-239.x), Multicast IPv6 (ff00::/8), Broadcast (255.255.255.255), Documentation (198.51.100.x/203.0.113.x/192.0.2.x), Carrier-grade NAT (100.64.x.x), ULA (fc00::/fd00::). Display as a small coloured badge next to the IP. Pure frontend — `classifyIp()` in `NodeDetail.jsx`.
 

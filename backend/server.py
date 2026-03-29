@@ -40,7 +40,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from parser import read_pcap, PacketRecord, MAX_FILE_SIZE
 from parser.adapters import detect_adapter, ADAPTERS
 from constants import PROTOCOL_COLORS
-from analysis import build_time_buckets, build_graph, filter_packets, build_sessions, compute_global_stats, get_subnets
+from analysis import build_time_buckets, build_graph, build_analysis_graph, filter_packets, build_sessions, compute_global_stats, get_subnets
 from analysis.clustering import compute_clusters
 from analysis.pathfinding import find_paths
 from plugins.insights.node_merger import build_entity_map
@@ -210,6 +210,7 @@ class CaptureStore:
         self.annotations: dict = {}        # uuid → {id, x, y, label, color, node_id?, edge_id?, created_at}
         self.synthetic: dict = {}          # uuid → {id, type:"node"|"edge", ...fields}
         self.graph_cache: dict = {}        # last built graph: {"nodes": [...], "edges": [...]}
+        self.analysis_graph = None         # persistent NetworkX graph for query engine
         self.investigation: dict = {"markdown": "", "images": {}}  # investigation notebook
     
     def load(self, packets: list[PacketRecord], file_name: str, source_files: list[str] = None):
@@ -249,7 +250,12 @@ class CaptureStore:
         
         self.protocols = {p.protocol for p in packets if p.protocol and p.protocol.strip()}
         self.subnets = get_subnets(packets)
-        
+
+        logger.info(f"Building analysis graph...")
+        t0 = time.time()
+        self.analysis_graph = build_analysis_graph(packets, self.sessions)
+        logger.info(f"  Analysis graph in {time.time()-t0:.2f}s")
+
         logger.info(f"Capture '{file_name}' loaded: {len(packets)} packets, "
                      f"{len(self.sessions)} sessions, {len(self.protocols)} protocols")
     
@@ -819,6 +825,40 @@ async def get_subnets_api(prefix: int = Query(default=24, ge=8, le=32)):
     else:
         subnets = store.subnets
     return SubnetsResponse(subnets=subnets)
+
+
+# ── Query API ────────────────────────────────────────────────────────
+
+@app.post("/api/query")
+async def run_query(body: dict):
+    """Execute a structured query against the analysis graph."""
+    from analysis.query_engine import resolve_query
+    _require_capture()
+    if store.analysis_graph is None:
+        raise HTTPException(400, "Analysis graph not available")
+    return resolve_query(store.analysis_graph, body)
+
+
+@app.post("/api/query/parse")
+async def parse_query_text_endpoint(body: dict):
+    """Parse a freehand query (Cypher/SQL/Spark SQL) into the JSON contract.
+
+    Body: { "text": str, "dialect": optional str }
+    Returns: { syntax, query: {target, conditions, logic, action} }
+         or: { syntax, error: str }
+    """
+    from analysis.query_parser import parse_query_text
+    text = body.get("text", "")
+    dialect = body.get("dialect")
+    return parse_query_text(text, dialect=dialect)
+
+
+@app.get("/api/query/schema")
+async def get_query_schema():
+    """Return available fields and their types for the query builder dropdown."""
+    from analysis.query_engine import get_graph_schema
+    _require_capture()
+    return get_graph_schema(store.analysis_graph)
 
 
 # ── Metadata API ─────────────────────────────────────────────────────
