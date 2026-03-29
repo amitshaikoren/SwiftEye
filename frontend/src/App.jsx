@@ -29,11 +29,13 @@ import VisualizePage from './components/VisualizePage';
 import ClusterLegend from './components/ClusterLegend';
 import ClusterDetail from './components/ClusterDetail';
 import PathDetail from './components/PathDetail';
+import QueryBuilder from './components/QueryBuilder';
 
 export default function App() {
   const c = useCapture();
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
+  const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
 
   // ── Graph container size (for Sparkline width) ───────────────────
   const graphContainerRef = useRef(null);
@@ -79,11 +81,11 @@ export default function App() {
               </svg>
             </div>
             <div style={{ fontSize: 16, color: 'var(--txM)', marginBottom: 10 }}>
-              Drop <span style={{ color: 'var(--ac)' }}>.pcap</span> / <span style={{ color: 'var(--ac)' }}>.pcapng</span> / <span style={{ color: 'var(--ac)' }}>Zeek logs</span> here
+              Drop <span style={{ color: 'var(--ac)' }}>capture files</span> here <span style={{ fontSize: 10, color: 'var(--txD)' }}>(pcap, Zeek logs, tshark CSV)</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--txD)' }}>or click to browse · multiple files merge by timestamp · max 500MB each</div>
             {c.error && <div style={{ marginTop: 20, color: 'var(--acR)', fontSize: 13 }}>{c.error}</div>}
-            <input id="pcap-up" type="file" accept=".pcap,.pcapng,.cap,.log" multiple onChange={c.handleFileInput} style={{ display: 'none' }} />
+            <input id="pcap-up" type="file" accept=".pcap,.pcapng,.cap,.log,.csv" multiple onChange={c.handleFileInput} style={{ display: 'none' }} />
           </div>
         )}
         <div style={{ position: 'absolute', bottom: 24, display: 'flex', gap: 12 }}>
@@ -191,6 +193,7 @@ export default function App() {
             nodeId={c.selNodes[0]} nodes={detailNodes} edges={detailEdges}
             sessions={c.sessions} pColors={c.pColors}
             onClear={c.clearSel}
+            onSelectNode={id => c.handleGSel('node', id, false)}
             onSelectEdge={e => c.handleGSel('edge', e, false)}
             onSelectSession={c.selectSession}
             pluginResults={c.pluginResults} uiSlots={c.pluginSlots}
@@ -230,6 +233,29 @@ export default function App() {
     rightContent = <LogsPanel />;
   } else if (c.rPanel === 'help') {
     rightContent = <HelpPanel />;
+  } else if (c.rPanel === 'query') {
+    rightContent = (
+      <QueryBuilder
+        loaded={c.loaded}
+        onQueryResult={res => {
+          const nodes = new Set((res.matched_nodes || []).map(m => m.id));
+          const edges = new Set((res.matched_edges || []).map(m => m.id));
+          setQueryHighlight(nodes.size || edges.size ? { nodes, edges } : null);
+        }}
+        onClearQuery={() => setQueryHighlight(null)}
+        onSelectNode={id => c.handleGSel('node', id, false)}
+        onSelectEdge={edgeId => {
+          const e = (c.graph.edges || []).find(e => {
+            if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
+            // D3 replaces source/target strings with node objects — extract .id
+            const s = typeof e.source === 'object' ? e.source.id : e.source;
+            const t = typeof e.target === 'object' ? e.target.id : e.target;
+            return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
+          });
+          if (e) c.handleGSel('edge', e, false);
+        }}
+      />
+    );
   } else {
     rightContent = (
       <StatsPanel
@@ -289,6 +315,7 @@ export default function App() {
           onApplyDisplayFilter={expr => { c.setDfExpr(expr); c.handleDfApply(expr); }}
           activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
           osGuesses={c.osGuesses}
+          queryActive={!!queryHighlight}
         />
 
         {c.rPanel === 'research' ? (
@@ -455,6 +482,8 @@ export default function App() {
                   onPathfindTarget={c.executePathfind}
                   onCancelPathfind={c.cancelPathfind}
                   labelThreshold={c.labelThreshold}
+                  queryHighlight={queryHighlight}
+                  onClearQueryHighlight={() => setQueryHighlight(null)}
                 />
 
                 {(!c.graph.nodes || c.graph.nodes.length === 0) && (
@@ -568,7 +597,7 @@ export default function App() {
       </div>
 
       {/* Hidden file inputs (always in DOM so getElementById always finds them) */}
-      <input id="pcap-re" type="file" accept=".pcap,.pcapng,.cap,.log" multiple onChange={c.handleFileInput} style={{ display: 'none' }} />
+      <input id="pcap-re" type="file" accept=".pcap,.pcapng,.cap,.log,.csv" multiple onChange={c.handleFileInput} style={{ display: 'none' }} />
       <input id="meta-up" type="file" accept=".json" onChange={c.handleMetadataInput} style={{ display: 'none' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 

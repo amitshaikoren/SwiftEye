@@ -14,6 +14,7 @@ export default function LeftPanel({
   clusterAlgo = '', setClusterAlgo,
   clusterResolution = 1.0, setClusterResolution,
   onApplyDisplayFilter, activeOsFilter, osGuesses = [],
+  queryActive = false,
 }) {
   const [collapsed, setCollapsed] = useState({});
   const toggle = k => setCollapsed(c => ({ ...c, [k]: !c[k] }));
@@ -238,7 +239,7 @@ export default function LeftPanel({
       {/* Panel switcher */}
       <div style={{ borderTop: '1px solid var(--bd)', marginTop: 10, paddingTop: 10 }}>
         <div className="sh">Panel</div>
-        {[['stats', 'Overview'], ['sessions', 'Sessions'], ['timeline', 'Timeline'], ['research', 'Research'], ['analysis', 'Analysis ✦'], ['investigation', 'Investigation'], ['visualize', 'Visualize'], ['logs', 'Server Logs'], ['help', 'Help']].map(([k, l]) => {
+        {[['stats', 'Overview'], ['sessions', 'Sessions'], ['timeline', 'Timeline'], ['query', 'Query'], ['research', 'Research'], ['analysis', 'Analysis ✦'], ['investigation', 'Investigation'], ['visualize', 'Visualize'], ['logs', 'Server Logs'], ['help', 'Help']].map(([k, l]) => {
           const isActive = rPanel === k && !selNodes.length && !selEdge && !selSession;
           const showBadge = k === 'sessions' && activeSearch && sessionTotal > 0 && sessionFiltered !== sessionTotal;
           return (
@@ -256,6 +257,12 @@ export default function LeftPanel({
                   background: 'var(--bgC)', borderRadius: 8, padding: '1px 5px',
                   border: '1px solid var(--bd)', flexShrink: 0,
                 }}>{sessionFiltered}/{sessionTotal}</span>
+              )}
+              {k === 'query' && queryActive && (
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: '#f0883e', flexShrink: 0,
+                }} />
               )}
               {k === 'visualize' && (
                 <span style={{

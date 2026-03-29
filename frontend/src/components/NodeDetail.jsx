@@ -3,7 +3,7 @@ import Tag from './Tag';
 import Collapse from './Collapse';
 import Row from './Row';
 import { PluginSections, GenericDisplay } from './PluginSection';
-import { fN, fB } from '../utils';
+import { fN, fB, fD } from '../utils';
 
 /**
  * Classify an IP address into its address type.
@@ -127,8 +127,124 @@ function EditField({ label, value, onChange, type = 'text', placeholder }) {
   );
 }
 
+/** Horizontal bar chart — label + bar + count */
+function MiniBar({ items, formatValue, labelColor = 'var(--txM)', onClick }) {
+  if (!items?.length) return <div style={{ fontSize: 10, color: 'var(--txD)' }}>No data</div>;
+  const maxVal = Math.max(...items.map(d => d[1]), 1);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {items.map(([label, value], i) => (
+        <div key={i}
+          onClick={() => onClick?.(label)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, fontSize: 10,
+            cursor: onClick ? 'pointer' : 'default', borderRadius: 3,
+            padding: '1px 0',
+          }}
+          onMouseOver={e => { if (onClick) e.currentTarget.style.background = 'rgba(255,255,255,.04)'; }}
+          onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          <span style={{ fontFamily: 'var(--fn)', color: labelColor, width: 72, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {label}
+          </span>
+          <div style={{ flex: 1, height: 10, background: 'var(--bgC)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{
+              width: `${(value / maxVal) * 100}%`, height: '100%',
+              background: 'rgba(88,166,255,.35)', borderRadius: 2,
+              minWidth: value > 0 ? 2 : 0,
+            }} />
+          </div>
+          <span style={{ fontFamily: 'var(--fn)', color: 'var(--txD)', fontSize: 9, width: 48, textAlign: 'right', flexShrink: 0 }}>
+            {formatValue ? formatValue(value) : fN(value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Node statistics collapsible — port distributions, top neighbors, protocol breakdown */
+function NodeStatistics({ node, onSelectNode }) {
+  const [section, setSection] = useState('ports');
+
+  const topDst = node.top_dst_ports || [];
+  const topSrc = node.top_src_ports || [];
+  const topNeigh = node.top_neighbors || [];
+  const topProto = node.top_protocols || [];
+
+  const hasData = topDst.length > 0 || topSrc.length > 0 || topNeigh.length > 0 || topProto.length > 0;
+  if (!hasData) return null;
+
+  const tabs = [
+    topDst.length > 0 || topSrc.length > 0 ? ['ports', 'Ports'] : null,
+    topNeigh.length > 0 ? ['neighbors', 'Neighbors'] : null,
+    topProto.length > 0 ? ['protocols', 'Protocols'] : null,
+  ].filter(Boolean);
+
+  return (
+    <Collapse title="Statistics">
+      {/* Tab selector */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
+        {tabs.map(([key, label], i) => (
+          <button key={key} onClick={() => setSection(key)}
+            style={{
+              fontSize: 9, padding: '3px 10px', cursor: 'pointer',
+              background: section === key ? 'rgba(88,166,255,.12)' : 'transparent',
+              color: section === key ? 'var(--ac)' : 'var(--txD)',
+              border: `1px solid ${section === key ? 'var(--ac)' : 'var(--bd)'}`,
+              borderRadius: i === 0 ? 'var(--rs) 0 0 var(--rs)' : i === tabs.length - 1 ? '0 var(--rs) var(--rs) 0' : '0',
+              fontWeight: section === key ? 600 : 400,
+              borderLeft: i > 0 ? 'none' : undefined,
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {section === 'ports' && (
+        <div>
+          {topDst.length > 0 && (
+            <>
+              <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+                Destination ports (top {topDst.length})
+              </div>
+              <MiniBar items={topDst} />
+            </>
+          )}
+          {topSrc.length > 0 && (
+            <div style={{ marginTop: topDst.length > 0 ? 10 : 0 }}>
+              <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+                Source ports (top {topSrc.length})
+              </div>
+              <MiniBar items={topSrc} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {section === 'neighbors' && (
+        <div>
+          <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+            Top {topNeigh.length} by traffic volume
+          </div>
+          <MiniBar items={topNeigh} formatValue={fB} labelColor="var(--ac)" onClick={onSelectNode} />
+        </div>
+      )}
+
+      {section === 'protocols' && (
+        <div>
+          <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+            Protocol breakdown by bytes
+          </div>
+          <MiniBar items={topProto} formatValue={fB} />
+        </div>
+      )}
+    </Collapse>
+  );
+}
+
 export default function NodeDetail({
-  nodeId, nodes, edges, sessions, pColors, onClear, onSelectEdge, onSelectSession,
+  nodeId, nodes, edges, sessions, pColors, onClear, onSelectNode, onSelectEdge, onSelectSession,
   pluginResults, uiSlots, annotations = [], onSaveNote, onUpdateSynthetic,
 }) {
   const node = nodes.find(n => n.id === nodeId);
@@ -312,6 +428,9 @@ export default function NodeDetail({
           {node.ttls_in?.length > 0 && <Row l="TTL incoming" v={node.ttls_in.join(', ')} />}
         </Collapse>
       )}
+
+      {/* Statistics — port distributions, top neighbors, protocols */}
+      {!node.synthetic && <NodeStatistics node={node} onSelectNode={onSelectNode} />}
 
       {node.metadata && Object.keys(node.metadata).length > 0 && !node.synthetic && (
         <Collapse title="Researcher Metadata" open={true}>

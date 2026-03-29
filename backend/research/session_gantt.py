@@ -33,6 +33,7 @@ class SessionGantt(ResearchChart):
 
     def compute(self, ctx: AnalysisContext, params: dict) -> dict:
         sessions = ctx.sessions
+        MAX_ROWS = 2000  # Plotly can't handle 47K+ bars without freezing
 
         if not sessions:
             return {
@@ -44,6 +45,12 @@ class SessionGantt(ResearchChart):
             }
 
         sessions = sorted(sessions, key=lambda s: s.get("start_time", 0))
+        total_sessions = len(sessions)
+        if total_sessions > MAX_ROWS:
+            # Keep the top sessions by packet count so the chart shows the
+            # most interesting flows, not just the first 2000 by time.
+            sessions = sorted(sessions, key=lambda s: s.get("packet_count", 0), reverse=True)[:MAX_ROWS]
+            sessions = sorted(sessions, key=lambda s: s.get("start_time", 0))
         # Use the time window start as the x-axis origin so the chart always
         # shows time relative to the selected burst/window, not the full capture.
         # ctx.time_range is set by the server when _timeStart/_timeEnd are passed.
@@ -121,10 +128,14 @@ class SessionGantt(ResearchChart):
         row_h = max(10, min(24, 700 // max(n, 1)))
         height = min(900, max(350, 80 + n * (row_h + 3)))
 
+        title_text = f"Session Gantt — {n} sessions"
+        if total_sessions > MAX_ROWS:
+            title_text = f"Session Gantt — top {n} of {total_sessions:,} sessions (by packet count)"
+
         layout = {
             **SWIFTEYE_LAYOUT,
             "title": {
-                "text": f"Session Gantt — {n} sessions",
+                "text": title_text,
                 "font": {"color": "#e6edf3", "size": 13},
             },
             "barmode": "overlay",

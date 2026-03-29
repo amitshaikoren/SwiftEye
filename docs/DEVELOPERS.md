@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.14.2 | March 2026**
+**Version 0.15.0 | March 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -1346,8 +1346,48 @@ The `op` field determines the operator. Operators are grouped by the type of fie
 **Boolean operators** (for flags like `is_private`, `has_handshake`):
 `is_true`, `is_false`
 
-**Topology operators** (graph structure queries):
+**Topology operators** (graph structure queries — Phase 2):
 `connects_to`, `connects_only_to`, `same_neighbors_as`, `path_exists`
+
+### Query text parsing — multi-syntax support
+
+Users can type queries in three syntaxes. All parse to the same JSON contract above.
+
+**Supported syntaxes:**
+| Syntax | Example | Parser library |
+|--------|---------|---------------|
+| Cypher | `MATCH (n) WHERE n.packets > 1000 RETURN n` | Custom tokenizer + recursive-descent parser |
+| SQL | `SELECT * FROM nodes WHERE packets > 1000` | `sqlglot` (Python, 31+ dialects) |
+| Spark SQL | `SELECT * FROM nodes WHERE packets > 1000` (parsed with `dialect="spark"`) | `sqlglot` |
+
+**Architecture — two parsing layers:**
+
+1. **Frontend** calls `POST /api/query/parse` with raw query text. Backend returns the parsed JSON contract. Live parse preview debounced at 300ms. Frontend regex parsers have been deleted.
+
+2. **Backend parsers** (`backend/analysis/query_parser.py`) — `POST /api/query/parse` receives raw text, parses into AST, walks AST to extract conditions, returns JSON contract. Cypher uses a custom tokenizer + recursive-descent parser; SQL/Spark SQL uses sqlglot. 47 pytest tests in `backend/tests/test_query_parser.py`.
+
+**Data flow:**
+```
+User types query → POST /api/query/parse (raw text) → Cypher parser / sqlglot AST → JSON contract → POST /api/query → resolve_query(G, contract) → results
+```
+
+**Data flow (future — Phase 3, real DB backend):**
+```
+User types Cypher → pass directly to Neo4j (no parsing)
+User types SQL → pass directly to PostgreSQL (no parsing)
+User types SQL but backend is Neo4j → sqlglot transpiles SQL→Cypher → Neo4j
+```
+
+**Library notes:**
+- **Cypher parser** (custom): Tokenizer + recursive-descent for the WHERE-clause subset (comparisons, AND/OR, CONTAINS, STARTS/ENDS WITH, IS NULL/TRUE/FALSE, IN [...], =~ regex). `graphglot` (tested v0.5.0) was evaluated but rejected — it's a GQL/ISO parser that fails on basic openCypher features (AND/OR, CONTAINS, STARTS WITH, regex). If a mature openCypher parser emerges, swap in the Cypher section only.
+- **`sqlglot`** (SQL/Spark, v30.1.0): Zero dependencies, battle-tested. Walks AST expression types (GT, LT, EQ, Like, Is, In, ArrayContains, And, Or) to extract field/op/value. Can transpile between 31+ dialects — key for the multi-backend future.
+
+**Key files:**
+- `backend/analysis/query_parser.py` — backend parsing (Cypher custom + sqlglot)
+- `backend/tests/test_query_parser.py` — 47 pytest tests
+- `backend/analysis/query_engine.py` — JSON contract resolver (NetworkX, unchanged)
+- `frontend/src/query/queryExamples.js` — canned example queries per syntax
+- `frontend/src/components/QueryBuilder.jsx` — UI with Visual + Freehand modes
 
 ### Response format
 
@@ -1416,11 +1456,34 @@ The field list is **dynamic** — built from whatever attributes exist on the lo
 
 The `POST /api/query` contract is engine-agnostic. The backend resolver can swap without API or frontend changes:
 
-| Phase | Engine | When |
-|-------|--------|------|
-| Phase 1 (now) | NetworkX in-memory | Single-capture, single-user |
-| Phase 2 | SQLite + NetworkX | Persistent single-user, capture survives restart |
-| Phase 3 | Neo4j / KùzuDB | Multi-capture correlation, Cypher queries |
-| Phase 4 | Postgres + Spark | Multi-user platform, large-scale analytics |
+| Phase | Engine | Mode | When |
+|-------|--------|------|------|
+| Phase 1 (now) | NetworkX in-memory | Portable | Single-capture, single-user |
+| Phase 2 | LadybugDB (embedded) | Portable | Native Cypher, persistent graph, zero setup |
+| Phase 3 | Spark connector | Enterprise | Query company's data lake via Spark SQL |
+| Phase 4 | Neo4j / Graph DB | Enterprise | Multi-capture correlation, cross-capture Cypher |
+| Phase 5 | Postgres + Spark | Enterprise | Multi-user platform, full persistence |
 
-See HANDOFF.md §6 "Graph query system" for implementation phases and roadmap. See `query_system_design.html` for visual architecture diagram and UI mockups.
+### Two deployment modes
+
+SwiftEye targets two deployment modes with shared frontend and query contract:
+
+**Portable mode** — single-user, zero-setup, laptop. Data from local files (pcap, CSV, Zeek). Graph engine: NetworkX (or embedded LadybugDB). Query execution: local.
+
+**Enterprise mode** — multi-user, connected to the organization's Spark/Databricks cluster. Researchers request slices of petabyte-scale data, SwiftEye builds graphs from the slices locally. Queries route to the remote Spark cluster or a graph DB.
+
+The **query router** is the key abstraction: parsers and frontend are identical in both modes. Only the resolver changes — local (NetworkX) vs remote (Spark/Neo4j). See HANDOFF.md §6 "Long-term vision" for the full architecture diagram, PySpark translation table, and enterprise integration flow.
+
+### PySpark → SQL translation
+
+**Primary audience:** PySpark-fluent (SOC, threat hunters, data engineers in Spark/Databricks). **Secondary (wider) audience:** SQL/KQL/Cypher-fluent (security researchers, network analysts, graph investigators). All syntaxes are first-class.
+
+PySpark DataFrame expressions are parsed as Python code using the `ast` stdlib module (not regex), then converted to equivalent SQL that runs through sqlglot.
+
+Supported subset: `.filter()` / `.where()`, `col()` comparisons, `.contains()`, `.startswith()`, `.endswith()`, `.isNull()`, `.isNotNull()`, `.isin()`, `.between()`, chained filters (→ AND), `count()` / `size()`.
+
+Out of scope (use Spark notebook): UDFs, joins, groupBy+agg, withColumn/explode/pivot, variable references.
+
+See HANDOFF.md §6 for the full PySpark→SQL translation table and scope boundary.
+
+See `query_system_design.html` for visual architecture diagram and UI mockups.

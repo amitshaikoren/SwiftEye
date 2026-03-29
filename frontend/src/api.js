@@ -136,6 +136,28 @@ export async function runResearchChart(chartName, params) {
   });
 }
 
+// ── Query ────────────────────────────────────────────────────────────────────
+
+export async function runQuery(query) {
+  return api('/api/query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(query),
+  });
+}
+
+export async function parseQueryText(text, dialect) {
+  return api('/api/query/parse', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, dialect: dialect || undefined }),
+  });
+}
+
+export async function fetchQuerySchema() {
+  return api('/api/query/schema').catch(() => ({ node_fields: {}, edge_fields: {} }));
+}
+
 // ── Analysis ────────────────────────────────────────────────────────────────
 
 export async function fetchAnalysisResults() {

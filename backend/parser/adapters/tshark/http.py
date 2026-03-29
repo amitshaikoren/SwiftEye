@@ -92,6 +92,7 @@ class TsharkHttpRequestAdapter(IngestionAdapter):
         host = headers.get("Host", "").rstrip("\\r\\n").strip()
         user_agent = headers.get("User-Agent", "").strip()
         content_type = headers.get("Content-Type", "").strip()
+        cookie = headers.get("Cookie", "").rstrip("\\r\\n").strip()
 
         extra: Dict[str, Any] = {
             "source_type": "tshark",
@@ -106,6 +107,8 @@ class TsharkHttpRequestAdapter(IngestionAdapter):
             extra["http_user_agent"] = user_agent
         if content_type:
             extra["http_content_type"] = content_type
+        if cookie:
+            extra["http_cookie"] = cookie[:500]
 
         pkt = PacketRecord(
             timestamp=timestamp,
@@ -175,6 +178,7 @@ class TsharkHttpResponseAdapter(IngestionAdapter):
 
         server = headers.get("Server", "").strip()
         content_type = headers.get("Content-Type", "").strip()
+        set_cookie = headers.get("Set-Cookie", "").rstrip("\\r\\n").strip()
 
         extra: Dict[str, Any] = {
             "source_type": "tshark",
@@ -187,6 +191,8 @@ class TsharkHttpResponseAdapter(IngestionAdapter):
             extra["http_server"] = server
         if content_type:
             extra["http_resp_content_type"] = content_type
+        if set_cookie:
+            extra["http_set_cookie"] = set_cookie[:500]
 
         pkt = PacketRecord(
             timestamp=timestamp,

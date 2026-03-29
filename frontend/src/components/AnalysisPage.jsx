@@ -351,6 +351,7 @@ function TrafficCharPanel({ sessions, pColors }) {
     if (sortBy === 'bytes')    r.sort((a, b) => (b.total_bytes||0) - (a.total_bytes||0));
     if (sortBy === 'packets')  r.sort((a, b) => (b.packet_count||0) - (a.packet_count||0));
     if (sortBy === 'duration') r.sort((a, b) => (b.duration||0) - (a.duration||0));
+    if (sortBy === 'time')     r.sort((a, b) => (a.start_time||0) - (b.start_time||0));
     return showAll ? r : r.slice(0, limit);
   }, [ipFiltered, filter, sortBy, limit, showAll]);
 

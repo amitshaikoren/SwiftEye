@@ -24,6 +24,8 @@ export default function GraphCanvas({
   onExpandCluster, onRelayout, onCreateManualCluster,
   onStartPathfind, pathfindSource, onPathfindTarget, onCancelPathfind,
   labelThreshold = 0,
+  queryHighlight = null,
+  onClearQueryHighlight,
 }) {
   const cRef = useRef(null);
   const simRef = useRef(null);
@@ -37,11 +39,14 @@ export default function GraphCanvas({
   const onSelRef = useRef(onSelect);
   const onInvRef = useRef(onInvestigate);
   const onInvNbRef = useRef(onInvestigateNeighbours);
+  const onClearQHRef = useRef(onClearQueryHighlight);
+  useEffect(() => { onClearQHRef.current = onClearQueryHighlight; }, [onClearQueryHighlight]);
   const labelThreshRef = useRef(labelThreshold);
   useEffect(() => { labelThreshRef.current = labelThreshold; }, [labelThreshold]);
   const invNodesRef = useRef(investigationNodes);
   const dfNodesRef = useRef(displayFilterNodes);
   const dfEdgesRef = useRef(displayFilterEdges);
+  const qhRef = useRef(queryHighlight);
   const renRef = useRef(null);
   const rafRef = useRef(null);
   const [ctxMenu, setCtxMenu] = useState(null); // {x, y, nodeId, nodeLabel, edgeId, isSynthetic, isSyntheticEdge, isCluster, isSubnet, canvasX, canvasY}
@@ -100,6 +105,14 @@ export default function GraphCanvas({
       rafRef.current = requestAnimationFrame(renRef.current);
     }
   }, [displayFilterNodes, displayFilterEdges]);
+
+  useEffect(() => {
+    qhRef.current = queryHighlight;
+    if (renRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(renRef.current);
+    }
+  }, [queryHighlight]);
 
   // Re-render on selection change
   useEffect(() => {
@@ -307,6 +320,10 @@ export default function GraphCanvas({
         // Synthetic edges use a fixed visible width; real edges are traffic-proportional
         const edgeW = edge.synthetic ? 2 : w;
 
+        // Query highlight: check both orderings since edge IDs are "u|v" sorted
+        const qh = qhRef.current;
+        const eqh = qh?.edges && (qh.edges.has(`${sId}|${tId}`) || qh.edges.has(`${tId}|${sId}`));
+
         if (!inInv || !inDf) { ctx.globalAlpha = 0.04; }
         else if (edge.synthetic) ctx.globalAlpha = isSel ? 1 : hs ? (con ? 1 : 0.35) : 0.85;
         else ctx.globalAlpha = isSel ? 1 : hs ? (con ? 0.9 : 0.2) : 0.85;
@@ -314,8 +331,8 @@ export default function GraphCanvas({
         ctx.beginPath();
         ctx.moveTo(src.x, src.y);
         ctx.lineTo(tgt.x, tgt.y);
-        ctx.strokeStyle = isSel ? '#fff' : edgeColor;
-        ctx.lineWidth = isSel ? edgeW + 2 : edgeW;
+        ctx.strokeStyle = isSel ? '#fff' : eqh ? '#f0883e' : edgeColor;
+        ctx.lineWidth = isSel ? edgeW + 2 : eqh ? edgeW + 1.5 : edgeW;
         if (edge.synthetic) { ctx.setLineDash([6, 4]); } else { ctx.setLineDash([]); }
         ctx.stroke();
         ctx.setLineDash([]);
@@ -424,6 +441,25 @@ export default function GraphCanvas({
             ctx.lineWidth = isSel || isH ? 2.5 : 1.5;
             ctx.stroke();
           }
+        }
+
+        // Query highlight ring
+        const qh = qhRef.current;
+        if (qh && qh.nodes && qh.nodes.has(node.id)) {
+          ctx.save();
+          ctx.globalAlpha = 0.9;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, r + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = '#f0883e';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          // Outer glow
+          const qgl = ctx.createRadialGradient(node.x, node.y, r, node.x, node.y, r * 2.5);
+          qgl.addColorStop(0, 'rgba(240,136,62,0.25)');
+          qgl.addColorStop(1, 'transparent');
+          ctx.fillStyle = qgl;
+          ctx.fillRect(node.x - r * 2.5, node.y - r * 2.5, r * 5, r * 5);
+          ctx.restore();
         }
 
         // Synthetic ✦ marker — small, sits just below the node label
@@ -707,7 +743,9 @@ export default function GraphCanvas({
       if (n) { onSelRef.current('node', n.id, e.shiftKey); return; }
       const ed = gE(mx, my);
       if (ed) { onSelRef.current('edge', ed, false); return; }
+      // Clicking empty canvas clears both selection and query highlight
       onSelRef.current('clear', null, false);
+      if (qhRef.current) onClearQHRef.current?.();
     }
 
     // Double click to unpin

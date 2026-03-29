@@ -379,6 +379,10 @@ def build_graph(
                     "packet_count": 0,
                     "protocols": set(),
                     "ttls": set(),
+                    "_src_ports": {},
+                    "_dst_ports": {},
+                    "_neighbor_bytes": {},
+                    "_protocol_bytes": {},
                 }
             n = node_map[nid]
             n["ips"].add(ip)
@@ -387,6 +391,8 @@ def build_graph(
             n["total_bytes"] += pkt.orig_len
             n["packet_count"] += 1
             n["protocols"].add(pkt.protocol)
+            # Track per-node port and neighbor statistics
+            n["_protocol_bytes"][pkt.protocol] = n["_protocol_bytes"].get(pkt.protocol, 0) + pkt.orig_len
             # Track TTLs with direction: if this IP is src, it's outgoing TTL
             if pkt.ttl > 0:
                 if ip == pkt.src_ip:
@@ -398,6 +404,20 @@ def build_graph(
                         n["ttls_in"] = set()
                     n["ttls_in"].add(pkt.ttl)
         
+        # Track ports and neighbors per node
+        src_n = node_map[src_id]
+        dst_n = node_map[dst_id]
+        # Source ports: ports this node uses when sending (process fingerprint)
+        if pkt.src_port > 0:
+            src_n["_src_ports"][pkt.src_port] = src_n["_src_ports"].get(pkt.src_port, 0) + 1
+        # Destination ports: service ports this node targets (when sending) or hosts (when receiving)
+        if pkt.dst_port > 0:
+            src_n["_dst_ports"][pkt.dst_port] = src_n["_dst_ports"].get(pkt.dst_port, 0) + 1
+            dst_n["_dst_ports"][pkt.dst_port] = dst_n["_dst_ports"].get(pkt.dst_port, 0) + 1
+        # Neighbor traffic volume (bidirectional)
+        src_n["_neighbor_bytes"][dst_id] = src_n["_neighbor_bytes"].get(dst_id, 0) + pkt.orig_len
+        dst_n["_neighbor_bytes"][src_id] = dst_n["_neighbor_bytes"].get(src_id, 0) + pkt.orig_len
+
         # Build edges
         ek = tuple(sorted([src_id, dst_id]))
         edge_key = f"{ek[0]}|{ek[1]}|{pkt.protocol}"
@@ -481,6 +501,15 @@ def build_graph(
             if ip in md_map:
                 meta = {**meta, **md_map[ip]}
         
+        # Build top-N stats for node (sorted by count desc, capped at 10)
+        def _top(counter, limit=10):
+            return sorted(counter.items(), key=lambda x: -x[1])[:limit]
+
+        top_dst_ports = [[p, c] for p, c in _top(n["_dst_ports"])]
+        top_src_ports = [[p, c] for p, c in _top(n["_src_ports"])]
+        top_neighbors = [[nid, b] for nid, b in _top(n["_neighbor_bytes"])]
+        top_protocols = [[proto, b] for proto, b in _top(n["_protocol_bytes"])]
+
         node_data = {
             "id": n["id"],
             "is_subnet": n["is_subnet"],
@@ -494,6 +523,10 @@ def build_graph(
             "ttls_in": _ttl_list(ttls_in),
             "is_private": _any_private(n["ips"]),
             "hostnames": sorted(hostnames),
+            "top_dst_ports": top_dst_ports,
+            "top_src_ports": top_src_ports,
+            "top_neighbors": top_neighbors,
+            "top_protocols": top_protocols,
         }
         if meta:
             node_data["metadata"] = meta
@@ -546,6 +579,151 @@ def build_graph(
         "filtered_count": len(filtered),
         "filtered_bytes": sum(p.orig_len for p in filtered),
     }
+
+
+def build_analysis_graph(
+    packets: List[PacketRecord],
+    sessions: List[Dict[str, Any]],
+):
+    """
+    Build a persistent NetworkX analysis graph for structured queries.
+
+    Unlike build_graph() which is stateless and rebuilt per filter change,
+    this graph is built once at capture load and persists for the capture
+    lifetime. It uses ALL packets (no filtering) and accumulates rich
+    attributes on nodes and edges for the query engine.
+
+    Nodes = IPs with accumulated attributes.
+    Edges = IP pairs (not per-protocol) with session refs and traffic stats.
+    """
+    import networkx as nx
+
+    G = nx.Graph()
+
+    # Session index: session_key → session id list
+    session_index: Dict[str, List[str]] = defaultdict(list)
+    for s in sessions:
+        key = f"{s['src_ip']}|{s['dst_ip']}|{s['src_port']}|{s['dst_port']}|{s.get('transport', '')}"
+        session_index[key].append(s["id"])
+        # Also store reversed key for bidirectional lookup
+        key_r = f"{s['dst_ip']}|{s['src_ip']}|{s['dst_port']}|{s['src_port']}|{s.get('transport', '')}"
+        if key_r != key:
+            session_index[key_r].append(s["id"])
+
+    for pkt in packets:
+        if not pkt.src_ip or not pkt.dst_ip:
+            continue
+
+        src, dst = pkt.src_ip, pkt.dst_ip
+
+        # ── Accumulate node attributes ──
+        for ip, mac in [(src, pkt.src_mac), (dst, pkt.dst_mac)]:
+            if not G.has_node(ip):
+                G.add_node(ip, **{
+                    "macs": set(),
+                    "protocols": set(),
+                    "ports": set(),
+                    "hostnames": set(),
+                    "ja3s": set(),
+                    "ttls": set(),
+                    "vendors": set(),
+                    "packets": 0,
+                    "bytes": 0,
+                    "is_private": _any_private([ip]),
+                })
+            nd = G.nodes[ip]
+            if mac:
+                nd["macs"].add(mac)
+                v = lookup_vendor(mac)
+                if v:
+                    nd["vendors"].add(v)
+            nd["protocols"].add(pkt.protocol)
+            if pkt.src_port > 0 and ip == src:
+                nd["ports"].add(pkt.src_port)
+            if pkt.dst_port > 0 and ip == dst:
+                nd["ports"].add(pkt.dst_port)
+            if pkt.ttl > 0:
+                nd["ttls"].add(pkt.ttl)
+            nd["packets"] += 1
+            nd["bytes"] += pkt.orig_len
+
+            # Extra fields
+            ex = pkt.extra
+            if ex:
+                if ex.get("dns_query"):
+                    nd.setdefault("dns_queries", set()).add(ex["dns_query"])
+                if ex.get("http_host"):
+                    nd.setdefault("http_hosts", set()).add(ex["http_host"])
+                if ip == src and ex.get("ja3"):
+                    nd["ja3s"].add(ex["ja3"])
+
+        # ── Accumulate edge attributes ──
+        ek = tuple(sorted([src, dst]))
+        if not G.has_edge(*ek):
+            G.add_edge(*ek, **{
+                "protocols": set(),
+                "ports": set(),
+                "packets": 0,
+                "bytes": 0,
+                "ja3s": set(),
+                "dns_queries": set(),
+                "http_hosts": set(),
+                "tls_snis": set(),
+                "has_handshake": False,
+                "has_reset": False,
+                "first_seen": pkt.timestamp,
+                "last_seen": pkt.timestamp,
+                "session_ids": set(),
+            })
+        ed = G.edges[ek]
+        ed["protocols"].add(pkt.protocol)
+        ed["packets"] += 1
+        ed["bytes"] += pkt.orig_len
+        if pkt.src_port > 0:
+            ed["ports"].add(pkt.src_port)
+        if pkt.dst_port > 0:
+            ed["ports"].add(pkt.dst_port)
+        ed["last_seen"] = max(ed["last_seen"], pkt.timestamp)
+        ed["first_seen"] = min(ed["first_seen"], pkt.timestamp)
+
+        # TCP flags
+        if "SYN" in pkt.tcp_flags_str and "ACK" not in pkt.tcp_flags_str:
+            ed["has_handshake"] = True
+        if "RST" in pkt.tcp_flags_str:
+            ed["has_reset"] = True
+
+        ex = pkt.extra
+        if ex:
+            if ex.get("tls_sni"):
+                ed["tls_snis"].add(ex["tls_sni"])
+            if ex.get("dns_query"):
+                ed["dns_queries"].add(ex["dns_query"])
+            if ex.get("http_host"):
+                ed["http_hosts"].add(ex["http_host"])
+            if ex.get("ja3"):
+                ed["ja3s"].add(ex["ja3"])
+
+    # ── Attach session IDs to edges ──
+    # Index sessions by sorted IP pair for O(1) lookup
+    _ses_by_pair: Dict[tuple, set] = defaultdict(set)
+    for s in sessions:
+        pair = tuple(sorted([s["src_ip"], s["dst_ip"]]))
+        _ses_by_pair[pair].add(s["id"])
+    for u, v, ed in G.edges(data=True):
+        pair = tuple(sorted([u, v]))
+        ed["session_ids"] = _ses_by_pair.get(pair, set())
+
+    # ── Compute derived node attributes ──
+    for ip, nd in G.nodes(data=True):
+        nd["degree"] = G.degree(ip)
+        # Count sessions this node participates in
+        node_sessions = set()
+        for _, _, ed in G.edges(ip, data=True):
+            node_sessions.update(ed.get("session_ids", set()))
+        nd["sessions"] = len(node_sessions)
+
+    logger.info("Analysis graph built: %d nodes, %d edges", G.number_of_nodes(), G.number_of_edges())
+    return G
 
 
 def get_subnets(packets: List[PacketRecord], prefix: int = 24) -> Dict[str, List[str]]:
