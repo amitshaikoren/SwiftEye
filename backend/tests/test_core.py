@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from parser.packet import PacketRecord
 from parser.pcap_reader import read_pcap
-from analysis import build_graph, build_sessions, compute_global_stats, filter_packets, build_time_buckets
+from data import build_graph, build_sessions, compute_global_stats, filter_packets, build_time_buckets
 from plugins import register_plugin, run_global_analysis, get_global_results, AnalysisContext, _plugins, _global_results
 from plugins.analyses.node_centrality import NodeCentralityAnalysis
 from plugins.analyses.traffic_characterisation import TrafficCharacterisationAnalysis

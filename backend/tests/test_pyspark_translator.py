@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, "backend")
 
 import pytest
-from analysis.pyspark_translator import parse_pyspark
+from data.query.pyspark_translator import parse_pyspark
 
 
 class TestBasicComparisons:

@@ -5,3 +5,5 @@ backend/swifteye.log
 .claude/
 init_prompt.md
 /tests/
+audits/
+ROADMAP.md
