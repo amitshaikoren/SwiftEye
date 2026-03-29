@@ -27,6 +27,7 @@ for (const [path, mod] of Object.entries(modules)) {
     title:       mod.title       || (() => id),
     defaultOpen: mod.defaultOpen || false,
     order:       mod.order       ?? 999,
+    layer:       mod.layer       || null,
     prefix:      Array.isArray(mod.prefix) ? mod.prefix : (mod.prefix ? [mod.prefix] : [`${id}_`]),
     Component:   mod.default,
   });

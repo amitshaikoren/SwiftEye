@@ -65,7 +65,7 @@ setup_log_handler()
 app = FastAPI(
     title="SwiftEye",
     description="Network Traffic Visualization Platform",
-    version="0.15.5",
+    version="0.15.6",
 )
 
 app.add_middleware(

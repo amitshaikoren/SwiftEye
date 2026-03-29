@@ -2,6 +2,7 @@ import Tag from '../Tag';
 import Row from '../Row';
 
 export const order = 5;
+export const layer = 'Link (L2)';
 export const prefix = 'arp_';
 export const defaultOpen = true;
 
