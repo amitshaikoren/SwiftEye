@@ -144,7 +144,7 @@ function MiniBar({ items, formatValue, labelColor = 'var(--txM)', onClick }) {
           onMouseOver={e => { if (onClick) e.currentTarget.style.background = 'rgba(255,255,255,.04)'; }}
           onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
         >
-          <span style={{ fontFamily: 'var(--fn)', color: labelColor, width: 72, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: 'var(--fn)', color: labelColor, width: 120, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {label}
           </span>
           <div style={{ flex: 1, height: 10, background: 'var(--bgC)', borderRadius: 2, overflow: 'hidden' }}>

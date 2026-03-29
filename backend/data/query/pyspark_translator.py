@@ -42,6 +42,11 @@ def parse_pyspark(text: str) -> dict:
     if not text:
         return {"error": "Empty expression"}
 
+    # Auto-correct JS-style operators to Python/PySpark equivalents.
+    # || and && are syntax errors in Python; users from JS/Java backgrounds
+    # commonly type them. Swap them before any AST parsing.
+    text = text.replace("||", "|").replace("&&", "&")
+
     target = _detect_target(text)
     expr_text = _extract_filter_expr(text)
 
