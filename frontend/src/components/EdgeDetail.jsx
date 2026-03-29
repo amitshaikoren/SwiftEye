@@ -61,21 +61,8 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
   const [fetchedSessions, setFetchedSessions] = useState([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  // Reset state when edge changes and auto-fetch sessions for this edge
-  useEffect(() => {
-    setFetchedSessions([]);
-    setExpanded(false);
-    // Auto-fetch: if global sessions don't cover this edge, fetch immediately
-    const timer = setTimeout(() => {
-      const searchIp = src && !src.includes('/') ? (src.includes('::') ? src.split('::')[0] : src.startsWith('cluster:') ? '' : src) : '';
-      if (searchIp) {
-        fetchSessions(5000, searchIp)
-          .then(d => setFetchedSessions(d.sessions || []))
-          .catch(() => {});
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [src, tgt, e?.protocol]);
+  // Reset state when edge changes
+  useEffect(() => { setFetchedSessions([]); setExpanded(false); }, [src, tgt, e?.protocol]);
 
   const nodeIpsMap = useMemo(() => {
     const m = new Map();
