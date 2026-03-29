@@ -140,6 +140,16 @@ export default function GraphCanvas({
     rafRef.current = requestAnimationFrame(renRef.current);
   }, [labelThreshold]);
 
+  // doExportPNG — download the current graph canvas as a PNG
+  function doExportPNG() {
+    const canvas = cRef.current;
+    if (!canvas) return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'swifteye-graph.png';
+    a.click();
+  }
+
   // doRelayout — unpin all nodes and reheat the simulation for a clean redistribution
   function doRelayout() {
     if (!simRef.current) return;
@@ -961,6 +971,21 @@ export default function GraphCanvas({
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <canvas ref={cRef} style={{ width: '100%', height: '100%', display: 'block', cursor: pathfindSource ? 'crosshair' : undefined }} />
+
+      {/* Export PNG button */}
+      <button onClick={doExportPNG} title="Export graph as PNG"
+        style={{
+          position: 'absolute', bottom: 84, right: 12, zIndex: 10,
+          display: 'flex', alignItems: 'center', gap: 5,
+          background: 'rgba(14,17,23,.85)', border: '1px solid var(--bdL)',
+          borderRadius: 6, padding: '5px 10px', fontSize: 10,
+          color: 'var(--txM)', cursor: 'pointer', fontFamily: 'var(--fn)',
+        }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export PNG
+      </button>
 
       {/* Relayout button — bottom-right of graph (avoids overlap with hidden nodes badge) */}
       <button onClick={doRelayout} title="Reset layout — unpins all nodes and re-runs the force simulation"

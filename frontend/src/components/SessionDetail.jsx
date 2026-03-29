@@ -300,8 +300,10 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
   }, [s.id, csRef]);
   const [, setCollapseRender] = useState(0);
 
-  // Protocol sections (auto-discovered from session_sections/)
-  const _activeSections = useMemo(() => _allSections.filter(sec => sec.hasData(s)), [s]);
+  // Protocol sections (auto-discovered from session_sections/), split by layer
+  const _l2Sections     = useMemo(() => _allSections.filter(sec => sec.hasData(s) && sec.layer === 'Link (L2)'), [s]);
+  const _l3Sections     = useMemo(() => _allSections.filter(sec => sec.hasData(s) && sec.layer === 'Network (L3)'), [s]);
+  const _activeSections = useMemo(() => _allSections.filter(sec => sec.hasData(s) && !sec.layer), [s]);
   const _unclaimedEntries = useMemo(() => [...getUnclaimedPrefixes(s, _allSections).entries()], [s]);
 
   // Load note for this session
@@ -438,8 +440,19 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
             )}
           </Collapse>
 
+          {/* ═══════════════ LINK (L2) ═══════════════ */}
+          {_l2Sections.length > 0 && (
+            <Collapse title="Link (L2)" level="layer">
+              {_l2Sections.map(sec => (
+                <Collapse key={sec.id} title={sec.title(s)} open={sec.defaultOpen}>
+                  <sec.Component s={s} />
+                </Collapse>
+              ))}
+            </Collapse>
+          )}
+
           {/* ═══════════════ NETWORK (L3) ═══════════════ */}
-          {!s.source_type && (
+          {(!s.source_type || _l3Sections.length > 0) && (
           <Collapse title="Network (L3)" level="layer">
 
           {(s.ttls_initiator?.length > 0 || s.ttls_responder?.length > 0) && (
@@ -503,6 +516,12 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
               )}
             </Collapse>
           )}
+
+          {_l3Sections.map(sec => (
+            <Collapse key={sec.id} title={sec.title(s)} open={sec.defaultOpen}>
+              <sec.Component s={s} />
+            </Collapse>
+          ))}
 
           </Collapse>
           )}

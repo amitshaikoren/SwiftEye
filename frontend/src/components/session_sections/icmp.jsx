@@ -2,6 +2,7 @@ import Collapse from '../Collapse';
 import Row from '../Row';
 
 export const order = 70;
+export const layer = 'Network (L3)';
 export const prefix = 'icmp_';
 export const defaultOpen = false;
 

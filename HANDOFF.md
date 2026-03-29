@@ -3,9 +3,15 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.15.4** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.6** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
+
+### Recent highlights (v0.15.6)
+- **Export PNG** — "Export PNG" button in the bottom-right of the graph canvas. Calls `canvas.toDataURL('image/png')` and triggers a download as `swifteye-graph.png`.
+- **Session layer classification** — ARP now renders under "Link (L2)" and ICMP under "Network (L3)" in session detail, instead of the incorrect "Application (L5+)". Session section modules export an optional `layer` field; `index.jsx` passes it through; `SessionDetail.jsx` splits sections by layer before rendering.
+- **Backend refactor (v0.15.5)** — `analysis/` renamed to `data/` with `query/` and `algorithms/` subdirectories. `server.py` (1,598 lines) split into 7 focused router modules (`routes/data.py`, `routes/query.py`, `routes/plugins.py`, `routes/investigation.py`, `routes/research.py`, `routes/utility.py`). Shared state extracted to `store.py`, orchestration helpers to `services/capture.py`.
+- **Bug fixes (v0.15.5)** — PySpark `||` operator auto-corrected to `|` before AST parsing (was causing "Could not find filter/where expression"). MiniBar label width increased 72→120px for full IP display in Statistics/Neighbors tab.
 
 ### Recent highlights (v0.15.4)
 - **Follow TCP Stream** — Wireshark-style conversation view in session detail. Merges consecutive same-direction payloads into color-coded turns (green=client, blue=server). ASCII/hex/raw display modes. Copy button. 128-byte per-packet preview; full reassembly deferred to DB backend.
