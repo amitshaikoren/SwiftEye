@@ -1,5 +1,15 @@
 # SwiftEye — Changelog
 
+### v0.15.4 — March 2026
+- **Follow TCP Stream** — Wireshark-style conversation view in session detail (`StreamView` component). Merges consecutive same-direction payloads into color-coded "turns" (green=client `#7ee787`, blue=server `#79c0ff`). Turn headers show direction arrows, IPs, ports, byte counts. Three display modes: ASCII (default), hex dump, raw bytes. Copy-to-clipboard. Shows first 128 bytes per packet; full stream reassembly deferred to database backend.
+- **PySpark translator** — new `analysis/pyspark_translator.py` parses PySpark DataFrame filter expressions (`df.filter(col("x") > y)`, `.contains()`, `.startswith()`, `.isin()`, `.rlike()`, `count()`, `&`/`|` combinators) into the JSON query contract using Python `ast` module. 27 tests. Frontend dialect selector changed from "Spark SQL" to "PySpark" with updated examples and placeholder.
+- **Field reference panel** — `SchemaReference` component in QueryBuilder shows available node/edge fields grouped by type (Numeric, Sets, Flags, Text) with dialect-appropriate syntax (Cypher: `n.packets`, SQL: `packets`, PySpark: `col("packets")`).
+- **Node statistics** — per-node `top_src_ports`, `top_dst_ports`, `top_neighbors`, `top_protocols` computed during aggregation (top-10 each). New `NodeStatistics` component with `MiniBar` horizontal bar charts. Neighbors tab clickable to navigate graph.
+- **Query highlight clearing** — click empty canvas area to clear query highlights. `onClearQueryHighlight` prop on GraphCanvas.
+- **Edge click fix in query results** — handled D3 force simulation replacing `source`/`target` strings with node object references, and graph edge IDs including protocol suffix (`A|B|TCP`) vs query returning `A|B`.
+- **Time sort** — sessions sortable by `start_time` in SessionsTable and AnalysisPage. Backend `sort_by=time` added to `/api/sessions`.
+- **HTTP cookie extraction** — tshark HTTP request adapter extracts `Cookie` header → `http_cookie`, response adapter extracts `Set-Cookie` → `http_set_cookie` (capped at 500 chars).
+
 ### v0.15.1 — March 2026
 - **Backend query parsing (Phase 1.5)** — `POST /api/query/parse` endpoint parses freehand Cypher/SQL/Spark SQL text into the JSON query contract. Cypher parsed by a custom tokenizer + recursive-descent parser (handles comparisons, AND/OR, CONTAINS, STARTS/ENDS WITH, IS NULL/TRUE/FALSE, IN [...], =~ regex). SQL/Spark SQL parsed by `sqlglot` (v30.1.0) AST walking. `graphglot` evaluated but rejected — it's a GQL/ISO parser that fails on basic openCypher features. 47 pytest tests. Frontend wired to backend parser; frontend regex parsers (`parsers.js`) deleted. Examples updated with valid Cypher/SQL syntax.
 - **Gantt chart performance** — capped at 2,000 sessions (top by packet count) to prevent Plotly from freezing the browser with 47K+ session captures.
