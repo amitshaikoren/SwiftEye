@@ -8,7 +8,7 @@ Key variables:
     source_type — unused
 """
 
-from analysis.protocol_fields import cap_list
+from . import cap_list
 
 
 def init():

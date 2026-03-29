@@ -14,7 +14,7 @@ Key variables:
     source_type — unused for DNS currently
 """
 
-from analysis.protocol_fields import cap_list
+from . import cap_list
 
 DNS_INACTIVITY_TIMEOUT = 10.0  # seconds — Zeek default for DNS
 

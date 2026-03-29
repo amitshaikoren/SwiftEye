@@ -13,7 +13,7 @@ Key variables:
 """
 
 from parser.ja3_db import lookup_ja3
-from analysis.protocol_fields import cap_list
+from . import cap_list
 
 
 def init():

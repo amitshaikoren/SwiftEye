@@ -12,7 +12,7 @@ Key variables:
     source_type — "zeek" when from Zeek adapter
 """
 
-from analysis.protocol_fields import cap_list
+from . import cap_list
 
 
 def init():

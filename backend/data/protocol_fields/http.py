@@ -12,7 +12,7 @@ Key variables:
     source_type — "zeek" triggers both-direction accumulation
 """
 
-from analysis.protocol_fields import cap_list
+from . import cap_list
 
 HTTP_INACTIVITY_TIMEOUT = 30.0  # seconds — Zeek default for HTTP
 

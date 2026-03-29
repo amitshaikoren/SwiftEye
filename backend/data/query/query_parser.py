@@ -663,7 +663,7 @@ def parse_query_text(text: str, dialect: Optional[str] = None) -> dict:
     elif syntax in ("sql", "spark"):
         result = parse_sql(text, dialect=syntax if syntax == "spark" else "sql")
     elif syntax == "pyspark":
-        from analysis.pyspark_translator import parse_pyspark
+        from .pyspark_translator import parse_pyspark
         result = parse_pyspark(text)
     else:
         return {"syntax": None, "error": "Unrecognised syntax. Start with MATCH (Cypher), SELECT (SQL), or df.filter (PySpark)."}

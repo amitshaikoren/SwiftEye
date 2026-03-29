@@ -5,3 +5,4 @@ backend/swifteye.log
 .claude/
 init_prompt.md
 /tests/
+audits/

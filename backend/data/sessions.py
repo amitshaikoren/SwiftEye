@@ -28,7 +28,7 @@ from typing import List, Dict, Any
 from collections import defaultdict
 
 from parser.packet import PacketRecord
-from analysis.protocol_fields import all_accumulate, all_serialize, any_boundary
+from data.protocol_fields import all_accumulate, all_serialize, any_boundary
 
 logger = logging.getLogger("swifteye.sessions")
 
