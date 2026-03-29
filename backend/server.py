@@ -750,7 +750,7 @@ def _looks_like_ip_keyed(d: dict) -> bool:
 
 @app.get("/api/sessions", response_model=SessionsResponse)
 async def get_sessions(
-    sort_by: str = Query(default="bytes", enum=["bytes", "packets", "duration"]),
+    sort_by: str = Query(default="bytes", enum=["bytes", "packets", "duration", "time"]),
     limit: int = Query(default=200, ge=1, le=5000),
     search: str = "",
     time_start: Optional[float] = None,
@@ -782,6 +782,8 @@ async def get_sessions(
         sessions = sorted(sessions, key=lambda s: s["packet_count"], reverse=True)
     elif sort_by == "duration":
         sessions = sorted(sessions, key=lambda s: s["duration"], reverse=True)
+    elif sort_by == "time":
+        sessions = sorted(sessions, key=lambda s: s.get("start_time", 0))
     # default is bytes, already sorted
 
     return SessionsResponse(sessions=sessions[:limit], total=len(sessions))

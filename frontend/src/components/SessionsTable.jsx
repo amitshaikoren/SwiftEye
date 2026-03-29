@@ -41,6 +41,7 @@ export default function SessionsTable({ sessions: globalSessions, pColors, onSel
     let s = [...sessions];
     if (sortBy === 'packets') s.sort((a, b) => b.packet_count - a.packet_count);
     else if (sortBy === 'duration') s.sort((a, b) => b.duration - a.duration);
+    else if (sortBy === 'time') s.sort((a, b) => (a.start_time || 0) - (b.start_time || 0));
     return s;
   }, [sessions, sortBy]);
 
@@ -58,7 +59,7 @@ export default function SessionsTable({ sessions: globalSessions, pColors, onSel
             {localLoading && <span style={{ color: 'var(--txD)', fontSize: 9, marginLeft: 6 }}>…</span>}
           </div>
           <div style={{ display: 'flex', gap: 3 }}>
-            {['bytes', 'packets', 'duration'].map(s => (
+            {['bytes', 'packets', 'duration', 'time'].map(s => (
               <button key={s} className={'btn' + (sortBy === s ? ' on' : '')}
                 onClick={() => setSortBy(s)} style={{ padding: '2px 8px', fontSize: 9 }}>{s}</button>
             ))}
