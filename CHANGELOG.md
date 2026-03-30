@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.15.10 — March 2026
+- **Sessions protocol upgrade** — `sessions.py` now promotes the session's protocol when a later packet in the same flow reveals the application-layer protocol. Previously, sessions created from TCP control packets (SYN/ACK, no payload) were locked to `"TCP"` forever; subsequent data packets with TLS payload were stored in the same session but never updated its protocol field. This caused `EdgeDetail` to find 0 sessions on TLS edges because `s.protocol === "TLS"` never matched `"TCP"`. Fix: when `s["protocol"] == s["transport"]` and a later packet has a more specific protocol, promote the session.
+- **Graph node spreading** — reduced charge strength from -350 to -200 and tightened `distanceMax` dynamically by node count (<50→300px, 50–200→200px, >200→150px). Previously, -350 charge with 450px range cascaded for large captures causing nodes to spread to the edges of the screen. Link distance tightened 130→100px, link strength 0.4→0.5, center strength 0.04→0.06 to compensate.
+
 ### v0.15.9 — March 2026
 - **Graph fetch dep cleanup** — removed `stats` from the graph fetch `useEffect` dependency array in `useCapture.js`. `stats` was only used to compute the total protocol key count (to check "are all protocols enabled?"), but changes to `stats` were triggering graph refetches — a circular pattern: stats update → graph refetch → new graph. Moved the key count derivation to a `allProtocolKeysCountRef` ref updated by a separate lightweight effect; the graph fetch effect reads it without depending on it.
 - **Set identity fix** — `handleHideNode`, `handleUnhideAll`, `handleUnclusterSubnet`, `handleExpandCluster`, `handleCollapseCluster` now guard no-op updates: if the set already contains / doesn't contain the item, the original set reference is returned unchanged. Prevents spurious graph refetches and re-renders from React seeing a new Set object when contents are identical.

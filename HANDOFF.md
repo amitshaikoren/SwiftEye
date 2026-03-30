@@ -3,9 +3,13 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.15.9** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.10** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
+
+### Recent highlights (v0.15.10)
+- **Sessions protocol upgrade** — sessions created from TCP control packets (SYN/ACK with no payload) were locked to protocol "TCP" forever. Later data packets that reveal "TLS" (or any app protocol) now promote the session's protocol field. Fixes "No sessions found" on TLS/HTTPS edges where the edge protocol came from data packets but sessions were stamped from control packets.
+- **Graph spreading fix** — charge strength reduced -350→-200, `distanceMax` now scales with node count (large graphs get tighter 150px zone). Prevents repulsion cascading in captures with many nodes. Link force tightened for better cohesion.
 
 ### Recent highlights (v0.15.9)
 - **Graph fetch dep cleanup** — `stats` removed from the graph fetch `useEffect` dep array. Total protocol key count now lives in `allProtocolKeysCountRef` (a ref updated by a separate effect) so stats changes don't trigger graph refetches. Breaks the circular: stats update → graph refetch → new stats.
