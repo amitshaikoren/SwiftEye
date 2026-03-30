@@ -4,20 +4,59 @@ import { useSettings } from '../hooks/useSettings';
 import { fetchAnalysisResults } from '../api';
 import { fB, fN } from '../utils';
 
-// Normalise the ranked array from the backend plugin (snake_case → camelCase)
-// so the rest of the component doesn't need to know the wire format.
-function normalizeCentralityRanked(ranked) {
-  return ranked.map(r => ({
-    id:             r.id,
-    label:          r.label,
-    degree:         r.degree,
-    degreeNorm:     r.degree_norm,
-    betweennessNorm: r.betweenness_norm,
-    bytesNorm:      r.bytes_norm,
-    totalBytes:     r.total_bytes,
-    score:          r.score,
-    ips:            r.ips,
-  }));
+// ── Centrality computation (client-side, operates on currently-visible nodes/edges) ─
+// Runs on the filtered graph that App.jsx passes in — so time range, protocol filter,
+// and display filter are all respected. This is intentional: HTTP centrality and
+// Kerberos centrality are completely different graphs.
+
+function computeCentrality(nodes, edges) {
+  if (!nodes?.length || !edges?.length) return [];
+  const nodeIds = new Set(nodes.map(n => n.id));
+  const adj = new Map();
+  nodes.forEach(n => adj.set(n.id, new Set()));
+  edges.forEach(e => {
+    const s = e.source?.id ?? e.source;
+    const t = e.target?.id ?? e.target;
+    if (!nodeIds.has(s) || !nodeIds.has(t)) return;
+    adj.get(s)?.add(t); adj.get(t)?.add(s);
+  });
+  const betweenness = new Map();
+  nodes.forEach(n => betweenness.set(n.id, 0));
+  for (const src of nodes) {
+    const stack=[], pred=new Map(), sigma=new Map(), dist=new Map();
+    nodes.forEach(n => { pred.set(n.id,[]); sigma.set(n.id,0); dist.set(n.id,-1); });
+    sigma.set(src.id,1); dist.set(src.id,0);
+    const queue=[src.id];
+    while(queue.length){
+      const v=queue.shift(); stack.push(v);
+      for(const w of(adj.get(v)||[])){
+        if(dist.get(w)<0){queue.push(w);dist.set(w,dist.get(v)+1);}
+        if(dist.get(w)===dist.get(v)+1){sigma.set(w,sigma.get(w)+sigma.get(v));pred.get(w).push(v);}
+      }
+    }
+    const delta=new Map(); nodes.forEach(n=>delta.set(n.id,0));
+    while(stack.length){
+      const w=stack.pop();
+      for(const v of(pred.get(w)||[])) delta.set(v,delta.get(v)+(sigma.get(v)/sigma.get(w))*(1+delta.get(w)));
+      if(w!==src.id) betweenness.set(w,betweenness.get(w)+delta.get(w));
+    }
+  }
+  const n=nodes.length, normB=Math.max(1,(n-1)*(n-2)/2);
+  const maxDeg=Math.max(1,n-1), maxBytes=Math.max(1,...nodes.map(nd=>nd.total_bytes||0));
+  const maxBtw=Math.max(1,...Array.from(betweenness.values()));
+  return nodes.map(nd=>{
+    const deg=adj.get(nd.id)?.size||0;
+    const btw=betweenness.get(nd.id)/normB;
+    const byt=(nd.total_bytes||0)/maxBytes;
+    return {
+      id:nd.id, label:nd.metadata?.name||nd.hostnames?.[0]||nd.id,
+      degree:deg, degreeNorm:deg/maxDeg,
+      betweennessNorm:btw/(maxBtw/normB), bytesNorm:byt,
+      totalBytes:nd.total_bytes||0,
+      score:(deg/maxDeg+betweenness.get(nd.id)/maxBtw+byt)/3,
+      ips: nd.ips || [nd.id],
+    };
+  }).sort((a,b)=>b.score-a.score);
 }
 
 function Bar({ value, color }) {
@@ -66,13 +105,9 @@ function SearchBar({ onSearch, placeholder }) {
 
 // ── Node Centrality panel ────────────────────────────────────────────────────
 
-function NodeCentralityPanel({ pluginResults, onSelectNode }) {
-  // ranked: rows from the server-computed node_centrality plugin result
-  const ranked = useMemo(() => {
-    const raw = pluginResults?.node_centrality?.ranked;
-    if (!raw?.length) return [];
-    return normalizeCentralityRanked(raw).map((r, i) => ({ ...r, globalRank: i + 1 }));
-  }, [pluginResults]);
+function NodeCentralityPanel({ nodes, edges, onSelectNode }) {
+  // ranked: computed from the currently-visible filtered graph (respects time range + protocol filter)
+  const ranked = useMemo(() => computeCentrality(nodes, edges).map((r, i) => ({ ...r, globalRank: i + 1 })), [nodes, edges]);
   const [sortBy, setSortBy] = useState('score');
   const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState({ ip1: '', ip2: '' });
@@ -94,11 +129,7 @@ function NodeCentralityPanel({ pluginResults, onSelectNode }) {
     return r.length;
   }, [ranked, search]);
 
-  if (!ranked.length) return (
-    <div style={{ color: 'var(--txD)', fontSize: 12, padding: 8 }}>
-      No centrality data available. Load a capture to compute node rankings.
-    </div>
-  );
+  if (!ranked.length) return <div style={{ color: 'var(--txD)', fontSize: 12, padding: 8 }}>No graph data loaded.</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -444,7 +475,7 @@ function AnalysisCard({ icon, title, badge, description, expanded, onToggle, chi
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
-export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelectNode, pluginResults }) {
+export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelectNode }) {
   const { settings, setSetting } = useSettings();
   const apiKey = settings.llmApiKey || '';
   const model  = settings.llmModel  || 'gpt-4o-mini';
@@ -491,7 +522,7 @@ export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelect
         <AnalysisCard icon="🔗" title="Node Centrality" badge="LIVE"
           description="Ranks nodes by degree, betweenness, and traffic volume."
           expanded={expanded === 'centrality'} onToggle={() => toggle('centrality')}>
-          <NodeCentralityPanel pluginResults={pluginResults}
+          <NodeCentralityPanel nodes={nodes} edges={edges}
             onSelectNode={id => { onSelectNode?.(id); toggle('centrality'); }} />
         </AnalysisCard>
 

@@ -364,7 +364,6 @@ export default function App() {
             sessions={c.sessions}
             pColors={c.pColors}
             onSelectNode={c.selectNodePanel}
-            pluginResults={c.pluginResults}
           />
         ) : c.rPanel === 'investigation' ? (
           /* INVESTIGATION PAGE — markdown notebook */

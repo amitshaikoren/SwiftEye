@@ -8,7 +8,7 @@
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
 
 ### Recent highlights (v0.15.8)
-- **AnalysisPage centrality fix** — `NodeCentralityPanel` now consumes pre-computed rankings from the `node_centrality` analysis plugin (`pluginResults.node_centrality.ranked`) instead of re-running Brandes' betweenness algorithm in JavaScript. Removes the client-side `computeCentrality()` function. Fixes viewer/analyzer boundary violation and removes O(V·E) computation from the UI thread. App.jsx now passes `pluginResults` to AnalysisPage.
+- **AnalysisPage centrality** — client-side `computeCentrality()` is retained intentionally: it operates on `visibleNodes`/`visibleEdges` (already filtered by time range + protocol), so HTTP centrality and Kerberos centrality produce different results. When a DB backend is implemented, the time/protocol scope should be passed as params to a `/api/analysis/centrality` endpoint instead. The `node_centrality` plugin result (global) is separate and correct for the global node ranking in NodeDetail.
 - **`gR()` deduplication** — node radius function was defined twice inside GraphCanvas (simulation effect + pointer event effect). Hoisted to a single stable `useCallback` at component level via `gRRef`. Both effects now call the same function.
 - **forceCollide update on weight mode change** — switching "Size by" now also updates the D3 `forceCollide` radius and briefly reheats the simulation so physics stays consistent with the visual node size.
 

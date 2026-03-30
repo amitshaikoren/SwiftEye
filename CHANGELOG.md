@@ -1,7 +1,7 @@
 # SwiftEye — Changelog
 
 ### v0.15.8 — March 2026
-- **AnalysisPage centrality fix** — `NodeCentralityPanel` now reads `pluginResults.node_centrality.ranked` (pre-computed server-side) instead of running Brandes betweenness in JavaScript. Removes client-side `computeCentrality()` (58 lines, O(V·E)). Fixes viewer/analyzer boundary violation. Shows graceful "not available" state when analysis plugin hasn't run.
+- **AnalysisPage centrality** — `computeCentrality()` kept client-side intentionally (operates on filtered `visibleNodes`/`visibleEdges` so protocol-scoped and time-scoped centrality work correctly). Comment added explaining why. The `node_centrality` analysis plugin continues to provide global rankings in the global plugin results.
 - **`gR()` deduplication in GraphCanvas** — node radius formula was defined twice inside two different `useEffect` closures (lines 243 and 579). Hoisted to a single `useCallback` stored in `gRRef`. Both effects call `gRRef.current(n)`. Prevents silent drift if the formula is ever updated.
 - **forceCollide fix** — changing graph weight mode (Bytes ↔ Packets) now updates the D3 `forceCollide` radius to match the new visual node sizes and briefly reheats the simulation (alpha 0.15). Previously, physics used old-mode collision radii causing node overlap.
 
