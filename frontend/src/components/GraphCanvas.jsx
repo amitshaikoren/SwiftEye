@@ -24,6 +24,7 @@ export default function GraphCanvas({
   onExpandCluster, onRelayout, onCreateManualCluster,
   onStartPathfind, pathfindSource, onPathfindTarget, onCancelPathfind,
   labelThreshold = 0,
+  graphWeightMode = 'bytes',
   queryHighlight = null,
   onClearQueryHighlight,
 }) {
@@ -43,6 +44,8 @@ export default function GraphCanvas({
   useEffect(() => { onClearQHRef.current = onClearQueryHighlight; }, [onClearQueryHighlight]);
   const labelThreshRef = useRef(labelThreshold);
   useEffect(() => { labelThreshRef.current = labelThreshold; }, [labelThreshold]);
+  const graphWeightModeRef = useRef(graphWeightMode);
+  useEffect(() => { graphWeightModeRef.current = graphWeightMode; if (renRef.current) renRef.current(); }, [graphWeightMode]);
   const invNodesRef = useRef(investigationNodes);
   const dfNodesRef = useRef(displayFilterNodes);
   const dfEdgesRef = useRef(displayFilterEdges);
@@ -240,6 +243,9 @@ export default function GraphCanvas({
     function gR(n) {
       if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
       if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
+      if (graphWeightModeRef.current === 'bytes') {
+        return Math.max(5, Math.min(28, Math.log(Math.max(1, n.total_bytes)) * 2));
+      }
       return Math.max(5, Math.min(28, Math.sqrt(n.packet_count) * 2 + 3));
     }
 
@@ -312,13 +318,15 @@ export default function GraphCanvas({
       }
 
       // Edges
-      const meb = Math.max(...eRef.current.map(e => e.total_bytes), 1);
+      const wMode = graphWeightModeRef.current;
+      const edgeMetric = e => wMode === 'packets' ? (e.packet_count || 0) : (e.total_bytes || 0);
+      const meb = Math.max(...eRef.current.map(edgeMetric), 1);
       for (const edge of eRef.current) {
         const src = typeof edge.source === 'object' ? edge.source : nRef.current.find(n => n.id === edge.source);
         const tgt = typeof edge.target === 'object' ? edge.target : nRef.current.find(n => n.id === edge.target);
         if (!src || !tgt) continue;
         const isSel = se?.id === edge.id;
-        const w = Math.max(0.6, (edge.total_bytes / meb) * 10);
+        const w = Math.max(0.6, (edgeMetric(edge) / meb) * 10);
         const col = pc[edge.protocol] || '#64748b';
         const sId = typeof src === 'object' ? src.id : src;
         const tId = typeof tgt === 'object' ? tgt.id : tgt;
@@ -407,14 +415,30 @@ export default function GraphCanvas({
             ctx.fillText(String(node.member_count), node.x, node.y);
           }
         } else if (node.is_subnet) {
-          const s = r * 1.7;
+          const s = r * 2.0;
+          const rad = 4;
           ctx.beginPath();
-          ctx.rect(node.x - s / 2, node.y - s / 2, s, s);
+          if (ctx.roundRect) {
+            ctx.roundRect(node.x - s / 2, node.y - s / 2, s, s, rad);
+          } else {
+            ctx.rect(node.x - s / 2, node.y - s / 2, s, s);
+          }
           ctx.fillStyle = isSel ? acColor + '33' : nodeSubnet;
           ctx.fill();
           ctx.strokeStyle = isSel ? acColor : isH ? acGColor : nodeSubnetS;
           ctx.lineWidth = isSel ? 2.5 : 1.5;
+          ctx.setLineDash([4, 2]);
           ctx.stroke();
+          ctx.setLineDash([]);
+          // Member count badge (number of IPs in the subnet group)
+          const memberCount = node.ips?.length || node.member_count;
+          if (memberCount && t.k > 0.3) {
+            ctx.font = `bold ${Math.max(8, 10 / t.k)}px JetBrains Mono, monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = nodeSubnetS;
+            ctx.fillText(String(memberCount), node.x, node.y);
+          }
         } else if (isGateway) {
           // Diamond shape for gateway/router nodes
           const s = r * 1.6;
@@ -576,6 +600,9 @@ export default function GraphCanvas({
     function gR(n) {
       if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
       if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
+      if (graphWeightModeRef.current === 'bytes') {
+        return Math.max(5, Math.min(28, Math.log(Math.max(1, n.total_bytes)) * 2));
+      }
       return Math.max(5, Math.min(28, Math.sqrt(n.packet_count) * 2 + 3));
     }
 

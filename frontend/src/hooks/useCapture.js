@@ -68,6 +68,7 @@ export function useCapture() {
   const [bucketSec, setBucketSec]   = useState(15);
   const [subnetG, setSubnetG]       = useState(false);
   const [labelThreshold, setLabelThreshold] = useState(0); // hide labels below this bytes value (0 = show all)
+  const [graphWeightMode, setGraphWeightMode] = useState('bytes'); // 'bytes' | 'packets'
 
   const [subnetPrefix, setSubnetPrefix] = useState(24);
   const [debouncedSubnetPrefix, setDebouncedSubnetPrefix] = useState(24);
@@ -918,6 +919,7 @@ export function useCapture() {
     bucketSec, setBucketSec,
     subnetG, setSubnetG, toggleSubnetG,
     labelThreshold, setLabelThreshold,
+    graphWeightMode, setGraphWeightMode,
     subnetPrefix, setSubnetPrefix: setSubnetPrefixOuter,
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,

@@ -11,6 +11,7 @@ export default function LeftPanel({
   showHostnames = true, setShowHostnames,
   excludeBroadcasts = false, setExcludeBroadcasts,
   labelThreshold = 0, setLabelThreshold,
+  graphWeightMode = 'bytes', setGraphWeightMode,
   clusterAlgo = '', setClusterAlgo,
   clusterResolution = 1.0, setClusterResolution,
   onApplyDisplayFilter, activeOsFilter, osGuesses = [],
@@ -358,6 +359,31 @@ export default function LeftPanel({
             </div>
           );
         })()}
+
+        {/* Graph weight mode */}
+        {setGraphWeightMode && (
+          <div style={{ marginTop: 8, padding: '4px' }}
+            title="Control what metric scales node size and edge thickness.">
+            <div style={{ fontSize: 11, color: 'var(--txD)', marginBottom: 4 }}>Size by</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {['bytes', 'packets'].map(mode => (
+                <button key={mode}
+                  onClick={() => setGraphWeightMode(mode)}
+                  style={{
+                    flex: 1, fontSize: 10, padding: '2px 0',
+                    background: graphWeightMode === mode ? 'var(--ac)' : 'var(--bgI)',
+                    color: graphWeightMode === mode ? '#fff' : 'var(--txD)',
+                    border: '1px solid ' + (graphWeightMode === mode ? 'var(--ac)' : 'var(--bd)'),
+                    borderRadius: 3, cursor: 'pointer', fontFamily: 'var(--fn)',
+                    fontWeight: graphWeightMode === mode ? 600 : 400,
+                    transition: 'all .15s',
+                  }}>
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Graph clustering */}
         {setClusterAlgo && (

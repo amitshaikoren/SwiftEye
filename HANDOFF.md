@@ -3,9 +3,14 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.15.6** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.7** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
+
+### Recent highlights (v0.15.7)
+- **Graph weight selector** — new "Size by" control in Graph Options. Choose Bytes or Packets to scale both node size and edge thickness. Bytes mode uses log scaling; Packets mode uses sqrt scaling. State in `useCapture.js`, UI in `LeftPanel.jsx`, rendering in `GraphCanvas.jsx`.
+- **Subgraph-scoped stats** — when "Investigate neighbours" or "Isolate component" is active, the stats panel shows a focused summary (nodes, connections, bytes, packets) for the investigated subgraph above the global stats.
+- **Subnet node redesign** — subnet mega-nodes now render as rounded rectangles with dashed borders (conveying "container"), display a member count badge inside, and use a "/" glyph when zoomed in.
 
 ### Recent highlights (v0.15.6)
 - **Export PNG** — "Export PNG" button in the bottom-right of the graph canvas. Calls `canvas.toDataURL('image/png')` and triggers a download as `swifteye-graph.png`.

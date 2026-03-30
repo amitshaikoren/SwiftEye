@@ -3,7 +3,7 @@
  * All state/logic lives in useCapture(). This file only renders.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useCapture } from './hooks/useCapture';
 import { useSettings } from './hooks/useSettings';
 import logoFullData from './logoFullData.js';
@@ -36,6 +36,20 @@ export default function App() {
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
+
+  // ── Subgraph-scoped stats (when investigation is active) ─────────
+  const subgraphInfo = useMemo(() => {
+    if (!c.investigationNodes || !c.graph?.edges) return null;
+    const inv = c.investigationNodes;
+    const edges = c.graph.edges.filter(e => {
+      const sId = typeof e.source === 'object' ? e.source.id : e.source;
+      const tId = typeof e.target === 'object' ? e.target.id : e.target;
+      return inv.has(sId) && inv.has(tId);
+    });
+    const bytes = edges.reduce((s, e) => s + (e.total_bytes || 0), 0);
+    const packets = edges.reduce((s, e) => s + (e.packet_count || 0), 0);
+    return { nodes: inv.size, connections: edges.length, bytes, packets };
+  }, [c.investigationNodes, c.graph]);
 
   // ── Graph container size (for Sparkline width) ───────────────────
   const graphContainerRef = useRef(null);
@@ -262,6 +276,7 @@ export default function App() {
         stats={c.stats} pColors={c.pColors}
         onSelectNode={c.selectNodePanel}
         pluginResults={c.pluginResults} uiSlots={c.pluginSlots}
+        subgraphInfo={subgraphInfo}
       />
     );
   }
@@ -305,6 +320,7 @@ export default function App() {
           selEdge={c.selEdge} selSession={c.selSession}
           subnetG={c.subnetG} setSubnetG={c.setSubnetG} toggleSubnetG={c.toggleSubnetG}
           labelThreshold={c.labelThreshold} setLabelThreshold={c.setLabelThreshold}
+          graphWeightMode={c.graphWeightMode} setGraphWeightMode={c.setGraphWeightMode}
           subnetPrefix={c.subnetPrefix} setSubnetPrefix={c.setSubnetPrefix}
           mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
           includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
@@ -482,6 +498,7 @@ export default function App() {
                   onPathfindTarget={c.executePathfind}
                   onCancelPathfind={c.cancelPathfind}
                   labelThreshold={c.labelThreshold}
+                  graphWeightMode={c.graphWeightMode}
                   queryHighlight={queryHighlight}
                   onClearQueryHighlight={() => setQueryHighlight(null)}
                 />

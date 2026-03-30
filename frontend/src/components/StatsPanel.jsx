@@ -35,7 +35,7 @@ function TCPFlagsRenderer({ data, onSelectNode }) {
   );
 }
 
-export default function StatsPanel({ stats, pColors, onSelectNode, pluginResults, uiSlots }) {
+export default function StatsPanel({ stats, pColors, onSelectNode, pluginResults, uiSlots, subgraphInfo }) {
   const tree = useMemo(() => stats ? buildProtoTree(stats) : null, [stats]);
   if (!stats) return null;
 
@@ -43,6 +43,22 @@ export default function StatsPanel({ stats, pColors, onSelectNode, pluginResults
 
   return (
     <div className="fi" style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
+      {subgraphInfo && (
+        <div style={{
+          background: 'rgba(56,139,253,.08)', border: '1px solid rgba(56,139,253,.25)',
+          borderRadius: 6, padding: '8px 10px', marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 9, color: '#388bfd', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>
+            Subgraph Focus
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            <div><div style={{ fontSize: 9, color: 'var(--txD)' }}>Nodes</div><div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--fd)', color: 'var(--tx)' }}>{fN(subgraphInfo.nodes)}</div></div>
+            <div><div style={{ fontSize: 9, color: 'var(--txD)' }}>Connections</div><div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--fd)', color: 'var(--tx)' }}>{fN(subgraphInfo.connections)}</div></div>
+            <div><div style={{ fontSize: 9, color: 'var(--txD)' }}>Bytes</div><div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--fd)', color: 'var(--tx)' }}>{fB(subgraphInfo.bytes)}</div></div>
+            <div><div style={{ fontSize: 9, color: 'var(--txD)' }}>Packets</div><div style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--fd)', color: 'var(--tx)' }}>{fN(subgraphInfo.packets)}</div></div>
+          </div>
+        </div>
+      )}
       <div className="sh">Overview</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16 }}>
         <div className="sc"><div style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 2 }}>Packets</div><div style={{ fontSize: 17, fontWeight: 600, fontFamily: 'var(--fd)' }}>{fN(stats.total_packets)}</div><div style={{ fontSize: 9, color: 'var(--txD)' }}>{stats.packets_per_second} pps</div></div>

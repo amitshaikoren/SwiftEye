@@ -1,5 +1,10 @@
 # SwiftEye — Changelog
 
+### v0.15.7 — March 2026
+- **Graph weight selector** — "Size by: Bytes / Packets" segmented control in Graph Options. Controls both node radius and edge thickness. Bytes uses log scaling; Packets uses sqrt scaling (was the previous default for nodes). State: `graphWeightMode` in `useCapture.js`. UI: `LeftPanel.jsx`. Rendering: `GraphCanvas.jsx` `gR()` and edge width logic.
+- **Subgraph-scoped stats** — when investigation is active (`investigationNodes` set), a "Subgraph Focus" banner appears above the stats panel showing node count, connection count, bytes, and packet totals for the investigated subgraph. Computed in `App.jsx` from `c.graph.edges`; passed as `subgraphInfo` prop to `StatsPanel`.
+- **Subnet node visual redesign** — subnet mega-nodes now render with rounded rectangle shape (`roundRect`), dashed stroke (4px on, 2px off), member IP count badge inside, and a "/" label when zoomed in. Distinct from gateway (diamond) and cluster (octagon) nodes.
+
 ### v0.15.4 — March 2026
 - **Follow TCP Stream** — Wireshark-style conversation view in session detail (`StreamView` component). Merges consecutive same-direction payloads into color-coded "turns" (green=client `#7ee787`, blue=server `#79c0ff`). Turn headers show direction arrows, IPs, ports, byte counts. Three display modes: ASCII (default), hex dump, raw bytes. Copy-to-clipboard. Shows first 128 bytes per packet; full stream reassembly deferred to database backend.
 - **PySpark translator** — new `analysis/pyspark_translator.py` parses PySpark DataFrame filter expressions (`df.filter(col("x") > y)`, `.contains()`, `.startswith()`, `.isin()`, `.rlike()`, `count()`, `&`/`|` combinators) into the JSON query contract using Python `ast` module. 27 tests. Frontend dialect selector changed from "Spark SQL" to "PySpark" with updated examples and placeholder.
