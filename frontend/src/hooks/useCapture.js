@@ -313,6 +313,31 @@ export function useCapture() {
       .catch(() => {});
   }, [loaded, debouncedTR, timeline]);
 
+  // Stable ref: total count of composite protocol keys — updated whenever stats/protocols change.
+  // Used inside the graph fetch effect to determine if all protocols are enabled (no filter needed).
+  // Kept as a ref so updating it does NOT trigger a graph refetch.
+  const allProtocolKeysCountRef = useRef(0);
+  useEffect(() => {
+    const sp = stats?.protocols || {};
+    const _nonIp = new Set(['ARP', 'OTHER']);
+    let count = 0;
+    for (const pName of protocols) {
+      if (!pName || !pName.trim()) continue;
+      const info = sp[pName] || {};
+      const transport = info.transport || pName;
+      const v4 = info.ipv4 || 0;
+      const v6 = info.ipv6 || 0;
+      const total = info.packets || 0;
+      if (_nonIp.has(transport)) {
+        count += 1;
+      } else {
+        if (v4 > 0 || (v6 === 0 && total > 0)) count += 1;
+        if (v6 > 0) count += 1;
+      }
+    }
+    allProtocolKeysCountRef.current = count;
+  }, [stats, protocols]);
+
   // Re-fetch graph when any filter changes (debounced)
   useEffect(() => {
     if (!loaded || !timeline.length) return;
@@ -322,29 +347,9 @@ export function useCapture() {
     if (ts != null) params.timeStart = ts;
     if (te != null) params.timeEnd = te;
     // Send composite protocol filter keys (e.g. "4/TCP/HTTPS,6/UDP/DNS")
-    if (enabledP.size > 0) {
-      // Compute allKeys from stats to check if everything is enabled
-      const sp = stats?.protocols || {};
-      const allKeys = [];
-      const _nonIp = new Set(['ARP', 'OTHER']);
-      for (const pName of protocols) {
-        if (!pName || !pName.trim()) continue;
-        const info = sp[pName] || {};
-        const transport = info.transport || pName;
-        const v4 = info.ipv4 || 0;
-        const v6 = info.ipv6 || 0;
-        const total = info.packets || 0;
-        if (_nonIp.has(transport)) {
-          allKeys.push(`0/${transport}/${pName}`);
-        } else {
-          if (v4 > 0 || (v6 === 0 && total > 0)) allKeys.push(`4/${transport}/${pName}`);
-          if (v6 > 0) allKeys.push(`6/${transport}/${pName}`);
-        }
-      }
-      // Only send filter if not all keys are enabled
-      if (enabledP.size < allKeys.length)
-        params.protocolFilters = Array.from(enabledP).join(',');
-    }
+    // Only send filter if not all keys are enabled — compare against stable ref count
+    if (enabledP.size > 0 && enabledP.size < allProtocolKeysCountRef.current)
+      params.protocolFilters = Array.from(enabledP).join(',');
     if (subnetG) { params.subnetGrouping = true; params.subnetPrefix = debouncedSubnetPrefix; }
     if (mergeByMac)   params.mergeByMac = true;
     if (!includeIPv6) params.includeIPv6 = false;
@@ -361,7 +366,7 @@ export function useCapture() {
       if (e.name !== 'AbortError') console.error(e);
     });
     return () => ctrl.abort();
-  }, [loaded, debouncedTR, enabledP, stats, subnetG, debouncedSubnetPrefix, mergeByMac, includeIPv6, showHostnames, excludeBroadcasts, subnetExclusions, clusterAlgo, clusterResolution, timeline, protocols]);
+  }, [loaded, debouncedTR, enabledP, subnetG, debouncedSubnetPrefix, mergeByMac, includeIPv6, showHostnames, excludeBroadcasts, subnetExclusions, clusterAlgo, clusterResolution, timeline, protocols]);
 
   // Re-evaluate display filter when graph data changes
   useEffect(() => {
@@ -391,24 +396,42 @@ export function useCapture() {
       return null;
     };
 
+    // Skip keys that are not useful for text search on edges
+    const _SKIP_EDGE_KEYS = new Set([
+      'id', 'source', 'target', 'protocol', 'type', 'synthetic',
+      'total_bytes', 'packet_count', 'ports',
+      'bytes_to_source', 'bytes_to_target', 'packets_to_source', 'packets_to_target',
+    ]);
+    // Protocol-name keyword hints — lets user type "tls", "dns", "http" to find edges
+    // with those field groups even when no individual value matched.
+    const _PROTO_HINTS = [
+      { keys: ['tls_snis', 'tls_versions', 'tls_ciphers', 'tls_selected_ciphers'], keyword: 'tls' },
+      { keys: ['tls_snis'], keyword: 'sni' },
+      { keys: ['tls_ciphers', 'tls_selected_ciphers'], keyword: 'cipher' },
+      { keys: ['http_hosts'], keyword: 'http' },
+      { keys: ['dns_queries'], keyword: 'dns' },
+      { keys: ['ja3_hashes'], keyword: 'ja3' },
+      { keys: ['ja4_hashes'], keyword: 'ja4' },
+    ];
     const matchEdge = e => {
       if (e.protocol && e.protocol.toLowerCase().includes(q)) return 'protocol';
-      for (const s of (e.tls_snis || [])) { if (s.toLowerCase().includes(q)) return 'tls_sni'; }
-      for (const h of (e.http_hosts || [])) { if (h.toLowerCase().includes(q)) return 'http_host'; }
-      for (const j of (e.ja3_hashes || [])) { if (j.toLowerCase().includes(q)) return 'ja3'; }
-      for (const j of (e.ja4_hashes || [])) { if (j.toLowerCase().includes(q)) return 'ja4'; }
-      for (const v of (e.tls_versions || [])) { if (v.toLowerCase().includes(q)) return 'tls_version'; }
-      for (const c of (e.tls_selected_ciphers || [])) { if (c.toLowerCase().includes(q)) return 'cipher'; }
+      // Generic: iterate all string/array properties on the edge object
+      for (const [key, val] of Object.entries(e)) {
+        if (_SKIP_EDGE_KEYS.has(key)) continue;
+        if (typeof val === 'string' && val.toLowerCase().includes(q)) return key;
+        if (Array.isArray(val)) {
+          for (const item of val) {
+            if (typeof item === 'string' && item.toLowerCase().includes(q)) return key;
+          }
+        }
+      }
       const src = e.source?.id || e.source || '';
       const tgt = e.target?.id || e.target || '';
       if (src.toLowerCase().includes(q) || tgt.toLowerCase().includes(q)) return 'endpoint';
-      if (e.ja3_hashes?.length && 'ja3'.includes(q))   return 'has ja3';
-      if (e.ja4_hashes?.length && 'ja4'.includes(q))   return 'has ja4';
-      if ((e.tls_snis?.length || e.tls_versions?.length) && 'tls'.includes(q)) return 'has tls';
-      if (e.tls_snis?.length && 'sni'.includes(q))     return 'has sni';
-      if ((e.tls_ciphers?.length || e.tls_selected_ciphers?.length) && 'cipher'.includes(q)) return 'has cipher';
-      if (e.http_hosts?.length && 'http'.includes(q))   return 'has http';
-      if (e.dns_queries?.length && 'dns'.includes(q))   return 'has dns';
+      // Protocol-name keyword hints
+      for (const hint of _PROTO_HINTS) {
+        if (hint.keyword.includes(q) && hint.keys.some(k => e[k]?.length)) return `has ${hint.keyword}`;
+      }
       if (e.protocol_conflict && 'conflict'.includes(q)) return 'protocol conflict';
       return null;
     };
@@ -717,10 +740,15 @@ export function useCapture() {
   // ── Hide nodes ────────────────────────────────────────────────────
 
   function handleHideNode(nodeId) {
-    setHiddenNodes(prev => { const n = new Set(prev); n.add(nodeId); return n; });
+    setHiddenNodes(prev => {
+      if (prev.has(nodeId)) return prev; // no-op guard: same identity
+      const n = new Set(prev); n.add(nodeId); return n;
+    });
     clearSel();
   }
-  function handleUnhideAll() { setHiddenNodes(new Set()); }
+  function handleUnhideAll() {
+    setHiddenNodes(prev => prev.size === 0 ? prev : new Set()); // no-op guard
+  }
 
   // ── Annotations ───────────────────────────────────────────────────
 
@@ -833,21 +861,30 @@ export function useCapture() {
   }
 
   function handleUnclusterSubnet(subnetId) {
-    setSubnetExclusions(prev => new Set([...prev, subnetId]));
+    setSubnetExclusions(prev => {
+      if (prev.has(subnetId)) return prev; // no-op guard
+      return new Set([...prev, subnetId]);
+    });
   }
 
   function handleExpandCluster(clusterId) {
-    setClusterExclusions(prev => new Set([...prev, clusterId]));
+    setClusterExclusions(prev => {
+      if (prev.has(clusterId)) return prev; // no-op guard
+      return new Set([...prev, clusterId]);
+    });
   }
 
   function handleCollapseCluster(clusterId) {
-    setClusterExclusions(prev => { const s = new Set(prev); s.delete(clusterId); return s; });
+    setClusterExclusions(prev => {
+      if (!prev.has(clusterId)) return prev; // no-op guard
+      const s = new Set(prev); s.delete(clusterId); return s;
+    });
   }
 
   function toggleSubnetG() {
     setSubnetG(prev => {
       // When turning grouping OFF, clear all exclusions so re-enabling starts fresh
-      if (prev) setSubnetExclusions(new Set());
+      if (prev) setSubnetExclusions(prev => prev.size === 0 ? prev : new Set());
       return !prev;
     });
   }

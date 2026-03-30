@@ -3,9 +3,14 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.15.7** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.9** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
+
+### Recent highlights (v0.15.9)
+- **Graph fetch dep cleanup** — `stats` removed from the graph fetch `useEffect` dep array. Total protocol key count now lives in `allProtocolKeysCountRef` (a ref updated by a separate effect) so stats changes don't trigger graph refetches. Breaks the circular: stats update → graph refetch → new stats.
+- **Set identity fix** — `handleHideNode`, `handleUnhideAll`, `handleUnclusterSubnet`, `handleExpandCluster`, `handleCollapseCluster` guard no-op updates by returning the existing Set reference when contents are unchanged. Prevents spurious graph refetches.
+- **Generic edge search evaluator** — `matchEdge()` now iterates all string/array properties on edge objects generically (like `matchSession()`). Protocol-name hints (`has tls`, `has dns`, etc.) kept as a declarative table. New dissector fields are automatically searchable without code changes.
 
 ### Recent highlights (v0.15.8)
 - **AnalysisPage centrality** — client-side `computeCentrality()` is retained intentionally: it operates on `visibleNodes`/`visibleEdges` (already filtered by time range + protocol), so HTTP centrality and Kerberos centrality produce different results. When a DB backend is implemented, the time/protocol scope should be passed as params to a `/api/analysis/centrality` endpoint instead. The `node_centrality` plugin result (global) is separate and correct for the global node ranking in NodeDetail.

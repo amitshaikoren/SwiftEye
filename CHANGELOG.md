@@ -1,5 +1,10 @@
 # SwiftEye — Changelog
 
+### v0.15.9 — March 2026
+- **Graph fetch dep cleanup** — removed `stats` from the graph fetch `useEffect` dependency array in `useCapture.js`. `stats` was only used to compute the total protocol key count (to check "are all protocols enabled?"), but changes to `stats` were triggering graph refetches — a circular pattern: stats update → graph refetch → new graph. Moved the key count derivation to a `allProtocolKeysCountRef` ref updated by a separate lightweight effect; the graph fetch effect reads it without depending on it.
+- **Set identity fix** — `handleHideNode`, `handleUnhideAll`, `handleUnclusterSubnet`, `handleExpandCluster`, `handleCollapseCluster` now guard no-op updates: if the set already contains / doesn't contain the item, the original set reference is returned unchanged. Prevents spurious graph refetches and re-renders from React seeing a new Set object when contents are identical.
+- **Generic edge search evaluator** — `matchEdge()` in `useCapture.js` no longer hardcodes field names (`tls_snis`, `http_hosts`, `dns_queries`, `ja3_hashes`, etc.). Replaced with generic iteration over string and array properties on the edge object (same pattern as `matchSession()`). Protocol-name keyword hints (`has tls`, `has dns`, `has http`, etc.) preserved via a declarative hint table. New edge fields from dissectors are now automatically searchable without code changes.
+
 ### v0.15.8 — March 2026
 - **AnalysisPage centrality** — `computeCentrality()` kept client-side intentionally (operates on filtered `visibleNodes`/`visibleEdges` so protocol-scoped and time-scoped centrality work correctly). Comment added explaining why. The `node_centrality` analysis plugin continues to provide global rankings in the global plugin results.
 - **`gR()` deduplication in GraphCanvas** — node radius formula was defined twice inside two different `useEffect` closures (lines 243 and 579). Hoisted to a single `useCallback` stored in `gRRef`. Both effects call `gRRef.current(n)`. Prevents silent drift if the formula is ever updated.
