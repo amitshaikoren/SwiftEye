@@ -45,7 +45,30 @@ export default function GraphCanvas({
   const labelThreshRef = useRef(labelThreshold);
   useEffect(() => { labelThreshRef.current = labelThreshold; }, [labelThreshold]);
   const graphWeightModeRef = useRef(graphWeightMode);
-  useEffect(() => { graphWeightModeRef.current = graphWeightMode; if (renRef.current) renRef.current(); }, [graphWeightMode]);
+  // Single authoritative node-radius function — reads graphWeightModeRef dynamically.
+  // Stored in a ref so both the simulation effect and pointer effect call the same closure.
+  const gRRef = useRef(null);
+  if (!gRRef.current) {
+    gRRef.current = function gR(n) {
+      if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
+      if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
+      if (graphWeightModeRef.current === 'bytes') {
+        return Math.max(5, Math.min(28, Math.log(Math.max(1, n.total_bytes)) * 2));
+      }
+      return Math.max(5, Math.min(28, Math.sqrt(n.packet_count) * 2 + 3));
+    };
+  }
+  useEffect(() => {
+    graphWeightModeRef.current = graphWeightMode;
+    // Update collision radius so physics matches the new visual sizes
+    if (simRef.current) {
+      const gR = gRRef.current;
+      simRef.current
+        .force('collision', d3.forceCollide().radius(d => d.is_cluster ? gR(d) * 1.8 + 15 : gR(d) + 10))
+        .alpha(0.15).restart();
+    }
+    if (renRef.current) renRef.current();
+  }, [graphWeightMode]);
   const invNodesRef = useRef(investigationNodes);
   const dfNodesRef = useRef(displayFilterNodes);
   const dfEdgesRef = useRef(displayFilterEdges);
@@ -232,7 +255,7 @@ export default function GraphCanvas({
         .strength(0.4))
       .force('center', d3.forceCenter(width / 2, height / 2).strength(0.04))
       .force('collision', d3.forceCollide().radius(d =>
-        d.is_cluster ? gR(d) * 1.8 + 15 : gR(d) + 10))
+        d.is_cluster ? gRRef.current(d) * 1.8 + 15 : gRRef.current(d) + 10))
       .force('x', d3.forceX(width / 2).strength(0.015))
       .force('y', d3.forceY(height / 2).strength(0.015))
       .alphaDecay(0.02)
@@ -240,14 +263,7 @@ export default function GraphCanvas({
 
     simRef.current = sim;
 
-    function gR(n) {
-      if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
-      if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
-      if (graphWeightModeRef.current === 'bytes') {
-        return Math.max(5, Math.min(28, Math.log(Math.max(1, n.total_bytes)) * 2));
-      }
-      return Math.max(5, Math.min(28, Math.sqrt(n.packet_count) * 2 + 3));
-    }
+    const gR = gRRef.current;
 
     // ── Render function (reads container size each frame — FIX #1) ──
     function render() {
@@ -597,14 +613,7 @@ export default function GraphCanvas({
     let didDrag = false;
     let zoomEnabled = true;
 
-    function gR(n) {
-      if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
-      if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
-      if (graphWeightModeRef.current === 'bytes') {
-        return Math.max(5, Math.min(28, Math.log(Math.max(1, n.total_bytes)) * 2));
-      }
-      return Math.max(5, Math.min(28, Math.sqrt(n.packet_count) * 2 + 3));
-    }
+    const gR = gRRef.current;
 
     function gN(mx, my) {
       const t = tRef.current;

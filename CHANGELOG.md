@@ -1,5 +1,10 @@
 # SwiftEye — Changelog
 
+### v0.15.8 — March 2026
+- **AnalysisPage centrality fix** — `NodeCentralityPanel` now reads `pluginResults.node_centrality.ranked` (pre-computed server-side) instead of running Brandes betweenness in JavaScript. Removes client-side `computeCentrality()` (58 lines, O(V·E)). Fixes viewer/analyzer boundary violation. Shows graceful "not available" state when analysis plugin hasn't run.
+- **`gR()` deduplication in GraphCanvas** — node radius formula was defined twice inside two different `useEffect` closures (lines 243 and 579). Hoisted to a single `useCallback` stored in `gRRef`. Both effects call `gRRef.current(n)`. Prevents silent drift if the formula is ever updated.
+- **forceCollide fix** — changing graph weight mode (Bytes ↔ Packets) now updates the D3 `forceCollide` radius to match the new visual node sizes and briefly reheats the simulation (alpha 0.15). Previously, physics used old-mode collision radii causing node overlap.
+
 ### v0.15.7 — March 2026
 - **Graph weight selector** — "Size by: Bytes / Packets" segmented control in Graph Options. Controls both node radius and edge thickness. Bytes uses log scaling; Packets uses sqrt scaling (was the previous default for nodes). State: `graphWeightMode` in `useCapture.js`. UI: `LeftPanel.jsx`. Rendering: `GraphCanvas.jsx` `gR()` and edge width logic.
 - **Subgraph-scoped stats** — when investigation is active (`investigationNodes` set), a "Subgraph Focus" banner appears above the stats panel showing node count, connection count, bytes, and packet totals for the investigated subgraph. Computed in `App.jsx` from `c.graph.edges`; passed as `subgraphInfo` prop to `StatsPanel`.

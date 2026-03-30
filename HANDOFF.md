@@ -7,6 +7,11 @@
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
 
+### Recent highlights (v0.15.8)
+- **AnalysisPage centrality fix** — `NodeCentralityPanel` now consumes pre-computed rankings from the `node_centrality` analysis plugin (`pluginResults.node_centrality.ranked`) instead of re-running Brandes' betweenness algorithm in JavaScript. Removes the client-side `computeCentrality()` function. Fixes viewer/analyzer boundary violation and removes O(V·E) computation from the UI thread. App.jsx now passes `pluginResults` to AnalysisPage.
+- **`gR()` deduplication** — node radius function was defined twice inside GraphCanvas (simulation effect + pointer event effect). Hoisted to a single stable `useCallback` at component level via `gRRef`. Both effects now call the same function.
+- **forceCollide update on weight mode change** — switching "Size by" now also updates the D3 `forceCollide` radius and briefly reheats the simulation so physics stays consistent with the visual node size.
+
 ### Recent highlights (v0.15.7)
 - **Graph weight selector** — new "Size by" control in Graph Options. Choose Bytes or Packets to scale both node size and edge thickness. Bytes mode uses log scaling; Packets mode uses sqrt scaling. State in `useCapture.js`, UI in `LeftPanel.jsx`, rendering in `GraphCanvas.jsx`.
 - **Subgraph-scoped stats** — when "Investigate neighbours" or "Isolate component" is active, the stats panel shows a focused summary (nodes, connections, bytes, packets) for the investigated subgraph above the global stats.
