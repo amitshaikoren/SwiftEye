@@ -1,5 +1,18 @@
 # SwiftEye — Changelog
 
+### v0.15.13 — March 2026
+- **Parse performance — Round 2** — second full hot-path audit fixed six additional per-packet inefficiencies: `session_key` property now cached on `PacketRecord` (was recomputing two `sorted()` calls per access); `sessions.py` reuses the cached key instead of re-sorting; `_ARP_OPCODES` dict hoisted to module level (was rebuilt every ARP packet); `_TLS_VERSIONS` dict in `dissect_tls.py` hoisted to module level (was rebuilt every `_ver()` call); TCP flag decoding replaced per-packet loop with a precomputed 256-entry lookup table; stray `import dpkt` inside the IPv6 elif branch in `dpkt_reader.py` removed.
+
+### v0.15.12 — March 2026
+- **In-function imports audit (complete)** — all remaining `import` statements inside function bodies moved to module level. Fixed: `aggregator.py` (networkx), `routes/query.py` (resolve_query, parse_query_text, get_graph_schema), `data/query/query_parser.py` (pyspark_translator), `routes/utility.py` (scapy wrpcap/IP/TCP/UDP/ICMP/Raw). Kept lazy: `dpkt` (optional dep, imported once per file-read), `reportlab` (optional, PDF export only).
+
+### v0.15.11 — March 2026
+- **Parse performance fix** — `import` statements inside per-packet hot paths moved to module level across `pcap_reader.py`, `dissect_icmp.py`, and `dissect_dhcp.py`. Previously, `from scapy.layers.tls.record import TLS`, `from scapy.layers.http import HTTP`, `from .dpkt_reader import _add_ja_fingerprints`, and ICMPv6/BOOTP imports were re-executed on every packet (tens of thousands of times per file). Python caches modules but still pays the `sys.modules` lookup + attribute access cost per call. All are now imported once at module load and stored as module-level `None`-guarded names.
+
+### v0.15.10 — March 2026
+- **Sessions protocol upgrade** — `sessions.py` now promotes the session's protocol when a later packet in the same flow reveals the application-layer protocol. Previously, sessions created from TCP control packets (SYN/ACK, no payload) were locked to `"TCP"` forever; subsequent data packets with TLS payload were stored in the same session but never updated its protocol field. This caused `EdgeDetail` to find 0 sessions on TLS edges because `s.protocol === "TLS"` never matched `"TCP"`. Fix: when `s["protocol"] == s["transport"]` and a later packet has a more specific protocol, promote the session.
+- **Graph node spreading** — reduced charge strength from -350 to -200 and tightened `distanceMax` dynamically by node count (<50→300px, 50–200→200px, >200→150px). Previously, -350 charge with 450px range cascaded for large captures causing nodes to spread to the edges of the screen. Link distance tightened 130→100px, link strength 0.4→0.5, center strength 0.04→0.06 to compensate.
+
 ### v0.15.9 — March 2026
 - **Graph fetch dep cleanup** — removed `stats` from the graph fetch `useEffect` dependency array in `useCapture.js`. `stats` was only used to compute the total protocol key count (to check "are all protocols enabled?"), but changes to `stats` were triggering graph refetches — a circular pattern: stats update → graph refetch → new graph. Moved the key count derivation to a `allProtocolKeysCountRef` ref updated by a separate lightweight effect; the graph fetch effect reads it without depending on it.
 - **Set identity fix** — `handleHideNode`, `handleUnhideAll`, `handleUnclusterSubnet`, `handleExpandCluster`, `handleCollapseCluster` now guard no-op updates: if the set already contains / doesn't contain the item, the original set reference is returned unchanged. Prevents spurious graph refetches and re-renders from React seeing a new Set object when contents are identical.

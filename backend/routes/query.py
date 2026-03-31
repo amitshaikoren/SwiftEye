@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from store import store, _require_capture
+from data.query import resolve_query, parse_query_text, get_graph_schema
 
 router = APIRouter()
 
@@ -7,7 +8,6 @@ router = APIRouter()
 @router.post("/api/query")
 async def run_query(body: dict):
     """Execute a structured query against the analysis graph."""
-    from data.query import resolve_query
     _require_capture()
     if store.analysis_graph is None:
         raise HTTPException(400, "Analysis graph not available")
@@ -22,7 +22,6 @@ async def parse_query_text_endpoint(body: dict):
     Returns: { syntax, query: {target, conditions, logic, action} }
          or: { syntax, error: str }
     """
-    from data.query import parse_query_text
     text = body.get("text", "")
     dialect = body.get("dialect")
     return parse_query_text(text, dialect=dialect)
@@ -31,6 +30,5 @@ async def parse_query_text_endpoint(body: dict):
 @router.get("/api/query/schema")
 async def get_query_schema():
     """Return available fields and their types for the query builder dropdown."""
-    from data.query import get_graph_schema
     _require_capture()
     return get_graph_schema(store.analysis_graph)

@@ -168,14 +168,15 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         key = f"{base_key}#{gen}" if gen > 0 else base_key
 
         if key not in session_map:
-            ips = sorted([pkt.src_ip, pkt.dst_ip])
-            ports = sorted([pkt.src_port, pkt.dst_port])
+            # session_key already sorts IPs and ports — reuse that ordering
+            _sk = pkt.session_key  # cached, no re-sort
+            _sk_parts = _sk.split("|")
             session_map[key] = {
                 "id": key,
-                "src_ip": ips[0],
-                "dst_ip": ips[1],
-                "src_port": ports[0],
-                "dst_port": ports[1],
+                "src_ip": _sk_parts[0],
+                "dst_ip": _sk_parts[1],
+                "src_port": int(_sk_parts[2]),
+                "dst_port": int(_sk_parts[3]),
                 "protocol": pkt.protocol,
                 "transport": pkt.transport,
                 "packet_count": 0,
@@ -234,7 +235,15 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         s["total_bytes"] += pkt.orig_len
         s["payload_bytes"] += pkt.payload_len
         s["end_time"] = max(s["end_time"], pkt.timestamp)
-        
+
+        # Upgrade session protocol: if the session was initialized from a control
+        # packet (SYN/ACK, no payload) the protocol was set to the transport ("TCP").
+        # When a later packet carries an application-layer payload and reveals a more
+        # specific protocol (e.g. "TLS"), promote the session to that protocol so it
+        # matches the edge that the graph build assigned from those same packets.
+        if s["protocol"] == s["transport"] and pkt.protocol != pkt.transport:
+            s["protocol"] = pkt.protocol
+
         # For non-TCP or if no SYN seen, first packet sender is initiator
         if not s["initiator_ip"] and s["packet_count"] == 1:
             s["initiator_ip"] = pkt.src_ip

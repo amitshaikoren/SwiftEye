@@ -8,6 +8,8 @@ from fastapi.responses import FileResponse
 from store import store, _require_capture
 from data import filter_packets
 
+from scapy.all import wrpcap, Ether, IP, IPv6, TCP, UDP, ICMP, Raw as ScapyRaw  # type: ignore
+
 logger = logging.getLogger("swifteye.routes.utility")
 router = APIRouter()
 
@@ -110,8 +112,6 @@ async def slice_pcap(
         raise HTTPException(400, "No packets match the current filters")
 
     try:
-        from scapy.all import wrpcap, Ether, IP, IPv6, TCP, UDP, ICMP, Raw
-
         tmp = tempfile.NamedTemporaryFile(suffix=".pcap", delete=False)
         tmp.close()
 
@@ -137,7 +137,7 @@ async def slice_pcap(
 
                 pkt_layers = ip / l4
                 if p.payload_preview:
-                    pkt_layers = pkt_layers / Raw(load=p.payload_preview)
+                    pkt_layers = pkt_layers / ScapyRaw(load=p.payload_preview)
 
                 pkt_layers.time = p.timestamp
                 scapy_pkts.append(pkt_layers)

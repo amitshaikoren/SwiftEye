@@ -295,6 +295,10 @@ def _extract_manual(pkt) -> Dict[str, Any]:
     return info
 
 
+_TLS_VERSIONS = {
+    0x0300: "SSL 3.0", 0x0301: "TLS 1.0", 0x0302: "TLS 1.1",
+    0x0303: "TLS 1.2", 0x0304: "TLS 1.3",
+}
+
 def _ver(v: int) -> str:
-    return {0x0300: "SSL 3.0", 0x0301: "TLS 1.0", 0x0302: "TLS 1.1",
-            0x0303: "TLS 1.2", 0x0304: "TLS 1.3"}.get(v, f"0x{v:04x}")
+    return _TLS_VERSIONS.get(v, f"0x{v:04x}")

@@ -3,9 +3,22 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.15.9** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.13** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
+
+### Recent highlights (v0.15.13)
+- **Parse performance — Round 2** — six additional hot-path fixes: `session_key` caching on `PacketRecord`, `sessions.py` reuses cached key, `_ARP_OPCODES` / `_TLS_VERSIONS` hoisted to module level, TCP flags precomputed 256-entry lookup table, stray `import dpkt` removed from `dpkt_reader.py` inner branch. Full audit saved locally in `audits/`.
+
+### Recent highlights (v0.15.12)
+- **In-function imports audit** — all remaining in-function imports hoisted to module level: `aggregator.py` (networkx), `routes/query.py`, `query_parser.py` (pyspark_translator), `routes/utility.py` (scapy). Completes roadmap item `in-function-imports-audit`.
+
+### Recent highlights (v0.15.11)
+- **Parse performance fix** — `import` statements inside per-packet hot paths moved to module level in `pcap_reader.py`, `dissect_icmp.py`, `dissect_dhcp.py`. TLS, HTTP, ICMPv6, BOOTP, and `_add_ja_fingerprints` were all being re-imported on every packet. Now imported once at module load with `None` guards for optional extras.
+
+### Recent highlights (v0.15.10)
+- **Sessions protocol upgrade** — sessions created from TCP control packets (SYN/ACK with no payload) were locked to protocol "TCP" forever. Later data packets that reveal "TLS" (or any app protocol) now promote the session's protocol field. Fixes "No sessions found" on TLS/HTTPS edges where the edge protocol came from data packets but sessions were stamped from control packets.
+- **Graph spreading fix** — charge strength reduced -350→-200, `distanceMax` now scales with node count (large graphs get tighter 150px zone). Prevents repulsion cascading in captures with many nodes. Link force tightened for better cohesion.
 
 ### Recent highlights (v0.15.9)
 - **Graph fetch dep cleanup** — `stats` removed from the graph fetch `useEffect` dep array. Total protocol key count now lives in `allProtocolKeysCountRef` (a ref updated by a separate effect) so stats changes don't trigger graph refetches. Breaks the circular: stats update → graph refetch → new stats.
