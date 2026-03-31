@@ -146,6 +146,8 @@ async def serve_frontend():
 if VITE_DIST.exists():
     from fastapi.staticfiles import StaticFiles
     app.mount("/assets", StaticFiles(directory=str(VITE_DIST / "assets")), name="vite-assets")
+    if (VITE_DIST / "fonts").exists():
+        app.mount("/fonts", StaticFiles(directory=str(VITE_DIST / "fonts")), name="vite-fonts")
 
 
 # ── Shutdown ──────────────────────────────────────────────────────────────────
