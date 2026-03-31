@@ -269,6 +269,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
   const [pkts, setPkts] = useState([]);
   const [ld, setLd] = useState(false);
   const [showHex, setShowHex] = useState(false);
+  const [expandedPkts, setExpandedPkts] = useState(new Set());
   const [noteText, setNoteText] = useState('');
   const [noteSaved, setNoteSaved] = useState(false);
 
@@ -338,6 +339,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
     setPkts([]);
     setLd(false);
     setShowHex(false);
+    setExpandedPkts(new Set());
   }, [s.id]);
 
   function switchTab(t) {
@@ -803,23 +805,105 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
       {tab === 'packets' && (
         <div style={{ maxHeight: 500, overflowY: 'auto' }}>
           {ld && <div style={{ color: 'var(--txD)', fontSize: 11, padding: 10 }}>Loading...</div>}
-          {pkts.map((p, i) => (
-            <div key={i} className="hr" style={{ fontSize: 10, padding: '5px 2px', borderBottom: '1px solid var(--bd)', borderRadius: 3 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--txD)' }}>#{i + 1}</span>
-                <span>{p.src_ip}:{p.src_port} → {p.dst_ip}:{p.dst_port}</span>
-                <span style={{ color: 'var(--txD)' }}>{p.length}B</span>
+          {pkts.map((p, i) => {
+            const expanded = expandedPkts.has(i);
+            const toggleExpand = () => setExpandedPkts(prev => {
+              const next = new Set(prev);
+              next.has(i) ? next.delete(i) : next.add(i);
+              return next;
+            });
+            // IP header fields
+            const isV6 = p.ip_version === 6;
+            const ipFields = [];
+            if (!isV6) {
+              if (p.ip_version > 0)      ipFields.push(['Ver', p.ip_version]);
+              if (p.ip_id != null)        ipFields.push(['ID', '0x' + p.ip_id.toString(16).padStart(4, '0')]);
+              if (p.ip_flags != null)     ipFields.push(['Flags', '0x' + p.ip_flags.toString(16)]);
+              if (p.frag_offset > 0)      ipFields.push(['Frag', p.frag_offset]);
+              if (p.dscp > 0)             ipFields.push(['DSCP', p.dscp]);
+              if (p.ecn > 0)              ipFields.push(['ECN', p.ecn]);
+              if (p.ip_checksum != null)  ipFields.push(['Cksum', '0x' + p.ip_checksum.toString(16).padStart(4, '0')]);
+            } else {
+              ipFields.push(['Ver', 6]);
+              if (p.ip6_flow_label > 0)   ipFields.push(['Flow', '0x' + p.ip6_flow_label.toString(16).padStart(5, '0')]);
+            }
+            // TCP extra fields (seq/ack/win/flags shown in summary, skip here)
+            const tcpFields = [];
+            if (p.tcp_data_offset > 0)  tcpFields.push(['DataOff', p.tcp_data_offset]);
+            if (p.urg_ptr > 0)          tcpFields.push(['Urg', p.urg_ptr]);
+            if (p.tcp_options?.length)  tcpFields.push(['Options', p.tcp_options.map(o => o.kind ?? o).join(', ')]);
+            // ICMP
+            const icmpFields = [];
+            if (p.icmp_type >= 0)       icmpFields.push(['Type', p.icmp_type]);
+            if (p.icmp_code >= 0)       icmpFields.push(['Code', p.icmp_code]);
+            const hasDetail = ipFields.length || tcpFields.length || icmpFields.length;
+            return (
+              <div key={i} style={{ borderBottom: '1px solid var(--bd)', borderRadius: 3 }}>
+                <div
+                  className="hr"
+                  onClick={hasDetail ? toggleExpand : undefined}
+                  style={{ fontSize: 10, padding: '5px 2px', cursor: hasDetail ? 'pointer' : undefined }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4 }}>
+                    <span style={{ color: 'var(--txD)', flexShrink: 0 }}>
+                      {hasDetail ? (expanded ? '▾' : '▸') : ' '} #{i + 1}
+                    </span>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.src_ip}:{p.src_port} → {p.dst_ip}:{p.dst_port}
+                    </span>
+                    <span style={{ color: 'var(--txD)', flexShrink: 0 }}>{p.length}B</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, marginTop: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {(p.tcp_flags_list || []).map(f => <FlagBadge key={f} f={f} />)}
+                    {p.ttl > 0 && <span style={{ color: 'var(--txD)' }}>TTL:{p.ttl}</span>}
+                    {p.window_size > 0 && <span style={{ color: 'var(--txD)' }}>Win:{fN(p.window_size)}</span>}
+                    {p.seq_num > 0 && <span style={{ color: 'var(--txD)' }}>Seq:{fN(p.seq_num)}</span>}
+                    {p.ack_num > 0 && <span style={{ color: 'var(--txD)' }}>Ack:{fN(p.ack_num)}</span>}
+                    {p.payload_len > 0 && <span style={{ color: 'var(--txD)' }}>PL:{p.payload_len}B</span>}
+                  </div>
+                </div>
+                {expanded && (
+                  <div style={{ padding: '4px 10px 6px 22px', fontSize: 9, background: 'var(--bgH)', borderTop: '1px solid var(--bd)' }}>
+                    {ipFields.length > 0 && (
+                      <div style={{ marginBottom: 3 }}>
+                        <span style={{ color: 'var(--txD)', marginRight: 6, fontWeight: 600 }}>
+                          {isV6 ? 'IPv6' : 'IPv4'}
+                        </span>
+                        {ipFields.map(([k, v]) => (
+                          <span key={k} style={{ marginRight: 8 }}>
+                            <span style={{ color: 'var(--txD)' }}>{k}:</span>
+                            <span style={{ color: 'var(--txM)', marginLeft: 2 }}>{v}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {tcpFields.length > 0 && (
+                      <div style={{ marginBottom: 3 }}>
+                        <span style={{ color: 'var(--txD)', marginRight: 6, fontWeight: 600 }}>TCP</span>
+                        {tcpFields.map(([k, v]) => (
+                          <span key={k} style={{ marginRight: 8 }}>
+                            <span style={{ color: 'var(--txD)' }}>{k}:</span>
+                            <span style={{ color: 'var(--txM)', marginLeft: 2 }}>{v}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {icmpFields.length > 0 && (
+                      <div>
+                        <span style={{ color: 'var(--txD)', marginRight: 6, fontWeight: 600 }}>ICMP</span>
+                        {icmpFields.map(([k, v]) => (
+                          <span key={k} style={{ marginRight: 8 }}>
+                            <span style={{ color: 'var(--txD)' }}>{k}:</span>
+                            <span style={{ color: 'var(--txM)', marginLeft: 2 }}>{v}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', gap: 4, marginTop: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                {(p.tcp_flags_list || []).map(f => <FlagBadge key={f} f={f} />)}
-                {p.ttl > 0 && <span style={{ color: 'var(--txD)' }}>TTL:{p.ttl}</span>}
-                {p.window_size > 0 && <span style={{ color: 'var(--txD)' }}>Win:{fN(p.window_size)}</span>}
-                {p.seq_num > 0 && <span style={{ color: 'var(--txD)' }}>Seq:{fN(p.seq_num)}</span>}
-                {p.ack_num > 0 && <span style={{ color: 'var(--txD)' }}>Ack:{fN(p.ack_num)}</span>}
-                {p.payload_len > 0 && <span style={{ color: 'var(--txD)' }}>PL:{p.payload_len}B</span>}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

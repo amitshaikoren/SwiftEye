@@ -185,6 +185,11 @@ class CaptureStore:
                     "ack_num": pkt.ack_num,
                     "window_size": pkt.window_size,
                     "tcp_options": pkt.tcp_options,
+                    "tcp_data_offset": pkt.tcp_data_offset,
+                    "urg_ptr": pkt.urg_ptr,
+                    # ICMP
+                    "icmp_type": pkt.icmp_type,
+                    "icmp_code": pkt.icmp_code,
                     # IP header fields
                     "ip_version": pkt.ip_version,
                     "dscp": pkt.dscp,

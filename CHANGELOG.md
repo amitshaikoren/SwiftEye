@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.15.14 — March 2026
+- **Per-packet header detail** — Packets tab in SessionDetail now shows full L3/L4 headers per packet. Each row is expandable: click to reveal IP fields (version, ID, flags, frag offset, DSCP, ECN, TTL, checksum; flow label for IPv6), TCP fields (data offset, urgent pointer, options), and ICMP type/code. Fields are grouped by layer with muted labels. Already-visible summary fields (flags, TTL, window, seq, ack) are omitted from the expanded view to avoid duplication. Backend extended to return `tcp_data_offset`, `urg_ptr`, `icmp_type`, `icmp_code` in the packet detail response.
+
 ### v0.15.13 — March 2026
 - **Parse performance — Round 2** — second full hot-path audit fixed six additional per-packet inefficiencies: `session_key` property now cached on `PacketRecord` (was recomputing two `sorted()` calls per access); `sessions.py` reuses the cached key instead of re-sorting; `_ARP_OPCODES` dict hoisted to module level (was rebuilt every ARP packet); `_TLS_VERSIONS` dict in `dissect_tls.py` hoisted to module level (was rebuilt every `_ver()` call); TCP flag decoding replaced per-packet loop with a precomputed 256-entry lookup table; stray `import dpkt` inside the IPv6 elif branch in `dpkt_reader.py` removed.
 
