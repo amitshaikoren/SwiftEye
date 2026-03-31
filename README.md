@@ -38,7 +38,7 @@ Node.js is not required to run SwiftEye. The frontend is pre-built.
 
 **Analysis** — graph-wide computations: node centrality ranking, traffic characterisation (foreground/background/ambiguous sessions with per-session evidence).
 
-**Filtering** — three independent layers: backend filters (IP, port, protocol, time range), a Wireshark-style display filter bar evaluated client-side, and per-node investigation mode.
+**Filtering** — three independent layers: backend filters (IP, port, protocol, time range), a Wireshark-style display filter bar evaluated client-side, and per-node investigation mode. The query engine also translates expressions to SQL, Cypher, and PySpark for downstream use.
 
 **Visualize** — upload any CSV/TSV/JSON and map columns to a force-directed graph. No capture needed. Useful for AD trust relationships, firewall rules, certificate chains, BGP paths, or any relational data.
 
