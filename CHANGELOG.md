@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.15.12 — March 2026
+- **In-function imports audit (complete)** — all remaining `import` statements inside function bodies moved to module level. Fixed: `aggregator.py` (networkx), `routes/query.py` (resolve_query, parse_query_text, get_graph_schema), `data/query/query_parser.py` (pyspark_translator), `routes/utility.py` (scapy wrpcap/IP/TCP/UDP/ICMP/Raw). Kept lazy: `dpkt` (optional dep, imported once per file-read), `reportlab` (optional, PDF export only).
+
 ### v0.15.11 — March 2026
 - **Parse performance fix** — `import` statements inside per-packet hot paths moved to module level across `pcap_reader.py`, `dissect_icmp.py`, and `dissect_dhcp.py`. Previously, `from scapy.layers.tls.record import TLS`, `from scapy.layers.http import HTTP`, `from .dpkt_reader import _add_ja_fingerprints`, and ICMPv6/BOOTP imports were re-executed on every packet (tens of thousands of times per file). Python caches modules but still pays the `sys.modules` lookup + attribute access cost per call. All are now imported once at module load and stored as module-level `None`-guarded names.
 

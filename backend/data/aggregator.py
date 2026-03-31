@@ -18,6 +18,8 @@ import math
 import logging
 from typing import List, Dict, Any, Optional, Set
 from collections import defaultdict
+
+import networkx as nx
 from ipaddress import IPv4Address, IPv4Network, IPv4Address
 
 from parser.packet import PacketRecord
@@ -596,8 +598,6 @@ def build_analysis_graph(
     Nodes = IPs with accumulated attributes.
     Edges = IP pairs (not per-protocol) with session refs and traffic stats.
     """
-    import networkx as nx
-
     G = nx.Graph()
 
     # Session index: session_key → session id list
