@@ -7,7 +7,7 @@
 
 ---
 
-Drop a `.pcap`, `.pcapng`, or Zeek log set and get an interactive force-directed graph of who talked to whom, over what protocols — with full session reconstruction, protocol dissection, TLS fingerprinting, and a Wireshark-style display filter. Everything runs locally.
+Drop a `.pcap`, `.pcapng`, or Zeek log set and get an interactive force-directed graph of who talked to whom, over what protocols — with full session reconstruction, protocol dissection, and a Wireshark-style display filter. Everything runs locally.
 
 ---
 
