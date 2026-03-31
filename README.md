@@ -46,6 +46,16 @@ Node.js is not required to run SwiftEye. The frontend is pre-built.
 
 ---
 
+## Features
+
+- **Passive OS fingerprinting** — inferred from SYN/SYN-ACK characteristics (TTL, window size, MSS, TCP options). No active probing.
+- **Louvain community detection** — automatic graph clustering with expandable hex mega-nodes. Also supports k-core, hub-spoke, and shared-neighbor algorithms.
+- **Betweenness centrality** — Brandes algorithm ranking of nodes by structural importance, alongside degree and traffic-weighted scores.
+- **PDF report export** — export the investigation notebook as a formatted PDF directly from the browser.
+- **Synthetic graph elements** — add hypothesis nodes and edges to the live graph. Rendered distinctly, persisted to backend.
+
+---
+
 ## Input Formats
 
 | Format | Notes |
