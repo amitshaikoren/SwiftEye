@@ -20,6 +20,14 @@ from scapy.layers.dns import DNS
 from .packet import PacketRecord
 from .protocols import resolve_protocol, DISSECTORS, TCP_FLAG_BITS, detect_protocol_by_payload
 
+_ARP_OPCODES = {1: "request", 2: "reply", 3: "RARP request", 4: "RARP reply"}
+
+# Precomputed TCP flag lookup: flag_byte → list of flag name strings.
+# Avoids iterating TCP_FLAG_BITS on every TCP packet.
+_TCP_FLAGS_TABLE: list = [None] * 256
+for _fv in range(256):
+    _TCP_FLAGS_TABLE[_fv] = [name for name, bit in TCP_FLAG_BITS.items() if _fv & bit]
+
 # Optional scapy layers — imported once at module load, guarded so missing
 # extras (e.g. scapy-tls not installed) degrade gracefully at runtime.
 _TLS_LAYER = None
@@ -185,7 +193,6 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
         rec.dst_mac = rec.dst_mac or (arp.hwdst or "")
         rec.transport = "ARP"
         rec.protocol = "ARP"
-        _ARP_OPCODES = {1: "request", 2: "reply", 3: "RARP request", 4: "RARP reply"}
         opcode = arp.op or 0
         rec.extra["arp_opcode"] = opcode
         rec.extra["arp_opcode_name"] = _ARP_OPCODES.get(opcode, f"opcode_{opcode}")
@@ -248,13 +255,10 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
         try: rec.tcp_checksum = tcp.chksum or 0
         except Exception: pass
         
-        # TCP flags
-        flag_val = int(tcp.flags)
+        # TCP flags — precomputed lookup table, no per-packet loop
+        flag_val = int(tcp.flags) & 0xFF
         rec.tcp_flags = flag_val
-        flag_list = []
-        for name, bit in TCP_FLAG_BITS.items():
-            if flag_val & bit:
-                flag_list.append(name)
+        flag_list = _TCP_FLAGS_TABLE[flag_val]
         rec.tcp_flags_list = flag_list
         rec.tcp_flags_str = " ".join(flag_list)
         

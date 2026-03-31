@@ -243,8 +243,7 @@ def _parse_raw(ts: float, raw: bytes, link_type: int, dpkt) -> Optional[PacketRe
                 pass
         elif rec.ip_version == 6:
             try:
-                import dpkt as _dpkt
-                if hasattr(_dpkt, 'icmp6') and isinstance(l4, _dpkt.icmp6.ICMP6):
+                if hasattr(dpkt, 'icmp6') and isinstance(l4, dpkt.icmp6.ICMP6):
                     rec.transport = "ICMPv6"
                     rec.protocol  = "ICMPv6"
                     rec.icmp_type = l4.type

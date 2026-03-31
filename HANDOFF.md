@@ -3,9 +3,12 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.15.12** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.13** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
+
+### Recent highlights (v0.15.13)
+- **Parse performance — Round 2** — six additional hot-path fixes: `session_key` caching on `PacketRecord`, `sessions.py` reuses cached key, `_ARP_OPCODES` / `_TLS_VERSIONS` hoisted to module level, TCP flags precomputed 256-entry lookup table, stray `import dpkt` removed from `dpkt_reader.py` inner branch. Full audit saved locally in `audits/`.
 
 ### Recent highlights (v0.15.12)
 - **In-function imports audit** — all remaining in-function imports hoisted to module level: `aggregator.py` (networkx), `routes/query.py`, `query_parser.py` (pyspark_translator), `routes/utility.py` (scapy). Completes roadmap item `in-function-imports-audit`.

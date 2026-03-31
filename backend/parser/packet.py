@@ -72,7 +72,10 @@ class PacketRecord:
     
     # Protocol-specific extra fields (from dissectors)
     extra: Dict[str, Any] = field(default_factory=dict)
-    
+
+    # Cached session key — computed once on first access, never re-sorted
+    _session_key_cache: str = field(default="", repr=False, compare=False)
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict for DataFrame construction. Flattens extras."""
         d = {
@@ -102,10 +105,21 @@ class PacketRecord:
     
     @property
     def session_key(self) -> str:
-        """Canonical session key (sorted IPs+ports for bidirectional matching)."""
-        ips = sorted([self.src_ip, self.dst_ip])
-        ports = sorted([self.src_port, self.dst_port])
-        return f"{ips[0]}|{ips[1]}|{ports[0]}|{ports[1]}|{self.transport}"
+        """Canonical session key (sorted IPs+ports for bidirectional matching).
+        Cached after first access — src/dst/ports/transport never change post-parse."""
+        if self._session_key_cache:
+            return self._session_key_cache
+        if self.src_ip <= self.dst_ip:
+            ip_a, ip_b = self.src_ip, self.dst_ip
+        else:
+            ip_a, ip_b = self.dst_ip, self.src_ip
+        if self.src_port <= self.dst_port:
+            p_a, p_b = self.src_port, self.dst_port
+        else:
+            p_a, p_b = self.dst_port, self.src_port
+        key = f"{ip_a}|{ip_b}|{p_a}|{p_b}|{self.transport}"
+        object.__setattr__(self, '_session_key_cache', key)
+        return key
     
     @property
     def is_private_src(self) -> bool:

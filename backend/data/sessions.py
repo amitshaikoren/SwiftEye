@@ -168,14 +168,15 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         key = f"{base_key}#{gen}" if gen > 0 else base_key
 
         if key not in session_map:
-            ips = sorted([pkt.src_ip, pkt.dst_ip])
-            ports = sorted([pkt.src_port, pkt.dst_port])
+            # session_key already sorts IPs and ports — reuse that ordering
+            _sk = pkt.session_key  # cached, no re-sort
+            _sk_parts = _sk.split("|")
             session_map[key] = {
                 "id": key,
-                "src_ip": ips[0],
-                "dst_ip": ips[1],
-                "src_port": ports[0],
-                "dst_port": ports[1],
+                "src_ip": _sk_parts[0],
+                "dst_ip": _sk_parts[1],
+                "src_port": int(_sk_parts[2]),
+                "dst_port": int(_sk_parts[3]),
                 "protocol": pkt.protocol,
                 "transport": pkt.transport,
                 "packet_count": 0,

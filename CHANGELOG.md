@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.15.13 — March 2026
+- **Parse performance — Round 2** — second full hot-path audit fixed six additional per-packet inefficiencies: `session_key` property now cached on `PacketRecord` (was recomputing two `sorted()` calls per access); `sessions.py` reuses the cached key instead of re-sorting; `_ARP_OPCODES` dict hoisted to module level (was rebuilt every ARP packet); `_TLS_VERSIONS` dict in `dissect_tls.py` hoisted to module level (was rebuilt every `_ver()` call); TCP flag decoding replaced per-packet loop with a precomputed 256-entry lookup table; stray `import dpkt` inside the IPv6 elif branch in `dpkt_reader.py` removed.
+
 ### v0.15.12 — March 2026
 - **In-function imports audit (complete)** — all remaining `import` statements inside function bodies moved to module level. Fixed: `aggregator.py` (networkx), `routes/query.py` (resolve_query, parse_query_text, get_graph_schema), `data/query/query_parser.py` (pyspark_translator), `routes/utility.py` (scapy wrpcap/IP/TCP/UDP/ICMP/Raw). Kept lazy: `dpkt` (optional dep, imported once per file-read), `reportlab` (optional, PDF export only).
 
