@@ -3,9 +3,12 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.15.10** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.11** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
+
+### Recent highlights (v0.15.11)
+- **Parse performance fix** — `import` statements inside per-packet hot paths moved to module level in `pcap_reader.py`, `dissect_icmp.py`, `dissect_dhcp.py`. TLS, HTTP, ICMPv6, BOOTP, and `_add_ja_fingerprints` were all being re-imported on every packet. Now imported once at module load with `None` guards for optional extras.
 
 ### Recent highlights (v0.15.10)
 - **Sessions protocol upgrade** — sessions created from TCP control packets (SYN/ACK with no payload) were locked to protocol "TCP" forever. Later data packets that reveal "TLS" (or any app protocol) now promote the session's protocol field. Fixes "No sessions found" on TLS/HTTPS edges where the edge protocol came from data packets but sessions were stamped from control packets.

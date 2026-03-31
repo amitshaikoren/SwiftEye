@@ -49,17 +49,20 @@ def _detect_dhcp(payload: bytes) -> bool:
     return payload[236:240] == _MAGIC
 
 
+_SCAPY_BOOTP = None
+try:
+    from scapy.layers.dhcp import BOOTP as _SCAPY_BOOTP  # type: ignore
+except Exception:
+    pass
+
+
 @register_dissector("DHCP")
 def dissect_dhcp(pkt) -> Dict[str, Any]:
     # Scapy parses DHCP into BOOTP/DHCP layers, consuming the Raw layer.
     # Try scapy's BOOTP layer first (contains the full DHCP payload),
     # then fall back to Raw for non-scapy paths.
-    try:
-        from scapy.layers.dhcp import BOOTP
-        if pkt.haslayer(BOOTP):
-            return _extract(bytes(pkt[BOOTP]))
-    except ImportError:
-        pass
+    if _SCAPY_BOOTP is not None and pkt.haslayer(_SCAPY_BOOTP):
+        return _extract(bytes(pkt[_SCAPY_BOOTP]))
     if pkt.haslayer("Raw"):
         return _extract(bytes(pkt["Raw"].load))
     return {}

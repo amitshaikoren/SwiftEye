@@ -11,14 +11,50 @@ from pathlib import Path
 from typing import List, Optional, Callable
 
 from scapy.all import (
-    PcapReader, PcapNgReader, 
-    Ether, IP, IPv6, TCP, UDP, ICMP, ARP, 
+    PcapReader, PcapNgReader,
+    Ether, IP, IPv6, TCP, UDP, ICMP, ARP,
     Raw, Dot1Q, CookedLinux,
 )
 from scapy.layers.dns import DNS
 
 from .packet import PacketRecord
 from .protocols import resolve_protocol, DISSECTORS, TCP_FLAG_BITS, detect_protocol_by_payload
+
+# Optional scapy layers — imported once at module load, guarded so missing
+# extras (e.g. scapy-tls not installed) degrade gracefully at runtime.
+_TLS_LAYER = None
+_HTTP_LAYER = None
+try:
+    from scapy.layers.tls.record import TLS as _TLS_LAYER  # type: ignore
+except Exception:
+    pass
+try:
+    from scapy.layers.http import HTTP as _HTTP_LAYER  # type: ignore
+except Exception:
+    pass
+
+# ICMPv6 classes imported once — used in the IPv6 branch of _parse_packet
+_ICMPV6_CLASSES = ()
+try:
+    from scapy.layers.inet6 import (  # type: ignore
+        ICMPv6EchoRequest, ICMPv6EchoReply,
+        ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_RA, ICMPv6ND_RS,
+        ICMPv6DestUnreach, ICMPv6TimeExceeded, ICMPv6PacketTooBig,
+    )
+    _ICMPV6_CLASSES = (
+        ICMPv6EchoRequest, ICMPv6EchoReply,
+        ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_RA, ICMPv6ND_RS,
+        ICMPv6DestUnreach, ICMPv6TimeExceeded, ICMPv6PacketTooBig,
+    )
+except Exception:
+    pass
+
+# _add_ja_fingerprints from dpkt_reader — imported once, used in TLS branch
+_add_ja_fingerprints = None
+try:
+    from .dpkt_reader import _add_ja_fingerprints  # type: ignore
+except Exception:
+    pass
 
 logger = logging.getLogger("swifteye.parser")
 
@@ -294,14 +330,8 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
         rec.icmp_code = icmp_pkt.code
     # ── Layer 4: ICMPv6 ──────────────────────────────────────────────
     elif rec.ip_version == 6:
-        try:
-            from scapy.layers.inet6 import ICMPv6EchoRequest, ICMPv6EchoReply
-            from scapy.layers.inet6 import ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_RA, ICMPv6ND_RS
-            from scapy.layers.inet6 import ICMPv6DestUnreach, ICMPv6TimeExceeded, ICMPv6PacketTooBig
-            _icmpv6_classes = (ICMPv6EchoRequest, ICMPv6EchoReply, ICMPv6ND_NS,
-                               ICMPv6ND_NA, ICMPv6ND_RA, ICMPv6ND_RS,
-                               ICMPv6DestUnreach, ICMPv6TimeExceeded, ICMPv6PacketTooBig)
-            for cls in _icmpv6_classes:
+        if _ICMPV6_CLASSES:
+            for cls in _ICMPV6_CLASSES:
                 if pkt.haslayer(cls):
                     layer = pkt[cls]
                     rec.transport = "ICMPv6"
@@ -309,8 +339,6 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
                     rec.icmp_type = getattr(layer, "type", 0)
                     rec.icmp_code = getattr(layer, "code", 0)
                     break
-        except Exception:
-            pass
     
     else:
         rec.transport = "OTHER"
@@ -338,21 +366,12 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
     
     if pkt.haslayer(Raw):
         raw_payload = bytes(pkt[Raw].load)
-        
-        # Tier 1: scapy layers
-        try:
-            from scapy.layers.tls.record import TLS as _TLS
-            if pkt.haslayer(_TLS):
-                payload_protocol = "TLS"
-        except ImportError:
-            pass
-        if not payload_protocol:
-            try:
-                from scapy.layers.http import HTTP as _HTTP
-                if pkt.haslayer(_HTTP):
-                    payload_protocol = "HTTP"
-            except ImportError:
-                pass
+
+        # Tier 1: scapy layers (module-level imports, no per-packet import overhead)
+        if _TLS_LAYER is not None and pkt.haslayer(_TLS_LAYER):
+            payload_protocol = "TLS"
+        if not payload_protocol and _HTTP_LAYER is not None and pkt.haslayer(_HTTP_LAYER):
+            payload_protocol = "HTTP"
         
         # Tier 2: signature registry
         if not payload_protocol and len(raw_payload) >= 4:
@@ -400,23 +419,16 @@ def _parse_packet(pkt) -> Optional[PacketRecord]:
     # Uses _tcp_raw_payload captured before dissectors ran, because scapy's TLS
     # layer (when installed) consumes the Raw layer and pkt.haslayer(Raw) is False.
     _TLS_PROTOCOLS = {"TLS", "HTTPS", "HTTPS-ALT", "HTTPS-ALT2", "HTTPS-ALT3"}
-    if rec.transport == "TCP" and rec.protocol in _TLS_PROTOCOLS:
+    if rec.transport == "TCP" and rec.protocol in _TLS_PROTOCOLS and _add_ja_fingerprints is not None:
         try:
             # _tcp_raw_payload is set in the TCP branch above.
-            # Fall back to trying Raw layer for rare cases where it's still present.
             _raw_for_ja = _tcp_raw_payload  # noqa: F821
             if not _raw_for_ja and pkt.haslayer(Raw):
                 _raw_for_ja = bytes(pkt[Raw].load)
             # Also try to get raw bytes from scapy TLS layer if present
-            if not _raw_for_ja:
-                try:
-                    from scapy.layers.tls.record import TLS as _TLS
-                    if pkt.haslayer(_TLS):
-                        _raw_for_ja = bytes(pkt[_TLS].original or b"")
-                except Exception:
-                    pass
+            if not _raw_for_ja and _TLS_LAYER is not None and pkt.haslayer(_TLS_LAYER):
+                _raw_for_ja = bytes(pkt[_TLS_LAYER].original or b"")
             if _raw_for_ja:
-                from .dpkt_reader import _add_ja_fingerprints
                 _add_ja_fingerprints(rec, _raw_for_ja)
         except Exception:
             pass

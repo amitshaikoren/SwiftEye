@@ -15,6 +15,30 @@ from typing import Dict, Any
 from . import register_dissector
 from .ports import ICMP_TYPES, ICMP_DEST_UNREACH_CODES
 
+# Scapy classes imported once at module level — avoids per-packet import overhead
+_SCAPY_ICMP = None
+_SCAPY_RAW = None
+_ICMPV6_CLASSES_TYPED = ()  # list of (class, default_type_int)
+_SCAPY_ICMPV6_BASE = None
+try:
+    from scapy.all import ICMP as _SCAPY_ICMP  # type: ignore
+    from scapy.packet import Raw as _SCAPY_RAW  # type: ignore
+except Exception:
+    pass
+try:
+    from scapy.all import ICMPv6EchoRequest, ICMPv6EchoReply  # type: ignore
+    from scapy.layers.inet6 import (  # type: ignore
+        ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_RA, ICMPv6ND_RS, _ICMPv6,
+    )
+    _ICMPV6_CLASSES_TYPED = (
+        (ICMPv6EchoRequest, 128), (ICMPv6EchoReply, 129),
+        (ICMPv6ND_NS, 135), (ICMPv6ND_NA, 136),
+        (ICMPv6ND_RA, 134), (ICMPv6ND_RS, 133),
+    )
+    _SCAPY_ICMPV6_BASE = _ICMPv6
+except Exception:
+    pass
+
 
 # ── ICMPv6 type names (RFC 4443 + NDP RFC 4861) ──────────────────────────────
 _ICMPV6_TYPES: Dict[int, str] = {
@@ -57,13 +81,8 @@ _ICMPV6_TIME_EXCEEDED: Dict[int, str] = {
 
 @register_dissector("ICMP")
 def dissect_icmp(pkt) -> Dict[str, Any]:
-    # Try scapy ICMP layer first, then fall back to manual
-    try:
-        from scapy.all import ICMP as ScapyICMP
-        if pkt.haslayer(ScapyICMP):
-            return _extract_icmpv4_scapy(pkt[ScapyICMP])
-    except Exception:
-        pass
+    if _SCAPY_ICMP is not None and pkt.haslayer(_SCAPY_ICMP):
+        return _extract_icmpv4_scapy(pkt[_SCAPY_ICMP])
     # Manual fallback via Raw layer
     if pkt.haslayer("Raw"):
         return _extract_icmpv4_manual(bytes(pkt["Raw"].load))
@@ -72,46 +91,30 @@ def dissect_icmp(pkt) -> Dict[str, Any]:
 
 @register_dissector("ICMPv6")
 def dissect_icmpv6(pkt) -> Dict[str, Any]:
-    try:
-        from scapy.all import ICMPv6EchoRequest, ICMPv6EchoReply
-        from scapy.layers.inet6 import ICMPv6ND_NS, ICMPv6ND_NA, ICMPv6ND_RA, ICMPv6ND_RS
-        info: Dict[str, Any] = {}
-
-        for cls, t in [
-            (ICMPv6EchoRequest, 128), (ICMPv6EchoReply, 129),
-            (ICMPv6ND_NS, 135), (ICMPv6ND_NA, 136),
-            (ICMPv6ND_RA, 134), (ICMPv6ND_RS, 133),
-        ]:
-            if pkt.haslayer(cls):
-                layer = pkt[cls]
-                icmp_type = getattr(layer, "type", t)
-                icmp_code = getattr(layer, "code", 0)
-                info["icmp_type"] = icmp_type
-                info["icmp_code"] = icmp_code
-                info["icmp_type_name"] = _ICMPV6_TYPES.get(icmp_type, f"Type {icmp_type}")
-                if hasattr(layer, "id"):
-                    info["icmp_id"] = layer.id
-                if hasattr(layer, "seq"):
-                    info["icmp_seq"] = layer.seq
-                # NDP target address
-                if hasattr(layer, "tgt") and layer.tgt:
-                    info["icmpv6_target"] = str(layer.tgt)
-                return info
-
-        # Generic ICMPv6 fallback
-        try:
-            from scapy.layers.inet6 import _ICMPv6
-            if pkt.haslayer(_ICMPv6):
-                layer = pkt[_ICMPv6]
-                icmp_type = getattr(layer, "type", 0)
-                info["icmp_type"] = icmp_type
-                info["icmp_code"] = getattr(layer, "code", 0)
-                info["icmp_type_name"] = _ICMPV6_TYPES.get(icmp_type, f"Type {icmp_type}")
-                return info
-        except Exception:
-            pass
-    except Exception:
-        pass
+    info: Dict[str, Any] = {}
+    for cls, t in _ICMPV6_CLASSES_TYPED:
+        if pkt.haslayer(cls):
+            layer = pkt[cls]
+            icmp_type = getattr(layer, "type", t)
+            icmp_code = getattr(layer, "code", 0)
+            info["icmp_type"] = icmp_type
+            info["icmp_code"] = icmp_code
+            info["icmp_type_name"] = _ICMPV6_TYPES.get(icmp_type, f"Type {icmp_type}")
+            if hasattr(layer, "id"):
+                info["icmp_id"] = layer.id
+            if hasattr(layer, "seq"):
+                info["icmp_seq"] = layer.seq
+            if hasattr(layer, "tgt") and layer.tgt:
+                info["icmpv6_target"] = str(layer.tgt)
+            return info
+    # Generic ICMPv6 fallback
+    if _SCAPY_ICMPV6_BASE is not None and pkt.haslayer(_SCAPY_ICMPV6_BASE):
+        layer = pkt[_SCAPY_ICMPV6_BASE]
+        icmp_type = getattr(layer, "type", 0)
+        info["icmp_type"] = icmp_type
+        info["icmp_code"] = getattr(layer, "code", 0)
+        info["icmp_type_name"] = _ICMPV6_TYPES.get(icmp_type, f"Type {icmp_type}")
+        return info
     return {}
 
 
@@ -159,15 +162,14 @@ def _extract_icmpv4_scapy(icmp) -> Dict[str, Any]:
         info["icmp_seq"] = icmp.seq
 
     # Extract ICMP payload (data portion after header)
-    try:
-        from scapy.packet import Raw
-        if icmp.haslayer(Raw):
-            raw = bytes(icmp[Raw].load)
+    if _SCAPY_RAW is not None and icmp.haslayer(_SCAPY_RAW):
+        try:
+            raw = bytes(icmp[_SCAPY_RAW].load)
             if raw:
                 info["icmp_payload_size"] = len(raw)
                 info["icmp_payload_hex"] = raw[:64].hex()
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     return info
 
