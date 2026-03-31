@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchResearchCharts, runResearchChart } from '../api';
-import { fT, fTtime } from '../utils';
+import { fTtime } from '../utils';
 import Sparkline from './Sparkline';
 
-// ── Error boundary — prevents a chart crash from blanking the whole panel ───────
+// ── Error boundary ────────────────────────────────────────────────────────────
 class ChartErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(e) { return { error: e?.message || String(e) }; }
   render() {
     if (this.state.error) return (
       <div style={{ padding: '12px 16px', background: 'rgba(248,81,73,.08)', border: '1px solid rgba(248,81,73,.2)',
-        borderRadius: 8, color: 'var(--acR)', fontSize: 11, marginBottom: 16 }}>
+        borderRadius: 8, color: 'var(--acR)', fontSize: 11 }}>
         Chart render error: {this.state.error}
       </div>
     );
@@ -40,37 +40,33 @@ function PlotlyChart({ figure, loading, error }) {
   }, []);
 
   if (error) return (
-    <div style={{ padding: 24, color: 'var(--acR)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <div style={{ padding: 16, color: 'var(--acR)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       {error}
     </div>
   );
   if (loading) return (
-    <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--txM)', fontSize: 11 }}>
-      <div style={{ width: 16, height: 16, border: '2px solid var(--bd)', borderTopColor: 'var(--ac)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+    <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--txM)', fontSize: 11 }}>
+      <div style={{ width: 14, height: 14, border: '2px solid var(--bd)', borderTopColor: 'var(--ac)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
       Computing…
     </div>
   );
   if (!figure) return (
-    <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txD)', fontSize: 11 }}>
-      Fill in the parameters above and click Run
+    <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txD)', fontSize: 11 }}>
+      Fill in params above and click Run
     </div>
   );
-  return <div ref={ref} style={{ width: '100%', minHeight: 300 }} />;
+  return <div ref={ref} style={{ width: '100%', minHeight: 220 }} />;
 }
 
-// ── IpParamInput ─────────────────────────────────────────────────────────────────
-// Input for chart params. If type=ip and availableIps are provided, shows a
-// filterable dropdown of IPs from the current graph.
+// ── IpParamInput ──────────────────────────────────────────────────────────────
 function IpParamInput({ param: p, value, availableIps, onChange, onEnter }) {
-  const [showDrop, setShowDrop] = React.useState(false);
-  const [filter, setFilter] = React.useState('');
-  const wrapRef = React.useRef(null);
+  const [showDrop, setShowDrop] = useState(false);
+  const wrapRef = useRef(null);
 
-  // Close dropdown on outside click
-  React.useEffect(() => {
+  useEffect(() => {
     function h(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowDrop(false); }
     if (showDrop) document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -81,15 +77,15 @@ function IpParamInput({ param: p, value, availableIps, onChange, onEnter }) {
     : [];
 
   return (
-    <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'relative' }}>
+    <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
       <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
         {p.label}{p.required && <span style={{ color: 'var(--acR)', marginLeft: 2 }}>*</span>}
       </label>
       <input className="inp"
-        style={{ width: 150, fontFamily: 'var(--fn)', fontSize: 11 }}
+        style={{ width: 140, fontFamily: 'var(--fn)', fontSize: 11 }}
         placeholder={p.placeholder || p.label}
         value={value}
-        onChange={e => { onChange(e.target.value); setFilter(e.target.value); }}
+        onChange={e => { onChange(e.target.value); }}
         onFocus={() => setShowDrop(true)}
         onKeyDown={e => {
           if (e.key === 'Enter') { setShowDrop(false); onEnter(); }
@@ -100,7 +96,7 @@ function IpParamInput({ param: p, value, availableIps, onChange, onEnter }) {
         <div style={{
           position: 'absolute', top: '100%', left: 0, zIndex: 200,
           background: 'var(--bgP)', border: '1px solid var(--bd)',
-          borderRadius: 'var(--rs)', marginTop: 2, minWidth: 150, maxHeight: 160,
+          borderRadius: 'var(--rs)', marginTop: 2, minWidth: 140, maxHeight: 160,
           overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,.4)',
         }}>
           {filtered.map(ip => (
@@ -117,19 +113,40 @@ function IpParamInput({ param: p, value, availableIps, onChange, onEnter }) {
   );
 }
 
+// ── PROTOCOLS available for filter chips ──────────────────────────────────────
+const ALL_PROTOCOLS = ['TCP', 'UDP', 'DNS', 'TLS', 'HTTP', 'ICMP', 'ARP', 'DHCP'];
 
-// ── ChartCard ─────────────────────────────────────────────────────────────────
-// getTimeBounds is called at Run time only — slider changes don't trigger rerenders
-function ChartCard({ chart, investigatedIp = '', availableIps = [], getTimeBounds, prefillValues = {} }) {
+// ── PlacedCard — a chart placed in a slot ─────────────────────────────────────
+function PlacedCard({
+  chart, investigatedIp, availableIps,
+  globalTimeBounds,       // { timeStart, timeEnd } | null
+  timeline, timeRange: globalRange, bucketSec, setBucketSec,
+  onRemove, onExpand,
+}) {
+  // ── per-card filter state
+  const [useCustomTime, setUseCustomTime] = useState(false);
+  const [cardTimeRange, setCardTimeRange] = useState([0, Math.max(0, (timeline?.length ?? 1) - 1)]);
+  const [protocols, setProtocols]     = useState(new Set(ALL_PROTOCOLS));
+  const [search, setSearch]           = useState('');
+  const [includeIpv6, setIncludeIpv6] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Update card time range ceiling when timeline grows
+  useEffect(() => {
+    if (!useCustomTime && timeline?.length) {
+      setCardTimeRange([0, timeline.length - 1]);
+    }
+  }, [timeline?.length, useCustomTime]);
+
+  // ── param state
   const ipParams = (chart.params || []).filter(p => p.type === 'ip');
   const firstIpParam = ipParams[0] || null;
+  const lastAutoFill = useRef(investigatedIp);
 
   const [values, setValues] = useState(() => {
     const init = {};
     (chart.params || []).forEach(p => {
-      if (prefillValues[p.name] !== undefined) {
-        init[p.name] = prefillValues[p.name];
-      } else if (p.type === 'ip' && investigatedIp && ipParams.indexOf(p) === 0) {
+      if (p.type === 'ip' && investigatedIp && ipParams.indexOf(p) === 0) {
         init[p.name] = investigatedIp;
       } else {
         init[p.name] = p.default || '';
@@ -138,33 +155,29 @@ function ChartCard({ chart, investigatedIp = '', availableIps = [], getTimeBound
     return init;
   });
 
-  // Update values when prefillValues changes (e.g. different session opened from SessionDetail)
-  useEffect(() => {
-    if (!prefillValues || Object.keys(prefillValues).length === 0) return;
-    setValues(prev => ({ ...prev, ...prefillValues }));
-  }, [JSON.stringify(prefillValues)]);
-
-  // Track the last IP we auto-filled so we can tell if the user edited it.
-  // If the current value still equals the last auto-fill, update it when
-  // investigatedIp changes. If the user changed it manually, leave it alone.
-  const lastAutoFill = React.useRef(investigatedIp);
-
   useEffect(() => {
     if (!firstIpParam || !investigatedIp) return;
     setValues(prev => {
-      // Only update if the field still holds the previous auto-filled value
-      // (i.e. the user hasn't manually typed something different)
-      if (prev[firstIpParam.name] === lastAutoFill.current ||
-          prev[firstIpParam.name] === '') {
+      if (prev[firstIpParam.name] === lastAutoFill.current || prev[firstIpParam.name] === '') {
         lastAutoFill.current = investigatedIp;
         return { ...prev, [firstIpParam.name]: investigatedIp };
       }
       return prev;
     });
   }, [investigatedIp]);
+
   const [figure, setFigure]   = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
+
+  function getTimeBounds() {
+    if (!timeline?.length) return { timeStart: null, timeEnd: null };
+    const range = useCustomTime ? cardTimeRange : (globalTimeBounds ? null : globalRange);
+    if (globalTimeBounds && !useCustomTime) return globalTimeBounds;
+    const r = useCustomTime ? cardTimeRange : globalRange;
+    const s = timeline[r[0]], e = timeline[r[1]];
+    return { timeStart: s?.start_time ?? null, timeEnd: e?.end_time ?? null };
+  }
 
   async function handleRun() {
     for (const p of chart.params || []) {
@@ -178,27 +191,144 @@ function ChartCard({ chart, investigatedIp = '', availableIps = [], getTimeBound
       const payload = { ...values };
       if (timeStart != null) payload._timeStart = timeStart;
       if (timeEnd   != null) payload._timeEnd   = timeEnd;
+      const enabledProtos = [...protocols];
+      if (enabledProtos.length < ALL_PROTOCOLS.length) {
+        payload._filterProtocols = enabledProtos.join(',');
+      }
+      if (search.trim()) payload._filterSearch = search.trim();
+      if (!includeIpv6)  payload._filterIncludeIpv6 = false;
       const res = await runResearchChart(chart.name, payload);
       setFigure(res.figure);
     } catch (e) {
       const msg = e.message || 'Chart computation failed';
-      // Give a clearer message for the common case of running before uploading a pcap
       setError(msg.toLowerCase().includes('no capture') || msg.includes('404')
-        ? 'No capture loaded — upload a pcap file first, then run charts.'
+        ? 'No capture loaded — upload a pcap first.'
         : msg);
     } finally {
       setLoading(false);
     }
   }
 
+  function toggleProtocol(proto) {
+    setProtocols(prev => {
+      const next = new Set(prev);
+      next.has(proto) ? next.delete(proto) : next.add(proto);
+      return next;
+    });
+  }
+
+  const hasCustomFilters = useCustomTime || protocols.size < ALL_PROTOCOLS.length || search.trim() || !includeIpv6;
+
+  const timeLabel = (() => {
+    if (!timeline?.length) return null;
+    const r = useCustomTime ? cardTimeRange : globalRange;
+    const s = timeline[r[0]], e = timeline[r[1]];
+    return s && e ? `${fTtime(s.start_time)} — ${fTtime(e.end_time)}` : null;
+  })();
+
   return (
-    <div style={{ background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', marginBottom: 3 }}>{chart.title}</div>
-          <div style={{ fontSize: 10, color: 'var(--txD)', fontStyle: 'italic' }}>{chart.description}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header */}
+      <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--bgP)', borderRadius: '8px 8px 0 0' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{chart.title}</div>
+          <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 1, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{chart.description}</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+          <button onClick={() => setFiltersOpen(v => !v)}
+            style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: `1px solid ${hasCustomFilters ? 'var(--ac)' : 'var(--bd)'}`,
+              background: hasCustomFilters ? 'rgba(88,166,255,.1)' : 'transparent',
+              color: hasCustomFilters ? 'var(--ac)' : 'var(--txD)', cursor: 'pointer' }}>
+            {filtersOpen ? '▲' : '▼'} filters{hasCustomFilters ? ' ●' : ''}
+          </button>
+          <button onClick={onExpand} title="Expand"
+            style={{ width: 22, height: 22, borderRadius: 4, border: '1px solid var(--bd)', background: 'transparent', color: 'var(--txD)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ac)'; e.currentTarget.style.color = 'var(--ac)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--bd)'; e.currentTarget.style.color = 'var(--txD)'; }}>
+            ⤢
+          </button>
+          <button onClick={onRemove} title="Remove"
+            style={{ width: 22, height: 22, borderRadius: 4, border: '1px solid var(--bd)', background: 'transparent', color: 'var(--txD)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--acR)'; e.currentTarget.style.color = 'var(--acR)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--bd)'; e.currentTarget.style.color = 'var(--txD)'; }}>
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Filter drawer */}
+      {filtersOpen && (
+        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--bd)', background: '#0c0d12', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Time range */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Time</label>
+            <button className={'btn' + (useCustomTime ? ' on' : '')}
+              onClick={() => setUseCustomTime(v => !v)}
+              style={{ fontSize: 8, padding: '1px 6px' }}>
+              {useCustomTime ? 'custom' : 'global'}
+            </button>
+            {timeLabel && <span style={{ fontSize: 9, color: useCustomTime ? 'var(--ac)' : 'var(--txD)', fontFamily: 'var(--fn)' }}>{timeLabel}</span>}
+          </div>
+          {useCustomTime && timeline?.length > 1 && (
+            <div style={{ paddingLeft: 68 }}>
+              <Sparkline data={timeline} width={300} height={18} activeRange={cardTimeRange} />
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4 }}>
+                <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 28 }}>Start</span>
+                <input type="range" min={0} max={timeline.length - 1} value={cardTimeRange[0]}
+                  onChange={e => { const v = +e.target.value; setCardTimeRange([v, Math.max(v, cardTimeRange[1])]); }}
+                  style={{ flex: 1 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 2 }}>
+                <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 28 }}>End</span>
+                <input type="range" min={0} max={timeline.length - 1} value={cardTimeRange[1]}
+                  onChange={e => { const v = +e.target.value; setCardTimeRange([Math.min(cardTimeRange[0], v), v]); }}
+                  style={{ flex: 1 }} />
+              </div>
+            </div>
+          )}
+
+          {/* Protocol chips */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Protocols</label>
+            {ALL_PROTOCOLS.map(proto => (
+              <button key={proto}
+                onClick={() => toggleProtocol(proto)}
+                style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10,
+                  border: `1px solid ${protocols.has(proto) ? 'var(--ac)' : 'var(--bd)'}`,
+                  background: protocols.has(proto) ? 'rgba(88,166,255,.1)' : 'transparent',
+                  color: protocols.has(proto) ? 'var(--ac)' : 'var(--txD)',
+                  cursor: 'pointer' }}>
+                {proto}
+              </button>
+            ))}
+          </div>
+
+          {/* Search + IPv6 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Search</label>
+            <input className="inp"
+              style={{ fontSize: 10, width: 160 }}
+              placeholder="ip, port, protocol…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRun()}
+            />
+            <button
+              onClick={() => setIncludeIpv6(v => !v)}
+              style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10,
+                border: `1px solid ${includeIpv6 ? 'var(--ac)' : 'var(--bd)'}`,
+                background: includeIpv6 ? 'rgba(88,166,255,.1)' : 'transparent',
+                color: includeIpv6 ? 'var(--ac)' : 'var(--txD)',
+                cursor: 'pointer' }}>
+              IPv6
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Params row */}
+      {(chart.params || []).length > 0 && (
+        <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--bd)', background: '#0a0b0f', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
           {(chart.params || []).map(p => (
             <IpParamInput
               key={p.name}
@@ -210,69 +340,367 @@ function ChartCard({ chart, investigatedIp = '', availableIps = [], getTimeBound
             />
           ))}
           <button className="btn" onClick={handleRun} disabled={loading}
-            style={{ marginTop: 14, padding: '5px 16px', fontSize: 11,
+            style={{ marginBottom: 1, padding: '4px 14px', fontSize: 11,
               background: loading ? 'transparent' : 'rgba(88,166,255,.1)',
               borderColor: 'var(--ac)', color: 'var(--ac)', opacity: loading ? 0.5 : 1 }}>
             {loading ? 'Running…' : 'Run'}
           </button>
         </div>
-      </div>
-      <div style={{ padding: '8px 8px 4px', background: 'var(--bg)' }}>
-        <PlotlyChart figure={figure} loading={loading} error={error} />
+      )}
+
+      {/* No-param run row */}
+      {(chart.params || []).length === 0 && (
+        <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--bd)', background: '#0a0b0f', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 9, color: 'var(--txD)', fontStyle: 'italic', flex: 1 }}>No parameters</span>
+          <button className="btn" onClick={handleRun} disabled={loading}
+            style={{ padding: '4px 14px', fontSize: 11,
+              background: loading ? 'transparent' : 'rgba(88,166,255,.1)',
+              borderColor: 'var(--ac)', color: 'var(--ac)', opacity: loading ? 0.5 : 1 }}>
+            {loading ? 'Running…' : 'Run'}
+          </button>
+        </div>
+      )}
+
+      {/* Chart */}
+      <div style={{ flex: 1, background: 'var(--bg)', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+        <ChartErrorBoundary>
+          <PlotlyChart figure={figure} loading={loading} error={error} />
+        </ChartErrorBoundary>
       </div>
     </div>
   );
 }
 
-// ── ResearchPage ──────────────────────────────────────────────────────────────
-// Simple IPv4 check — used to decide if the search term is a bare IP address
-// that can be used to pre-fill Research chart params.
-function looksLikeIPv4(s) {
-  return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(s.trim());
+// ── ExpandedOverlay ───────────────────────────────────────────────────────────
+function ExpandedOverlay({ chart, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec, onClose }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 12, zIndex: 100,
+      background: 'var(--bgP)', border: '1px solid var(--bdL)',
+      borderRadius: 10, display: 'flex', flexDirection: 'column',
+      boxShadow: '0 8px 40px rgba(0,0,0,.7)',
+    }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{chart.title}</div>
+        <button className="btn" onClick={onClose}
+          style={{ fontSize: 10, padding: '3px 10px', borderColor: 'var(--bdL)', color: 'var(--txM)' }}>
+          ✕ Close
+        </button>
+      </div>
+      <div style={{ flex: 1, overflow: 'hidden', padding: 12, display: 'flex', flexDirection: 'column' }}>
+        <PlacedCard
+          chart={chart}
+          investigatedIp={investigatedIp}
+          availableIps={availableIps}
+          globalTimeBounds={globalTimeBounds}
+          timeline={timeline}
+          timeRange={timeRange}
+          bucketSec={bucketSec}
+          setBucketSec={setBucketSec}
+          onRemove={onClose}
+          onExpand={onClose}
+        />
+      </div>
+    </div>
+  );
 }
 
+// ── EmptySlot ─────────────────────────────────────────────────────────────────
+function EmptySlot({ onDrop, onClick, dragOverId, slotId }) {
+  const isOver = dragOverId === slotId;
+  return (
+    <div
+      onClick={onClick}
+      onDragOver={e => { e.preventDefault(); onDrop('over', slotId); }}
+      onDragLeave={() => onDrop('leave', slotId)}
+      onDrop={e => { e.preventDefault(); onDrop('drop', slotId); }}
+      style={{
+        minHeight: 120, borderRadius: 8,
+        border: `1px dashed ${isOver ? 'var(--ac)' : 'var(--bd)'}`,
+        background: isOver ? 'rgba(88,166,255,.04)' : '#0a0b0f',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', transition: 'border-color .15s, background .15s',
+      }}
+    >
+      <div style={{ textAlign: 'center', pointerEvents: 'none', userSelect: 'none' }}>
+        <div style={{ fontSize: 20, color: 'var(--bd)', marginBottom: 4 }}>+</div>
+        <div style={{ fontSize: 10, color: 'var(--bdL)' }}>Drag a chart here<br/>or click to pick</div>
+      </div>
+    </div>
+  );
+}
+
+// ── ChartPicker modal ─────────────────────────────────────────────────────────
+function ChartPicker({ charts, onPick, onClose }) {
+  const categories = ['host', 'session', 'capture', 'alerts'];
+  const grouped = {};
+  categories.forEach(c => { grouped[c] = []; });
+  charts.forEach(ch => { (grouped[ch._category] || grouped['capture']).push(ch); });
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} onClick={onClose}>
+      <div style={{
+        background: 'var(--bgP)', border: '1px solid var(--bdL)', borderRadius: 10,
+        width: 420, maxHeight: '70vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 8px 40px rgba(0,0,0,.7)',
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'center' }}>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>Pick a chart</span>
+          <button className="btn" onClick={onClose} style={{ fontSize: 10, padding: '2px 8px' }}>✕</button>
+        </div>
+        <div style={{ overflowY: 'auto', padding: '10px 12px' }}>
+          {categories.map(cat => {
+            const items = grouped[cat];
+            if (!items?.length) return null;
+            return (
+              <div key={cat} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '.08em', color: CAT_COLORS[cat], marginBottom: 6 }}>
+                  {CAT_LABELS[cat]}
+                </div>
+                {items.map(ch => (
+                  <div key={ch.name} onClick={() => onPick(ch)}
+                    style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--bd)', background: 'var(--bg)',
+                      marginBottom: 6, cursor: 'pointer', transition: 'border-color .12s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = CAT_COLORS[ch._category]}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--bd)'}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--tx)' }}>{ch.title}</div>
+                    <div style={{ fontSize: 10, color: 'var(--txD)', marginTop: 2 }}>{ch.description}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Category metadata ─────────────────────────────────────────────────────────
+const CAT_LABELS  = { host: 'Host', session: 'Session', capture: 'Capture', alerts: 'Alerts' };
+const CAT_COLORS  = { host: 'var(--acG)', session: 'var(--acP)', capture: 'var(--ac)', alerts: 'var(--acR)' };
+const CAT_ORDER   = ['host', 'session', 'capture', 'alerts'];
+const CAT_DESCS   = {
+  host:    'charts scoped to a specific IP',
+  session: 'charts scoped to a specific TCP/UDP session',
+  capture: 'whole-capture charts, no target required',
+  alerts:  'threshold-based alert charts (coming soon)',
+};
+
+// Map chart names → category
+function inferCategory(chart) {
+  const name = chart.name;
+  if (['seq_ack_timeline'].includes(name)) return 'session';
+  if (['dns_timeline', 'http_ua_timeline'].includes(name)) return 'capture';
+  if (['conversation_timeline', 'ja3_timeline', 'ja4_timeline', 'ttl_over_time'].includes(name)) return 'host';
+  // fallback: if it has an ip param it's host, else capture
+  return chart.params?.some(p => p.type === 'ip') ? 'host' : 'capture';
+}
+
+// ── CategorySection ───────────────────────────────────────────────────────────
+function CategorySection({ category, charts, slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggleWide, dragOverId, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const color = CAT_COLORS[category];
+  const label = CAT_LABELS[category];
+  const desc  = CAT_DESCS[category];
+  const isAlerts = category === 'alerts';
+
+  return (
+    <div>
+      {/* Category header */}
+      <div
+        onClick={() => setCollapsed(v => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: collapsed ? 0 : 10, cursor: 'pointer', userSelect: 'none' }}
+      >
+        <span style={{ color, fontSize: 9 }}>●</span>
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.08em' }}>{label}</span>
+        <span style={{ fontSize: 9, color: 'var(--txD)' }}>{desc}</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--bd)', marginLeft: 4 }} />
+        <span style={{ fontSize: 9, color: 'var(--txD)' }}>{collapsed ? '▶' : '▼'}</span>
+      </div>
+
+      {!collapsed && (
+        isAlerts ? (
+          <div style={{ padding: '14px 0', color: 'var(--txD)', fontSize: 11, fontStyle: 'italic' }}>
+            Alert charts coming soon.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {slots.map((slot, i) => {
+              const isWide = slot.wide;
+              return (
+                <div key={slot.id}
+                  style={{ gridColumn: isWide ? '1 / -1' : 'auto', position: 'relative' }}>
+
+                  {/* Wide toggle on placed cards */}
+                  {slot.chart && (
+                    <button
+                      onClick={() => onToggleWide(slot.id)}
+                      title={isWide ? 'Shrink to half row' : 'Expand to full row'}
+                      style={{
+                        position: 'absolute', top: 8, right: isWide ? 98 : 64,
+                        zIndex: 10, fontSize: 8, padding: '1px 5px', borderRadius: 3,
+                        border: `1px solid ${isWide ? 'var(--ac)' : 'var(--bd)'}`,
+                        background: isWide ? 'rgba(88,166,255,.1)' : 'transparent',
+                        color: isWide ? 'var(--ac)' : 'var(--txD)',
+                        cursor: 'pointer',
+                      }}>
+                      {isWide ? '⇔ full' : '⇔'}
+                    </button>
+                  )}
+
+                  {slot.chart ? (
+                    <div style={{ border: '1px solid var(--bd)', borderRadius: 8, overflow: 'hidden', background: 'var(--bgP)' }}>
+                      <PlacedCard
+                        chart={slot.chart}
+                        investigatedIp={investigatedIp}
+                        availableIps={availableIps}
+                        globalTimeBounds={globalTimeBounds}
+                        timeline={timeline}
+                        timeRange={timeRange}
+                        bucketSec={bucketSec}
+                        setBucketSec={setBucketSec}
+                        onRemove={() => onRemove(slot.id)}
+                        onExpand={() => onExpand(slot.chart)}
+                      />
+                    </div>
+                  ) : (
+                    <EmptySlot
+                      slotId={slot.id}
+                      dragOverId={dragOverId}
+                      onDrop={onSlotDrop}
+                      onClick={() => onSlotClick(slot.id)}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// ── ResearchPage ──────────────────────────────────────────────────────────────
 export default function ResearchPage({
   investigatedIp = '',
-  searchIp = '',          // search term from the toolbar, if it looks like an IP
-  seqAckSessionId = '',  // pre-fills seq_ack_timeline chart when opened from SessionDetail
-  availableIps = [],      // IPs from current graph nodes, for autocomplete
+  searchIp = '',
+  seqAckSessionId = '',
+  availableIps = [],
   timeline = [], timeRange = [0, 0], setTimeRange,
   bucketSec = 15, setBucketSec,
 }) {
-  // investigatedIp (from Investigate context menu) takes priority over searchIp
   const effectiveIp = investigatedIp || searchIp;
-  const [charts, setCharts]   = useState([]);
-  const [loadErr, setLoadErr] = useState('');
 
-  // Refs so getTimeBounds() always reads latest values without stale closures
+  const [allCharts, setAllCharts] = useState([]);
+  const [loadErr, setLoadErr]     = useState('');
+
+  // slots: { host: [{id, chart|null, wide}], session: [...], capture: [...], alerts: [] }
+  const [slots, setSlots] = useState({
+    host:    [{ id: 'host-0', chart: null, wide: false }, { id: 'host-1', chart: null, wide: false }],
+    session: [{ id: 'session-0', chart: null, wide: false }, { id: 'session-1', chart: null, wide: false }],
+    capture: [{ id: 'capture-0', chart: null, wide: false }, { id: 'capture-1', chart: null, wide: false }],
+    alerts:  [],
+  });
+
+  const [draggedChart, setDraggedChart] = useState(null);
+  const [dragOverId, setDragOverId]     = useState(null);
+  const [pickerSlotId, setPickerSlotId] = useState(null);
+  const [expandedChart, setExpandedChart] = useState(null);
+
+  // Refs for stable time bounds
   const timeRangeRef = useRef(timeRange);
   const timelineRef  = useRef(timeline);
   useEffect(() => { timeRangeRef.current = timeRange; }, [timeRange]);
   useEffect(() => { timelineRef.current  = timeline;  }, [timeline]);
 
-  useEffect(() => {
-    fetchResearchCharts()
-      .then(d => {
-        // session_gantt lives in the Timeline panel — exclude it here
-        const filtered = (d.charts || []).filter(c => c.name !== 'session_gantt');
-        setCharts(filtered);
-      })
-      .catch(e => {
-        // Real error (server down, unexpected 500, etc.) — show it.
-        // A 404 from _require_capture no longer happens because the list
-        // endpoint was fixed to not require a capture.
-        setLoadErr(e.message);
-      });
-  }, []);
-
-  function getTimeBounds() {
+  function globalTimeBounds() {
     const tl = timelineRef.current;
     const tr = timeRangeRef.current;
     if (!tl.length) return { timeStart: null, timeEnd: null };
-    return {
-      timeStart: tl[tr[0]]?.start_time ?? null,
-      timeEnd:   tl[tr[1]]?.end_time   ?? null,
-    };
+    return { timeStart: tl[tr[0]]?.start_time ?? null, timeEnd: tl[tr[1]]?.end_time ?? null };
+  }
+
+  useEffect(() => {
+    fetchResearchCharts()
+      .then(d => {
+        const charts = (d.charts || [])
+          .filter(c => c.name !== 'session_gantt')
+          .map(c => ({ ...c, _category: inferCategory(c) }));
+        setAllCharts(charts);
+
+        // Auto-place seq_ack if opened with a session ID
+        if (seqAckSessionId) {
+          const seqChart = charts.find(c => c.name === 'seq_ack_timeline');
+          if (seqChart) {
+            setSlots(prev => placeChart(prev, 'session-0', seqChart));
+          }
+        }
+      })
+      .catch(e => setLoadErr(e.message));
+  }, []);
+
+  function placeChart(prevSlots, slotId, chart) {
+    const next = {};
+    for (const [cat, arr] of Object.entries(prevSlots)) {
+      next[cat] = arr.map(s => s.id === slotId ? { ...s, chart } : s);
+    }
+    return next;
+  }
+
+  function addSlotForCategory(cat) {
+    setSlots(prev => ({
+      ...prev,
+      [cat]: [...prev[cat], { id: `${cat}-${prev[cat].length}`, chart: null, wide: false }],
+    }));
+  }
+
+  function handleSlotDrop(action, slotId) {
+    if (action === 'over')  { setDragOverId(slotId); return; }
+    if (action === 'leave') { setDragOverId(null); return; }
+    if (action === 'drop' && draggedChart) {
+      setSlots(prev => placeChart(prev, slotId, draggedChart));
+      setDraggedChart(null);
+      setDragOverId(null);
+    }
+  }
+
+  function handleSlotClick(slotId) {
+    setPickerSlotId(slotId);
+  }
+
+  function handlePickerPick(chart) {
+    setSlots(prev => placeChart(prev, pickerSlotId, chart));
+    setPickerSlotId(null);
+  }
+
+  function handleRemove(slotId) {
+    setSlots(prev => {
+      const next = {};
+      for (const [cat, arr] of Object.entries(prev)) {
+        next[cat] = arr.map(s => s.id === slotId ? { ...s, chart: null } : s);
+      }
+      return next;
+    });
+  }
+
+  function handleToggleWide(slotId) {
+    setSlots(prev => {
+      const next = {};
+      for (const [cat, arr] of Object.entries(prev)) {
+        next[cat] = arr.map(s => s.id === slotId ? { ...s, wide: !s.wide } : s);
+      }
+      return next;
+    });
+  }
+
+  // Charts in palette that match a given category
+  function paletteCharts(cat) {
+    return allCharts.filter(c => c._category === cat);
   }
 
   const timeLabel = (() => {
@@ -283,82 +711,162 @@ export default function ResearchPage({
   const isFullRange = !timeline.length || (timeRange[0] === 0 && timeRange[1] === timeline.length - 1);
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', background: 'var(--bg)' }}>
-      {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--tx)', fontFamily: 'var(--fd)', marginBottom: 4 }}>Research</div>
-        <div style={{ fontSize: 11, color: 'var(--txD)' }}>
-          On-demand charts for data exploration. Each chart runs server-side against the loaded capture — the browser only renders the result.
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', background: 'var(--bg)' }}>
+
+      {/* Main canvas */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+        {/* Global time scope */}
+        {timeline.length > 1 && (
+          <div style={{ background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--txD)" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                </svg>
+                <span style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Global time scope</span>
+                {[5, 15, 30, 60].map(s => (
+                  <button key={s} className={'btn' + (bucketSec === s ? ' on' : '')}
+                    onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 8 }}>{s}s</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 9, color: isFullRange ? 'var(--txD)' : 'var(--ac)', fontFamily: 'var(--fn)' }}>{timeLabel}</span>
+                {!isFullRange && (
+                  <button className="btn" style={{ fontSize: 8, padding: '1px 6px' }}
+                    onClick={() => setTimeRange([0, timeline.length - 1])}>Reset</button>
+                )}
+              </div>
+            </div>
+            <Sparkline data={timeline} width={600} height={20} activeRange={timeRange} />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+              <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 30 }}>Start</span>
+              <input type="range" min={0} max={timeline.length - 1} value={timeRange[0]}
+                onChange={e => { const v = +e.target.value; setTimeRange([v, Math.max(v, timeRange[1])]); }}
+                style={{ flex: 1 }} />
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
+              <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 30 }}>End</span>
+              <input type="range" min={0} max={timeline.length - 1} value={timeRange[1]}
+                onChange={e => { const v = +e.target.value; setTimeRange([Math.min(timeRange[0], v), v]); }}
+                style={{ flex: 1 }} />
+            </div>
+            <div style={{ marginTop: 6, fontSize: 9, color: 'var(--txD)' }}>
+              Per-card filters override this scope. Cards set to "global" inherit this range.
+            </div>
+          </div>
+        )}
+
+        {loadErr && (
+          <div style={{ padding: '10px 14px', background: 'rgba(248,81,73,.08)', border: '1px solid rgba(248,81,73,.2)', borderRadius: 8, color: 'var(--acR)', fontSize: 11 }}>
+            Failed to load charts: {loadErr}
+          </div>
+        )}
+
+        {/* Category sections */}
+        {CAT_ORDER.map(cat => (
+          <CategorySection
+            key={cat}
+            category={cat}
+            charts={paletteCharts(cat)}
+            slots={slots[cat]}
+            onSlotDrop={handleSlotDrop}
+            onSlotClick={handleSlotClick}
+            onRemove={handleRemove}
+            onExpand={setExpandedChart}
+            onToggleWide={handleToggleWide}
+            dragOverId={dragOverId}
+            investigatedIp={effectiveIp}
+            availableIps={availableIps}
+            globalTimeBounds={globalTimeBounds()}
+            timeline={timeline}
+            timeRange={timeRange}
+            bucketSec={bucketSec}
+            setBucketSec={setBucketSec}
+          />
+        ))}
+
+        {/* Add slot buttons */}
+        {CAT_ORDER.filter(c => c !== 'alerts').map(cat => (
+          <div key={cat + '-add'} style={{ display: 'none' }} />
+        ))}
+      </div>
+
+      {/* Right palette */}
+      <div style={{
+        width: 200, flexShrink: 0, borderLeft: '1px solid var(--bd)',
+        background: '#0a0b0f', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '10px 12px 6px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--txD)', borderBottom: '1px solid var(--bd)', flexShrink: 0 }}>
+          Charts
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
+          {CAT_ORDER.map(cat => {
+            const items = paletteCharts(cat);
+            if (cat === 'alerts') {
+              return (
+                <div key={cat} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.08em', color: CAT_COLORS[cat], margin: '6px 0 4px 2px' }}>{CAT_LABELS[cat]}</div>
+                  <div style={{ fontSize: 9, color: 'var(--txD)', fontStyle: 'italic', padding: '4px 6px' }}>Coming soon</div>
+                </div>
+              );
+            }
+            if (!items.length) return null;
+            return (
+              <div key={cat} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.08em', color: CAT_COLORS[cat], margin: '6px 0 4px 2px' }}>{CAT_LABELS[cat]}</div>
+                {items.map(chart => (
+                  <div
+                    key={chart.name}
+                    draggable
+                    onDragStart={() => setDraggedChart(chart)}
+                    onDragEnd={() => setDraggedChart(null)}
+                    style={{
+                      padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bd)',
+                      background: 'var(--bgP)', marginBottom: 5, cursor: 'grab',
+                      transition: 'border-color .12s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = CAT_COLORS[cat]}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--bd)'}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--tx)' }}>{chart.title}</div>
+                    <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 2, lineHeight: 1.3 }}>{chart.description}</div>
+                  </div>
+                ))}
+                {/* Add slot button */}
+                <button className="btn" onClick={() => addSlotForCategory(cat)}
+                  style={{ width: '100%', fontSize: 9, padding: '3px 0', marginTop: 2, color: 'var(--txD)', borderColor: 'var(--bd)' }}>
+                  + add slot
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Time scope block */}
-      {timeline.length > 1 && (
-        <div style={{ background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--txD)" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-              </svg>
-              <span style={{ fontSize: 10, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Time scope</span>
-              {[5, 15, 30, 60].map(s => (
-                <button key={s} className={'btn' + (bucketSec === s ? ' on' : '')}
-                  onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 8 }}>{s}s</button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, color: isFullRange ? 'var(--txD)' : 'var(--ac)', fontFamily: 'var(--fn)' }}>{timeLabel}</span>
-              {!isFullRange && (
-                <button className="btn" style={{ fontSize: 9, padding: '2px 7px' }}
-                  onClick={() => setTimeRange([0, timeline.length - 1])}>Reset</button>
-              )}
-            </div>
-          </div>
-
-          <Sparkline data={timeline} width={600} height={22} activeRange={timeRange} />
-
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-            <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 30 }}>Start</span>
-            <input type="range" min={0} max={timeline.length - 1} value={timeRange[0]}
-              onChange={e => { const v = +e.target.value; setTimeRange([v, Math.max(v, timeRange[1])]); }}
-              style={{ flex: 1 }} />
-            <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 20, textAlign: 'center' }}>{timeRange[0]}</span>
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3 }}>
-            <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 30 }}>End</span>
-            <input type="range" min={0} max={timeline.length - 1} value={timeRange[1]}
-              onChange={e => { const v = +e.target.value; setTimeRange([Math.min(timeRange[0], v), v]); }}
-              style={{ flex: 1 }} />
-            <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 20, textAlign: 'center' }}>{timeRange[1]}</span>
-          </div>
-
-          <div style={{ marginTop: 8, fontSize: 9, color: 'var(--txD)' }}>
-            Adjust the window above then click <strong style={{ color: 'var(--txM)' }}>Run</strong> on any chart — the slider does not auto-recompute.
-          </div>
-        </div>
+      {/* Chart picker modal */}
+      {pickerSlotId && (
+        <ChartPicker
+          charts={allCharts}
+          onPick={handlePickerPick}
+          onClose={() => setPickerSlotId(null)}
+        />
       )}
 
-      {loadErr && (
-        <div style={{ padding: '12px 16px', background: 'rgba(248,81,73,.08)', border: '1px solid rgba(248,81,73,.2)', borderRadius: 8, color: 'var(--acR)', fontSize: 11, marginBottom: 16 }}>
-          Failed to load research charts: {loadErr}
-        </div>
+      {/* Expanded overlay */}
+      {expandedChart && (
+        <ExpandedOverlay
+          chart={expandedChart}
+          investigatedIp={effectiveIp}
+          availableIps={availableIps}
+          globalTimeBounds={globalTimeBounds()}
+          timeline={timeline}
+          timeRange={timeRange}
+          bucketSec={bucketSec}
+          setBucketSec={setBucketSec}
+          onClose={() => setExpandedChart(null)}
+        />
       )}
-      {charts.length === 0 && !loadErr && (
-        <div style={{ color: 'var(--txD)', fontSize: 11, marginTop: 40, textAlign: 'center' }}>
-          No research charts registered on the server.
-          <div style={{ fontSize: 10, color: 'var(--txD)', marginTop: 6, opacity: 0.6 }}>
-            Check that the server started correctly and research chart files are present.
-          </div>
-        </div>
-      )}
-
-      {charts.map(chart => (
-        <ChartErrorBoundary key={chart.name}>
-          <ChartCard chart={chart} investigatedIp={effectiveIp}
-            prefillValues={chart.name === 'seq_ack_timeline' && seqAckSessionId ? { session_id: seqAckSessionId } : {}}
-            availableIps={availableIps} getTimeBounds={getTimeBounds} />
-        </ChartErrorBoundary>
-      ))}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>

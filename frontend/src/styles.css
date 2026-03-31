@@ -1,3 +1,17 @@
+/* ── Self-hosted fonts (downloaded by download_fonts.py) ─────────── */
+
+@font-face { font-family: 'JetBrains Mono'; font-weight: 300; font-style: normal; font-display: swap; src: url('/fonts/jetbrains-mono-light.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/jetbrains-mono-regular.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/jetbrains-mono-medium.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/jetbrains-mono-semibold.woff2') format('woff2'); }
+
+@font-face { font-family: 'Outfit'; font-weight: 300; font-style: normal; font-display: swap; src: url('/fonts/outfit-light.woff2') format('woff2'); }
+@font-face { font-family: 'Outfit'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/outfit-regular.woff2') format('woff2'); }
+@font-face { font-family: 'Outfit'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/outfit-medium.woff2') format('woff2'); }
+@font-face { font-family: 'Outfit'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/outfit-semibold.woff2') format('woff2'); }
+@font-face { font-family: 'Outfit'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/outfit-bold.woff2') format('woff2'); }
+@font-face { font-family: 'Outfit'; font-weight: 800; font-style: normal; font-display: swap; src: url('/fonts/outfit-extrabold.woff2') format('woff2'); }
+
 /* ── SwiftEye Global Styles ─────────────────────────────────────── */
 
 *, *::before, *::after {

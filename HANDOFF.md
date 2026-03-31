@@ -3,9 +3,12 @@
 
 > **Purpose:** This document is the single context file for any LLM (or human developer) starting a new session on this project. It contains everything needed to understand the project's rules, architecture, current state, known issues, and roadmap — without reading every source file. Changelog history lives in `CHANGELOG.md`.
 
-**Latest version: v0.15.14** — see `CHANGELOG.md` for full version history.
+**Latest version: v0.15.15** — see `CHANGELOG.md` for full version history.
 
 > **LLM: Before starting work**, check the "Continue working on..." section at the bottom of `init_prompt.md` for the current priority. If the section is outdated or empty, ask the user what they'd like to focus on. After finishing a session's work, update that section with what should come next.
+
+### Recent highlights (v0.15.15)
+- **Research panel redesign** — full rework of `ResearchPage.jsx`. Replaced flat chart list with a slot-based drag-and-drop canvas. Charts live in a right-side palette categorised as Host / Session / Capture / Alerts. Users drag (or click) charts into slots arranged in a 2-per-row grid under each collapsible category. Each placed card has its own per-chart filters (time range, protocol chips, search, IPv6 toggle) that override the global scope at run time. Cards can be expanded to cover the Research panel content area. Slots can be toggled to full-row width. Offline-safe: self-hosted fonts wired up, Plotly CDN tag removed.
 
 ### Recent highlights (v0.15.14)
 - **Per-packet header detail** — Packets tab now shows expandable full L3/L4 headers per packet. Click any packet row to see IP fields (version, ID, flags, frag offset, DSCP, ECN, TTL, checksum / IPv6 flow label), TCP fields (data offset, urgent pointer, options list), and ICMP type/code. Backend extended with `tcp_data_offset`, `urg_ptr`, `icmp_type`, `icmp_code`.

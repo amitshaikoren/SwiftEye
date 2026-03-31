@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.15.15 — March 2026
+- **Research panel redesign** — `ResearchPage.jsx` fully rewritten. Slot-based drag-and-drop canvas replaces the old flat list. Charts palette on the right is categorised: Host, Session, Capture, Alerts (placeholder). Each category is collapsible. Slots are in a 2-per-row grid; any slot can be toggled to full-row width. Placed cards have per-chart filters (time range, protocol chips, search query, IPv6 toggle) that override the global scope. Cards can be expanded to cover the Research panel area. Drag a chart name from the palette into a slot, or click an empty slot to pick. Remove a card to return the slot to empty.
+- **Self-hosted fonts + offline cleanup** — Google Fonts CDN link removed; JetBrains Mono and Outfit now served from `frontend/public/fonts/` via `@font-face` in `styles.css`. Plotly CDN `<script>` tag removed from `index.html` (Plotly was already bundled by Vite via `plotly.js-dist`).
+
 ### v0.15.14 — March 2026
 - **Per-packet header detail** — Packets tab in SessionDetail now shows full L3/L4 headers per packet. Each row is expandable: click to reveal IP fields (version, ID, flags, frag offset, DSCP, ECN, TTL, checksum; flow label for IPv6), TCP fields (data offset, urgent pointer, options), and ICMP type/code. Fields are grouped by layer with muted labels. Already-visible summary fields (flags, TTL, window, seq, ack) are omitted from the expanded view to avoid duplication. Backend extended to return `tcp_data_offset`, `urg_ptr`, `icmp_type`, `icmp_code` in the packet detail response.
 

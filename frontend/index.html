@@ -4,10 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SwiftEye</title>
-  <!-- Fonts: CDN when online, system font fallbacks when offline (see --fn/--fd in styles.css) -->
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <!-- Plotly: CDN as backup; also in package.json so Vite bundles it locally via main.jsx import -->
-  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.27.0/plotly.min.js"></script>
+  <!-- Fonts: self-hosted woff2 via @font-face in styles.css (see download_fonts.py) -->
+  <!-- Plotly: bundled by Vite via plotly.js-dist in package.json -->
 </head>
 <body>
   <div id="root"></div>
