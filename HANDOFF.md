@@ -586,7 +586,7 @@ All v0.8.x bug details preserved in §4a.
 ## 6. Roadmap
 
 ### Pending
-- [ ] **Research panel redesign** — full rework of `ResearchPage.jsx`. Current design is basic; user wants a more polished, usable research/charting experience. Scope TBD.
+- [x] **Research panel redesign** — slot-based drag-and-drop canvas, right palette, collapsible categories (Host/Session/Capture/Alerts), per-card filters (time, protocols, search, IPv6), expand overlay, full-row toggle. Done v0.15.15.
 - [x] **Graph clustering** (v0.12.1) — 4 algorithms (Louvain, k-core, hub-spoke, shared-neighbor). Backend returns cluster assignments, frontend renders expandable hexagon mega-nodes.
 - [x] **Cluster detail panel** (v0.12.2) — dedicated ClusterDetail component with member list, protocol breakdown, rename, expand/collapse.
 - [x] **Pathfinding** (v0.13.1) — find paths between nodes. BFS hop layers, aggregated edge sets, directed/undirected toggle, PathDetail panel with IP inputs and collapsible per-node edges.
