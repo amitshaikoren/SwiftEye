@@ -53,6 +53,9 @@ Node.js is not required to run SwiftEye. The frontend is pre-built.
 - **Betweenness centrality** — Brandes algorithm ranking of nodes by structural importance, alongside degree and traffic-weighted scores.
 - **PDF report export** — export the investigation notebook as a formatted PDF directly from the browser.
 - **Synthetic graph elements** — add hypothesis nodes and edges to the live graph. Rendered distinctly, persisted to backend.
+- **DNS hostname resolution** — hostnames extracted from captured DNS responses become node labels automatically. No external lookups.
+- **MAC-based node merging** — dual-stack hosts (IPv4 + IPv6 sharing a MAC) collapse into a single node with unified traffic stats.
+- **Structured query engine** — filter and query graph data with a typed expression language: IP, port, protocol, bytes, TLS SNI, HTTP host, DNS, OS, CIDR ranges, and more.
 
 ---
 
