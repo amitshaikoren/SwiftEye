@@ -64,7 +64,7 @@ Node.js is not required to run SwiftEye. The frontend is pre-built.
 | Format | Notes |
 |--------|-------|
 | `.pcap` / `.pcapng` | Standard capture files |
-| Zeek logs | `conn.log` required; `dns.log`, `http.log`, `ssl.log`, `smb_*.log`, `dce_rpc.log` optional |
+| Zeek logs | Any combination of `conn.log`, `dns.log`, `http.log`, `ssl.log`, `smb_*.log`, `dce_rpc.log` — all optional, all work standalone |
 | tshark CSV | `tshark -T fields` tab-separated exports; `metadata.csv` auto-joins protocol CSVs by frame number |
 
 ---
