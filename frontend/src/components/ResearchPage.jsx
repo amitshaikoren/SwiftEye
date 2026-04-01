@@ -389,19 +389,14 @@ function PlacedCard({
 // ── ExpandedOverlay ───────────────────────────────────────────────────────────
 function ExpandedOverlay({ chart, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec, onClose }) {
   return (
-    <div style={{
-      position: 'absolute', inset: 12, zIndex: 100,
-      background: 'var(--bgP)', border: '1px solid var(--bdL)',
-      borderRadius: 10, display: 'flex', flexDirection: 'column',
-      boxShadow: '0 8px 40px rgba(0,0,0,.7)',
-    }}>
-      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{chart.title}</div>
-        <button className="btn" onClick={onClose}
-          style={{ fontSize: 10, padding: '3px 10px', borderColor: 'var(--bdL)', color: 'var(--txM)' }}>
-          ✕ Close
-        </button>
-      </div>
+    <div
+      onWheel={e => e.stopPropagation()}
+      style={{
+        position: 'absolute', inset: 12, zIndex: 100,
+        background: 'var(--bgP)', border: '1px solid var(--bdL)',
+        borderRadius: 10, display: 'flex', flexDirection: 'column',
+        boxShadow: '0 8px 40px rgba(0,0,0,.7)',
+      }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column' }}>
         <PlacedCard
           chart={chart}
