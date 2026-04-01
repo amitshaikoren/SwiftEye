@@ -17,24 +17,16 @@ the current capture (packets or sessions) and returns a Plotly figure dict.
     "title":        "<chart title>",
   }
 
-== Available sources and their fields ==
+== Field discovery ==
 
-  packets   — timestamp, src_ip, dst_ip, src_port, dst_port, protocol, transport,
-               orig_len, payload_len, ttl, ip_version, tcp_flags_str, seq_num, ack_num,
-               window_size, icmp_type, icmp_code
-  sessions  — start_time, end_time, duration, src_ip, dst_ip, src_port, dst_port,
-               protocol, transport, total_bytes, payload_bytes, packet_count
-  dns       — timestamp, src_ip, dst_ip, dns_query, dns_qtype_name, dns_rcode_name,
-               dns_ancount, dns_qr
-  http      — timestamp, src_ip, dst_ip, http_method, http_uri, http_host,
-               http_status, http_user_agent, http_content_length
-  tls       — timestamp, src_ip, dst_ip, tls_sni, tls_record_version, tls_msg_type, ja3
-  tcp       — timestamp, src_ip, dst_ip, src_port, dst_port, tcp_flags_str,
-               seq_num, ack_num, window_size, orig_len
-  dhcp      — timestamp, src_ip, dst_ip, dhcp_msg_type, dhcp_hostname,
-               dhcp_vendor_class, dhcp_offered_ip, dhcp_lease_time
-  arp       — timestamp, src_ip, dst_ip, arp_opcode_name, arp_src_mac
-  icmp      — timestamp, src_ip, dst_ip, icmp_type, icmp_code, orig_len
+  SOURCE_FIELDS defines the known baseline fields per source.  At schema-request
+  time sources_info(packets, sessions) scans a sample of actual packet extra dicts
+  and appends any additional scalar keys not already in the static list.  This means
+  new dissectors (or new adapter extra keys) automatically appear in the UI without
+  any registration — the architecture is self-describing.
+
+  Only scalar values (str / int / float / bool) become fields. Lists, dicts, and
+  bytes are skipped. Type is inferred from the first non-None value seen.
 """
 
 import logging
@@ -48,7 +40,6 @@ logger = logging.getLogger("swifteye.research.custom")
 
 # ── Source definitions ────────────────────────────────────────────────────────
 
-# Maps source slug → human label
 SOURCE_LABELS = {
     "packets":  "All Packets",
     "sessions": "Sessions",
@@ -61,8 +52,12 @@ SOURCE_LABELS = {
     "icmp":     "ICMP",
 }
 
-# Fields available per source — (field_name, human_label, value_type)
+# Baseline fields per source — (field_name, human_label, value_type)
 # value_type: "numeric" | "text" | "time"
+#
+# NOTE: base packet fields (orig_len, payload_len, src_ip, dst_ip) are included
+# in ALL packet-based sources because _extract_packets always populates them,
+# regardless of which protocol filter is active.
 SOURCE_FIELDS: Dict[str, List[tuple]] = {
     "packets": [
         ("timestamp",    "Time",           "time"),
@@ -95,88 +90,195 @@ SOURCE_FIELDS: Dict[str, List[tuple]] = {
         ("packet_count", "Packet Count",   "numeric"),
     ],
     "dns": [
-        ("timestamp",      "Time",         "time"),
-        ("src_ip",         "Source IP",    "text"),
-        ("dst_ip",         "Dest IP",      "text"),
-        ("dns_query",      "Query Name",   "text"),
-        ("dns_qtype_name", "Query Type",   "text"),
-        ("dns_rcode_name", "Response Code","text"),
-        ("dns_ancount",    "Answer Count", "numeric"),
-        ("dns_qr",         "QR",           "text"),
+        ("timestamp",      "Time",          "time"),
+        ("src_ip",         "Source IP",     "text"),
+        ("dst_ip",         "Dest IP",       "text"),
+        ("orig_len",       "Packet Size",   "numeric"),
+        ("payload_len",    "Payload Size",  "numeric"),
+        ("dns_query",      "Query Name",    "text"),
+        ("dns_qtype_name", "Query Type",    "text"),
+        ("dns_rcode_name", "Response Code", "text"),
+        ("dns_ancount",    "Answer Count",  "numeric"),
+        ("dns_qr",         "QR",            "text"),
     ],
     "http": [
-        ("timestamp",            "Time",           "time"),
-        ("src_ip",               "Source IP",      "text"),
-        ("dst_ip",               "Dest IP",        "text"),
-        ("http_method",          "Method",         "text"),
-        ("http_uri",             "URI",            "text"),
-        ("http_host",            "Host",           "text"),
-        ("http_status",          "Status Code",    "numeric"),
-        ("http_user_agent",      "User-Agent",     "text"),
-        ("http_content_length",  "Content-Length", "numeric"),
+        ("timestamp",           "Time",           "time"),
+        ("src_ip",              "Source IP",      "text"),
+        ("dst_ip",              "Dest IP",        "text"),
+        ("orig_len",            "Packet Size",    "numeric"),
+        ("payload_len",         "Payload Size",   "numeric"),
+        ("http_method",         "Method",         "text"),
+        ("http_uri",            "URI",            "text"),
+        ("http_host",           "Host",           "text"),
+        ("http_status",         "Status Code",    "numeric"),
+        ("http_user_agent",     "User-Agent",     "text"),
+        ("http_content_length", "Content-Length", "numeric"),
     ],
     "tls": [
-        ("timestamp",           "Time",        "time"),
-        ("src_ip",              "Source IP",   "text"),
-        ("dst_ip",              "Dest IP",     "text"),
-        ("tls_sni",             "SNI",         "text"),
-        ("tls_record_version",  "TLS Version", "text"),
-        ("tls_msg_type",        "Msg Type",    "text"),
-        ("ja3",                 "JA3 Hash",    "text"),
+        ("timestamp",          "Time",        "time"),
+        ("src_ip",             "Source IP",   "text"),
+        ("dst_ip",             "Dest IP",     "text"),
+        ("orig_len",           "Packet Size", "numeric"),
+        ("payload_len",        "Payload Size","numeric"),
+        ("tls_sni",            "SNI",         "text"),
+        ("tls_record_version", "TLS Version", "text"),
+        ("tls_msg_type",       "Msg Type",    "text"),
+        ("ja3",                "JA3 Hash",    "text"),
     ],
     "tcp": [
-        ("timestamp",    "Time",        "time"),
-        ("src_ip",       "Source IP",   "text"),
-        ("dst_ip",       "Dest IP",     "text"),
-        ("src_port",     "Source Port", "numeric"),
-        ("dst_port",     "Dest Port",   "numeric"),
-        ("tcp_flags_str","TCP Flags",   "text"),
-        ("seq_num",      "Seq Num",     "numeric"),
-        ("ack_num",      "Ack Num",     "numeric"),
-        ("window_size",  "Window Size", "numeric"),
-        ("orig_len",     "Packet Size", "numeric"),
+        ("timestamp",    "Time",         "time"),
+        ("src_ip",       "Source IP",    "text"),
+        ("dst_ip",       "Dest IP",      "text"),
+        ("src_port",     "Source Port",  "numeric"),
+        ("dst_port",     "Dest Port",    "numeric"),
+        ("orig_len",     "Packet Size",  "numeric"),
+        ("payload_len",  "Payload Size", "numeric"),
+        ("tcp_flags_str","TCP Flags",    "text"),
+        ("seq_num",      "Seq Num",      "numeric"),
+        ("ack_num",      "Ack Num",      "numeric"),
+        ("window_size",  "Window Size",  "numeric"),
     ],
     "dhcp": [
-        ("timestamp",          "Time",           "time"),
-        ("src_ip",             "Source IP",      "text"),
-        ("dst_ip",             "Dest IP",        "text"),
-        ("dhcp_msg_type",      "DHCP Msg Type",  "text"),
-        ("dhcp_hostname",      "Hostname",       "text"),
-        ("dhcp_vendor_class",  "Vendor Class",   "text"),
-        ("dhcp_offered_ip",    "Offered IP",     "text"),
-        ("dhcp_lease_time",    "Lease Time (s)", "numeric"),
+        ("timestamp",         "Time",           "time"),
+        ("src_ip",            "Source IP",      "text"),
+        ("dst_ip",            "Dest IP",        "text"),
+        ("orig_len",          "Packet Size",    "numeric"),
+        ("payload_len",       "Payload Size",   "numeric"),
+        ("dhcp_msg_type",     "DHCP Msg Type",  "text"),
+        ("dhcp_hostname",     "Hostname",       "text"),
+        ("dhcp_vendor_class", "Vendor Class",   "text"),
+        ("dhcp_offered_ip",   "Offered IP",     "text"),
+        ("dhcp_lease_time",   "Lease Time (s)", "numeric"),
     ],
     "arp": [
-        ("timestamp",       "Time",       "time"),
-        ("src_ip",          "Source IP",  "text"),
-        ("dst_ip",          "Dest IP",    "text"),
-        ("arp_opcode_name", "Opcode",     "text"),
-        ("arp_src_mac",     "Sender MAC", "text"),
+        ("timestamp",       "Time",        "time"),
+        ("src_ip",          "Source IP",   "text"),
+        ("dst_ip",          "Dest IP",     "text"),
+        ("orig_len",        "Packet Size", "numeric"),
+        ("arp_opcode_name", "Opcode",      "text"),
+        ("arp_src_mac",     "Sender MAC",  "text"),
     ],
     "icmp": [
         ("timestamp",  "Time",        "time"),
         ("src_ip",     "Source IP",   "text"),
         ("dst_ip",     "Dest IP",     "text"),
+        ("orig_len",   "Packet Size", "numeric"),
+        ("payload_len","Payload Size","numeric"),
         ("icmp_type",  "ICMP Type",   "numeric"),
         ("icmp_code",  "ICMP Code",   "numeric"),
-        ("orig_len",   "Packet Size", "numeric"),
     ],
 }
 
+# Protocol filters used both for has_data checks and row extraction
+_PROTOCOL_FILTERS = {
+    "dns":  lambda p: "DNS"  in (p.protocol or "").upper() or bool(p.extra.get("dns_query")),
+    "http": lambda p: "HTTP" in (p.protocol or "").upper() or bool(p.extra.get("http_method") or p.extra.get("http_status")),
+    "tls":  lambda p: "TLS"  in (p.protocol or "").upper() or bool(p.extra.get("tls_sni") or p.extra.get("tls_record_version")),
+    "tcp":  lambda p: p.transport == "TCP",
+    "dhcp": lambda p: "DHCP" in (p.protocol or "").upper() or bool(p.extra.get("dhcp_msg_type")),
+    "arp":  lambda p: p.protocol == "ARP" or bool(p.extra.get("arp_opcode_name")),
+    "icmp": lambda p: p.transport in ("ICMP", "ICMPv6") or p.icmp_type >= 0,
+}
 
-def sources_info() -> List[Dict[str, Any]]:
-    """Return source metadata for the frontend schema endpoint."""
-    return [
-        {
+
+def _infer_type(value: Any) -> str:
+    """Guess value_type from a scalar value."""
+    if isinstance(value, bool):
+        return "text"
+    if isinstance(value, (int, float)):
+        return "numeric"
+    return "text"
+
+
+def _humanise(key: str) -> str:
+    """Turn a snake_case extra key into a readable label."""
+    return key.replace("_", " ").title()
+
+
+def _discover_extra_fields(source: str, packets, max_scan: int = 500) -> List[tuple]:
+    """
+    Scan up to max_scan matching packets and return extra fields not already
+    in SOURCE_FIELDS[source] as (name, label, type) tuples.
+
+    Only scalar values (str / int / float / bool) are included.
+    Lists, dicts, bytes, and None are skipped.
+    """
+    known = {f[0] for f in SOURCE_FIELDS.get(source, [])}
+    filt = _PROTOCOL_FILTERS.get(source)
+
+    discovered: Dict[str, str] = {}  # name → inferred type
+    scanned = 0
+
+    for p in packets:
+        if filt and not filt(p):
+            continue
+        for k, v in p.extra.items():
+            if k in known or k in discovered:
+                continue
+            if v is None or isinstance(v, (list, dict, bytes)):
+                continue
+            discovered[k] = _infer_type(v)
+        scanned += 1
+        if scanned >= max_scan:
+            break
+
+    return [(k, _humanise(k), t) for k, t in sorted(discovered.items())]
+
+
+def _discover_session_fields(sessions, max_scan: int = 200) -> List[tuple]:
+    """
+    Scan sessions for keys not in SOURCE_FIELDS['sessions'] and return extras.
+    Useful when protocol_fields/*.py accumulate additional session keys.
+    """
+    known = {f[0] for f in SOURCE_FIELDS["sessions"]}
+    discovered: Dict[str, str] = {}
+    for s in sessions[:max_scan]:
+        for k, v in s.items():
+            if k in known or k in discovered or k.startswith("_"):
+                continue
+            if v is None or isinstance(v, (list, dict, bytes)):
+                continue
+            discovered[k] = _infer_type(v)
+    return [(k, _humanise(k), t) for k, t in sorted(discovered.items())]
+
+
+def sources_info(packets=None, sessions=None) -> List[Dict[str, Any]]:
+    """
+    Return source metadata for the frontend schema endpoint.
+
+    When packets/sessions are provided, dynamically appends any extra fields
+    found in actual capture data that are not in the static baseline.
+    This makes the field list self-describing — new dissectors auto-appear.
+    """
+    result = []
+    for slug in SOURCE_LABELS:
+        base = list(SOURCE_FIELDS[slug])
+        if packets:
+            if slug == "sessions":
+                extras = _discover_session_fields(sessions or [])
+            else:
+                extras = _discover_extra_fields(slug, packets)
+            base = base + extras
+        result.append({
             "id":     slug,
             "label":  SOURCE_LABELS[slug],
-            "fields": [
-                {"name": f[0], "label": f[1], "type": f[2]}
-                for f in SOURCE_FIELDS[slug]
-            ],
-        }
-        for slug in SOURCE_LABELS
-    ]
+            "fields": [{"name": f[0], "label": f[1], "type": f[2]} for f in base],
+        })
+    return result
+
+
+# ── Data presence check ───────────────────────────────────────────────────────
+
+def source_has_data(source: str, packets, sessions) -> bool:
+    """Quick check: does the current capture contain data for this source?"""
+    if source == "packets":
+        return bool(packets)
+    if source == "sessions":
+        return bool(sessions)
+    check = _PROTOCOL_FILTERS.get(source)
+    if not check:
+        return False
+    return any(check(p) for p in packets)
 
 
 # ── Data extraction per source ────────────────────────────────────────────────
@@ -184,25 +286,13 @@ def sources_info() -> List[Dict[str, Any]]:
 def _extract_packets(packets, source: str) -> List[Dict[str, Any]]:
     """
     Extract rows from packets for the given source filter.
-    Returns a list of flat dicts keyed by the field names in SOURCE_FIELDS[source].
+    Base packet fields are always included; pkt.extra is merged on top.
     """
+    filt = _PROTOCOL_FILTERS.get(source)
     rows = []
-    protocol_filter = {
-        "dns":  lambda p: "DNS"  in (p.protocol or "").upper() or p.extra.get("dns_query"),
-        "http": lambda p: "HTTP" in (p.protocol or "").upper() or p.extra.get("http_method") or p.extra.get("http_status"),
-        "tls":  lambda p: "TLS"  in (p.protocol or "").upper() or p.extra.get("tls_sni") or p.extra.get("tls_record_version"),
-        "tcp":  lambda p: p.transport == "TCP",
-        "dhcp": lambda p: "DHCP" in (p.protocol or "").upper() or p.extra.get("dhcp_msg_type"),
-        "arp":  lambda p: p.protocol == "ARP" or p.extra.get("arp_opcode_name"),
-        "icmp": lambda p: p.transport in ("ICMP", "ICMPv6") or p.icmp_type >= 0,
-    }
-
-    filt = protocol_filter.get(source)
-
     for p in packets:
         if filt and not filt(p):
             continue
-
         row: Dict[str, Any] = {
             "timestamp":    p.timestamp,
             "src_ip":       p.src_ip,
@@ -222,61 +312,19 @@ def _extract_packets(packets, source: str) -> List[Dict[str, Any]]:
             "icmp_type":    p.icmp_type if p.icmp_type >= 0 else None,
             "icmp_code":    p.icmp_code if p.icmp_code >= 0 else None,
         }
-        # Merge extra fields
         row.update(p.extra)
         rows.append(row)
-
     return rows
 
 
 def _extract_sessions(sessions) -> List[Dict[str, Any]]:
-    return [
-        {
-            "start_time":   s.get("start_time"),
-            "end_time":     s.get("end_time"),
-            "duration":     s.get("duration", 0),
-            "src_ip":       s.get("src_ip", ""),
-            "dst_ip":       s.get("dst_ip", ""),
-            "src_port":     s.get("src_port", 0),
-            "dst_port":     s.get("dst_port", 0),
-            "protocol":     s.get("protocol", ""),
-            "transport":    s.get("transport", ""),
-            "total_bytes":  s.get("total_bytes", 0),
-            "payload_bytes":s.get("payload_bytes", 0),
-            "packet_count": s.get("packet_count", 0),
-        }
-        for s in sessions
-    ]
+    return [dict(s) for s in sessions]
 
 
 def extract_rows(source: str, packets, sessions) -> List[Dict[str, Any]]:
     if source == "sessions":
         return _extract_sessions(sessions)
     return _extract_packets(packets, source if source != "packets" else None)
-
-
-# ── Data presence check ───────────────────────────────────────────────────────
-
-def source_has_data(source: str, packets, sessions) -> bool:
-    """Quick check: does the current capture contain data for this source?"""
-    if source == "packets":
-        return bool(packets)
-    if source == "sessions":
-        return bool(sessions)
-
-    checkers = {
-        "dns":  lambda p: "DNS"  in (p.protocol or "").upper() or bool(p.extra.get("dns_query")),
-        "http": lambda p: "HTTP" in (p.protocol or "").upper() or bool(p.extra.get("http_method") or p.extra.get("http_status")),
-        "tls":  lambda p: "TLS"  in (p.protocol or "").upper() or bool(p.extra.get("tls_sni")),
-        "tcp":  lambda p: p.transport == "TCP",
-        "dhcp": lambda p: "DHCP" in (p.protocol or "").upper() or bool(p.extra.get("dhcp_msg_type")),
-        "arp":  lambda p: p.protocol == "ARP" or bool(p.extra.get("arp_opcode_name")),
-        "icmp": lambda p: p.transport in ("ICMP", "ICMPv6") or p.icmp_type >= 0,
-    }
-    check = checkers.get(source)
-    if not check:
-        return False
-    return any(check(p) for p in packets)
 
 
 # ── Figure builder ────────────────────────────────────────────────────────────
@@ -302,9 +350,6 @@ def _hover_text(rows: List[Dict], hover_fields: List[str]) -> List[str]:
 def build_figure(payload: Dict[str, Any], packets, sessions) -> Dict[str, Any]:
     """
     Build a Plotly figure dict from a field-mapping payload.
-
-    payload keys: source, chart_type, x_field, y_field (optional for histogram),
-                  color_field, size_field, hover_fields, title
     """
     source      = payload.get("source", "packets")
     chart_type  = payload.get("chart_type", "scatter")
@@ -333,11 +378,8 @@ def build_figure(payload: Dict[str, Any], packets, sessions) -> Dict[str, Any]:
     }
 
     if chart_type == "histogram":
-        marker_kw = {}
         if color_field:
             color_vals = _field_values(rows, color_field)
-            # Histogram doesn't support per-point color the same way — use color as
-            # a grouping axis and produce one trace per unique value (up to 20).
             unique_colors = list(dict.fromkeys(str(v) for v in color_vals if v is not None))[:20]
             traces = []
             for cv in unique_colors:
@@ -350,7 +392,7 @@ def build_figure(payload: Dict[str, Any], packets, sessions) -> Dict[str, Any]:
             fig = go.Figure(data=traces)
             fig.update_layout(barmode="overlay")
         else:
-            fig = go.Figure(data=[go.Histogram(x=x_vals, **marker_kw)])
+            fig = go.Figure(data=[go.Histogram(x=x_vals)])
 
     elif chart_type == "bar":
         y_vals = _field_values(rows, y_field) if y_field else [1] * len(rows)
@@ -373,13 +415,11 @@ def build_figure(payload: Dict[str, Any], packets, sessions) -> Dict[str, Any]:
         if color_field:
             color_vals = _field_values(rows, color_field)
             marker_kw_["color"] = [v if v is not None else "" for v in color_vals]
-            # numeric color → colorscale; text → leave as category colors
             if color_vals and isinstance(color_vals[0], (int, float)):
                 marker_kw_["colorscale"] = "Viridis"
                 marker_kw_["showscale"] = True
         if size_field:
             raw_sizes = _field_values(rows, size_field)
-            # Normalise to 3–20px range
             nums = [s for s in raw_sizes if isinstance(s, (int, float)) and s is not None]
             if nums:
                 mn, mx = min(nums), max(nums)
