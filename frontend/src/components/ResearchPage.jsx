@@ -19,7 +19,7 @@ class ChartErrorBoundary extends React.Component {
 }
 
 // ── PlotlyChart ───────────────────────────────────────────────────────────────
-function PlotlyChart({ figure, loading, error }) {
+function PlotlyChart({ figure, loading, error, isWide }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -29,6 +29,12 @@ function PlotlyChart({ figure, loading, error }) {
       modeBarButtonsToRemove: ['sendDataToCloud', 'lasso2d'],
     });
   }, [figure]);
+
+  // Resize when slot width changes (wide toggle)
+  useEffect(() => {
+    if (!ref.current || !window.Plotly) return;
+    window.Plotly.Plots.resize(ref.current);
+  }, [isWide]);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -119,8 +125,9 @@ const ALL_PROTOCOLS = ['TCP', 'UDP', 'DNS', 'TLS', 'HTTP', 'ICMP', 'ARP', 'DHCP'
 // ── PlacedCard — a chart placed in a slot ─────────────────────────────────────
 function PlacedCard({
   chart, investigatedIp, availableIps,
-  globalTimeBounds,       // { timeStart, timeEnd } | null
+  globalTimeBounds,
   timeline, timeRange: globalRange, bucketSec, setBucketSec,
+  isWide, onToggleWide,
   onRemove, onExpand,
 }) {
   // ── per-card filter state
@@ -172,7 +179,6 @@ function PlacedCard({
 
   function getTimeBounds() {
     if (!timeline?.length) return { timeStart: null, timeEnd: null };
-    const range = useCustomTime ? cardTimeRange : (globalTimeBounds ? null : globalRange);
     if (globalTimeBounds && !useCustomTime) return globalTimeBounds;
     const r = useCustomTime ? cardTimeRange : globalRange;
     const s = timeline[r[0]], e = timeline[r[1]];
@@ -227,7 +233,7 @@ function PlacedCard({
   })();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--bgP)', borderRadius: '8px 8px 0 0' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -241,6 +247,15 @@ function PlacedCard({
               color: hasCustomFilters ? 'var(--ac)' : 'var(--txD)', cursor: 'pointer' }}>
             {filtersOpen ? '▲' : '▼'} filters{hasCustomFilters ? ' ●' : ''}
           </button>
+          {onToggleWide && (
+            <button onClick={onToggleWide} title={isWide ? 'Shrink to half row' : 'Expand to full row'}
+              style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4,
+                border: `1px solid ${isWide ? 'var(--ac)' : 'var(--bd)'}`,
+                background: isWide ? 'rgba(88,166,255,.1)' : 'transparent',
+                color: isWide ? 'var(--ac)' : 'var(--txD)', cursor: 'pointer' }}>
+              ⇔
+            </button>
+          )}
           <button onClick={onExpand} title="Expand"
             style={{ width: 22, height: 22, borderRadius: 4, border: '1px solid var(--bd)', background: 'transparent', color: 'var(--txD)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ac)'; e.currentTarget.style.color = 'var(--ac)'; }}
@@ -362,9 +377,9 @@ function PlacedCard({
       )}
 
       {/* Chart */}
-      <div style={{ flex: 1, background: 'var(--bg)', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg)', borderRadius: '0 0 8px 8px' }}>
         <ChartErrorBoundary>
-          <PlotlyChart figure={figure} loading={loading} error={error} />
+          <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} />
         </ChartErrorBoundary>
       </div>
     </div>
@@ -397,6 +412,7 @@ function ExpandedOverlay({ chart, investigatedIp, availableIps, globalTimeBounds
           timeRange={timeRange}
           bucketSec={bucketSec}
           setBucketSec={setBucketSec}
+          isWide={true}
           onRemove={onClose}
           onExpand={onClose}
         />
@@ -483,12 +499,6 @@ function ChartPicker({ charts, onPick, onClose }) {
 const CAT_LABELS  = { host: 'Host', session: 'Session', capture: 'Capture', alerts: 'Alerts' };
 const CAT_COLORS  = { host: 'var(--acG)', session: 'var(--acP)', capture: 'var(--ac)', alerts: 'var(--acR)' };
 const CAT_ORDER   = ['host', 'session', 'capture', 'alerts'];
-const CAT_DESCS   = {
-  host:    'charts scoped to a specific IP',
-  session: 'charts scoped to a specific TCP/UDP session',
-  capture: 'whole-capture charts, no target required',
-  alerts:  'threshold-based alert charts (coming soon)',
-};
 
 // Map chart names → category
 function inferCategory(chart) {
@@ -496,89 +506,96 @@ function inferCategory(chart) {
   if (['seq_ack_timeline'].includes(name)) return 'session';
   if (['dns_timeline', 'http_ua_timeline'].includes(name)) return 'capture';
   if (['conversation_timeline', 'ja3_timeline', 'ja4_timeline', 'ttl_over_time'].includes(name)) return 'host';
-  // fallback: if it has an ip param it's host, else capture
   return chart.params?.some(p => p.type === 'ip') ? 'host' : 'capture';
 }
 
-// ── CategorySection ───────────────────────────────────────────────────────────
-function CategorySection({ category, charts, slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggleWide, dragOverId, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec }) {
+// ── SlotGrid — flat grid of slots, no category labels ─────────────────────────
+function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggleWide, dragOverId, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec }) {
+  // Flatten all category slots into one list, preserving id/chart/wide
+  const allSlots = CAT_ORDER.flatMap(cat => slots[cat] || []);
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {allSlots.map(slot => {
+        const isWide = slot.wide;
+        return (
+          <div key={slot.id} style={{ gridColumn: isWide ? '1 / -1' : 'auto' }}>
+            {slot.chart ? (
+              <div style={{ border: '1px solid var(--bd)', borderRadius: 8, overflow: 'hidden', background: 'var(--bgP)' }}>
+                <PlacedCard
+                  chart={slot.chart}
+                  investigatedIp={investigatedIp}
+                  availableIps={availableIps}
+                  globalTimeBounds={globalTimeBounds}
+                  timeline={timeline}
+                  timeRange={timeRange}
+                  bucketSec={bucketSec}
+                  setBucketSec={setBucketSec}
+                  isWide={isWide}
+                  onToggleWide={() => onToggleWide(slot.id)}
+                  onRemove={() => onRemove(slot.id)}
+                  onExpand={() => onExpand(slot.chart)}
+                />
+              </div>
+            ) : (
+              <EmptySlot
+                slotId={slot.id}
+                dragOverId={dragOverId}
+                onDrop={onSlotDrop}
+                onClick={() => onSlotClick(slot.id)}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── PaletteCategory — collapsible category section in the right palette ───────
+function PaletteCategory({ category, charts, onDragStart, onDragEnd, onAddSlot }) {
   const [collapsed, setCollapsed] = useState(false);
   const color = CAT_COLORS[category];
   const label = CAT_LABELS[category];
-  const desc  = CAT_DESCS[category];
   const isAlerts = category === 'alerts';
 
   return (
-    <div>
-      {/* Category header */}
+    <div style={{ marginBottom: 14 }}>
       <div
         onClick={() => setCollapsed(v => !v)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: collapsed ? 0 : 10, cursor: 'pointer', userSelect: 'none' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '6px 0 4px 2px', cursor: 'pointer', userSelect: 'none' }}
       >
-        <span style={{ color, fontSize: 9 }}>●</span>
-        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.08em' }}>{label}</span>
-        <span style={{ fontSize: 9, color: 'var(--txD)' }}>{desc}</span>
-        <div style={{ flex: 1, height: 1, background: 'var(--bd)', marginLeft: 4 }} />
-        <span style={{ fontSize: 9, color: 'var(--txD)' }}>{collapsed ? '▶' : '▼'}</span>
+        <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.08em', color, flex: 1 }}>{label}</span>
+        <span style={{ fontSize: 8, color: 'var(--txD)' }}>{collapsed ? '▶' : '▼'}</span>
       </div>
-
       {!collapsed && (
         isAlerts ? (
-          <div style={{ padding: '14px 0', color: 'var(--txD)', fontSize: 11, fontStyle: 'italic' }}>
-            Alert charts coming soon.
-          </div>
+          <div style={{ fontSize: 9, color: 'var(--txD)', fontStyle: 'italic', padding: '4px 6px' }}>Coming soon</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {slots.map((slot, i) => {
-              const isWide = slot.wide;
-              return (
-                <div key={slot.id}
-                  style={{ gridColumn: isWide ? '1 / -1' : 'auto', position: 'relative' }}>
-
-                  {/* Wide toggle on placed cards */}
-                  {slot.chart && (
-                    <button
-                      onClick={() => onToggleWide(slot.id)}
-                      title={isWide ? 'Shrink to half row' : 'Expand to full row'}
-                      style={{
-                        position: 'absolute', top: 8, right: isWide ? 98 : 64,
-                        zIndex: 10, fontSize: 8, padding: '1px 5px', borderRadius: 3,
-                        border: `1px solid ${isWide ? 'var(--ac)' : 'var(--bd)'}`,
-                        background: isWide ? 'rgba(88,166,255,.1)' : 'transparent',
-                        color: isWide ? 'var(--ac)' : 'var(--txD)',
-                        cursor: 'pointer',
-                      }}>
-                      {isWide ? '⇔ full' : '⇔'}
-                    </button>
-                  )}
-
-                  {slot.chart ? (
-                    <div style={{ border: '1px solid var(--bd)', borderRadius: 8, overflow: 'hidden', background: 'var(--bgP)' }}>
-                      <PlacedCard
-                        chart={slot.chart}
-                        investigatedIp={investigatedIp}
-                        availableIps={availableIps}
-                        globalTimeBounds={globalTimeBounds}
-                        timeline={timeline}
-                        timeRange={timeRange}
-                        bucketSec={bucketSec}
-                        setBucketSec={setBucketSec}
-                        onRemove={() => onRemove(slot.id)}
-                        onExpand={() => onExpand(slot.chart)}
-                      />
-                    </div>
-                  ) : (
-                    <EmptySlot
-                      slotId={slot.id}
-                      dragOverId={dragOverId}
-                      onDrop={onSlotDrop}
-                      onClick={() => onSlotClick(slot.id)}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <>
+            {charts.map(chart => (
+              <div
+                key={chart.name}
+                draggable
+                onDragStart={() => onDragStart(chart)}
+                onDragEnd={onDragEnd}
+                style={{
+                  padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bd)',
+                  background: 'var(--bgP)', marginBottom: 5, cursor: 'grab',
+                  transition: 'border-color .12s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = color}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--bd)'}
+              >
+                <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--tx)' }}>{chart.title}</div>
+                <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 2, lineHeight: 1.3 }}>{chart.description}</div>
+              </div>
+            ))}
+            <button className="btn" onClick={onAddSlot}
+              style={{ width: '100%', fontSize: 9, padding: '3px 0', marginTop: 2, color: 'var(--txD)', borderColor: 'var(--bd)' }}>
+              + add slot
+            </button>
+          </>
         )
       )}
     </div>
@@ -599,7 +616,6 @@ export default function ResearchPage({
   const [allCharts, setAllCharts] = useState([]);
   const [loadErr, setLoadErr]     = useState('');
 
-  // slots: { host: [{id, chart|null, wide}], session: [...], capture: [...], alerts: [] }
   const [slots, setSlots] = useState({
     host:    [{ id: 'host-0', chart: null, wide: false }, { id: 'host-1', chart: null, wide: false }],
     session: [{ id: 'session-0', chart: null, wide: false }, { id: 'session-1', chart: null, wide: false }],
@@ -611,8 +627,8 @@ export default function ResearchPage({
   const [dragOverId, setDragOverId]     = useState(null);
   const [pickerSlotId, setPickerSlotId] = useState(null);
   const [expandedChart, setExpandedChart] = useState(null);
+  const [paletteOpen, setPaletteOpen]   = useState(true);
 
-  // Refs for stable time bounds
   const timeRangeRef = useRef(timeRange);
   const timelineRef  = useRef(timeline);
   useEffect(() => { timeRangeRef.current = timeRange; }, [timeRange]);
@@ -633,7 +649,6 @@ export default function ResearchPage({
           .map(c => ({ ...c, _category: inferCategory(c) }));
         setAllCharts(charts);
 
-        // Auto-place seq_ack if opened with a session ID
         if (seqAckSessionId) {
           const seqChart = charts.find(c => c.name === 'seq_ack_timeline');
           if (seqChart) {
@@ -698,7 +713,6 @@ export default function ResearchPage({
     });
   }
 
-  // Charts in palette that match a given category
   function paletteCharts(cat) {
     return allCharts.filter(c => c._category === cat);
   }
@@ -763,85 +777,64 @@ export default function ResearchPage({
           </div>
         )}
 
-        {/* Category sections */}
-        {CAT_ORDER.map(cat => (
-          <CategorySection
-            key={cat}
-            category={cat}
-            charts={paletteCharts(cat)}
-            slots={slots[cat]}
-            onSlotDrop={handleSlotDrop}
-            onSlotClick={handleSlotClick}
-            onRemove={handleRemove}
-            onExpand={setExpandedChart}
-            onToggleWide={handleToggleWide}
-            dragOverId={dragOverId}
-            investigatedIp={effectiveIp}
-            availableIps={availableIps}
-            globalTimeBounds={globalTimeBounds()}
-            timeline={timeline}
-            timeRange={timeRange}
-            bucketSec={bucketSec}
-            setBucketSec={setBucketSec}
-          />
-        ))}
-
-        {/* Add slot buttons */}
-        {CAT_ORDER.filter(c => c !== 'alerts').map(cat => (
-          <div key={cat + '-add'} style={{ display: 'none' }} />
-        ))}
+        {/* Flat slot grid — no category labels */}
+        <SlotGrid
+          slots={slots}
+          onSlotDrop={handleSlotDrop}
+          onSlotClick={handleSlotClick}
+          onRemove={handleRemove}
+          onExpand={setExpandedChart}
+          onToggleWide={handleToggleWide}
+          dragOverId={dragOverId}
+          investigatedIp={effectiveIp}
+          availableIps={availableIps}
+          globalTimeBounds={globalTimeBounds()}
+          timeline={timeline}
+          timeRange={timeRange}
+          bucketSec={bucketSec}
+          setBucketSec={setBucketSec}
+        />
       </div>
 
       {/* Right palette */}
       <div style={{
-        width: 200, flexShrink: 0, borderLeft: '1px solid var(--bd)',
+        width: paletteOpen ? 200 : 28, flexShrink: 0, borderLeft: '1px solid var(--bd)',
         background: '#0a0b0f', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        transition: 'width .15s ease',
       }}>
-        <div style={{ padding: '10px 12px 6px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--txD)', borderBottom: '1px solid var(--bd)', flexShrink: 0 }}>
-          Charts
+        {/* Palette header */}
+        <div style={{ padding: '10px 8px 6px', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--bd)', flexShrink: 0, gap: 6 }}>
+          {paletteOpen && (
+            <span style={{ flex: 1, fontSize: 9, textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--txD)' }}>Charts</span>
+          )}
+          <button
+            onClick={() => setPaletteOpen(v => !v)}
+            title={paletteOpen ? 'Collapse palette' : 'Expand palette'}
+            style={{ width: 18, height: 18, borderRadius: 3, border: '1px solid var(--bd)', background: 'transparent',
+              color: 'var(--txD)', cursor: 'pointer', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ac)'; e.currentTarget.style.color = 'var(--ac)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--bd)'; e.currentTarget.style.color = 'var(--txD)'; }}
+          >
+            {paletteOpen ? '›' : '‹'}
+          </button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
-          {CAT_ORDER.map(cat => {
-            const items = paletteCharts(cat);
-            if (cat === 'alerts') {
-              return (
-                <div key={cat} style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.08em', color: CAT_COLORS[cat], margin: '6px 0 4px 2px' }}>{CAT_LABELS[cat]}</div>
-                  <div style={{ fontSize: 9, color: 'var(--txD)', fontStyle: 'italic', padding: '4px 6px' }}>Coming soon</div>
-                </div>
-              );
-            }
-            if (!items.length) return null;
-            return (
-              <div key={cat} style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.08em', color: CAT_COLORS[cat], margin: '6px 0 4px 2px' }}>{CAT_LABELS[cat]}</div>
-                {items.map(chart => (
-                  <div
-                    key={chart.name}
-                    draggable
-                    onDragStart={() => setDraggedChart(chart)}
-                    onDragEnd={() => setDraggedChart(null)}
-                    style={{
-                      padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bd)',
-                      background: 'var(--bgP)', marginBottom: 5, cursor: 'grab',
-                      transition: 'border-color .12s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = CAT_COLORS[cat]}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--bd)'}
-                  >
-                    <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--tx)' }}>{chart.title}</div>
-                    <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 2, lineHeight: 1.3 }}>{chart.description}</div>
-                  </div>
-                ))}
-                {/* Add slot button */}
-                <button className="btn" onClick={() => addSlotForCategory(cat)}
-                  style={{ width: '100%', fontSize: 9, padding: '3px 0', marginTop: 2, color: 'var(--txD)', borderColor: 'var(--bd)' }}>
-                  + add slot
-                </button>
-              </div>
-            );
-          })}
-        </div>
+
+        {/* Palette content */}
+        {paletteOpen && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
+            {CAT_ORDER.map(cat => (
+              <PaletteCategory
+                key={cat}
+                category={cat}
+                charts={paletteCharts(cat)}
+                onDragStart={setDraggedChart}
+                onDragEnd={() => setDraggedChart(null)}
+                onAddSlot={() => addSlotForCategory(cat)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Chart picker modal */}
