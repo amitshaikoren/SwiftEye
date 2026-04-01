@@ -121,6 +121,7 @@ function IpParamInput({ param: p, value, availableIps, onChange, onEnter }) {
 
 // ── PROTOCOLS available for filter chips ──────────────────────────────────────
 const ALL_PROTOCOLS = ['TCP', 'UDP', 'DNS', 'TLS', 'HTTP', 'ICMP', 'ARP', 'DHCP'];
+const DEFAULT_CARD_HEIGHT = 380;
 
 // ── PlacedCard — a chart placed in a slot ─────────────────────────────────────
 function PlacedCard({
@@ -134,7 +135,7 @@ function PlacedCard({
   function handleResizeStart(e) {
     e.preventDefault();
     const startY = e.clientY;
-    const startHeight = cardHeight || 380;
+    const startHeight = cardHeight || DEFAULT_CARD_HEIGHT;
     function onMove(e) {
       const newHeight = Math.max(120, startHeight + (e.clientY - startY));
       onResize(newHeight);
@@ -398,7 +399,7 @@ function PlacedCard({
       <div
         onWheel={e => e.stopPropagation()}
         style={{ background: 'var(--bg)', overflowY: 'auto', minHeight: 0,
-          ...(inOverlay ? { flex: 1 } : { height: cardHeight || 380 }) }}>
+          ...(inOverlay ? { flex: 1 } : { height: cardHeight || DEFAULT_CARD_HEIGHT }) }}>
         <ChartErrorBoundary>
           <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} />
         </ChartErrorBoundary>
@@ -461,7 +462,7 @@ function EmptySlot({ onDrop, onClick, dragOverId, slotId }) {
       onDragLeave={() => onDrop('leave', slotId)}
       onDrop={e => { e.preventDefault(); onDrop('drop', slotId); }}
       style={{
-        minHeight: 120, borderRadius: 8,
+        height: DEFAULT_CARD_HEIGHT, borderRadius: 8,
         border: `1px dashed ${isOver ? 'var(--ac)' : 'var(--bd)'}`,
         background: isOver ? 'rgba(88,166,255,.04)' : '#0a0b0f',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -744,7 +745,11 @@ export default function ResearchPage({
     setSlots(prev => {
       const next = {};
       for (const [cat, arr] of Object.entries(prev)) {
-        next[cat] = arr.map(s => s.id === slotId ? { ...s, wide: !s.wide } : s);
+        next[cat] = arr.map(s => {
+          if (s.id !== slotId) return s;
+          const newWide = !s.wide;
+          return { ...s, wide: newWide, height: newWide ? s.height : null };
+        });
       }
       return next;
     });
