@@ -402,7 +402,7 @@ function ExpandedOverlay({ chart, investigatedIp, availableIps, globalTimeBounds
           ✕ Close
         </button>
       </div>
-      <div style={{ flex: 1, overflow: 'hidden', padding: 12, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column' }}>
         <PlacedCard
           chart={chart}
           investigatedIp={investigatedIp}
