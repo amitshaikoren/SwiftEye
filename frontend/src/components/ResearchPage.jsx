@@ -377,7 +377,9 @@ function PlacedCard({
       )}
 
       {/* Chart */}
-      <div style={{ background: 'var(--bg)', borderRadius: '0 0 8px 8px' }}>
+      <div
+        onWheel={e => e.stopPropagation()}
+        style={{ background: 'var(--bg)', borderRadius: '0 0 8px 8px', maxHeight: 380, overflowY: 'auto' }}>
         <ChartErrorBoundary>
           <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} />
         </ChartErrorBoundary>
