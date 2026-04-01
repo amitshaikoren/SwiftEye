@@ -248,8 +248,10 @@ function PlacedCard({
     return s && e ? `${fTtime(s.start_time)} — ${fTtime(e.end_time)}` : null;
   })();
 
+  const inOverlay = !onResize;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', ...(inOverlay ? { height: '100%' } : {}) }}>
       {/* Header */}
       <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--bgP)', borderRadius: '8px 8px 0 0' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -395,7 +397,8 @@ function PlacedCard({
       {/* Chart */}
       <div
         onWheel={e => e.stopPropagation()}
-        style={{ background: 'var(--bg)', height: cardHeight || 380, overflowY: 'auto' }}>
+        style={{ background: 'var(--bg)', overflowY: 'auto', minHeight: 0,
+          ...(inOverlay ? { flex: 1 } : { height: cardHeight || 380 }) }}>
         <ChartErrorBoundary>
           <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} />
         </ChartErrorBoundary>
