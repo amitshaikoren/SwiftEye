@@ -128,8 +128,24 @@ function PlacedCard({
   globalTimeBounds,
   timeline, timeRange: globalRange, bucketSec, setBucketSec,
   isWide, onToggleWide,
+  cardHeight, onResize,
   onRemove, onExpand,
 }) {
+  function handleResizeStart(e) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = cardHeight || 380;
+    function onMove(e) {
+      const newHeight = Math.max(120, startHeight + (e.clientY - startY));
+      onResize(newHeight);
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
   // ── per-card filter state
   const [useCustomTime, setUseCustomTime] = useState(false);
   const [cardTimeRange, setCardTimeRange] = useState([0, Math.max(0, (timeline?.length ?? 1) - 1)]);
@@ -379,11 +395,25 @@ function PlacedCard({
       {/* Chart */}
       <div
         onWheel={e => e.stopPropagation()}
-        style={{ background: 'var(--bg)', borderRadius: '0 0 8px 8px', maxHeight: 380, overflowY: 'auto' }}>
+        style={{ background: 'var(--bg)', height: cardHeight || 380, overflowY: 'auto' }}>
         <ChartErrorBoundary>
           <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} />
         </ChartErrorBoundary>
       </div>
+
+      {/* Drag handle */}
+      {onResize && (
+        <div
+          onMouseDown={handleResizeStart}
+          style={{
+            height: 8, cursor: 'ns-resize', background: 'var(--bg)',
+            borderRadius: '0 0 8px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderTop: '1px solid var(--bd)',
+          }}
+        >
+          <div style={{ width: 28, height: 2, borderRadius: 1, background: 'var(--bd)' }} />
+        </div>
+      )}
     </div>
   );
 }
@@ -507,7 +537,7 @@ function inferCategory(chart) {
 }
 
 // ── SlotGrid — flat grid of slots, no category labels ─────────────────────────
-function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggleWide, dragOverId, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec }) {
+function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggleWide, onResize, dragOverId, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec }) {
   // Flatten all category slots into one list, preserving id/chart/wide
   const allSlots = CAT_ORDER.flatMap(cat => slots[cat] || []);
 
@@ -530,6 +560,8 @@ function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggle
                   setBucketSec={setBucketSec}
                   isWide={isWide}
                   onToggleWide={() => onToggleWide(slot.id)}
+                  cardHeight={slot.height}
+                  onResize={h => onResize(slot.id, h)}
                   onRemove={() => onRemove(slot.id)}
                   onExpand={() => onExpand(slot.chart)}
                 />
@@ -610,9 +642,9 @@ export default function ResearchPage({
   const [loadErr, setLoadErr]     = useState('');
 
   const [slots, setSlots] = useState({
-    host:    [{ id: 'host-0', chart: null, wide: false }, { id: 'host-1', chart: null, wide: false }],
-    session: [{ id: 'session-0', chart: null, wide: false }, { id: 'session-1', chart: null, wide: false }],
-    capture: [{ id: 'capture-0', chart: null, wide: false }, { id: 'capture-1', chart: null, wide: false }],
+    host:    [{ id: 'host-0', chart: null, wide: false, height: null }, { id: 'host-1', chart: null, wide: false, height: null }],
+    session: [{ id: 'session-0', chart: null, wide: false, height: null }, { id: 'session-1', chart: null, wide: false, height: null }],
+    capture: [{ id: 'capture-0', chart: null, wide: false, height: null }, { id: 'capture-1', chart: null, wide: false, height: null }],
     alerts:  [],
   });
 
@@ -663,7 +695,17 @@ export default function ResearchPage({
 
   function addSlot() {
     const id = `slot-${slotCounter.current++}`;
-    setSlots(prev => ({ ...prev, capture: [...prev.capture, { id, chart: null, wide: false }] }));
+    setSlots(prev => ({ ...prev, capture: [...prev.capture, { id, chart: null, wide: false, height: null }] }));
+  }
+
+  function handleResize(slotId, height) {
+    setSlots(prev => {
+      const next = {};
+      for (const [cat, arr] of Object.entries(prev)) {
+        next[cat] = arr.map(s => s.id === slotId ? { ...s, height } : s);
+      }
+      return next;
+    });
   }
 
   function handleSlotDrop(action, slotId) {
@@ -777,6 +819,7 @@ export default function ResearchPage({
           onRemove={handleRemove}
           onExpand={setExpandedChart}
           onToggleWide={handleToggleWide}
+          onResize={handleResize}
           dragOverId={dragOverId}
           investigatedIp={effectiveIp}
           availableIps={availableIps}
