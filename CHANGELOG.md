@@ -1,5 +1,11 @@
 # SwiftEye — Changelog
 
+### v0.15.16 — April 2026
+- **Research panel bug fixes** — six layout and UX fixes to `ResearchPage.jsx`: slot canvas no longer loses scroll when a card is toggled to full-row width; ⇔ wide-toggle button moved into the card header (eliminates overlap with expand/remove/filters buttons); Plotly chart now resizes correctly when its slot goes full-row; category section labels removed from the main slot canvas (categories are palette-only); right palette is now collapsible via a toggle button; each palette category section is individually collapsible.
+- **Expanded overlay improvements** — overlay scroll no longer bleeds to the background canvas; duplicate chart title in overlay header removed; chart fills the full overlay height instead of being capped at 380px.
+- **Card drag-to-resize** — drag handle at the bottom of each placed card lets the researcher resize card height freely. Height resets to default when collapsing ⇔ back to half-row. Empty slots match the default card height for visual consistency.
+- **Single add-slot button** — one "+ add slot" button at the bottom of the canvas replaces the per-category buttons that were cluttering the palette.
+
 ### v0.15.15 — March 2026
 - **Research panel redesign** — `ResearchPage.jsx` fully rewritten. Slot-based drag-and-drop canvas replaces the old flat list. Charts palette on the right is categorised: Host, Session, Capture, Alerts (placeholder). Each category is collapsible. Slots are in a 2-per-row grid; any slot can be toggled to full-row width. Placed cards have per-chart filters (time range, protocol chips, search query, IPv6 toggle) that override the global scope. Cards can be expanded to cover the Research panel area. Drag a chart name from the palette into a slot, or click an empty slot to pick. Remove a card to return the slot to empty.
 - **Self-hosted fonts + offline cleanup** — Google Fonts CDN link removed; JetBrains Mono and Outfit now served from `frontend/public/fonts/` via `@font-face` in `styles.css`. Plotly CDN `<script>` tag removed from `index.html` (Plotly was already bundled by Vite via `plotly.js-dist`).
