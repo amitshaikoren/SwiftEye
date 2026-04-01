@@ -548,7 +548,7 @@ function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggle
 }
 
 // ── PaletteCategory — collapsible category section in the right palette ───────
-function PaletteCategory({ category, charts, onDragStart, onDragEnd, onAddSlot }) {
+function PaletteCategory({ category, charts, onDragStart, onDragEnd }) {
   const [collapsed, setCollapsed] = useState(false);
   const color = CAT_COLORS[category];
   const label = CAT_LABELS[category];
@@ -586,10 +586,6 @@ function PaletteCategory({ category, charts, onDragStart, onDragEnd, onAddSlot }
                 <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 2, lineHeight: 1.3 }}>{chart.description}</div>
               </div>
             ))}
-            <button className="btn" onClick={onAddSlot}
-              style={{ width: '100%', fontSize: 9, padding: '3px 0', marginTop: 2, color: 'var(--txD)', borderColor: 'var(--bd)' }}>
-              + add slot
-            </button>
           </>
         )
       )}
@@ -623,6 +619,7 @@ export default function ResearchPage({
   const [pickerSlotId, setPickerSlotId] = useState(null);
   const [expandedChart, setExpandedChart] = useState(null);
   const [paletteOpen, setPaletteOpen]   = useState(true);
+  const slotCounter = useRef(100); // start above default slot IDs to avoid collisions
 
   const timeRangeRef = useRef(timeRange);
   const timelineRef  = useRef(timeline);
@@ -662,11 +659,9 @@ export default function ResearchPage({
     return next;
   }
 
-  function addSlotForCategory(cat) {
-    setSlots(prev => ({
-      ...prev,
-      [cat]: [...prev[cat], { id: `${cat}-${prev[cat].length}`, chart: null, wide: false }],
-    }));
+  function addSlot() {
+    const id = `slot-${slotCounter.current++}`;
+    setSlots(prev => ({ ...prev, capture: [...prev.capture, { id, chart: null, wide: false }] }));
   }
 
   function handleSlotDrop(action, slotId) {
@@ -789,6 +784,12 @@ export default function ResearchPage({
           bucketSec={bucketSec}
           setBucketSec={setBucketSec}
         />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <button className="btn" onClick={addSlot}
+            style={{ fontSize: 10, padding: '5px 20px', color: 'var(--txD)', borderColor: 'var(--bd)' }}>
+            + add slot
+          </button>
+        </div>
       </div>
 
       {/* Right palette */}
@@ -825,7 +826,6 @@ export default function ResearchPage({
                 charts={paletteCharts(cat)}
                 onDragStart={setDraggedChart}
                 onDragEnd={() => setDraggedChart(null)}
-                onAddSlot={() => addSlotForCategory(cat)}
               />
             ))}
           </div>
