@@ -279,7 +279,7 @@ class ChartErrorBoundary extends React.Component {
 }
 
 // ── PlotlyChart ───────────────────────────────────────────────────────────────
-function PlotlyChart({ figure, loading, error, isWide }) {
+function PlotlyChart({ figure, loading, error, isWide, fillHeight }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -324,7 +324,7 @@ function PlotlyChart({ figure, loading, error, isWide }) {
       Fill in params above and click Run
     </div>
   );
-  return <div ref={ref} style={{ width: '100%', minHeight: 220 }} />;
+  return <div ref={ref} style={{ width: '100%', ...(fillHeight ? { height: '100%' } : { minHeight: 220 }) }} />;
 }
 
 // ── IpParamInput ──────────────────────────────────────────────────────────────
@@ -676,9 +676,9 @@ function PlacedCard({
       <div
         onWheel={e => e.stopPropagation()}
         style={{ background: 'var(--bg)', overflowY: 'auto', minHeight: 0,
-          ...(inOverlay ? { flex: 1 } : { height: cardHeight || DEFAULT_CARD_HEIGHT }) }}>
+          ...(inOverlay ? { flex: 1, display: 'flex', flexDirection: 'column' } : { height: cardHeight || DEFAULT_CARD_HEIGHT }) }}>
         <ChartErrorBoundary>
-          <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} />
+          <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} fillHeight={inOverlay} />
         </ChartErrorBoundary>
       </div>
 

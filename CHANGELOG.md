@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.15.18 — April 2026
+- **Custom chart fixes** — timestamp fields on X/Y axes now render as human-readable datetime strings instead of raw Unix epoch floats. Expanded overlay chart fills the full available height. Cleaned up two lint items in `custom_chart.py` (unused `_STATIC_SOURCES` set; dead `for tr in traces: pass` stub).
+- **Roadmap additions** — `research-per-chart-filters`, `research-plotly-native-api`, `node-temporal-animation` added to `ROADMAP.md` with full design notes.
+
 ### v0.15.17 — April 2026
 - **Custom research charts** — researchers can now build ad-hoc Plotly charts from within the Research panel without writing Python. A "Custom chart" button in the palette opens a two-step builder: step 1 picks a data source (Packets, Sessions, DNS, HTTP, TLS, TCP, DHCP, ARP, ICMP — greyed out if the current capture has no matching data); step 2 maps fields to X/Y axes, colour, marker size (scatter only), and hover fields, then picks chart type (Scatter, Bar, Histogram) and sets a title. The backend endpoint `POST /api/research/custom` receives the field-mapping payload and returns a Plotly figure — all aggregation stays server-side, consistent with existing Research chart architecture. Custom chart configs are persisted in `localStorage` keyed by capture filename so they survive page refresh and work across captures (different data, same structure). Placed custom cards show a pencil ✎ button in the header to reopen the builder pre-filled for editing.
 
