@@ -11,6 +11,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { runResearchChart } from '../api';
 import { fT, fTtime } from '../utils';
+import { useFilterContext, toProtocolNames } from '../FilterContext';
 
 // Inline gap-split sparkline for the time scope panel
 function SegCanvas({ buckets, activeRange, globalStart, width, height }) {
@@ -103,10 +104,8 @@ export default function TimelinePanel({
   sessions = [],
   timeline = [], timeRange = [0, 0], setTimeRange,
   bucketSec = 15, setBucketSec,
-  filterProtocols = '',
-  filterSearch = '',
-  filterIncludeIPv6 = true,
 }) {
+  const filterCtx = useFilterContext();
   const [figure, setFigure]   = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
@@ -116,14 +115,14 @@ export default function TimelinePanel({
   useEffect(() => { timeRangeRef.current = timeRange; }, [timeRange]);
   useEffect(() => { timelineRef.current  = timeline;  }, [timeline]);
 
-  const filterRef = React.useRef({ filterProtocols, filterSearch, filterIncludeIPv6 });
-  useEffect(() => { filterRef.current = { filterProtocols, filterSearch, filterIncludeIPv6 }; }, [filterProtocols, filterSearch, filterIncludeIPv6]);
+  const filterCtxRef = useRef(filterCtx);
+  useEffect(() => { filterCtxRef.current = filterCtx; }, [filterCtx]);
 
   function handleRun() {
     if (!sessions.length) return;
     const tl = timelineRef.current;
     const tr = timeRangeRef.current;
-    const f = filterRef.current;
+    const f = filterCtxRef.current;
     const payload = {};
     if (tl.length) {
       const ts = tl[tr[0]]?.start_time;
@@ -132,9 +131,10 @@ export default function TimelinePanel({
       if (te != null) payload._timeEnd   = te;
     }
     // Pass active filter state so the Gantt respects current graph filters
-    if (f.filterProtocols) payload._filterProtocols = f.filterProtocols;
-    if (f.filterSearch)    payload._filterSearch    = f.filterSearch;
-    if (!f.filterIncludeIPv6) payload._filterIncludeIpv6 = false;
+    const protoNames = toProtocolNames(f.enabledP, f.allProtocolKeysCount);
+    if (protoNames)      payload._filterProtocols  = protoNames;
+    if (f.search?.trim()) payload._filterSearch    = f.search.trim();
+    if (!f.includeIPv6)  payload._filterIncludeIpv6 = false;
     setLoading(true); setError('');
     runResearchChart('session_gantt', payload)
       .then(res => setFigure(res.figure))

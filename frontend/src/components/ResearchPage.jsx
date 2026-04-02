@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchResearchCharts, runResearchChart, fetchCustomChartSchema, runCustomChart } from '../api';
 import { fTtime } from '../utils';
 import Sparkline from './Sparkline';
+import ScopePill from './ScopePill';
+import { useFilterContext, toProtocolNames } from '../FilterContext';
 
 // ── Custom chart localStorage persistence ─────────────────────────────────────
 const CUSTOM_CHARTS_KEY = 'swifteye_custom_charts';
@@ -379,11 +381,20 @@ function IpParamInput({ param: p, value, availableIps, onChange, onEnter }) {
   );
 }
 
-// ── PROTOCOLS available for filter chips ──────────────────────────────────────
-const ALL_PROTOCOLS = ['TCP', 'UDP', 'DNS', 'TLS', 'HTTP', 'ICMP', 'ARP', 'DHCP'];
 const DEFAULT_CARD_HEIGHT = 380;
 
 // ── PlacedCard — a chart placed in a slot ─────────────────────────────────────
+function useScopeState(key) {
+  const [scope, setScope] = useState(() => {
+    try { return localStorage.getItem(key) || 'scoped'; } catch { return 'scoped'; }
+  });
+  const onChange = (v) => {
+    setScope(v);
+    try { localStorage.setItem(key, v); } catch {}
+  };
+  return [scope, onChange];
+}
+
 function PlacedCard({
   chart, investigatedIp, availableIps,
   globalTimeBounds,
@@ -391,7 +402,10 @@ function PlacedCard({
   isWide, onToggleWide,
   cardHeight, onResize,
   onRemove, onExpand, onEdit,
+  slotId,
 }) {
+  const filterCtx = useFilterContext();
+  const [scope, setScope] = useScopeState(`swifteye_scope_slot_${slotId || 'default'}`);
   function handleResizeStart(e) {
     e.preventDefault();
     const startY = e.clientY;
@@ -407,10 +421,10 @@ function PlacedCard({
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }
-  // ── per-card filter state
+  // ── per-card filter state (used only when scope === 'all' / custom override)
   const [useCustomTime, setUseCustomTime] = useState(false);
   const [cardTimeRange, setCardTimeRange] = useState([0, Math.max(0, (timeline?.length ?? 1) - 1)]);
-  const [protocols, setProtocols]     = useState(new Set(ALL_PROTOCOLS));
+  const [protocols, setProtocols]     = useState(() => new Set(filterCtx.protocolList));
   const [search, setSearch]           = useState('');
   const [includeIpv6, setIncludeIpv6] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -471,13 +485,20 @@ function PlacedCard({
     setLoading(true); setError('');
     try {
       const { timeStart, timeEnd } = getTimeBounds();
-      const enabledProtos = [...protocols];
       const filterOverrides = {};
       if (timeStart != null) filterOverrides._timeStart = timeStart;
       if (timeEnd   != null) filterOverrides._timeEnd   = timeEnd;
-      if (enabledProtos.length < ALL_PROTOCOLS.length) filterOverrides._filterProtocols = enabledProtos.join(',');
-      if (search.trim()) filterOverrides._filterSearch = search.trim();
-      if (!includeIpv6)  filterOverrides._filterIncludeIpv6 = false;
+      if (scope === 'scoped') {
+        const protoNames = toProtocolNames(filterCtx.enabledP, filterCtx.allProtocolKeysCount);
+        if (protoNames) filterOverrides._filterProtocols = protoNames;
+        if (filterCtx.search?.trim()) filterOverrides._filterSearch = filterCtx.search.trim();
+        if (!filterCtx.includeIPv6) filterOverrides._filterIncludeIpv6 = false;
+      } else {
+        const enabledProtos = [...protocols];
+        if (enabledProtos.length < filterCtx.protocolList.length) filterOverrides._filterProtocols = enabledProtos.join(',');
+        if (search.trim()) filterOverrides._filterSearch = search.trim();
+        if (!includeIpv6) filterOverrides._filterIncludeIpv6 = false;
+      }
 
       let res;
       if (chart._isCustom) {
@@ -505,7 +526,7 @@ function PlacedCard({
     });
   }
 
-  const hasCustomFilters = useCustomTime || protocols.size < ALL_PROTOCOLS.length || search.trim() || !includeIpv6;
+  const hasCustomFilters = useCustomTime || protocols.size < filterCtx.protocolList.length || search.trim() || !includeIpv6;
 
   const timeLabel = (() => {
     if (!timeline?.length) return null;
@@ -524,7 +545,8 @@ function PlacedCard({
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{chart.title}</div>
           <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 1, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{chart.description}</div>
         </div>
-        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
+          <ScopePill value={scope} onChange={setScope} />
           <button onClick={() => setFiltersOpen(v => !v)}
             style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, border: `1px solid ${hasCustomFilters ? 'var(--ac)' : 'var(--bd)'}`,
               background: hasCustomFilters ? 'rgba(88,166,255,.1)' : 'transparent',
@@ -597,7 +619,7 @@ function PlacedCard({
           {/* Protocol chips */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Protocols</label>
-            {ALL_PROTOCOLS.map(proto => (
+            {filterCtx.protocolList.map(proto => (
               <button key={proto}
                 onClick={() => toggleProtocol(proto)}
                 style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10,
@@ -723,6 +745,7 @@ function ExpandedOverlay({ chart, investigatedIp, availableIps, globalTimeBounds
           isWide={true}
           onRemove={onClose}
           onExpand={onClose}
+          slotId="expanded"
         />
       </div>
     </div>
@@ -862,6 +885,7 @@ function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggle
                   onRemove={() => onRemove(slot.id)}
                   onExpand={() => onExpand(slot.chart)}
                   onEdit={slot.chart._isCustom ? () => onEditCustom(slot.id, slot.chart) : undefined}
+                  slotId={slot.id}
                 />
               </div>
             ) : (

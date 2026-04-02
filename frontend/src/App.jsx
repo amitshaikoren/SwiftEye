@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useCapture } from './hooks/useCapture';
 import { useSettings } from './hooks/useSettings';
+import { FilterContext } from './FilterContext';
 import logoFullData from './logoFullData.js';
 import TopBar from './components/TopBar';
 import FilterBar from './components/FilterBar';
@@ -50,6 +51,18 @@ export default function App() {
     const packets = edges.reduce((s, e) => s + (e.packet_count || 0), 0);
     return { nodes: inv.size, connections: edges.length, bytes, packets };
   }, [c.investigationNodes, c.graph]);
+
+  // ── Centralized filter context value ────────────────────────────
+  const filterValue = useMemo(() => ({
+    timeRange: c.timeRange,
+    enabledP: c.enabledP,
+    search: c.search,
+    includeIPv6: c.includeIPv6,
+    protocolList: c.protocols,
+    allProtocolKeysCount: c.allProtocolKeysCountRef.current,
+  }), [c.timeRange, c.enabledP, c.search, c.includeIPv6, c.protocols]);
+  // Note: allProtocolKeysCount is from a ref — updated by a separate effect in useCapture.
+  // It's stable once the capture is loaded so it doesn't need to be a dep here.
 
   // ── Graph container size (for Sparkline width) ───────────────────
   const graphContainerRef = useRef(null);
@@ -173,7 +186,6 @@ export default function App() {
           annotations={c.annotations}
           onSaveNote={c.handleSaveNote}
           clusterNames={c.clusterNames}
-          filterState={{ enabledP: c.enabledP, allProtocolCount: c.allProtocolKeysCountRef.current, search: c.search, includeIPv6: c.includeIPv6 }}
         />
       </>
     );
@@ -218,7 +230,6 @@ export default function App() {
             annotations={c.annotations}
             onSaveNote={c.handleSaveNote}
             onUpdateSynthetic={c.handleUpdateSyntheticNode}
-            filterState={{ enabledP: c.enabledP, allProtocolCount: c.allProtocolKeysCountRef.current, search: c.search, includeIPv6: c.includeIPv6 }}
           />
         </>
       );
@@ -288,6 +299,7 @@ export default function App() {
 
   // ── Main layout ──────────────────────────────────────────────────
   return (
+    <FilterContext.Provider value={filterValue}>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <TopBar
         fileName={c.fileName}
@@ -349,9 +361,6 @@ export default function App() {
             timeline={c.timeline}
             timeRange={c.timeRange} setTimeRange={c.setTimeRange}
             bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
-            filterProtocols={c.enabledP.size < c.protocols.length && c.enabledP.size > 0 ? Array.from(c.enabledP).join(',') : ''}
-            filterSearch={c.search}
-            filterIncludeIPv6={c.includeIPv6}
           />
         ) : c.rPanel === 'timeline' ? (
           /* TIMELINE PAGE — full width, replaces graph + right panel */
@@ -360,9 +369,6 @@ export default function App() {
             timeline={c.timeline}
             timeRange={c.timeRange} setTimeRange={c.setTimeRange}
             bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
-            filterProtocols={c.enabledP.size < c.protocols.length && c.enabledP.size > 0 ? Array.from(c.enabledP).join(',') : ''}
-            filterSearch={c.search}
-            filterIncludeIPv6={c.includeIPv6}
           />
         ) : c.rPanel === 'analysis' ? (
           /* ANALYSIS PAGE — full width, replaces graph + right panel */
@@ -635,5 +641,6 @@ export default function App() {
         />
       )}
     </div>
+    </FilterContext.Provider>
   );
 }

@@ -5,6 +5,7 @@ import Collapse from './Collapse';
 import Row from './Row';
 import { PluginSections, GenericDisplay } from './PluginSection';
 import { fN, fB, fD } from '../utils';
+import { useFilterContext, applyDisplayFilter } from '../FilterContext';
 
 /**
  * Classify an IP address into its address type.
@@ -255,43 +256,20 @@ function useScopeState(key) {
   return [scope, onChange];
 }
 
-function applyDisplayFilter(sessions, filterState) {
-  if (!filterState) return sessions;
-  const { enabledP, allProtocolCount, search, includeIPv6 } = filterState;
-  let result = sessions;
-  if (!includeIPv6) {
-    result = result.filter(s => !s.src_ip.includes(':') && !s.dst_ip.includes(':'));
-  }
-  if (enabledP.size > 0 && enabledP.size < allProtocolCount) {
-    const appProtos = new Set(Array.from(enabledP).map(k => k.split('/').pop().toUpperCase()));
-    result = result.filter(s => appProtos.has((s.protocol || '').toUpperCase()));
-  }
-  if (search.trim()) {
-    const q = search.toLowerCase();
-    result = result.filter(s =>
-      s.src_ip.toLowerCase().includes(q) ||
-      s.dst_ip.toLowerCase().includes(q) ||
-      (s.protocol || '').toLowerCase().includes(q) ||
-      String(s.src_port).includes(q) ||
-      String(s.dst_port).includes(q)
-    );
-  }
-  return result;
-}
-
 export default function NodeDetail({
   nodeId, nodes, edges, sessions, pColors, onClear, onSelectNode, onSelectEdge, onSelectSession,
   pluginResults, uiSlots, annotations = [], onSaveNote, onUpdateSynthetic,
-  filterState, fullSessions, fullGraph,
+  fullSessions, fullGraph,
 }) {
+  const filterCtx = useFilterContext();
   const [scope, setScope] = useScopeState('swifteye_scope_node');
   const node = (scope === 'all' && fullGraph?.current)
     ? (fullGraph.current.nodes.find(n => n.id === nodeId) || nodes.find(n => n.id === nodeId))
     : nodes.find(n => n.id === nodeId);
   const displaySessions = useMemo(() => {
     if (scope === 'all') return fullSessions || [];
-    return applyDisplayFilter(sessions || [], filterState);
-  }, [sessions, fullSessions, scope, filterState]);
+    return applyDisplayFilter(sessions || [], filterCtx);
+  }, [sessions, fullSessions, scope, filterCtx]);
 
   // Note state — persists per nodeId
   const existingNote = annotations.find(a => a.annotation_type === 'note' && a.node_id === nodeId);

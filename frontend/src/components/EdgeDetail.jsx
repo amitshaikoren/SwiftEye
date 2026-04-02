@@ -5,6 +5,7 @@ import Row from './Row';
 import { fN, fB, fD, fT } from '../utils';
 import { fetchSessions } from '../api';
 import ScopePill from './ScopePill';
+import { useFilterContext, applyDisplayFilter } from '../FilterContext';
 
 function useScopeState(key) {
   const [scope, setScope] = useState(() => {
@@ -16,31 +17,6 @@ function useScopeState(key) {
   };
   return [scope, onChange];
 }
-
-function applyDisplayFilter(sessions, filterState) {
-  if (!filterState) return sessions;
-  const { enabledP, allProtocolCount, search, includeIPv6 } = filterState;
-  let result = sessions;
-  if (!includeIPv6) {
-    result = result.filter(s => !s.src_ip.includes(':') && !s.dst_ip.includes(':'));
-  }
-  if (enabledP.size > 0 && enabledP.size < allProtocolCount) {
-    const appProtos = new Set(Array.from(enabledP).map(k => k.split('/').pop().toUpperCase()));
-    result = result.filter(s => appProtos.has((s.protocol || '').toUpperCase()));
-  }
-  if (search.trim()) {
-    const q = search.toLowerCase();
-    result = result.filter(s =>
-      s.src_ip.toLowerCase().includes(q) ||
-      s.dst_ip.toLowerCase().includes(q) ||
-      (s.protocol || '').toLowerCase().includes(q) ||
-      String(s.src_port).includes(q) ||
-      String(s.dst_port).includes(q)
-    );
-  }
-  return result;
-}
-
 
 // Renders a JA3 hash with inline app name when known
 function JA3Badge({ hash, apps = [] }) {
@@ -63,12 +39,13 @@ function JA3Badge({ hash, apps = [] }) {
   );
 }
 
-export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes = [], onSelectSession, annotations = [], onSaveNote, clusterNames, filterState, fullSessions }) {
+export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes = [], onSelectSession, annotations = [], onSaveNote, clusterNames, fullSessions }) {
+  const filterCtx = useFilterContext();
   const [scope, setScope] = useScopeState('swifteye_scope_edge');
   const displaySessions = useMemo(() => {
     if (scope === 'all') return fullSessions || [];
-    return applyDisplayFilter(sessions || [], filterState);
-  }, [sessions, fullSessions, scope, filterState]);
+    return applyDisplayFilter(sessions || [], filterCtx);
+  }, [sessions, fullSessions, scope, filterCtx]);
   const src = e ? (typeof e.source === 'object' ? e.source.id : e.source) : '';
   const tgt = e ? (typeof e.target === 'object' ? e.target.id : e.target) : '';
 
