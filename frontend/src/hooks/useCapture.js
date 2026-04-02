@@ -318,7 +318,7 @@ export function useCapture() {
   // Used inside the graph fetch effect to determine if all protocols are enabled (no filter needed).
   // Kept as a ref so updating it does NOT trigger a graph refetch.
   const allProtocolKeysCountRef = useRef(0);
-  const fullGraphEdgesRef = useRef(null); // full-capture graph edges, set once on first fetch
+  const fullGraphRef = useRef(null); // full-capture graph (nodes + edges), set once on first fetch
   useEffect(() => {
     const sp = stats?.protocols || {};
     const _nonIp = new Set(['ARP', 'OTHER']);
@@ -366,7 +366,7 @@ export function useCapture() {
     const ctrl = new AbortController();
     fetchGraph(params, ctrl.signal).then(d => {
       setRawGraph(d);
-      if (!fullGraphEdgesRef.current) fullGraphEdgesRef.current = d.edges || [];
+      if (!fullGraphRef.current) fullGraphRef.current = { nodes: d.nodes || [], edges: d.edges || [] };
     }).catch(e => {
       if (e.name !== 'AbortError') console.error(e);
     });
@@ -974,7 +974,7 @@ export function useCapture() {
     clusterExclusions, handleExpandCluster, handleCollapseCluster,
 
     // Full-capture snapshots for ALL scope mode (never time-filtered)
-    fullSessions, fullGraphEdgesRef,
+    fullSessions, fullGraphRef,
 
     // Protocol key count ref (composite keys — matches enabledP format)
     allProtocolKeysCountRef,

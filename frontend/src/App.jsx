@@ -209,7 +209,7 @@ export default function App() {
             nodeId={c.selNodes[0]} nodes={detailNodes} edges={detailEdges}
             sessions={c.sessions} pColors={c.pColors}
             fullSessions={c.fullSessions}
-            fullEdges={c.fullGraphEdgesRef}
+            fullGraph={c.fullGraphRef}
             onClear={c.clearSel}
             onSelectNode={id => c.handleGSel('node', id, false)}
             onSelectEdge={e => c.handleGSel('edge', e, false)}

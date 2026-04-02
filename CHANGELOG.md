@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.15.23 — April 2026
+- **Scope ALL node stats** — NodeDetail in ALL mode now also uses the full-capture node object (`fullGraphRef.current.nodes`) so packet count, traffic volume, protocols, ports, and top-neighbors all reflect the full capture, not the current time window. `fullGraphEdgesRef` promoted to `fullGraphRef` (stores nodes + edges).
+
 ### v0.15.22 — April 2026
 - **Scope toggle ALL mode** — ALL now shows truly unfiltered data regardless of time range. `useCapture` stores `fullSessions` (captured at initial load, never updated on time changes) and `fullGraphEdgesRef` (first graph fetch, before any time filter). NodeDetail uses `fullSessions` for session rows and `fullGraphEdgesRef` for the connections list when scope=ALL. EdgeDetail uses `fullSessions` for its session rows.
 

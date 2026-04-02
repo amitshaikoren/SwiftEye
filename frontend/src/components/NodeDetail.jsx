@@ -282,10 +282,12 @@ function applyDisplayFilter(sessions, filterState) {
 export default function NodeDetail({
   nodeId, nodes, edges, sessions, pColors, onClear, onSelectNode, onSelectEdge, onSelectSession,
   pluginResults, uiSlots, annotations = [], onSaveNote, onUpdateSynthetic,
-  filterState, fullSessions, fullEdges,
+  filterState, fullSessions, fullGraph,
 }) {
-  const node = nodes.find(n => n.id === nodeId);
   const [scope, setScope] = useScopeState('swifteye_scope_node');
+  const node = (scope === 'all' && fullGraph?.current)
+    ? (fullGraph.current.nodes.find(n => n.id === nodeId) || nodes.find(n => n.id === nodeId))
+    : nodes.find(n => n.id === nodeId);
   const displaySessions = useMemo(() => {
     if (scope === 'all') return fullSessions || [];
     return applyDisplayFilter(sessions || [], filterState);
@@ -327,7 +329,7 @@ export default function NodeDetail({
 
   if (!node) return null;
 
-  const edgeSource = (scope === 'all' && fullEdges?.current) ? fullEdges.current : edges;
+  const edgeSource = (scope === 'all' && fullGraph?.current) ? fullGraph.current.edges : edges;
   const ce = edgeSource.filter(e => {
     const s = typeof e.source === 'object' ? e.source.id : e.source;
     const t = typeof e.target === 'object' ? e.target.id : e.target;
