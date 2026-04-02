@@ -53,7 +53,6 @@ from typing import Any, Dict, List, Optional, Set
 
 import plotly.graph_objects as go
 
-from constants import SWIFTEYE_LAYOUT
 
 logger = logging.getLogger("swifteye.research.custom")
 
@@ -495,7 +494,7 @@ def _split_traces_by_color(rows, x_field, y_field, color_field, hover, chart_typ
     return traces
 
 
-def build_figure(payload: Dict[str, Any], packets, sessions) -> Dict[str, Any]:
+def build_figure(payload: Dict[str, Any], packets, sessions) -> go.Figure:
     source       = payload.get("source", "packets")
     chart_type   = payload.get("chart_type", "scatter")
     x_field      = payload.get("x_field", "")
@@ -509,9 +508,8 @@ def build_figure(payload: Dict[str, Any], packets, sessions) -> Dict[str, Any]:
 
     if not rows:
         fig = go.Figure()
-        fig.update_layout({**SWIFTEYE_LAYOUT,
-                           "title": {"text": f"{title} — no data for source '{source}'"}})
-        return fig.to_dict()
+        fig.update_layout({"title": {"text": f"{title} — no data for source '{source}'"}})
+        return fig
 
     x_vals = _field_values(rows, x_field)
     if x_field == "timestamp":
@@ -638,5 +636,5 @@ def build_figure(payload: Dict[str, Any], packets, sessions) -> Dict[str, Any]:
         }
         layout_overrides["margin"]["b"] = 120
 
-    fig.update_layout({**SWIFTEYE_LAYOUT, **layout_overrides})
-    return fig.to_dict()
+    fig.update_layout(layout_overrides)
+    return fig

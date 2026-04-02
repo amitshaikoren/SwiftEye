@@ -72,6 +72,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
+import plotly.graph_objects as go
 from constants import PROTOCOL_COLORS, SWIFTEYE_LAYOUT
 
 logger = logging.getLogger("swifteye.research")
@@ -132,17 +133,14 @@ class ResearchChart(ABC):
     params: List[Param] = []
 
     @abstractmethod
-    def compute(self, ctx: AnalysisContext, params: dict) -> dict:
+    def compute(self, ctx: AnalysisContext, params: dict) -> go.Figure:
         """
         Compute the chart for the given params.
 
         params: dict keyed by Param.name → user-supplied value (always str)
 
-        Returns a standard Plotly figure dict:
-          {"data": [...traces], "layout": {...}}
-
-        The dict is passed directly to Plotly.js — full Plotly API available.
-        Merge SWIFTEYE_LAYOUT into layout for consistent theming.
+        Return a go.Figure. The framework applies SWIFTEYE_LAYOUT and calls
+        .to_dict() before sending to the frontend — do not do either yourself.
         """
         pass
 
@@ -190,7 +188,11 @@ def run_chart(name: str, ctx: AnalysisContext, params: dict) -> dict:
             raise ValueError(f"Required param '{p.name}' ({p.label}) is missing")
 
     try:
-        return chart.compute(ctx, params)
+        result = chart.compute(ctx, params)
+        if isinstance(result, go.Figure):
+            result.update_layout(SWIFTEYE_LAYOUT)
+            return result.to_dict()
+        return result  # backwards compat: existing charts that return raw dicts
     except Exception as e:
         logger.error(f"Research chart '{name}' compute failed: {e}", exc_info=True)
         raise
