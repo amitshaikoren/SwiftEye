@@ -967,6 +967,9 @@ export function useCapture() {
     clusterNames, renameCluster: (id, name) => setClusterNames(prev => ({ ...prev, [id]: name })),
     clusterExclusions, handleExpandCluster, handleCollapseCluster,
 
+    // Protocol key count ref (composite keys — matches enabledP format)
+    allProtocolKeysCountRef,
+
     // Display filter
     dfExpr, setDfExpr,
     dfApplied, dfError, dfResult,

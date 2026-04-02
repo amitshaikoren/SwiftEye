@@ -172,6 +172,7 @@ export default function App() {
           annotations={c.annotations}
           onSaveNote={c.handleSaveNote}
           clusterNames={c.clusterNames}
+          filterState={{ enabledP: c.enabledP, allProtocolCount: c.allProtocolKeysCountRef.current, search: c.search, includeIPv6: c.includeIPv6 }}
         />
       </>
     );
@@ -214,6 +215,7 @@ export default function App() {
             annotations={c.annotations}
             onSaveNote={c.handleSaveNote}
             onUpdateSynthetic={c.handleUpdateSyntheticNode}
+            filterState={{ enabledP: c.enabledP, allProtocolCount: c.allProtocolKeysCountRef.current, search: c.search, includeIPv6: c.includeIPv6 }}
           />
         </>
       );
@@ -344,6 +346,9 @@ export default function App() {
             timeline={c.timeline}
             timeRange={c.timeRange} setTimeRange={c.setTimeRange}
             bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
+            filterProtocols={c.enabledP.size < c.protocols.length && c.enabledP.size > 0 ? Array.from(c.enabledP).join(',') : ''}
+            filterSearch={c.search}
+            filterIncludeIPv6={c.includeIPv6}
           />
         ) : c.rPanel === 'timeline' ? (
           /* TIMELINE PAGE — full width, replaces graph + right panel */
