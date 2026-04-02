@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.15.18 | April 2026**
+**Version 0.15.25 | April 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -653,7 +653,7 @@ When cutting a release:
 3. Update `DEVELOPERS.md` header
 4. Then make code changes
 
-### State Management — `useCapture.js`
+### State Management — `useCapture.js` + `FilterContext.js`
 
 All capture-related state lives in `frontend/src/hooks/useCapture.js`. `App.jsx` calls it once (`const c = useCapture()`) and uses the result for layout and routing only.
 
@@ -669,6 +669,27 @@ All capture-related state lives in `frontend/src/hooks/useCapture.js`. `App.jsx`
 - `subnetExclusions` — set of subnet strings that have been manually unclustered; cleared by `toggleSubnetG()` when grouping is turned off (use `toggleSubnetG` instead of `setSubnetG` directly)
 
 `App.jsx` owns only: `darkMode`, `gSize` (graph container dimensions for Sparkline width).
+
+#### FilterContext — observable global filter state
+
+`frontend/src/FilterContext.js` exposes the active filter as a React context so any component can read it without prop drilling.
+
+**Shape** (provided by `App.jsx` via `<FilterContext.Provider>`):
+| Field | Type | Description |
+|-------|------|-------------|
+| `timeRange` | `[number, number]` | Current slider indices |
+| `enabledP` | `Set<string>` | Active composite protocol keys (`"4/TCP/HTTPS"`) |
+| `search` | `string` | Current search text |
+| `includeIPv6` | `bool` | IPv6 visibility |
+| `protocolList` | `string[]` | Protocols in the loaded capture (from `/api/protocols`) |
+| `allProtocolKeysCount` | `number` | Total composite key count (for "all enabled" check) |
+
+**Exported helpers:**
+- `useFilterContext()` — hook to consume the context. Throws if used outside a provider.
+- `toProtocolNames(enabledP, allProtocolKeysCount)` — converts composite keys to simple protocol name strings for API calls (takes last `/`-delimited segment, deduplicates). Returns `''` when all protocols are enabled.
+- `applyDisplayFilter(sessions, filterCtx)` — client-side session filter matching all active filter dimensions. Used by `NodeDetail` and `EdgeDetail` in SCOPED mode.
+
+**Rule:** the filter state itself lives in `useCapture`. `FilterContext` is the *read side* only. To change the filter, use `c.setEnabledP`, `c.setSearch`, etc. directly from `useCapture`.
 
 **Memoised derived values (stable references — never recomputed on unrelated renders):**
 
