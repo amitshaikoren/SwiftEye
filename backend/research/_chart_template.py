@@ -112,3 +112,15 @@ class MyChart(ResearchChart):
             yaxis_title="Bytes",
         )
         return fig
+
+
+# ── Registration ──────────────────────────────────────────────────────────────
+# Uncomment and add to backend/server.py → _register_charts() instead.
+# Charts are never auto-imported — you must register explicitly.
+#
+# In server.py:
+#   ("research.my_chart_name", "MyChart"),
+#
+# from research import register_chart
+# from research.my_chart_name import MyChart
+# register_chart(MyChart())
