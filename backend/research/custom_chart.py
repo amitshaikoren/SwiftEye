@@ -624,5 +624,19 @@ def build_figure(payload: Dict[str, Any], packets, sessions) -> Dict[str, Any]:
                 marker=marker_,
             )])
 
+    # When colour produces categorical traces the labels can be arbitrarily long
+    # (e.g. full User-Agent strings). Move the legend below the chart so it
+    # doesn't crush the plot area. Numeric colour uses a colourscale/colorbar
+    # instead of a legend, so no adjustment is needed there.
+    if color_field and not color_is_numeric:
+        layout_overrides["legend"] = {
+            "orientation": "h",
+            "yanchor": "top",
+            "y": -0.15,
+            "xanchor": "left",
+            "x": 0,
+        }
+        layout_overrides["margin"]["b"] = 120
+
     fig.update_layout({**SWIFTEYE_LAYOUT, **layout_overrides})
     return fig.to_dict()

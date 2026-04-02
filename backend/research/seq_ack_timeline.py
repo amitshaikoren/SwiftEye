@@ -28,6 +28,7 @@ class SeqAckTimelineChart(ResearchChart):
     name        = "seq_ack_timeline"
     title       = "Seq/Ack Timeline"
     description = "SEQ progress over time per direction — flat lines = stall, backward step = retransmit, slope = throughput."
+    category    = "session"
 
     params = [
         Param(

@@ -29,6 +29,7 @@ class SessionGantt(ResearchChart):
     name        = "session_gantt"
     title       = "Session Gantt"
     description = "All sessions — when each started, ended, and how long it lasted. No input required."
+    category    = "session"
     params = []   # no params — shows everything
 
     def compute(self, ctx: AnalysisContext, params: dict) -> dict:

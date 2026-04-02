@@ -128,6 +128,7 @@ class ResearchChart(ABC):
     name:        str = ""   # unique slug, used in URL: /api/research/{name}
     title:       str = ""   # shown in the UI chart picker
     description: str = ""   # one sentence — what question does this answer?
+    category:    str = "capture"  # palette category: "host" | "session" | "capture" | "alerts" | "other"
     params: List[Param] = []
 
     @abstractmethod
@@ -151,6 +152,7 @@ class ResearchChart(ABC):
             "name":        self.name,
             "title":       self.title,
             "description": self.description,
+            "category":    self.category,
             "params":      [p.to_dict() for p in self.params],
         }
 

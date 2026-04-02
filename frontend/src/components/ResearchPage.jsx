@@ -818,17 +818,19 @@ function ChartPicker({ charts, onPick, onClose, onCustom }) {
 }
 
 // ── Category metadata ─────────────────────────────────────────────────────────
-const CAT_LABELS  = { host: 'Host', session: 'Session', capture: 'Capture', alerts: 'Alerts' };
-const CAT_COLORS  = { host: 'var(--acG)', session: 'var(--acP)', capture: 'var(--ac)', alerts: 'var(--acR)' };
-const CAT_ORDER   = ['host', 'session', 'capture', 'alerts'];
+const CAT_LABELS  = { host: 'Host', session: 'Session', capture: 'Capture', alerts: 'Alerts', other: 'Other' };
+const CAT_COLORS  = { host: 'var(--acG)', session: 'var(--acP)', capture: 'var(--ac)', alerts: 'var(--acR)', other: 'var(--fg3)' };
+const CAT_ORDER   = ['host', 'session', 'capture', 'alerts', 'other'];
+const KNOWN_CATS  = new Set(CAT_ORDER);
 
-// Map chart names → category
+// Use the category declared by the backend. Falls back to a heuristic for
+// custom charts (which are client-side objects with no backend category field),
+// and to "other" for any unrecognised value a future chart might declare.
 function inferCategory(chart) {
-  const name = chart.name;
-  if (['seq_ack_timeline'].includes(name)) return 'session';
-  if (['dns_timeline', 'http_ua_timeline'].includes(name)) return 'capture';
-  if (['conversation_timeline', 'ja3_timeline', 'ja4_timeline', 'ttl_over_time'].includes(name)) return 'host';
-  return chart.params?.some(p => p.type === 'ip') ? 'host' : 'capture';
+  if (chart._isCustom) return 'capture';
+  const cat = chart.category;
+  if (cat && KNOWN_CATS.has(cat)) return cat;
+  return 'other';
 }
 
 // ── SlotGrid — flat grid of slots, no category labels ─────────────────────────
