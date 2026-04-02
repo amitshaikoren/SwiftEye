@@ -1,5 +1,11 @@
 # SwiftEye — Changelog
 
+### v0.15.19 — April 2026
+- **Chart category contract** — `ResearchChart` base class gains a `category` attribute (`"host"` | `"session"` | `"capture"` | `"alerts"` | `"other"`). Included in `/api/research` response. All existing charts declare their category. Frontend `inferCategory()` now reads `chart.category` from the API instead of a hardcoded name-lookup table; unknown values fall back to `"other"`. Added `"Other"` palette section as a catch-all for future charts.
+- **Custom chart legend fix** — when colour field is categorical (text-split traces), legend moves below the chart horizontally so long labels (e.g. full User-Agent strings) no longer crush the plot area.
+- **Chart template** — `backend/research/_chart_template.py` added as a starter file for new charts; not registered, not rendered.
+- **Roadmap** — `custom-chart-scalable-sources` added: auto-derive source field lists from `protocol_fields/*.py` instead of maintaining a hardcoded `SOURCE_FIELDS` dict in `custom_chart.py`.
+
 ### v0.15.18 — April 2026
 - **Custom chart fixes** — timestamp fields on X/Y axes now render as human-readable datetime strings instead of raw Unix epoch floats. Expanded overlay chart fills the full available height. Cleaned up two lint items in `custom_chart.py` (unused `_STATIC_SOURCES` set; dead `for tr in traces: pass` stub).
 - **Roadmap additions** — `research-per-chart-filters`, `research-plotly-native-api`, `node-temporal-animation` added to `ROADMAP.md` with full design notes.

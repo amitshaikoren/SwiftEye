@@ -53,6 +53,7 @@ class HTTPUserAgentTimeline(ResearchChart):
     name        = "http_ua_timeline"
     title       = "HTTP User-Agent timeline"
     description = "HTTP requests over time — Y = source IP, colour = User-Agent. Spot scripted tools, C2 beacons, and UA spoofing."
+    category    = "capture"
 
     params = []  # No params — uses all HTTP packets in capture
 

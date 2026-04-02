@@ -7,6 +7,7 @@ from data import filter_packets
 from plugins import AnalysisContext
 from research import get_charts, get_chart, run_chart
 from research.custom_chart import sources_info, source_has_data, build_figure
+from constants import SWIFTEYE_LAYOUT
 
 logger = logging.getLogger("swifteye.routes.research")
 router = APIRouter()
@@ -84,8 +85,9 @@ async def run_custom_chart(body: dict):
             sess = [s for s in sess if s.get("id") in active_keys]
 
         payload = {k: v for k, v in body.items() if not k.startswith("_")}
-        figure = build_figure(payload, pkts, sess)
-        return {"figure": figure}
+        fig = build_figure(payload, pkts, sess)
+        fig.update_layout(SWIFTEYE_LAYOUT)
+        return {"figure": fig.to_dict()}
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:

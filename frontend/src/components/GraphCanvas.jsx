@@ -176,10 +176,21 @@ export default function GraphCanvas({
     a.click();
   }
 
-  // doRelayout — unpin all nodes and reheat the simulation for a clean redistribution
+  // doRelayout — unpin all nodes, restore initial charge, and reheat the simulation.
+  // The 'end' handler will drop charge back to resting once layout settles again.
   function doRelayout() {
     if (!simRef.current) return;
     nRef.current.forEach(n => { delete n.fx; delete n.fy; });
+    const nn = nRef.current;
+    const nodeCount = nn.length;
+    const hasAnyClusters = nn.some(n => n.is_cluster);
+    const chargeDistMax = hasAnyClusters ? 500
+      : nodeCount > 200 ? 200
+      : nodeCount > 50  ? 350
+      : 500;
+    simRef.current.force('charge')
+      .strength(d => d.is_cluster ? -400 - (d.member_count || 0) * 20 : -280)
+      .distanceMax(chargeDistMax);
     simRef.current.alpha(0.9).alphaTarget(0).restart();
   }
 
@@ -243,30 +254,39 @@ export default function GraphCanvas({
     const hasAnyClusters = nn.some(n => n.is_cluster);
     const nodeCount = nn.length;
     // For large graphs the repulsion cascades — tighter distanceMax lets links win.
-    // Scale: <50 nodes → 300px, 50–200 → 200px, >200 → 150px.
+    // Scale: <50 nodes → 500px, 50–200 → 350px, >200 → 200px.
     const chargeDistMax = hasAnyClusters ? 500
-      : nodeCount > 200 ? 150
-      : nodeCount > 50  ? 250
-      : 400;
+      : nodeCount > 200 ? 200
+      : nodeCount > 50  ? 350
+      : 500;
     const sim = d3.forceSimulation(nn)
       .force('charge', d3.forceManyBody()
-        .strength(d => d.is_cluster ? -300 - (d.member_count || 0) * 20 : -200)
+        .strength(d => d.is_cluster ? -400 - (d.member_count || 0) * 20 : -280)
         .distanceMax(chargeDistMax))
       .force('link', d3.forceLink(ne).id(d => d.id)
         .distance(d => {
           const s = typeof d.source === 'object' ? d.source : null;
           const t = typeof d.target === 'object' ? d.target : null;
-          if (s?.is_cluster || t?.is_cluster) return 200;
-          return 130;
+          if (s?.is_cluster || t?.is_cluster) return 220;
+          return 160;
         })
-        .strength(0.5))
-      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.06))
+        .strength(0.4))
+      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.04))
       .force('collision', d3.forceCollide().radius(d =>
         d.is_cluster ? gRRef.current(d) * 1.8 + 15 : gRRef.current(d) + 8))
       .force('x', d3.forceX(width / 2).strength(0.02))
       .force('y', d3.forceY(height / 2).strength(0.02))
       .alphaDecay(0.02)
-      .on('tick', render);
+      .on('tick', render)
+      .on('end', () => {
+        // Once the layout settles, drop charge to a low resting value so the
+        // user can drag nodes around without strong snap-back from neighbours.
+        if (simRef.current) {
+          simRef.current.force('charge').strength(
+            d => d.is_cluster ? -80 - (d.member_count || 0) * 5 : -60
+          );
+        }
+      });
 
     simRef.current = sim;
 

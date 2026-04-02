@@ -23,6 +23,7 @@ class ConversationTimeline(ResearchChart):
     name        = "conversation_timeline"
     title       = "Conversation timeline"
     description = "All peers of a target IP over time — who talked, when, on what protocol"
+    category    = "host"
     params = [
         Param(
             name="target_ip",

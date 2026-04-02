@@ -24,6 +24,7 @@ class TTLOverTime(ResearchChart):
     name        = "ttl_over_time"
     title       = "TTL over time between two peers"
     description = "Raw TTL values for packets in both directions between two IPs — spot routing changes or inconsistencies"
+    category    = "host"
     params = [
         Param(
             name="ip_a",
