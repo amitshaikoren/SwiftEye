@@ -176,10 +176,21 @@ export default function GraphCanvas({
     a.click();
   }
 
-  // doRelayout — unpin all nodes and reheat the simulation for a clean redistribution
+  // doRelayout — unpin all nodes, restore initial charge, and reheat the simulation.
+  // The 'end' handler will drop charge back to resting once layout settles again.
   function doRelayout() {
     if (!simRef.current) return;
     nRef.current.forEach(n => { delete n.fx; delete n.fy; });
+    const nn = nRef.current;
+    const nodeCount = nn.length;
+    const hasAnyClusters = nn.some(n => n.is_cluster);
+    const chargeDistMax = hasAnyClusters ? 500
+      : nodeCount > 200 ? 200
+      : nodeCount > 50  ? 350
+      : 500;
+    simRef.current.force('charge')
+      .strength(d => d.is_cluster ? -400 - (d.member_count || 0) * 20 : -280)
+      .distanceMax(chargeDistMax);
     simRef.current.alpha(0.9).alphaTarget(0).restart();
   }
 
@@ -266,7 +277,16 @@ export default function GraphCanvas({
       .force('x', d3.forceX(width / 2).strength(0.02))
       .force('y', d3.forceY(height / 2).strength(0.02))
       .alphaDecay(0.02)
-      .on('tick', render);
+      .on('tick', render)
+      .on('end', () => {
+        // Once the layout settles, drop charge to a low resting value so the
+        // user can drag nodes around without strong snap-back from neighbours.
+        if (simRef.current) {
+          simRef.current.force('charge').strength(
+            d => d.is_cluster ? -80 - (d.member_count || 0) * 5 : -60
+          );
+        }
+      });
 
     simRef.current = sim;
 
