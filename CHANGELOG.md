@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.15.25 — April 2026
+- **Centralized filter context** — `FilterContext.js` introduces a React context (`FilterContext`) and `useFilterContext()` hook that makes the global filter state observable application-wide without prop drilling. Canonical shape: `{ timeRange, enabledP, search, includeIPv6, protocolList, allProtocolKeysCount }`. Shared helpers: `toProtocolNames(enabledP, allProtocolKeysCount)` converts composite keys to simple protocol names for API calls (takes last `/`-delimited segment, deduplicates); `applyDisplayFilter(sessions, filterCtx)` replaces the duplicated session-filter function that existed identically in both `NodeDetail.jsx` and `EdgeDetail.jsx`. `FilterContext.Provider` added in `App.jsx`; `NodeDetail`, `EdgeDetail`, `ResearchPage`, and `TimelinePanel` now consume the context instead of receiving filter values as props. Removes `filterState` prop from `NodeDetail`/`EdgeDetail`, and `filterProtocols`/`filterSearch`/`filterIncludeIPv6` props from `ResearchPage`/`TimelinePanel`. Fixes silent bug: `SlotGrid` referenced `filterProtocols` etc. as free variables (never passed as props), so SCOPED mode on chart cards was never actually applying the global filter. Also replaces `ALL_PROTOCOLS` hardcoded list in `ResearchPage` with `filterCtx.protocolList` (actual capture protocols from `/api/protocols`). Roadmap item `centralized-filter-state` complete.
+
 ### v0.15.24 — April 2026
 - **Scope pill reset on capture load** — `loadAll()` clears `swifteye_scope_node`, `swifteye_scope_edge`, and all `swifteye_scope_slot_*` keys from localStorage so scope always resets to SCOPED when a new capture is loaded.
 
