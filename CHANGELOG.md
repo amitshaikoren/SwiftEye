@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.15.24 — April 2026
+- **Scope pill reset on capture load** — `loadAll()` clears `swifteye_scope_node`, `swifteye_scope_edge`, and all `swifteye_scope_slot_*` keys from localStorage so scope always resets to SCOPED when a new capture is loaded.
+
 ### v0.15.23 — April 2026
 - **Scope ALL node stats** — NodeDetail in ALL mode now also uses the full-capture node object (`fullGraphRef.current.nodes`) so packet count, traffic volume, protocols, ports, and top-neighbors all reflect the full capture, not the current time window. `fullGraphEdgesRef` promoted to `fullGraphRef` (stores nodes + edges).
 

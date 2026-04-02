@@ -536,6 +536,15 @@ export function useCapture() {
   // ── Data loading ──────────────────────────────────────────────────
 
   async function loadAll() {
+    // Reset scope pills to SCOPED on every fresh capture load
+    try {
+      localStorage.removeItem('swifteye_scope_node');
+      localStorage.removeItem('swifteye_scope_edge');
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('swifteye_scope_slot_'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
+
     const [sd, td, pd, ss, pr, ps, an, sy] = await Promise.all([
       fetchStats(), fetchTimeline(), fetchProtocols(),
       fetchSessions(), fetchPluginResults(), fetchPluginSlots(),
