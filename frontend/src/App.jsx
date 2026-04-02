@@ -168,6 +168,7 @@ export default function App() {
           edge={c.selEdge} pColors={c.pColors}
           onClear={c.clearSel}
           sessions={c.sessions} nodes={c.visibleNodes}
+          fullSessions={c.fullSessions}
           onSelectSession={c.selectSessionWithContext}
           annotations={c.annotations}
           onSaveNote={c.handleSaveNote}
@@ -207,6 +208,8 @@ export default function App() {
           <NodeDetail
             nodeId={c.selNodes[0]} nodes={detailNodes} edges={detailEdges}
             sessions={c.sessions} pColors={c.pColors}
+            fullSessions={c.fullSessions}
+            fullEdges={c.fullGraphEdgesRef}
             onClear={c.clearSel}
             onSelectNode={id => c.handleGSel('node', id, false)}
             onSelectEdge={e => c.handleGSel('edge', e, false)}

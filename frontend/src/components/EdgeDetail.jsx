@@ -4,6 +4,42 @@ import Collapse from './Collapse';
 import Row from './Row';
 import { fN, fB, fD, fT } from '../utils';
 import { fetchSessions } from '../api';
+import ScopePill from './ScopePill';
+
+function useScopeState(key) {
+  const [scope, setScope] = useState(() => {
+    try { return localStorage.getItem(key) || 'scoped'; } catch { return 'scoped'; }
+  });
+  const onChange = (v) => {
+    setScope(v);
+    try { localStorage.setItem(key, v); } catch {}
+  };
+  return [scope, onChange];
+}
+
+function applyDisplayFilter(sessions, filterState) {
+  if (!filterState) return sessions;
+  const { enabledP, allProtocolCount, search, includeIPv6 } = filterState;
+  let result = sessions;
+  if (!includeIPv6) {
+    result = result.filter(s => !s.src_ip.includes(':') && !s.dst_ip.includes(':'));
+  }
+  if (enabledP.size > 0 && enabledP.size < allProtocolCount) {
+    const appProtos = new Set(Array.from(enabledP).map(k => k.split('/').pop().toUpperCase()));
+    result = result.filter(s => appProtos.has((s.protocol || '').toUpperCase()));
+  }
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    result = result.filter(s =>
+      s.src_ip.toLowerCase().includes(q) ||
+      s.dst_ip.toLowerCase().includes(q) ||
+      (s.protocol || '').toLowerCase().includes(q) ||
+      String(s.src_port).includes(q) ||
+      String(s.dst_port).includes(q)
+    );
+  }
+  return result;
+}
 
 
 // Renders a JA3 hash with inline app name when known
@@ -27,7 +63,12 @@ function JA3Badge({ hash, apps = [] }) {
   );
 }
 
-export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes = [], onSelectSession, annotations = [], onSaveNote, clusterNames }) {
+export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes = [], onSelectSession, annotations = [], onSaveNote, clusterNames, filterState, fullSessions }) {
+  const [scope, setScope] = useScopeState('swifteye_scope_edge');
+  const displaySessions = useMemo(() => {
+    if (scope === 'all') return fullSessions || [];
+    return applyDisplayFilter(sessions || [], filterState);
+  }, [sessions, fullSessions, scope, filterState]);
   const src = e ? (typeof e.source === 'object' ? e.source.id : e.source) : '';
   const tgt = e ? (typeof e.target === 'object' ? e.target.id : e.target) : '';
 
@@ -100,9 +141,9 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
     );
   }, [e, src, tgt, e?.protocol, nodeIpsMap]);
 
-  // Initial edge sessions: filter from global list (cheap, no extra fetch)
+  // Initial edge sessions: filter from display-filtered list (cheap, no extra fetch)
   const edgeSessions = useMemo(() => {
-    const fromGlobal = edgeFilter(sessions || []);
+    const fromGlobal = edgeFilter(displaySessions);
     if (fetchedSessions.length === 0) return fromGlobal;
     // Merge fetched with global, dedup by id
     const seen = new Set(fromGlobal.map(s => s.id));
@@ -111,7 +152,7 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
       if (!seen.has(s.id)) { seen.add(s.id); merged.push(s); }
     }
     return merged;
-  }, [sessions, fetchedSessions, edgeFilter]);
+  }, [displaySessions, fetchedSessions, edgeFilter]);
 
   // Resolve a node ID to a real searchable IP (handles cluster IDs, MAC-split IDs)
   const resolveSearchIp = useCallback((id) => {
@@ -146,7 +187,10 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
     <div className="fi" style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div className="sh" style={{ marginBottom: 0 }}>Edge Detail</div>
-        <button className="btn" onClick={onClear}>✕</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ScopePill value={scope} onChange={setScope} />
+          <button className="btn" onClick={onClear}>✕</button>
+        </div>
       </div>
 
       <Tag color={pColors[e.protocol] || '#64748b'}>{e.protocol}</Tag>

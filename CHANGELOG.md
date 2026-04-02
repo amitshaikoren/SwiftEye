@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.15.22 — April 2026
+- **Scope toggle ALL mode** — ALL now shows truly unfiltered data regardless of time range. `useCapture` stores `fullSessions` (captured at initial load, never updated on time changes) and `fullGraphEdgesRef` (first graph fetch, before any time filter). NodeDetail uses `fullSessions` for session rows and `fullGraphEdgesRef` for the connections list when scope=ALL. EdgeDetail uses `fullSessions` for its session rows.
+
 ### v0.15.21 — April 2026
 - **Scope toggle bug fix** — `applyDisplayFilter` was comparing `enabledP.size` (composite protocol key count, e.g. 25) against `c.protocols.length` (simple protocol name count, e.g. 10), making the protocol filter condition always false. Fixed by exposing `allProtocolKeysCountRef` from `useCapture` and using `.current` as the `allProtocolCount` in `filterState`.
 
