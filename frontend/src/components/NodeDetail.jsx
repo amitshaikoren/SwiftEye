@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import ScopePill from './ScopePill';
 import Tag from './Tag';
 import Collapse from './Collapse';
 import Row from './Row';
@@ -243,11 +244,54 @@ function NodeStatistics({ node, onSelectNode }) {
   );
 }
 
+function useScopeState(key) {
+  const [scope, setScope] = useState(() => {
+    try { return localStorage.getItem(key) || 'scoped'; } catch { return 'scoped'; }
+  });
+  const onChange = (v) => {
+    setScope(v);
+    try { localStorage.setItem(key, v); } catch {}
+  };
+  return [scope, onChange];
+}
+
+function applyDisplayFilter(sessions, filterState) {
+  if (!filterState) return sessions;
+  const { enabledP, allProtocolCount, search, includeIPv6 } = filterState;
+  let result = sessions;
+  if (!includeIPv6) {
+    result = result.filter(s => !s.src_ip.includes(':') && !s.dst_ip.includes(':'));
+  }
+  if (enabledP.size > 0 && enabledP.size < allProtocolCount) {
+    const appProtos = new Set(Array.from(enabledP).map(k => k.split('/').pop().toUpperCase()));
+    result = result.filter(s => appProtos.has((s.protocol || '').toUpperCase()));
+  }
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    result = result.filter(s =>
+      s.src_ip.toLowerCase().includes(q) ||
+      s.dst_ip.toLowerCase().includes(q) ||
+      (s.protocol || '').toLowerCase().includes(q) ||
+      String(s.src_port).includes(q) ||
+      String(s.dst_port).includes(q)
+    );
+  }
+  return result;
+}
+
 export default function NodeDetail({
   nodeId, nodes, edges, sessions, pColors, onClear, onSelectNode, onSelectEdge, onSelectSession,
   pluginResults, uiSlots, annotations = [], onSaveNote, onUpdateSynthetic,
+  filterState, fullSessions, fullGraph,
 }) {
-  const node = nodes.find(n => n.id === nodeId);
+  const [scope, setScope] = useScopeState('swifteye_scope_node');
+  const node = (scope === 'all' && fullGraph?.current)
+    ? (fullGraph.current.nodes.find(n => n.id === nodeId) || nodes.find(n => n.id === nodeId))
+    : nodes.find(n => n.id === nodeId);
+  const displaySessions = useMemo(() => {
+    if (scope === 'all') return fullSessions || [];
+    return applyDisplayFilter(sessions || [], filterState);
+  }, [sessions, fullSessions, scope, filterState]);
 
   // Note state — persists per nodeId
   const existingNote = annotations.find(a => a.annotation_type === 'note' && a.node_id === nodeId);
@@ -285,7 +329,8 @@ export default function NodeDetail({
 
   if (!node) return null;
 
-  const ce = edges.filter(e => {
+  const edgeSource = (scope === 'all' && fullGraph?.current) ? fullGraph.current.edges : edges;
+  const ce = edgeSource.filter(e => {
     const s = typeof e.source === 'object' ? e.source.id : e.source;
     const t = typeof e.target === 'object' ? e.target.id : e.target;
     return s === nodeId || t === nodeId;
@@ -324,7 +369,10 @@ export default function NodeDetail({
     <div className="fi" style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div className="sh" style={{ marginBottom: 0 }}>Node Detail</div>
-        <button className="btn" onClick={onClear}>✕</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ScopePill value={scope} onChange={setScope} />
+          <button className="btn" onClick={onClear}>✕</button>
+        </div>
       </div>
 
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, wordBreak: 'break-all' }}>
@@ -459,7 +507,7 @@ export default function NodeDetail({
           const other = s === nodeId ? t : s;
 
           const nodeIps = new Set(node.ips || [nodeId]);
-          const edgeSess = (sessions || []).filter(sess => {
+          const edgeSess = displaySessions.filter(sess => {
             const sessIps = new Set([sess.src_ip, sess.dst_ip]);
             const nodeMatch = [...nodeIps].some(ip => sessIps.has(ip));
             return nodeMatch && sess.protocol === e.protocol;

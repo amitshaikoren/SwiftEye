@@ -47,6 +47,7 @@ export function useCapture() {
   const [timeline, setTimeline]     = useState([]);
   const [rawGraph, setRawGraph]      = useState({ nodes: [], edges: [], clusters: null });
   const [sessions, setSessions]     = useState([]);
+  const [fullSessions, setFullSessions] = useState([]); // full-capture snapshot, never time-filtered
   const [sessionTotal, setSessionTotal] = useState(0);
   const [protocols, setProtocols]   = useState([]);
   const [pColors, setPColors]       = useState({});
@@ -317,6 +318,7 @@ export function useCapture() {
   // Used inside the graph fetch effect to determine if all protocols are enabled (no filter needed).
   // Kept as a ref so updating it does NOT trigger a graph refetch.
   const allProtocolKeysCountRef = useRef(0);
+  const fullGraphRef = useRef(null); // full-capture graph (nodes + edges), set once on first fetch
   useEffect(() => {
     const sp = stats?.protocols || {};
     const _nonIp = new Set(['ARP', 'OTHER']);
@@ -362,7 +364,10 @@ export function useCapture() {
     }
 
     const ctrl = new AbortController();
-    fetchGraph(params, ctrl.signal).then(d => setRawGraph(d)).catch(e => {
+    fetchGraph(params, ctrl.signal).then(d => {
+      setRawGraph(d);
+      if (!fullGraphRef.current) fullGraphRef.current = { nodes: d.nodes || [], edges: d.edges || [] };
+    }).catch(e => {
       if (e.name !== 'AbortError') console.error(e);
     });
     return () => ctrl.abort();
@@ -531,6 +536,15 @@ export function useCapture() {
   // ── Data loading ──────────────────────────────────────────────────
 
   async function loadAll() {
+    // Reset scope pills to SCOPED on every fresh capture load
+    try {
+      localStorage.removeItem('swifteye_scope_node');
+      localStorage.removeItem('swifteye_scope_edge');
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('swifteye_scope_slot_'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
+
     const [sd, td, pd, ss, pr, ps, an, sy] = await Promise.all([
       fetchStats(), fetchTimeline(), fetchProtocols(),
       fetchSessions(), fetchPluginResults(), fetchPluginSlots(),
@@ -563,6 +577,7 @@ export function useCapture() {
     }
     setEnabledP(new Set(initKeys));
     setSessions(ss.sessions || []);
+    setFullSessions(ss.sessions || []);
     setSessionTotal(ss.total ?? ss.sessions?.length ?? 0);
     setPluginResults(pr.results || {});
     setPluginSlots(ps.ui_slots || []);
@@ -966,6 +981,12 @@ export function useCapture() {
     clusterResolution, setClusterResolution,
     clusterNames, renameCluster: (id, name) => setClusterNames(prev => ({ ...prev, [id]: name })),
     clusterExclusions, handleExpandCluster, handleCollapseCluster,
+
+    // Full-capture snapshots for ALL scope mode (never time-filtered)
+    fullSessions, fullGraphRef,
+
+    // Protocol key count ref (composite keys — matches enabledP format)
+    allProtocolKeysCountRef,
 
     // Display filter
     dfExpr, setDfExpr,

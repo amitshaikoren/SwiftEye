@@ -1,5 +1,20 @@
 # SwiftEye — Changelog
 
+### v0.15.24 — April 2026
+- **Scope pill reset on capture load** — `loadAll()` clears `swifteye_scope_node`, `swifteye_scope_edge`, and all `swifteye_scope_slot_*` keys from localStorage so scope always resets to SCOPED when a new capture is loaded.
+
+### v0.15.23 — April 2026
+- **Scope ALL node stats** — NodeDetail in ALL mode now also uses the full-capture node object (`fullGraphRef.current.nodes`) so packet count, traffic volume, protocols, ports, and top-neighbors all reflect the full capture, not the current time window. `fullGraphEdgesRef` promoted to `fullGraphRef` (stores nodes + edges).
+
+### v0.15.22 — April 2026
+- **Scope toggle ALL mode** — ALL now shows truly unfiltered data regardless of time range. `useCapture` stores `fullSessions` (captured at initial load, never updated on time changes) and `fullGraphEdgesRef` (first graph fetch, before any time filter). NodeDetail uses `fullSessions` for session rows and `fullGraphEdgesRef` for the connections list when scope=ALL. EdgeDetail uses `fullSessions` for its session rows.
+
+### v0.15.21 — April 2026
+- **Scope toggle bug fix** — `applyDisplayFilter` was comparing `enabledP.size` (composite protocol key count, e.g. 25) against `c.protocols.length` (simple protocol name count, e.g. 10), making the protocol filter condition always false. Fixed by exposing `allProtocolKeysCountRef` from `useCapture` and using `.current` as the `allProtocolCount` in `filterState`.
+
+### v0.15.20 — April 2026
+- **Scope toggle** — SCOPED / ALL pill added to NodeDetail, EdgeDetail, and Research chart cards (PlacedCard). SCOPED applies the active global display filter (protocol + search + IPv6) to the panel; ALL shows unfiltered data. Default: SCOPED. Persisted per panel type in `localStorage` (`swifteye_scope_node`, `swifteye_scope_edge`, `swifteye_scope_slot_<slotId>`). NodeDetail and EdgeDetail filter `sessions` client-side (sessions carry protocol, IPs, ports — sufficient for all filter dimensions). Research charts omit filter params from the POST body when ALL.
+
 ### v0.15.19 — April 2026
 - **Chart category contract** — `ResearchChart` base class gains a `category` attribute (`"host"` | `"session"` | `"capture"` | `"alerts"` | `"other"`). Included in `/api/research` response. All existing charts declare their category. Frontend `inferCategory()` now reads `chart.category` from the API instead of a hardcoded name-lookup table; unknown values fall back to `"other"`. Added `"Other"` palette section as a catch-all for future charts.
 - **Custom chart legend fix** — when colour field is categorical (text-split traces), legend moves below the chart horizontally so long labels (e.g. full User-Agent strings) no longer crush the plot area.

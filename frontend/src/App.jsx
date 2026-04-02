@@ -168,10 +168,12 @@ export default function App() {
           edge={c.selEdge} pColors={c.pColors}
           onClear={c.clearSel}
           sessions={c.sessions} nodes={c.visibleNodes}
+          fullSessions={c.fullSessions}
           onSelectSession={c.selectSessionWithContext}
           annotations={c.annotations}
           onSaveNote={c.handleSaveNote}
           clusterNames={c.clusterNames}
+          filterState={{ enabledP: c.enabledP, allProtocolCount: c.allProtocolKeysCountRef.current, search: c.search, includeIPv6: c.includeIPv6 }}
         />
       </>
     );
@@ -206,6 +208,8 @@ export default function App() {
           <NodeDetail
             nodeId={c.selNodes[0]} nodes={detailNodes} edges={detailEdges}
             sessions={c.sessions} pColors={c.pColors}
+            fullSessions={c.fullSessions}
+            fullGraph={c.fullGraphRef}
             onClear={c.clearSel}
             onSelectNode={id => c.handleGSel('node', id, false)}
             onSelectEdge={e => c.handleGSel('edge', e, false)}
@@ -214,6 +218,7 @@ export default function App() {
             annotations={c.annotations}
             onSaveNote={c.handleSaveNote}
             onUpdateSynthetic={c.handleUpdateSyntheticNode}
+            filterState={{ enabledP: c.enabledP, allProtocolCount: c.allProtocolKeysCountRef.current, search: c.search, includeIPv6: c.includeIPv6 }}
           />
         </>
       );
@@ -344,6 +349,9 @@ export default function App() {
             timeline={c.timeline}
             timeRange={c.timeRange} setTimeRange={c.setTimeRange}
             bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
+            filterProtocols={c.enabledP.size < c.protocols.length && c.enabledP.size > 0 ? Array.from(c.enabledP).join(',') : ''}
+            filterSearch={c.search}
+            filterIncludeIPv6={c.includeIPv6}
           />
         ) : c.rPanel === 'timeline' ? (
           /* TIMELINE PAGE — full width, replaces graph + right panel */
