@@ -244,10 +244,10 @@ export default function GraphCanvas({
     const nodeCount = nn.length;
     // For large graphs the repulsion cascades — tighter distanceMax lets links win.
     // Scale: <50 nodes → 300px, 50–200 → 200px, >200 → 150px.
-    const chargeDistMax = hasAnyClusters ? 400
+    const chargeDistMax = hasAnyClusters ? 500
       : nodeCount > 200 ? 150
-      : nodeCount > 50  ? 200
-      : 300;
+      : nodeCount > 50  ? 250
+      : 400;
     const sim = d3.forceSimulation(nn)
       .force('charge', d3.forceManyBody()
         .strength(d => d.is_cluster ? -300 - (d.member_count || 0) * 20 : -200)
@@ -257,7 +257,7 @@ export default function GraphCanvas({
           const s = typeof d.source === 'object' ? d.source : null;
           const t = typeof d.target === 'object' ? d.target : null;
           if (s?.is_cluster || t?.is_cluster) return 200;
-          return 100;
+          return 130;
         })
         .strength(0.5))
       .force('center', d3.forceCenter(width / 2, height / 2).strength(0.06))
@@ -730,7 +730,7 @@ export default function GraphCanvas({
       const t = tRef.current;
       dn.fx = (e.clientX - r.left - t.x) / t.k;
       dn.fy = (e.clientY - r.top - t.y) / t.k;
-      if (simRef.current) simRef.current.alpha(0.1).restart();
+      if (simRef.current) simRef.current.alpha(0.05).restart();
     }
 
     // Drag end
@@ -808,7 +808,7 @@ export default function GraphCanvas({
       if (n) {
         n.fx = null;
         n.fy = null;
-        if (simRef.current) simRef.current.alpha(0.3).restart();
+        if (simRef.current) simRef.current.alpha(0.08).restart();
       }
     }
 

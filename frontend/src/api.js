@@ -136,6 +136,18 @@ export async function runResearchChart(chartName, params) {
   });
 }
 
+export async function fetchCustomChartSchema() {
+  return api('/api/research/custom/schema');
+}
+
+export async function runCustomChart(payload) {
+  return api('/api/research/custom', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 // ── Query ────────────────────────────────────────────────────────────────────
 
 export async function runQuery(query) {

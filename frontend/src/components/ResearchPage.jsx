@@ -1,7 +1,267 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchResearchCharts, runResearchChart } from '../api';
+import { fetchResearchCharts, runResearchChart, fetchCustomChartSchema, runCustomChart } from '../api';
 import { fTtime } from '../utils';
 import Sparkline from './Sparkline';
+
+// ── Custom chart localStorage persistence ─────────────────────────────────────
+const CUSTOM_CHARTS_KEY = 'swifteye_custom_charts';
+
+function loadSavedCustomCharts() {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOM_CHARTS_KEY) || '[]');
+  } catch { return []; }
+}
+
+function saveCustomCharts(configs) {
+  try { localStorage.setItem(CUSTOM_CHARTS_KEY, JSON.stringify(configs)); } catch {}
+}
+
+// ── CustomChartBuilder modal ──────────────────────────────────────────────────
+// Two-step wizard:
+//   Step 1 — pick a data source (cards, greyed out if no data in capture)
+//   Step 2 — map fields + pick chart type + set title
+function CustomChartBuilder({ onSave, onClose, initial }) {
+  const [schema, setSchema] = useState(null);
+  const [schemaErr, setSchemaErr] = useState('');
+  const [step, setStep] = useState(initial?.source ? 2 : 1);
+
+  // Step 1
+  const [source, setSource] = useState(initial?.source || '');
+
+  // Step 2
+  const CHART_TYPES = ['scatter', 'bar', 'histogram'];
+  const [chartType, setChartType]     = useState(initial?.chart_type || 'scatter');
+  const [xField, setXField]           = useState(initial?.x_field || '');
+  const [yField, setYField]           = useState(initial?.y_field || '');
+  const [colorField, setColorField]   = useState(initial?.color_field || '');
+  const [sizeField, setSizeField]     = useState(initial?.size_field || '');
+  const [hoverFields, setHoverFields] = useState(initial?.hover_fields || []);
+  const [title, setTitle]             = useState(initial?.title || '');
+  const [validErr, setValidErr]       = useState('');
+
+  useEffect(() => {
+    fetchCustomChartSchema()
+      .then(d => setSchema(d.sources || []))
+      .catch(e => setSchemaErr(e.message || 'Failed to load schema'));
+  }, []);
+
+  const sourceInfo = schema?.find(s => s.id === source);
+  const fields = sourceInfo?.fields || [];
+
+  function handleSourcePick(src) {
+    setSource(src);
+    setXField(''); setYField(''); setColorField(''); setSizeField('');
+    setHoverFields([]);
+    setTitle(schema?.find(s => s.id === src)?.label || src);
+    setStep(2);
+  }
+
+  function toggleHover(f) {
+    setHoverFields(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
+  }
+
+  function handleSave() {
+    if (!xField) { setValidErr('X axis field is required.'); return; }
+    if (chartType !== 'histogram' && !yField) { setValidErr('Y axis field is required.'); return; }
+    setValidErr('');
+    onSave({
+      source,
+      chart_type:   chartType,
+      x_field:      xField,
+      y_field:      yField,
+      color_field:  colorField || null,
+      size_field:   sizeField  || null,
+      hover_fields: hoverFields,
+      title:        title || 'Custom Chart',
+    });
+  }
+
+  const SOURCE_ICONS = {
+    packets: '📦', sessions: '🔗', dns: '🌐', http: '🕸', tls: '🔒',
+    tcp: '⚡', dhcp: '🏠', arp: '📡', icmp: '📣',
+  };
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,.65)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: 'var(--bgP)', border: '1px solid var(--bdL)', borderRadius: 10,
+          width: 500, maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 8px 40px rgba(0,0,0,.7)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {step === 2 && (
+            <button onClick={() => setStep(1)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--txD)', cursor: 'pointer', fontSize: 14, padding: '0 4px', lineHeight: 1 }}>
+              ←
+            </button>
+          )}
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>
+            {step === 1 ? 'Custom chart — pick a data source' : `Custom chart — ${sourceInfo?.label || source}`}
+          </span>
+          <button onClick={onClose}
+            style={{ background: 'transparent', border: 'none', color: 'var(--txD)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+        </div>
+
+        <div style={{ overflowY: 'auto', flex: 1, padding: '14px 16px' }}>
+          {schemaErr && (
+            <div style={{ padding: '8px 10px', background: 'rgba(248,81,73,.08)', border: '1px solid rgba(248,81,73,.2)',
+              borderRadius: 6, color: 'var(--acR)', fontSize: 11, marginBottom: 12 }}>
+              {schemaErr}
+            </div>
+          )}
+
+          {/* ── Step 1: source picker ── */}
+          {step === 1 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {!schema && !schemaErr && (
+                <div style={{ gridColumn: '1/-1', color: 'var(--txD)', fontSize: 11, textAlign: 'center', padding: 20 }}>
+                  Loading sources…
+                </div>
+              )}
+              {(schema || []).map(src => {
+                const active = src.has_data;
+                return (
+                  <div key={src.id}
+                    onClick={() => active && handleSourcePick(src.id)}
+                    style={{
+                      padding: '10px 12px', borderRadius: 7, border: `1px solid ${active ? 'var(--bd)' : 'rgba(255,255,255,.05)'}`,
+                      background: active ? 'var(--bg)' : 'rgba(255,255,255,.02)',
+                      cursor: active ? 'pointer' : 'default',
+                      opacity: active ? 1 : 0.4,
+                      transition: 'border-color .12s',
+                    }}
+                    onMouseEnter={e => active && (e.currentTarget.style.borderColor = 'var(--ac)')}
+                    onMouseLeave={e => active && (e.currentTarget.style.borderColor = 'var(--bd)')}
+                  >
+                    <div style={{ fontSize: 16, marginBottom: 4 }}>{SOURCE_ICONS[src.id] || '📊'}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: active ? 'var(--tx)' : 'var(--txD)' }}>{src.label}</div>
+                    <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 2 }}>
+                      {active ? `${src.fields.length} fields` : 'no data in capture'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── Step 2: field mapping ── */}
+          {step === 2 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Chart type */}
+              <div>
+                <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>Chart type</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {CHART_TYPES.map(ct => (
+                    <button key={ct} onClick={() => setChartType(ct)}
+                      style={{ fontSize: 10, padding: '3px 10px', borderRadius: 5,
+                        border: `1px solid ${chartType === ct ? 'var(--ac)' : 'var(--bd)'}`,
+                        background: chartType === ct ? 'rgba(88,166,255,.1)' : 'transparent',
+                        color: chartType === ct ? 'var(--ac)' : 'var(--txM)', cursor: 'pointer' }}>
+                      {ct.charAt(0).toUpperCase() + ct.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* X axis */}
+              <FieldSelect label="X axis *" value={xField} onChange={setXField} fields={fields} />
+
+              {/* Y axis — hidden for histogram */}
+              {chartType !== 'histogram' && (
+                <FieldSelect label="Y axis *" value={yField} onChange={setYField} fields={fields} />
+              )}
+
+              {/* Colour */}
+              <FieldSelect label="Colour by" value={colorField} onChange={setColorField} fields={fields} optional />
+
+              {/* Size — scatter only */}
+              {chartType === 'scatter' && (
+                <FieldSelect label="Size by (numeric)" value={sizeField} onChange={setSizeField}
+                  fields={fields.filter(f => f.type === 'numeric')} optional />
+              )}
+
+              {/* Hover fields */}
+              <div>
+                <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>Hover fields</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {fields.map(f => {
+                    const on = hoverFields.includes(f.name);
+                    return (
+                      <button key={f.name} onClick={() => toggleHover(f.name)}
+                        style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10,
+                          border: `1px solid ${on ? 'var(--acP)' : 'var(--bd)'}`,
+                          background: on ? 'rgba(163,113,247,.12)' : 'transparent',
+                          color: on ? 'var(--acP)' : 'var(--txD)', cursor: 'pointer' }}>
+                        {f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Chart title</div>
+                <input className="inp" value={title} onChange={e => setTitle(e.target.value)}
+                  placeholder="Custom Chart" style={{ width: '100%', fontSize: 12 }} />
+              </div>
+
+              {validErr && (
+                <div style={{ color: 'var(--acR)', fontSize: 10 }}>{validErr}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {step === 2 && (
+          <div style={{ padding: '10px 16px', borderTop: '1px solid var(--bd)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button onClick={onClose}
+              style={{ fontSize: 11, padding: '4px 14px', borderRadius: 5, border: '1px solid var(--bd)',
+                background: 'transparent', color: 'var(--txD)', cursor: 'pointer' }}>
+              Cancel
+            </button>
+            <button onClick={handleSave}
+              style={{ fontSize: 11, padding: '4px 14px', borderRadius: 5, border: '1px solid var(--ac)',
+                background: 'rgba(88,166,255,.1)', color: 'var(--ac)', cursor: 'pointer' }}>
+              Add to canvas
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── FieldSelect — labelled <select> for field mapping ─────────────────────────
+function FieldSelect({ label, value, onChange, fields, optional }) {
+  return (
+    <div>
+      <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
+        {label}
+      </div>
+      <select
+        className="inp"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{ width: '100%', fontSize: 11 }}
+      >
+        {optional && <option value="">— none —</option>}
+        {!optional && <option value="">Select a field…</option>}
+        {fields.map(f => (
+          <option key={f.name} value={f.name}>{f.label} ({f.name})</option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 class ChartErrorBoundary extends React.Component {
@@ -19,7 +279,7 @@ class ChartErrorBoundary extends React.Component {
 }
 
 // ── PlotlyChart ───────────────────────────────────────────────────────────────
-function PlotlyChart({ figure, loading, error, isWide }) {
+function PlotlyChart({ figure, loading, error, isWide, fillHeight }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -64,7 +324,7 @@ function PlotlyChart({ figure, loading, error, isWide }) {
       Fill in params above and click Run
     </div>
   );
-  return <div ref={ref} style={{ width: '100%', minHeight: 220 }} />;
+  return <div ref={ref} style={{ width: '100%', ...(fillHeight ? { height: '100%' } : { minHeight: 220 }) }} />;
 }
 
 // ── IpParamInput ──────────────────────────────────────────────────────────────
@@ -130,7 +390,7 @@ function PlacedCard({
   timeline, timeRange: globalRange, bucketSec, setBucketSec,
   isWide, onToggleWide,
   cardHeight, onResize,
-  onRemove, onExpand,
+  onRemove, onExpand, onEdit,
 }) {
   function handleResizeStart(e) {
     e.preventDefault();
@@ -211,16 +471,21 @@ function PlacedCard({
     setLoading(true); setError('');
     try {
       const { timeStart, timeEnd } = getTimeBounds();
-      const payload = { ...values };
-      if (timeStart != null) payload._timeStart = timeStart;
-      if (timeEnd   != null) payload._timeEnd   = timeEnd;
       const enabledProtos = [...protocols];
-      if (enabledProtos.length < ALL_PROTOCOLS.length) {
-        payload._filterProtocols = enabledProtos.join(',');
+      const filterOverrides = {};
+      if (timeStart != null) filterOverrides._timeStart = timeStart;
+      if (timeEnd   != null) filterOverrides._timeEnd   = timeEnd;
+      if (enabledProtos.length < ALL_PROTOCOLS.length) filterOverrides._filterProtocols = enabledProtos.join(',');
+      if (search.trim()) filterOverrides._filterSearch = search.trim();
+      if (!includeIpv6)  filterOverrides._filterIncludeIpv6 = false;
+
+      let res;
+      if (chart._isCustom) {
+        res = await runCustomChart({ ...chart._customConfig, ...filterOverrides });
+      } else {
+        const payload = { ...values, ...filterOverrides };
+        res = await runResearchChart(chart.name, payload);
       }
-      if (search.trim()) payload._filterSearch = search.trim();
-      if (!includeIpv6)  payload._filterIncludeIpv6 = false;
-      const res = await runResearchChart(chart.name, payload);
       setFigure(res.figure);
     } catch (e) {
       const msg = e.message || 'Chart computation failed';
@@ -273,6 +538,14 @@ function PlacedCard({
                 background: isWide ? 'rgba(88,166,255,.1)' : 'transparent',
                 color: isWide ? 'var(--ac)' : 'var(--txD)', cursor: 'pointer' }}>
               ⇔
+            </button>
+          )}
+          {chart._isCustom && onEdit && (
+            <button onClick={onEdit} title="Edit chart"
+              style={{ width: 22, height: 22, borderRadius: 4, border: '1px solid var(--bd)', background: 'transparent', color: 'var(--txD)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--acP)'; e.currentTarget.style.color = 'var(--acP)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--bd)'; e.currentTarget.style.color = 'var(--txD)'; }}>
+              ✎
             </button>
           )}
           <button onClick={onExpand} title="Expand"
@@ -385,7 +658,11 @@ function PlacedCard({
       {/* No-param run row */}
       {(chart.params || []).length === 0 && (
         <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--bd)', background: '#0a0b0f', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 9, color: 'var(--txD)', fontStyle: 'italic', flex: 1 }}>No parameters</span>
+          <span style={{ fontSize: 9, color: 'var(--txD)', fontStyle: 'italic', flex: 1 }}>
+            {chart._isCustom
+              ? `${chart._customConfig?.source || ''} · ${chart._customConfig?.chart_type || ''} · ${chart._customConfig?.x_field || ''}${chart._customConfig?.y_field ? ' vs ' + chart._customConfig.y_field : ''}`
+              : 'No parameters'}
+          </span>
           <button className="btn" onClick={handleRun} disabled={loading}
             style={{ padding: '4px 14px', fontSize: 11,
               background: loading ? 'transparent' : 'rgba(88,166,255,.1)',
@@ -399,9 +676,9 @@ function PlacedCard({
       <div
         onWheel={e => e.stopPropagation()}
         style={{ background: 'var(--bg)', overflowY: 'auto', minHeight: 0,
-          ...(inOverlay ? { flex: 1 } : { height: cardHeight || DEFAULT_CARD_HEIGHT }) }}>
+          ...(inOverlay ? { flex: 1, display: 'flex', flexDirection: 'column' } : { height: cardHeight || DEFAULT_CARD_HEIGHT }) }}>
         <ChartErrorBoundary>
-          <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} />
+          <PlotlyChart figure={figure} loading={loading} error={error} isWide={isWide} fillHeight={inOverlay} />
         </ChartErrorBoundary>
       </div>
 
@@ -478,7 +755,7 @@ function EmptySlot({ onDrop, onClick, dragOverId, slotId }) {
 }
 
 // ── ChartPicker modal ─────────────────────────────────────────────────────────
-function ChartPicker({ charts, onPick, onClose }) {
+function ChartPicker({ charts, onPick, onClose, onCustom }) {
   const categories = ['host', 'session', 'capture', 'alerts'];
   const grouped = {};
   categories.forEach(c => { grouped[c] = []; });
@@ -499,6 +776,20 @@ function ChartPicker({ charts, onPick, onClose }) {
           <button className="btn" onClick={onClose} style={{ fontSize: 10, padding: '2px 8px' }}>✕</button>
         </div>
         <div style={{ overflowY: 'auto', padding: '10px 12px' }}>
+          {/* Custom chart option at top */}
+          {onCustom && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--acP)', marginBottom: 6 }}>Custom</div>
+              <div onClick={onCustom}
+                style={{ padding: '8px 10px', borderRadius: 6, border: '1px dashed var(--acP)', background: 'rgba(163,113,247,.05)',
+                  marginBottom: 6, cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(163,113,247,.12)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(163,113,247,.05)'}>
+                <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--acP)' }}>✦ Build custom chart</div>
+                <div style={{ fontSize: 10, color: 'var(--txD)', marginTop: 2 }}>Pick a data source and map fields to axes</div>
+              </div>
+            </div>
+          )}
           {categories.map(cat => {
             const items = grouped[cat];
             if (!items?.length) return null;
@@ -541,7 +832,7 @@ function inferCategory(chart) {
 }
 
 // ── SlotGrid — flat grid of slots, no category labels ─────────────────────────
-function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggleWide, onResize, dragOverId, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec }) {
+function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggleWide, onResize, onEditCustom, dragOverId, investigatedIp, availableIps, globalTimeBounds, timeline, timeRange, bucketSec, setBucketSec }) {
   // Flatten all category slots into one list, preserving id/chart/wide
   const allSlots = CAT_ORDER.flatMap(cat => slots[cat] || []);
 
@@ -568,6 +859,7 @@ function SlotGrid({ slots, onSlotDrop, onSlotClick, onRemove, onExpand, onToggle
                   onResize={h => onResize(slot.id, h)}
                   onRemove={() => onRemove(slot.id)}
                   onExpand={() => onExpand(slot.chart)}
+                  onEdit={slot.chart._isCustom ? () => onEditCustom(slot.id, slot.chart) : undefined}
                 />
               </div>
             ) : (
@@ -659,6 +951,10 @@ export default function ResearchPage({
   const [paletteOpen, setPaletteOpen]   = useState(true);
   const slotCounter = useRef(100); // start above default slot IDs to avoid collisions
 
+  // ── Custom chart builder state ────────────────────────────────────────────
+  // builderState: null (closed) | { mode: 'create', slotId } | { mode: 'edit', slotId, initial }
+  const [builderState, setBuilderState] = useState(null);
+
   const timeRangeRef = useRef(timeRange);
   const timelineRef  = useRef(timeline);
   useEffect(() => { timeRangeRef.current = timeRange; }, [timeRange]);
@@ -695,6 +991,64 @@ export default function ResearchPage({
       next[cat] = arr.map(s => s.id === slotId ? { ...s, chart } : s);
     }
     return next;
+  }
+
+  // Build a chart object from a custom config (returned by CustomChartBuilder)
+  function makeCustomChart(config) {
+    return {
+      name:           `custom_${Date.now()}`,
+      title:          config.title || 'Custom Chart',
+      description:    `${config.source} · ${config.chart_type} · ${config.x_field}${config.y_field ? ' vs ' + config.y_field : ''}`,
+      params:         [],
+      _isCustom:      true,
+      _customConfig:  config,
+      _category:      'capture',
+    };
+  }
+
+  // Save custom chart config to localStorage
+  function persistCustomConfig(config) {
+    const saved = loadSavedCustomCharts();
+    const existing = saved.findIndex(c => c._id === config._id);
+    if (existing >= 0) saved[existing] = config;
+    else saved.push(config);
+    saveCustomCharts(saved);
+  }
+
+  function removeCustomConfig(id) {
+    const saved = loadSavedCustomCharts().filter(c => c._id !== id);
+    saveCustomCharts(saved);
+  }
+
+  function handleBuilderSave(config) {
+    const bs = builderState;
+    setBuilderState(null);
+    if (!bs) return;
+    // Give it a stable ID for localStorage keying
+    const configWithId = { ...config, _id: bs.initial?._id || `cc_${Date.now()}` };
+    persistCustomConfig(configWithId);
+    const chart = makeCustomChart(configWithId);
+    if (bs.mode === 'create') {
+      // Place into a new slot if no target, or into specific slot from picker
+      const targetSlotId = bs.slotId;
+      if (targetSlotId) {
+        setSlots(prev => placeChart(prev, targetSlotId, chart));
+      } else {
+        // Add new slot and place
+        const id = `slot-${slotCounter.current++}`;
+        setSlots(prev => ({
+          ...prev,
+          capture: [...prev.capture, { id, chart, wide: false, height: null }],
+        }));
+      }
+    } else {
+      // Edit: replace existing slot's chart in-place
+      setSlots(prev => placeChart(prev, bs.slotId, chart));
+    }
+  }
+
+  function handleEditCustom(slotId, existingChart) {
+    setBuilderState({ mode: 'edit', slotId, initial: existingChart._customConfig });
   }
 
   function addSlot() {
@@ -828,6 +1182,7 @@ export default function ResearchPage({
           onExpand={setExpandedChart}
           onToggleWide={handleToggleWide}
           onResize={handleResize}
+          onEditCustom={handleEditCustom}
           dragOverId={dragOverId}
           investigatedIp={effectiveIp}
           availableIps={availableIps}
@@ -872,6 +1227,22 @@ export default function ResearchPage({
         {/* Palette content */}
         {paletteOpen && (
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
+            {/* Custom chart button — at top of palette */}
+            <div style={{ marginBottom: 12 }}>
+              <button
+                onClick={() => setBuilderState({ mode: 'create', slotId: null })}
+                style={{
+                  width: '100%', padding: '7px 8px', borderRadius: 6, cursor: 'pointer',
+                  border: '1px dashed var(--acP)', background: 'rgba(163,113,247,.06)',
+                  color: 'var(--acP)', fontSize: 10, fontWeight: 600, textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(163,113,247,.14)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(163,113,247,.06)'; }}
+              >
+                <span style={{ fontSize: 13 }}>✦</span> Custom chart
+              </button>
+            </div>
             {CAT_ORDER.map(cat => (
               <PaletteCategory
                 key={cat}
@@ -891,6 +1262,20 @@ export default function ResearchPage({
           charts={allCharts}
           onPick={handlePickerPick}
           onClose={() => setPickerSlotId(null)}
+          onCustom={() => {
+            const sid = pickerSlotId;
+            setPickerSlotId(null);
+            setBuilderState({ mode: 'create', slotId: sid });
+          }}
+        />
+      )}
+
+      {/* Custom chart builder modal */}
+      {builderState && (
+        <CustomChartBuilder
+          initial={builderState.initial || null}
+          onSave={handleBuilderSave}
+          onClose={() => setBuilderState(null)}
         />
       )}
 

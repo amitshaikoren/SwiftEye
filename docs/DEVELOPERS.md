@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.15.0 | March 2026**
+**Version 0.15.18 | April 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -176,6 +176,8 @@ swifteye/
 ---
 
 ## 3. Design Philosophy
+
+**Guiding principle:** *Simple things should feel obvious; hard things should remain possible for a skilled user.* The common case (load a pcap, explore the graph) must require zero configuration. The advanced case (custom charts, query language, plugin hooks) must be available and powerful.
 
 ### Viewer vs. Analyzer
 
@@ -973,6 +975,10 @@ When any endpoint accepts `time_start`/`time_end`, sessions are scoped by checki
 |--------|----------|-------------|
 | `GET` | `/api/research` | List charts with param declarations |
 | `POST` | `/api/research/{name}` | Run chart → `{"figure": {data, layout}}` |
+| `GET` | `/api/research/custom/schema` | Sources + fields + `has_data` flags for custom chart builder. Works without a loaded capture (all `has_data` false). |
+| `POST` | `/api/research/custom` | Field-mapping payload → Plotly figure dict. Requires a loaded capture. Body: `{source, chart_type, x_field, y_field, color_field, size_field, hover_fields, title, _timeStart, _timeEnd, _filterProtocols, _filterSearch, _filterIncludeIpv6}` |
+
+> **Route ordering note:** The `/custom` and `/custom/schema` routes in `routes/research.py` must be declared **before** the `/{chart_name}` wildcard — FastAPI matches in declaration order and would otherwise capture "custom" as a chart name.
 
 ### Utility
 
@@ -1092,6 +1098,10 @@ Is it reading raw packet fields and presenting them?
 2. Add to `_register_charts()` in `server.py`: `("research.my_chart", "MyChartClass")`
    - **Important:** the class name must match exactly — a mismatch silently skips the chart
 3. No frontend changes needed
+
+**Custom ad-hoc charts** (no Python required) are built from the Research panel UI via `POST /api/research/custom`. See `backend/research/custom_chart.py` for the source/field extraction logic and `ResearchPage.jsx` (`CustomChartBuilder`) for the frontend wizard.
+
+**Dynamic field discovery:** `custom_chart.py` scans `pkt.extra` at schema-request time to auto-discover fields added by new dissectors. Drop a new dissector in `parser/protocols/` and its fields appear in the custom chart builder without any registration step.
 
 ### Adding a New API Endpoint
 
