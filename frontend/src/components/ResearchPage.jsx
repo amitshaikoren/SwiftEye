@@ -662,42 +662,43 @@ function PlacedCard({
             </div>
           )}
 
-          {/* Protocol chips */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Protocols</label>
-            {filterCtx.protocolList.map(proto => (
-              <button key={proto}
-                onClick={() => toggleProtocol(proto)}
+          {/* Protocol chips / Search / IPv6 — hidden for charts with entry_schema
+              (chart filters cover this; stream-level narrowing is redundant) */}
+          {!filterSchema && (<>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Protocols</label>
+              {filterCtx.protocolList.map(proto => (
+                <button key={proto}
+                  onClick={() => toggleProtocol(proto)}
+                  style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10,
+                    border: `1px solid ${protocols.has(proto) ? 'var(--ac)' : 'var(--bd)'}`,
+                    background: protocols.has(proto) ? 'rgba(88,166,255,.1)' : 'transparent',
+                    color: protocols.has(proto) ? 'var(--ac)' : 'var(--txD)',
+                    cursor: 'pointer' }}>
+                  {proto}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Search</label>
+              <input className="inp"
+                style={{ fontSize: 10, width: 160 }}
+                placeholder="ip, port, protocol…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleRun()}
+              />
+              <button
+                onClick={() => setIncludeIpv6(v => !v)}
                 style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10,
-                  border: `1px solid ${protocols.has(proto) ? 'var(--ac)' : 'var(--bd)'}`,
-                  background: protocols.has(proto) ? 'rgba(88,166,255,.1)' : 'transparent',
-                  color: protocols.has(proto) ? 'var(--ac)' : 'var(--txD)',
+                  border: `1px solid ${includeIpv6 ? 'var(--ac)' : 'var(--bd)'}`,
+                  background: includeIpv6 ? 'rgba(88,166,255,.1)' : 'transparent',
+                  color: includeIpv6 ? 'var(--ac)' : 'var(--txD)',
                   cursor: 'pointer' }}>
-                {proto}
+                IPv6
               </button>
-            ))}
-          </div>
-
-          {/* Search + IPv6 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Search</label>
-            <input className="inp"
-              style={{ fontSize: 10, width: 160 }}
-              placeholder="ip, port, protocol…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleRun()}
-            />
-            <button
-              onClick={() => setIncludeIpv6(v => !v)}
-              style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10,
-                border: `1px solid ${includeIpv6 ? 'var(--ac)' : 'var(--bd)'}`,
-                background: includeIpv6 ? 'rgba(88,166,255,.1)' : 'transparent',
-                color: includeIpv6 ? 'var(--ac)' : 'var(--txD)',
-                cursor: 'pointer' }}>
-              IPv6
-            </button>
-          </div>
+            </div>
+          </>)}
 
           {/* Per-chart data filters — rendered from filterSchema detected on first run */}
           {filterSchema && Object.keys(filterSchema).length > 0 && (
