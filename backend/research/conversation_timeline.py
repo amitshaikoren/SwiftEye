@@ -16,6 +16,8 @@ Useful for:
 
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import List
+
 from research import ResearchChart, Param, AnalysisContext, SWIFTEYE_LAYOUT, PROTOCOL_COLORS
 
 
@@ -33,103 +35,92 @@ class ConversationTimeline(ResearchChart):
         ),
     ]
 
-    def compute(self, ctx: AnalysisContext, params: dict) -> dict:
+    def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
+        target = params["target_ip"].strip()
+        entries = []
+        for pkt in ctx.packets:
+            if pkt.src_ip != target and pkt.dst_ip != target:
+                continue
+            peer = pkt.dst_ip if pkt.src_ip == target else pkt.src_ip
+            direction = "out" if pkt.src_ip == target else "in"
+            proto = pkt.protocol or pkt.transport or "OTHER"
+            entries.append({
+                "ts":       pkt.timestamp * 1000,
+                "peer":     peer,
+                "protocol": proto,
+                "direction": direction,
+                "bytes":    pkt.orig_len,
+                "src_port": pkt.src_port,
+                "dst_port": pkt.dst_port,
+            })
+        return entries
+
+    def build_figure(self, entries: List[dict], params: dict):
         target = params["target_ip"].strip()
 
-        # collect packets involving target
-        relevant = [
-            p for p in ctx.packets
-            if p.src_ip == target or p.dst_ip == target
-        ]
+        if not entries:
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            fig.update_layout(title=f"No packets found for {target}")
+            return fig
 
-        if not relevant:
-            return {
-                "data": [],
-                "layout": {
-                    **SWIFTEYE_LAYOUT,
-                    "title": {"text": f"No packets found for {target}", "font": {"color": "#8b949e"}},
-                },
-            }
+        import plotly.graph_objects as go
 
-        # group by peer
-        peer_packets = defaultdict(list)
-        for pkt in relevant:
-            peer = pkt.dst_ip if pkt.src_ip == target else pkt.src_ip
-            peer_packets[peer].append(pkt)
+        # Build Y-axis order: peers sorted by first-seen time
+        peer_first = {}
+        for e in entries:
+            if e["peer"] not in peer_first:
+                peer_first[e["peer"]] = e["ts"]
+        peers = sorted(peer_first, key=peer_first.get)
 
-        # sort peers by first-seen time for stable Y ordering
-        peers = sorted(peer_packets.keys(), key=lambda p: peer_packets[p][0].timestamp)
-
-        # build one trace per protocol (so legend works cleanly)
-        proto_traces = defaultdict(lambda: {"x": [], "y": [], "size": [], "text": [], "peer": []})
-
-        for peer in peers:
-            for pkt in peer_packets[peer]:
-                proto = pkt.protocol or pkt.transport or "OTHER"
-                t_str = _fmt_time(pkt.timestamp)
-                direction = "out" if pkt.src_ip == target else "in"
-                proto_traces[proto]["x"].append(pkt.timestamp * 1000)
-                proto_traces[proto]["y"].append(peer)
-                # size: sqrt scale so large packets don't dominate visually
-                size = max(4, min(20, (pkt.orig_len ** 0.5) * 0.6))
-                proto_traces[proto]["size"].append(size)
-                proto_traces[proto]["text"].append(
-                    f"Peer: {peer}<br>"
-                    f"Proto: {proto}<br>"
-                    f"Direction: {direction}<br>"
-                    f"Bytes: {pkt.orig_len:,}<br>"
-                    f"Src port: {pkt.src_port}<br>"
-                    f"Dst port: {pkt.dst_port}<br>"
-                    f"Time: {t_str}"
-                )
+        # One trace per protocol
+        proto_traces = defaultdict(lambda: {"x": [], "y": [], "size": [], "text": []})
+        for e in entries:
+            proto = e["protocol"]
+            size = max(4, min(20, (e["bytes"] ** 0.5) * 0.6))
+            ts_str = _fmt_time(e["ts"] / 1000)
+            proto_traces[proto]["x"].append(e["ts"])
+            proto_traces[proto]["y"].append(e["peer"])
+            proto_traces[proto]["size"].append(size)
+            proto_traces[proto]["text"].append(
+                f"Peer: {e['peer']}<br>"
+                f"Proto: {proto}<br>"
+                f"Direction: {e['direction']}<br>"
+                f"Bytes: {e['bytes']:,}<br>"
+                f"Src port: {e['src_port']}<br>"
+                f"Dst port: {e['dst_port']}<br>"
+                f"Time: {ts_str}"
+            )
 
         traces = []
         for proto, d in sorted(proto_traces.items()):
             color = PROTOCOL_COLORS.get(proto, PROTOCOL_COLORS["OTHER"])
-            traces.append({
-                "type": "scatter",
-                "mode": "markers",
-                "name": proto,
-                "x": d["x"],
-                "y": d["y"],
-                "text": d["text"],
-                "hovertemplate": "%{text}<extra></extra>",
-                "marker": {
-                    "color": color,
-                    "size": d["size"],
-                    "opacity": 0.8,
-                    "line": {"width": 0.5, "color": color},
-                },
-            })
+            traces.append(go.Scatter(
+                mode="markers",
+                name=proto,
+                x=d["x"], y=d["y"],
+                text=d["text"],
+                hovertemplate="%{text}<extra></extra>",
+                marker=dict(
+                    color=color, size=d["size"],
+                    opacity=0.8, line=dict(width=0.5, color=color),
+                ),
+            ))
 
-        t_min = min(p.timestamp * 1000 for p in relevant)
-        t_max = max(p.timestamp * 1000 for p in relevant)
+        t_min = min(e["ts"] for e in entries)
+        t_max = max(e["ts"] for e in entries)
 
-        layout = {
-            **SWIFTEYE_LAYOUT,
-            "title": {
-                "text": f"Conversation timeline · {target}",
-                "font": {"color": "#e6edf3", "size": 13},
-            },
-            "xaxis": {
-                **SWIFTEYE_LAYOUT["xaxis"],
-                "title": {"text": "Time", "font": {"color": "#484f58"}},
-                "type": "date",
-                "range": [t_min - 10000, t_max + 10000],
-                "tickformat": "%H:%M:%S",
-            },
-            "yaxis": {
-                **SWIFTEYE_LAYOUT["yaxis"],
-                "title": {"text": "Peer IP", "font": {"color": "#484f58"}},
-                "type": "category",
-                "categoryorder": "array",
-                "categoryarray": peers,
-            },
-            "height": max(300, 60 + len(peers) * 38),
-            "margin": {"l": 130, "r": 20, "t": 50, "b": 60},
-        }
-
-        return {"data": traces, "layout": layout}
+        fig = go.Figure(data=traces)
+        fig.update_layout(
+            title=dict(text=f"Conversation timeline · {target}", font=dict(color="#e6edf3", size=13)),
+            xaxis=dict(title=dict(text="Time", font=dict(color="#484f58")),
+                       type="date", range=[t_min - 10000, t_max + 10000], tickformat="%H:%M:%S"),
+            yaxis=dict(title=dict(text="Peer IP", font=dict(color="#484f58")),
+                       type="category", categoryorder="array", categoryarray=peers),
+            height=max(300, 60 + len(peers) * 38),
+            margin=dict(l=130, r=20, t=50, b=60),
+        )
+        return fig
 
 
 def _fmt_time(ts: float) -> str:

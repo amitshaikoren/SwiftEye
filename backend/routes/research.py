@@ -101,26 +101,40 @@ async def run_custom_chart(body: dict):
 @router.post("/api/research/{chart_name}")
 async def run_research_chart(chart_name: str, body: dict):
     """
-    Run a research chart and return a Plotly figure dict.
+    Run a research chart and return a Plotly figure dict plus a filter schema.
 
-    Body: { "param_name": "value", ..., "_timeStart": float, "_timeEnd": float }
-    Reserved keys _timeStart / _timeEnd (Unix seconds) are stripped before
-    passing to the chart and used to filter packets and sessions by time window.
+    Body keys:
+      "param_name": "value"    — user params declared by the chart (Param instances)
+      "_timeStart": float      — Unix seconds; used to pre-filter packets/sessions
+      "_timeEnd":   float      — Unix seconds
+      "_filterProtocols": str  — comma-separated protocol names for SCOPED mode
+      "_filterSearch": str     — keyword search for SCOPED mode
+      "_filterIncludeIpv6": bool
+      "_filter_<field>": any   — per-chart data filter (passed to build_data/filter path)
+      "_filter_<field>_min/max": numeric bounds for numeric fields
 
-    Response: { "figure": { "data": [...], "layout": {...} } }
+    Response: { "figure": { "data": [...], "layout": {...} },
+                "filter_schema": { "field": { "type": ..., ["options": [...]] } } }
+
+    filter_schema is empty ({}) for legacy charts that implement compute() directly.
     """
     _require_capture()
     chart = get_chart(chart_name)
     if not chart:
         raise HTTPException(status_code=404, detail=f"Research chart '{chart_name}' not found")
     try:
+        # User params (non-underscore keys)
         chart_params = {k: v for k, v in body.items() if not k.startswith('_')}
+
+        # Stream-level filters (applied before compute / build_data)
         t_start = body.get('_timeStart')
         t_end   = body.get('_timeEnd')
-
         f_protocols    = body.get('_filterProtocols')
         f_search       = body.get('_filterSearch', '')
         f_include_ipv6 = body.get('_filterIncludeIpv6', True)
+
+        # Per-chart data filters (applied to entries after build_data)
+        filter_params = {k: v for k, v in body.items() if k.startswith('_filter_')}
 
         pkts = filter_packets(
             store.packets,
@@ -135,10 +149,12 @@ async def run_research_chart(chart_name: str, body: dict):
             active_keys = {p.session_key for p in pkts}
             sess = [s for s in sess if s.get('id') in active_keys]
 
-        ctx    = AnalysisContext(packets=pkts, sessions=sess,
-                                time_range=(t_start, t_end) if t_start is not None and t_end is not None else None)
-        figure = run_chart(chart_name, ctx, chart_params)
-        return {"figure": figure}
+        ctx = AnalysisContext(
+            packets=pkts, sessions=sess,
+            time_range=(t_start, t_end) if t_start is not None and t_end is not None else None,
+        )
+        result = run_chart(chart_name, ctx, chart_params, filter_params=filter_params)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:

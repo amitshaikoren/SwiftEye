@@ -9,6 +9,8 @@ Chart: X = session start time, Y = remote IP (categorical),
 """
 
 from collections import defaultdict
+from typing import List
+
 from research import ResearchChart, Param, AnalysisContext, SWIFTEYE_LAYOUT
 
 _PALETTE = [
@@ -27,7 +29,7 @@ class JA4Timeline(ResearchChart):
               placeholder="e.g. 192.168.1.177"),
     ]
 
-    def compute(self, ctx: AnalysisContext, params: dict) -> dict:
+    def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         target = params.get("target_ip", "").strip()
 
         tls_sessions = [
@@ -37,116 +39,108 @@ class JA4Timeline(ResearchChart):
                  or target in (s.get("src_ip", ""), s.get("dst_ip", "")))
         ]
 
-        if not tls_sessions:
-            return {
-                "data": [],
-                "layout": {
-                    **SWIFTEYE_LAYOUT,
-                    "title": {"text": f"No TLS sessions with JA4 data found for {target}",
-                              "font": {"color": "#8b949e"}},
-                },
-            }
-
-        all_hashes = []
+        entries = []
         for s in tls_sessions:
-            for h in s.get("ja4_hashes", []):
-                if h not in all_hashes:
-                    all_hashes.append(h)
-
-        hash_color = {h: _PALETTE[i % len(_PALETTE)] for i, h in enumerate(all_hashes)}
-
-        def label(h):
-            # JA4 is already human-readable: td131517h2_8daaf...
-            return h[:24] + "…" if len(h) > 24 else h
-
-        remote_first_seen = {}
-        for s in sorted(tls_sessions, key=lambda x: x.get("start_time", 0)):
-            init = s.get("initiator_ip", s.get("src_ip", ""))
-            resp = s.get("responder_ip", s.get("dst_ip", ""))
-            remote = resp if init == target else init
-            if remote not in remote_first_seen:
-                remote_first_seen[remote] = s.get("start_time", 0)
-        remote_ips = sorted(remote_first_seen, key=lambda r: remote_first_seen[r])
-
-        trace_map = defaultdict(lambda: {"x": [], "y": [], "size": [], "text": []})
-
-        for s in tls_sessions:
-            init = s.get("initiator_ip", s.get("src_ip", ""))
-            resp = s.get("responder_ip", s.get("dst_ip", ""))
+            init  = s.get("initiator_ip", s.get("src_ip", ""))
+            resp  = s.get("responder_ip", s.get("dst_ip", ""))
             remote = resp if init == target else init
             ts    = s.get("start_time", 0) * 1000
             total = s.get("total_bytes", 0)
-            size  = max(5, min(16, (total ** 0.5) * 0.3))
             sni   = ", ".join(s.get("tls_snis", [])) or "—"
             ver   = ", ".join(s.get("tls_versions", [])) or "—"
             dur   = round(s.get("duration", 0), 1)
-            direction = "→ (initiator)" if init == target else "← (responder)"
+            role  = "→ (initiator)" if init == target else "← (responder)"
 
             for h in s.get("ja4_hashes", []):
-                trace_map[h]["x"].append(ts)
-                trace_map[h]["y"].append(remote)
-                trace_map[h]["size"].append(size)
-                trace_map[h]["text"].append(
-                    f"<b>{remote}</b><br>"
-                    f"Role: {direction}<br>"
-                    f"JA4: {h}<br>"
-                    f"SNI: {sni}<br>"
-                    f"TLS: {ver}<br>"
-                    f"Bytes: {total:,}<br>"
-                    f"Duration: {dur}s"
-                )
+                short = h[:24] + "…" if len(h) > 24 else h
+                entries.append({
+                    "ts":        ts,
+                    "remote_ip": remote,
+                    "ja4":       short,
+                    "sni":       sni,
+                    "tls_ver":   ver,
+                    "bytes":     total,
+                    "duration":  dur,
+                    "role":      role,
+                    "_ja4_full": h,
+                })
+        return entries
+
+    def build_figure(self, entries: List[dict], params: dict):
+        import plotly.graph_objects as go
+
+        target = params.get("target_ip", "").strip()
+
+        if not entries:
+            fig = go.Figure()
+            fig.update_layout(title=f"No TLS sessions with JA4 data found for {target}")
+            return fig
+
+        seen_hashes, seen_set = [], set()
+        for e in entries:
+            h = e["_ja4_full"]
+            if h not in seen_set:
+                seen_hashes.append(h)
+                seen_set.add(h)
+        hash_color = {h: _PALETTE[i % len(_PALETTE)] for i, h in enumerate(seen_hashes)}
+
+        def label(h):
+            short = h[:24] + "…" if len(h) > 24 else h
+            return short
+
+        remote_first = {}
+        for e in sorted(entries, key=lambda x: x["ts"]):
+            if e["remote_ip"] not in remote_first:
+                remote_first[e["remote_ip"]] = e["ts"]
+        remote_ips = sorted(remote_first, key=remote_first.get)
+
+        trace_map = defaultdict(lambda: {"x": [], "y": [], "size": [], "text": []})
+        for e in entries:
+            h    = e["_ja4_full"]
+            size = max(5, min(16, (e["bytes"] ** 0.5) * 0.3))
+            trace_map[h]["x"].append(e["ts"])
+            trace_map[h]["y"].append(e["remote_ip"])
+            trace_map[h]["size"].append(size)
+            trace_map[h]["text"].append(
+                f"<b>{e['remote_ip']}</b><br>"
+                f"Role: {e['role']}<br>"
+                f"JA4: {e['ja4']}<br>"
+                f"SNI: {e['sni']}<br>"
+                f"TLS: {e['tls_ver']}<br>"
+                f"Bytes: {e['bytes']:,}<br>"
+                f"Duration: {e['duration']}s"
+            )
 
         traces = []
         for h, d in trace_map.items():
-            traces.append({
-                "type": "scatter", "mode": "markers",
-                "name": label(h),
-                "x": d["x"], "y": d["y"],
-                "text": d["text"],
-                "hovertemplate": "%{text}<extra></extra>",
-                "marker": {
-                    "color": hash_color.get(h, "#8b949e"),
-                    "size": d["size"],
-                    "opacity": 0.85,
-                    "line": {"width": 0.5, "color": "rgba(0,0,0,0.3)"},
-                },
-            })
+            traces.append(go.Scatter(
+                mode="markers", name=label(h),
+                x=d["x"], y=d["y"],
+                text=d["text"],
+                hovertemplate="%{text}<extra></extra>",
+                marker=dict(color=hash_color.get(h, "#8b949e"), size=d["size"],
+                            opacity=0.85, line=dict(width=0.5, color="rgba(0,0,0,0.3)")),
+            ))
 
-        height = max(300, 80 + len(remote_ips) * 38)
-        layout = {
-            **SWIFTEYE_LAYOUT,
-            "title": {
-                "text": f"JA4 timeline · {target} · {len(tls_sessions)} TLS sessions",
-                "font": {"color": "#e6edf3", "size": 12},
-            },
-            "xaxis": {
-                **SWIFTEYE_LAYOUT["xaxis"],
-                "title": {"text": "Session start time", "font": {"color": "#484f58"}},
-                "type": "date",
-                "tickformat": "%H:%M:%S",
-            },
-            "yaxis": {
-                **SWIFTEYE_LAYOUT["yaxis"],
-                "title": {"text": "Remote IP", "font": {"color": "#484f58"}},
-                "type": "category",
-                "categoryorder": "array",
-                "categoryarray": remote_ips,
-                "tickfont": {"size": 9, "family": "JetBrains Mono, monospace"},
-                "automargin": True,
-            },
-            "height": height,
-            "margin": {"l": 140, "r": 20, "t": 50, "b": 60},
-            "legend": {
-                "bgcolor":     "rgba(14,17,23,0.8)",
-                "bordercolor": "rgba(48,54,61,0.8)",
-                "borderwidth": 1,
-                "font":        {"size": 9, "family": "JetBrains Mono, monospace"},
-                "x": 1.01, "y": 1,
-                "xanchor": "left", "yanchor": "top",
-            },
-        }
-
-        return {"data": traces, "layout": layout}
+        fig = go.Figure(data=traces)
+        fig.update_layout(
+            title=dict(
+                text=f"JA4 timeline · {target} · {len(entries)} TLS sessions",
+                font=dict(color="#e6edf3", size=12),
+            ),
+            xaxis=dict(title=dict(text="Session start time", font=dict(color="#484f58")),
+                       type="date", tickformat="%H:%M:%S"),
+            yaxis=dict(title=dict(text="Remote IP", font=dict(color="#484f58")),
+                       type="category", categoryorder="array", categoryarray=remote_ips,
+                       tickfont=dict(size=9, family="JetBrains Mono, monospace"),
+                       automargin=True),
+            height=max(300, 80 + len(remote_ips) * 38),
+            margin=dict(l=140, r=20, t=50, b=60),
+            legend=dict(bgcolor="rgba(14,17,23,0.8)", bordercolor="rgba(48,54,61,0.8)",
+                        borderwidth=1, font=dict(size=9, family="JetBrains Mono, monospace"),
+                        x=1.01, y=1, xanchor="left", yanchor="top"),
+        )
+        return fig
 
 
 def register(registry):

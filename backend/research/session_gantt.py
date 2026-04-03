@@ -16,13 +16,18 @@ Useful for:
     - Seeing which sessions overlapped in time
 """
 
-from research import ResearchChart, Param, AnalysisContext, SWIFTEYE_LAYOUT, PROTOCOL_COLORS
-from datetime import datetime, timezone
 from collections import defaultdict
+from datetime import datetime, timezone
+from typing import List
+
+from research import ResearchChart, Param, AnalysisContext, SWIFTEYE_LAYOUT, PROTOCOL_COLORS
 
 
 def _fmt(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%H:%M:%S")
+
+
+MAX_ROWS = 2000
 
 
 class SessionGantt(ResearchChart):
@@ -30,49 +35,30 @@ class SessionGantt(ResearchChart):
     title       = "Session Gantt"
     description = "All sessions — when each started, ended, and how long it lasted. No input required."
     category    = "session"
-    params = []   # no params — shows everything
+    params      = []
 
-    def compute(self, ctx: AnalysisContext, params: dict) -> dict:
+    def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         sessions = ctx.sessions
-        MAX_ROWS = 2000  # Plotly can't handle 47K+ bars without freezing
-
         if not sessions:
-            return {
-                "data": [],
-                "layout": {
-                    **SWIFTEYE_LAYOUT,
-                    "title": {"text": "No sessions in capture", "font": {"color": "#8b949e"}},
-                },
-            }
+            return []
 
         sessions = sorted(sessions, key=lambda s: s.get("start_time", 0))
-        total_sessions = len(sessions)
-        if total_sessions > MAX_ROWS:
-            # Keep the top sessions by packet count so the chart shows the
-            # most interesting flows, not just the first 2000 by time.
+        total = len(sessions)
+        if total > MAX_ROWS:
             sessions = sorted(sessions, key=lambda s: s.get("packet_count", 0), reverse=True)[:MAX_ROWS]
             sessions = sorted(sessions, key=lambda s: s.get("start_time", 0))
-        # Use the time window start as the x-axis origin so the chart always
-        # shows time relative to the selected burst/window, not the full capture.
-        # ctx.time_range is set by the server when _timeStart/_timeEnd are passed.
+
         if ctx.time_range and ctx.time_range[0] is not None:
-            t_global_min = ctx.time_range[0]
+            t0_global = ctx.time_range[0]
         else:
-            t_global_min = sessions[0].get("start_time", 0)
+            t0_global = sessions[0].get("start_time", 0)
 
-        def row_label(s):
-            src = s.get("src_ip", "?")
-            dst = s.get("dst_ip", "?")
-            dport = s.get("dst_port", 0)
-            return f"{src} → {dst}:{dport}"
-
-        proto_data = defaultdict(lambda: {"base": [], "width": [], "y": [], "text": []})
-
+        entries = []
         for s in sessions:
             proto = s.get("protocol") or s.get("transport") or "OTHER"
-            t0 = s.get("start_time", 0)
-            t1 = s.get("end_time") or t0
-            duration = max(0.5, t1 - t0)
+            t0    = s.get("start_time", 0)
+            t1    = s.get("end_time") or t0
+            dur   = max(0.5, t1 - t0)
 
             tcp_state = []
             if s.get("has_handshake"): tcp_state.append("SYN✓")
@@ -80,83 +66,99 @@ class SessionGantt(ResearchChart):
             if s.get("has_reset"):     tcp_state.append("RST")
             state_str = " ".join(tcp_state) if tcp_state else "incomplete"
 
-            hover = (
-                f"{s.get('src_ip')} → {s.get('dst_ip')}:{s.get('dst_port')}<br>"
-                f"Protocol: {proto}<br>"
-                f"Start: {_fmt(t0)} (+{t0 - t_global_min:.1f}s)<br>"
-                f"End: {_fmt(t1)} (+{t1 - t_global_min:.1f}s)<br>"
-                f"Duration: {duration:.1f}s<br>"
-                f"Packets: {s.get('packet_count', 0):,}<br>"
-                f"Bytes: {s.get('total_bytes', 0):,}<br>"
-                f"TCP: {state_str}"
-            )
+            src_ip  = s.get("src_ip", "?")
+            dst_ip  = s.get("dst_ip", "?")
+            dst_port = s.get("dst_port", 0)
+            row_label = f"{src_ip} → {dst_ip}:{dst_port}"
 
-            proto_data[proto]["base"].append(round(t0 - t_global_min, 3))
-            proto_data[proto]["width"].append(round(duration, 3))
-            proto_data[proto]["y"].append(row_label(s))
+            entries.append({
+                "ts":        t0 * 1000,      # start time — used as sort / time axis ref
+                "start_rel": round(t0 - t0_global, 3),
+                "duration":  round(dur, 3),
+                "row":       row_label,
+                "protocol":  proto,
+                "src_ip":    src_ip,
+                "dst_ip":    dst_ip,
+                "dst_port":  dst_port,
+                "packets":   s.get("packet_count", 0),
+                "bytes":     s.get("total_bytes", 0),
+                "tcp_state": state_str,
+                "start_fmt": _fmt(t0),
+                "end_fmt":   _fmt(t1),
+                "end_rel":   round(t1 - t0_global, 3),
+                # store for figure rebuild
+                "_t0_global": t0_global,
+                "_total":     total,
+                "_truncated": total > MAX_ROWS,
+            })
+        return entries
+
+    def build_figure(self, entries: List[dict], params: dict):
+        import plotly.graph_objects as go
+
+        if not entries:
+            fig = go.Figure()
+            fig.update_layout(title="No sessions in capture")
+            return fig
+
+        t0_global  = entries[0]["_t0_global"]
+        total      = entries[0]["_total"]
+        truncated  = entries[0]["_truncated"]
+
+        proto_data = defaultdict(lambda: {"base": [], "width": [], "y": [], "text": []})
+        for e in entries:
+            proto = e["protocol"]
+            hover = (
+                f"{e['src_ip']} → {e['dst_ip']}:{e['dst_port']}<br>"
+                f"Protocol: {proto}<br>"
+                f"Start: {e['start_fmt']} (+{e['start_rel']:.1f}s)<br>"
+                f"End: {e['end_fmt']} (+{e['end_rel']:.1f}s)<br>"
+                f"Duration: {e['duration']:.1f}s<br>"
+                f"Packets: {e['packets']:,}<br>"
+                f"Bytes: {e['bytes']:,}<br>"
+                f"TCP: {e['tcp_state']}"
+            )
+            proto_data[proto]["base"].append(e["start_rel"])
+            proto_data[proto]["width"].append(e["duration"])
+            proto_data[proto]["y"].append(e["row"])
             proto_data[proto]["text"].append(hover)
 
         traces = []
         for proto, d in sorted(proto_data.items()):
             color = PROTOCOL_COLORS.get(proto, PROTOCOL_COLORS["OTHER"])
-            traces.append({
-                "type": "bar",
-                "name": proto,
-                "orientation": "h",
-                "base": d["base"],
-                "x": d["width"],
-                "y": d["y"],
-                "text": d["text"],
-                "hovertemplate": "%{text}<extra></extra>",
-                "marker": {
-                    "color": color,
-                    "opacity": 0.8,
-                    "line": {"width": 0.5, "color": color},
-                },
-            })
+            traces.append(go.Bar(
+                name=proto, orientation="h",
+                base=d["base"], x=d["width"], y=d["y"],
+                text=d["text"],
+                hovertemplate="%{text}<extra></extra>",
+                marker=dict(color=color, opacity=0.8, line=dict(width=0.5, color=color)),
+            ))
 
-        t_max = max(
-            (s.get("end_time") or s.get("start_time", 0)) - t_global_min
-            for s in sessions
-        ) or 1
-        # When a time window is active, clamp the x-axis to the window duration
-        # so bars from long-running sessions don't stretch the chart past the window.
-        if ctx.time_range and ctx.time_range[1] is not None:
-            t_max = min(t_max, ctx.time_range[1] - t_global_min)
-        pad = t_max * 0.02
+        t_max = max(e["end_rel"] for e in entries) or 1
+        if ctx_range := entries[0].get("_t0_global"):
+            pass  # already in start_rel / end_rel
 
-        n = len(sessions)
-        row_h = max(10, min(24, 700 // max(n, 1)))
+        n = len(entries)
+        row_h  = max(10, min(24, 700 // max(n, 1)))
         height = min(900, max(350, 80 + n * (row_h + 3)))
+        pad    = t_max * 0.02
 
         title_text = f"Session Gantt — {n} sessions"
-        if total_sessions > MAX_ROWS:
-            title_text = f"Session Gantt — top {n} of {total_sessions:,} sessions (by packet count)"
+        if truncated:
+            title_text = f"Session Gantt — top {n} of {total:,} sessions (by packet count)"
 
-        layout = {
-            **SWIFTEYE_LAYOUT,
-            "title": {
-                "text": title_text,
-                "font": {"color": "#e6edf3", "size": 13},
-            },
-            "barmode": "overlay",
-            "xaxis": {
-                **SWIFTEYE_LAYOUT["xaxis"],
-                "title": {"text": "Seconds since window start" if ctx.time_range else "Seconds since capture start", "font": {"color": "#484f58"}},
-                "range": [-pad, t_max + pad],
-                "ticksuffix": "s",
-            },
-            "yaxis": {
-                **SWIFTEYE_LAYOUT["yaxis"],
-                "title": {"text": "", "font": {"color": "#484f58"}},
-                "type": "category",
-                "categoryorder": "array",
-                "categoryarray": [row_label(s) for s in sessions],
-                "tickfont": {"size": 9},
-                "automargin": True,
-            },
-            "height": height,
-            "margin": {"l": 180, "r": 20, "t": 50, "b": 60},
-        }
+        row_order = [e["row"] for e in entries]
 
-        return {"data": traces, "layout": layout}
+        fig = go.Figure(data=traces)
+        fig.update_layout(
+            title=dict(text=title_text, font=dict(color="#e6edf3", size=13)),
+            barmode="overlay",
+            xaxis=dict(title=dict(text="Seconds since window start", font=dict(color="#484f58")),
+                       range=[-pad, t_max + pad], ticksuffix="s"),
+            yaxis=dict(title=dict(text="", font=dict(color="#484f58")),
+                       type="category", categoryorder="array", categoryarray=row_order,
+                       tickfont=dict(size=9), automargin=True),
+            height=height,
+            margin=dict(l=180, r=20, t=50, b=60),
+        )
+        return fig

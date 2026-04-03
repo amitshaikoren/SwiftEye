@@ -18,24 +18,22 @@ Useful for:
 """
 
 from collections import defaultdict
+from typing import List
+
 from research import ResearchChart, Param, AnalysisContext, SWIFTEYE_LAYOUT
 
 
 _RCODE_COLOR = {
-    0: "#3fb950",   # NOERROR — green
-    2: "#f0883e",   # SERVFAIL — orange
-    3: "#f85149",   # NXDOMAIN — red
-    5: "#bc8cff",   # REFUSED — purple
+    0: "#3fb950",
+    2: "#f0883e",
+    3: "#f85149",
+    5: "#bc8cff",
 }
 _RCODE_NAME = {
-    0: "NOERROR",
-    1: "FORMERR",
-    2: "SERVFAIL",
-    3: "NXDOMAIN",
-    4: "NOTIMP",
-    5: "REFUSED",
+    0: "NOERROR", 1: "FORMERR", 2: "SERVFAIL",
+    3: "NXDOMAIN", 4: "NOTIMP",  5: "REFUSED",
 }
-_DEFAULT_COLOR = "#8b949e"  # query / unknown
+_DEFAULT_COLOR = "#8b949e"
 
 
 class DNSTimeline(ResearchChart):
@@ -43,140 +41,111 @@ class DNSTimeline(ResearchChart):
     title       = "DNS query timeline"
     description = "All DNS queries over time — Y = domain, colour = response code. NXDOMAINs in red, NOERROR green."
 
-    params = []  # No params — uses all DNS packets in capture
+    params = []
 
-    def compute(self, ctx: AnalysisContext, params: dict) -> dict:
-        # Collect one entry per DNS response packet that has a query name
-        # (responses carry both the question and the rcode)
+    def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         entries = []
         for pkt in ctx.packets:
             ex = pkt.extra
             if not ex.get("dns_query"):
                 continue
-            domain = ex["dns_query"].lower().rstrip(".")
-            rcode  = ex.get("dns_rcode")           # int or None
-            qr     = ex.get("dns_qr", "query")     # "query" | "response"
-            qtype  = ex.get("dns_qtype", 1)
+            domain  = ex["dns_query"].lower().rstrip(".")
+            rcode   = ex.get("dns_rcode")
+            qr      = ex.get("dns_qr", "query")
+            qtype   = ex.get("dns_qtype", 1)
             answers = ex.get("dns_answers", [])
 
+            if qr == "query":
+                status = "query"
+            else:
+                status = _RCODE_NAME.get(rcode, f"rcode={rcode}") if rcode is not None else "response"
+
             entries.append({
-                "ts":      pkt.timestamp * 1000,   # ms for Plotly date axis
-                "domain":  domain,
-                "rcode":   rcode,
-                "qr":      qr,
-                "qtype":   qtype,
-                "answers": answers,
-                "src":     pkt.src_ip,
-                "dst":     pkt.dst_ip,
+                "ts":       pkt.timestamp * 1000,
+                "domain":   domain,
+                "status":   status,
+                "qtype":    _qtype(qtype),
+                "client":   pkt.src_ip,
+                "server":   pkt.dst_ip,
+                "answers":  ", ".join(answers[:5]) if answers else "—",
             })
+        return entries
+
+    def build_figure(self, entries: List[dict], params: dict):
+        import plotly.graph_objects as go
 
         if not entries:
-            return {
-                "data": [],
-                "layout": {
-                    **SWIFTEYE_LAYOUT,
-                    "title": {"text": "No DNS packets found in capture",
-                              "font": {"color": "#8b949e"}},
-                },
-            }
+            fig = go.Figure()
+            fig.update_layout(title="No DNS packets found in capture")
+            return fig
 
-        # Sort by time
-        entries.sort(key=lambda e: e["ts"])
+        entries = sorted(entries, key=lambda e: e["ts"])
 
-        # Unique domains sorted by first-seen time
-        seen_domains = []
-        seen_set = set()
+        seen_domains, seen_set = [], set()
         for e in entries:
             if e["domain"] not in seen_set:
                 seen_domains.append(e["domain"])
                 seen_set.add(e["domain"])
 
-        # Build one trace per (rcode_label) so legend is clean
-        trace_map = defaultdict(lambda: {"x": [], "y": [], "text": [], "color": None})
+        # Map status → color
+        status_color = {
+            "NXDOMAIN": _RCODE_COLOR[3],
+            "SERVFAIL":  _RCODE_COLOR[2],
+            "REFUSED":   _RCODE_COLOR[5],
+            "NOERROR":   _RCODE_COLOR[0],
+            "query":     _DEFAULT_COLOR,
+        }
 
+        trace_map = defaultdict(lambda: {"x": [], "y": [], "text": [], "color": _DEFAULT_COLOR})
         for e in entries:
-            rcode = e["rcode"]
-            # Queries (no rcode yet) and responses get separate labels
-            if e["qr"] == "query":
-                label = "query"
-                color = _DEFAULT_COLOR
-            else:
-                label = _RCODE_NAME.get(rcode, f"rcode={rcode}") if rcode is not None else "response"
-                color = _RCODE_COLOR.get(rcode, _DEFAULT_COLOR)
-
-            trace_map[label]["x"].append(e["ts"])
-            trace_map[label]["y"].append(e["domain"])
-            trace_map[label]["color"] = color
-
-            answers_str = ", ".join(e["answers"][:5]) if e["answers"] else "—"
-            trace_map[label]["text"].append(
+            s = e["status"]
+            trace_map[s]["x"].append(e["ts"])
+            trace_map[s]["y"].append(e["domain"])
+            trace_map[s]["color"] = status_color.get(s, _DEFAULT_COLOR)
+            trace_map[s]["text"].append(
                 f"<b>{e['domain']}</b><br>"
-                f"Type: {_qtype(e['qtype'])}<br>"
-                f"Status: {label}<br>"
-                f"Answers: {answers_str}<br>"
-                f"Client: {e['src']}<br>"
-                f"Server: {e['dst']}"
+                f"Type: {e['qtype']}<br>"
+                f"Status: {s}<br>"
+                f"Answers: {e['answers']}<br>"
+                f"Client: {e['client']}<br>"
+                f"Server: {e['server']}"
             )
 
-        # Order: NXDOMAIN first (most interesting), then SERVFAIL, NOERROR, query
         order = ["NXDOMAIN", "SERVFAIL", "REFUSED", "NOERROR", "query"]
         traces = []
         for label in order + [k for k in trace_map if k not in order]:
             if label not in trace_map:
                 continue
             d = trace_map[label]
-            traces.append({
-                "type": "scatter",
-                "mode": "markers",
-                "name": label,
-                "x": d["x"],
-                "y": d["y"],
-                "text": d["text"],
-                "hovertemplate": "%{text}<extra></extra>",
-                "marker": {
-                    "color": d["color"],
-                    "size": 8,
-                    "opacity": 0.85,
-                    "line": {"width": 0},
-                },
-            })
+            traces.append(go.Scatter(
+                mode="markers", name=label,
+                x=d["x"], y=d["y"],
+                text=d["text"],
+                hovertemplate="%{text}<extra></extra>",
+                marker=dict(color=d["color"], size=8, opacity=0.85, line=dict(width=0)),
+            ))
 
         height = max(300, 80 + len(seen_domains) * 22)
-
-        layout = {
-            **SWIFTEYE_LAYOUT,
-            "title": {
-                "text": f"DNS query timeline · {len(entries)} queries · {len(seen_domains)} domains",
-                "font": {"color": "#e6edf3", "size": 12},
-            },
-            "xaxis": {
-                **SWIFTEYE_LAYOUT["xaxis"],
-                "title": {"text": "Time", "font": {"color": "#484f58"}},
-                "type": "date",
-                "tickformat": "%H:%M:%S",
-            },
-            "yaxis": {
-                **SWIFTEYE_LAYOUT["yaxis"],
-                "title": {"text": "Domain", "font": {"color": "#484f58"}},
-                "type": "category",
-                "categoryorder": "array",
-                "categoryarray": list(reversed(seen_domains)),  # newest at top
-                "tickfont": {"size": 9, "family": "JetBrains Mono, monospace"},
-                "automargin": True,
-            },
-            "height": height,
-            "margin": {"l": 200, "r": 20, "t": 50, "b": 60},
-            "legend": {
-                "bgcolor":     "rgba(14,17,23,0.8)",
-                "bordercolor": "rgba(48,54,61,0.8)",
-                "borderwidth": 1,
-                "font":        {"size": 10},
-                "x": 1.01, "y": 1,
-                "xanchor": "left", "yanchor": "top",
-            },
-        }
-
-        return {"data": traces, "layout": layout}
+        fig = go.Figure(data=traces)
+        fig.update_layout(
+            title=dict(
+                text=f"DNS query timeline · {len(entries)} queries · {len(seen_domains)} domains",
+                font=dict(color="#e6edf3", size=12),
+            ),
+            xaxis=dict(title=dict(text="Time", font=dict(color="#484f58")),
+                       type="date", tickformat="%H:%M:%S"),
+            yaxis=dict(title=dict(text="Domain", font=dict(color="#484f58")),
+                       type="category", categoryorder="array",
+                       categoryarray=list(reversed(seen_domains)),
+                       tickfont=dict(size=9, family="JetBrains Mono, monospace"),
+                       automargin=True),
+            height=height,
+            margin=dict(l=200, r=20, t=50, b=60),
+            legend=dict(bgcolor="rgba(14,17,23,0.8)", bordercolor="rgba(48,54,61,0.8)",
+                        borderwidth=1, font=dict(size=10),
+                        x=1.01, y=1, xanchor="left", yanchor="top"),
+        )
+        return fig
 
 
 def _qtype(v: int) -> str:

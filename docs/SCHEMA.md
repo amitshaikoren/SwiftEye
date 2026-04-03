@@ -647,3 +647,89 @@ class MyAnalysis(AnalysisBase):
         for n in ctx.nodes: ...
         for e in ctx.edges: ...
 ```
+
+---
+
+## Per-chart data filters
+
+Research charts that implement `build_data()` + `build_figure()` get automatic
+per-chart filter controls in the UI at no extra cost.
+
+### How it works
+
+1. `build_data(ctx, params)` returns a flat list of entry dicts — one per plotted point or bar.
+2. The framework calls `_detect_schema(entries)` to infer the type of each field.
+3. The schema is returned alongside the figure as `filter_schema` in the API response.
+4. The frontend renders appropriate filter controls in the card's "Chart filters" drawer.
+5. When the researcher changes a filter, the card auto-reruns and sends `_filter_<field>` params.
+6. The framework calls `_apply_filters(entries, filter_params, schema)` before `build_figure()`.
+
+### Entry dict conventions
+
+```python
+def build_data(self, ctx, params) -> List[dict]:
+    return [
+        {
+            "ts":       pkt.timestamp * 1000,  # time axis — EXCLUDED from filters
+            "src":      pkt.src_ip,             # ip type   → text input (prefix match)
+            "dst":      pkt.dst_ip,             # ip type
+            "protocol": pkt.protocol,           # list type  → chips (≤20 unique values)
+            "bytes":    pkt.orig_len,           # numeric    → min/max inputs
+            "uri":      ex.get("http_uri",""),  # string     → contains text input
+        }
+        for pkt in ctx.packets
+        ...
+    ]
+```
+
+Reserve `"ts"` (also `"ts_ms"`, `"time"`, `"timestamp"`) for the time axis. These keys
+are excluded from filter detection. All other keys are candidates.
+
+### Auto-detected field types
+
+| Condition | Detected type | Frontend control |
+|-----------|--------------|-----------------|
+| Value matches `^\d{1,3}(\.\d{1,3}){3}$` | `ip` | Text input — prefix or exact match |
+| int or float | `numeric` | Min / max number inputs (both optional) |
+| String, ≤ 20 unique values in sample | `list` | Multi-select chips; options = unique values |
+| String, > 20 unique values | `string` | Text input — case-insensitive contains match |
+| bool | skipped | — |
+
+Detection samples the first 300 entries. For `ip` detection, the first 20 non-null values
+are checked.
+
+### Filter param names sent to the backend
+
+| Type | Param key(s) |
+|------|-------------|
+| `ip` | `_filter_<field>` |
+| `string` | `_filter_<field>` |
+| `list` | `_filter_<field>` (comma-separated selected values) |
+| `numeric` | `_filter_<field>_min` and/or `_filter_<field>_max` |
+
+### build_figure receives filtered entries
+
+```python
+def build_figure(self, entries: List[dict], params: dict) -> go.Figure:
+    # entries has already been filtered by the framework.
+    # params is the same user param dict as build_data() received.
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[e["ts"]    for e in entries],
+        y=[e["bytes"] for e in entries],
+        ...
+    ))
+    return fig   # do NOT call .to_dict() or apply SWIFTEYE_LAYOUT
+```
+
+### Legacy compute() path
+
+Charts that implement only `compute()` continue to work unchanged.
+`filter_schema` is returned as `{}` — no filter controls appear in the UI.
+
+```python
+def compute(self, ctx, params):
+    # full control — no auto-filter support
+    ...
+    return fig  # go.Figure or raw dict
+```

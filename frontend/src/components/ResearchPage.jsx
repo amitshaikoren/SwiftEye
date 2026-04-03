@@ -464,9 +464,24 @@ function PlacedCard({
     });
   }, [investigatedIp]);
 
-  const [figure, setFigure]   = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const [figure, setFigure]         = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
+  // Per-chart filter schema returned by the backend after first run.
+  // Shape: { fieldName: { type: 'ip'|'string'|'list'|'numeric', options?: [...] } }
+  const [filterSchema, setFilterSchema] = useState(null);
+  // Per-chart filter values keyed by field name.
+  const [chartFilters, setChartFilters] = useState({});
+
+  // Auto-rerun when scope or chart-specific filter values change,
+  // but only after the chart has been run at least once.
+  const hasRun = useRef(false);
+  useEffect(() => {
+    if (hasRun.current) handleRun();
+  }, [scope]);
+  useEffect(() => {
+    if (hasRun.current) handleRun();
+  }, [JSON.stringify(chartFilters)]);
 
   function getTimeBounds() {
     if (!timeline?.length) return { timeStart: null, timeEnd: null };
@@ -500,14 +515,36 @@ function PlacedCard({
         if (!includeIpv6) filterOverrides._filterIncludeIpv6 = false;
       }
 
+      // Build _filter_* params from per-chart filter values
+      const filterParamOverrides = {};
+      if (filterSchema) {
+        for (const [field, spec] of Object.entries(filterSchema)) {
+          if (spec.type === 'numeric') {
+            const min = chartFilters[`${field}_min`];
+            const max = chartFilters[`${field}_max`];
+            if (min !== undefined && min !== '') filterParamOverrides[`_filter_${field}_min`] = min;
+            if (max !== undefined && max !== '') filterParamOverrides[`_filter_${field}_max`] = max;
+          } else {
+            const val = chartFilters[field];
+            if (val !== undefined && val !== '' && !(Array.isArray(val) && val.length === 0)) {
+              filterParamOverrides[`_filter_${field}`] = Array.isArray(val) ? val.join(',') : val;
+            }
+          }
+        }
+      }
+
       let res;
       if (chart._isCustom) {
         res = await runCustomChart({ ...chart._customConfig, ...filterOverrides });
       } else {
-        const payload = { ...values, ...filterOverrides };
+        const payload = { ...values, ...filterOverrides, ...filterParamOverrides };
         res = await runResearchChart(chart.name, payload);
       }
+      hasRun.current = true;
       setFigure(res.figure);
+      if (res.filter_schema && Object.keys(res.filter_schema).length > 0) {
+        setFilterSchema(res.filter_schema);
+      }
     } catch (e) {
       const msg = e.message || 'Chart computation failed';
       setError(msg.toLowerCase().includes('no capture') || msg.includes('404')
@@ -526,7 +563,11 @@ function PlacedCard({
     });
   }
 
-  const hasCustomFilters = useCustomTime || protocols.size < filterCtx.protocolList.length || search.trim() || !includeIpv6;
+  const hasChartFilters = filterSchema && Object.keys(chartFilters).some(k => {
+    const v = chartFilters[k];
+    return v !== '' && v !== undefined && !(Array.isArray(v) && v.length === 0);
+  });
+  const hasCustomFilters = useCustomTime || protocols.size < filterCtx.protocolList.length || search.trim() || !includeIpv6 || hasChartFilters;
 
   const timeLabel = (() => {
     if (!timeline?.length) return null;
@@ -652,6 +693,81 @@ function PlacedCard({
               IPv6
             </button>
           </div>
+
+          {/* Per-chart data filters — rendered from filterSchema detected on first run */}
+          {filterSchema && Object.keys(filterSchema).length > 0 && (
+            <>
+              <div style={{ borderTop: '1px solid var(--bd)', marginTop: 2, paddingTop: 6 }}>
+                <span style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                  Chart filters
+                </span>
+              </div>
+              {Object.entries(filterSchema).map(([field, spec]) => (
+                <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: 9, color: 'var(--txM)', minWidth: 60, textTransform: 'lowercase' }}>
+                    {field.replace(/_/g, ' ')}
+                  </label>
+
+                  {/* ip / string → text input */}
+                  {(spec.type === 'ip' || spec.type === 'string') && (
+                    <input className="inp"
+                      style={{ fontSize: 10, width: 160 }}
+                      placeholder={spec.type === 'ip' ? 'e.g. 192.168.1' : 'contains…'}
+                      value={chartFilters[field] || ''}
+                      onChange={e => setChartFilters(prev => ({ ...prev, [field]: e.target.value }))}
+                    />
+                  )}
+
+                  {/* numeric → min / max */}
+                  {spec.type === 'numeric' && (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input className="inp" type="number"
+                        style={{ fontSize: 10, width: 70 }}
+                        placeholder="min"
+                        value={chartFilters[`${field}_min`] || ''}
+                        onChange={e => setChartFilters(prev => ({ ...prev, [`${field}_min`]: e.target.value }))}
+                      />
+                      <span style={{ fontSize: 9, color: 'var(--txD)' }}>–</span>
+                      <input className="inp" type="number"
+                        style={{ fontSize: 10, width: 70 }}
+                        placeholder="max"
+                        value={chartFilters[`${field}_max`] || ''}
+                        onChange={e => setChartFilters(prev => ({ ...prev, [`${field}_max`]: e.target.value }))}
+                      />
+                    </div>
+                  )}
+
+                  {/* list → chip multi-select */}
+                  {spec.type === 'list' && (spec.options || []).map(opt => {
+                    const selected = (chartFilters[field] || []);
+                    const isOn = selected.includes(opt);
+                    return (
+                      <button key={opt}
+                        onClick={() => setChartFilters(prev => {
+                          const cur = prev[field] || [];
+                          return {
+                            ...prev,
+                            [field]: isOn ? cur.filter(v => v !== opt) : [...cur, opt],
+                          };
+                        })}
+                        style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10,
+                          border: `1px solid ${isOn ? 'var(--ac)' : 'var(--bd)'}`,
+                          background: isOn ? 'rgba(88,166,255,.1)' : 'transparent',
+                          color: isOn ? 'var(--ac)' : 'var(--txD)',
+                          cursor: 'pointer' }}>
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </>
+          )}
+          {filterSchema && Object.keys(filterSchema).length === 0 && (
+            <div style={{ fontSize: 9, color: 'var(--txD)', paddingTop: 4 }}>
+              Run the chart once to detect available chart filters.
+            </div>
+          )}
         </div>
       )}
 
