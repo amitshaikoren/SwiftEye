@@ -31,6 +31,7 @@ import ClusterLegend from './components/ClusterLegend';
 import ClusterDetail from './components/ClusterDetail';
 import PathDetail from './components/PathDetail';
 import QueryBuilder from './components/QueryBuilder';
+import GraphOptionsPanel from './components/GraphOptionsPanel';
 
 export default function App() {
   const c = useCapture();
@@ -335,16 +336,6 @@ export default function App() {
           sessionTotal={c.sessionTotal} sessionFiltered={c.sessions.length} activeSearch={c.search}
           selNodes={c.selNodes} clearSel={c.clearSel}
           selEdge={c.selEdge} selSession={c.selSession}
-          subnetG={c.subnetG} setSubnetG={c.setSubnetG} toggleSubnetG={c.toggleSubnetG}
-          labelThreshold={c.labelThreshold} setLabelThreshold={c.setLabelThreshold}
-          graphWeightMode={c.graphWeightMode} setGraphWeightMode={c.setGraphWeightMode}
-          subnetPrefix={c.subnetPrefix} setSubnetPrefix={c.setSubnetPrefix}
-          mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
-          includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
-          showHostnames={c.showHostnames} setShowHostnames={c.setShowHostnames}
-          excludeBroadcasts={c.excludeBroadcasts} setExcludeBroadcasts={c.setExcludeBroadcasts}
-          clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
-          clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
           onApplyDisplayFilter={expr => { c.setDfExpr(expr); c.handleDfApply(expr); }}
           activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
           osGuesses={c.osGuesses}
@@ -513,8 +504,37 @@ export default function App() {
                   onCancelPathfind={c.cancelPathfind}
                   labelThreshold={c.labelThreshold}
                   graphWeightMode={c.graphWeightMode}
+                  edgeSizeMode={c.edgeSizeMode}
+                  nodeColorMode={c.nodeColorMode}
+                  edgeColorMode={c.edgeColorMode}
+                  nodeColorRules={c.nodeColorRules}
+                  edgeColorRules={c.edgeColorRules}
+                  graphOptionsOpen={c.graphOptionsOpen}
+                  onToggleGraphOptions={() => c.setGraphOptionsOpen(o => !o)}
                   queryHighlight={queryHighlight}
                   onClearQueryHighlight={() => setQueryHighlight(null)}
+                />
+
+                {/* Graph Options Panel — slide-in overlay on right edge of canvas */}
+                <GraphOptionsPanel
+                  open={c.graphOptionsOpen}
+                  onClose={() => c.setGraphOptionsOpen(false)}
+                  nodeColorMode={c.nodeColorMode} setNodeColorMode={c.setNodeColorMode}
+                  nodeColorRules={c.nodeColorRules} setNodeColorRules={c.setNodeColorRules}
+                  graphWeightMode={c.graphWeightMode} setGraphWeightMode={c.setGraphWeightMode}
+                  labelThreshold={c.labelThreshold} setLabelThreshold={c.setLabelThreshold}
+                  edgeColorMode={c.edgeColorMode} setEdgeColorMode={c.setEdgeColorMode}
+                  edgeColorRules={c.edgeColorRules} setEdgeColorRules={c.setEdgeColorRules}
+                  edgeSizeMode={c.edgeSizeMode} setEdgeSizeMode={c.setEdgeSizeMode}
+                  subnetG={c.subnetG} setSubnetG={c.setSubnetG} toggleSubnetG={c.toggleSubnetG}
+                  subnetPrefix={c.subnetPrefix} setSubnetPrefix={c.setSubnetPrefix}
+                  mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
+                  includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
+                  showHostnames={c.showHostnames} setShowHostnames={c.setShowHostnames}
+                  excludeBroadcasts={c.excludeBroadcasts} setExcludeBroadcasts={c.setExcludeBroadcasts}
+                  clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
+                  clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
+                  visibleNodes={c.visibleNodes}
                 />
 
                 {(!c.graph.nodes || c.graph.nodes.length === 0) && (

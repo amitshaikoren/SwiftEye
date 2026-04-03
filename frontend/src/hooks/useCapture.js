@@ -69,7 +69,13 @@ export function useCapture() {
   const [bucketSec, setBucketSec]   = useState(15);
   const [subnetG, setSubnetG]       = useState(false);
   const [labelThreshold, setLabelThreshold] = useState(0); // hide labels below this bytes value (0 = show all)
-  const [graphWeightMode, setGraphWeightMode] = useState('bytes'); // 'bytes' | 'packets'
+  const [graphWeightMode, setGraphWeightMode] = useState('bytes'); // 'bytes' | 'packets' — node radius driver
+  const [edgeSizeMode, setEdgeSizeMode] = useState('bytes');       // 'bytes' | 'packets' | 'sessions' — edge thickness driver
+  const [nodeColorMode, setNodeColorMode] = useState('address');   // 'address' | 'os' | 'protocol' | 'volume' | 'custom'
+  const [edgeColorMode, setEdgeColorMode] = useState('protocol');  // 'protocol' | 'volume' | 'sessions' | 'custom'
+  const [nodeColorRules, setNodeColorRules] = useState([]);        // [{color, text}] — custom node coloring rules
+  const [edgeColorRules, setEdgeColorRules] = useState([]);        // [{color, text}] — custom edge coloring rules
+  const [graphOptionsOpen, setGraphOptionsOpen] = useState(false); // Graph Options panel open/closed
 
   const [subnetPrefix, setSubnetPrefix] = useState(24);
   const [debouncedSubnetPrefix, setDebouncedSubnetPrefix] = useState(24);
@@ -972,6 +978,12 @@ export function useCapture() {
     subnetG, setSubnetG, toggleSubnetG,
     labelThreshold, setLabelThreshold,
     graphWeightMode, setGraphWeightMode,
+    edgeSizeMode, setEdgeSizeMode,
+    nodeColorMode, setNodeColorMode,
+    edgeColorMode, setEdgeColorMode,
+    nodeColorRules, setNodeColorRules,
+    edgeColorRules, setEdgeColorRules,
+    graphOptionsOpen, setGraphOptionsOpen,
     subnetPrefix, setSubnetPrefix: setSubnetPrefixOuter,
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,

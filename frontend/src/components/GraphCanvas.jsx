@@ -13,6 +13,96 @@ import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from
 import { CLUSTER_COLORS } from '../clusterView';
 import * as d3 from 'd3';
 
+// ── IP → number (for CIDR matching) ──────────────────────────────────────────
+function ipToNum(ip) {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return null;
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+
+function matchesCidr(ip, cidr) {
+  if (!cidr || !ip) return false;
+  cidr = cidr.trim();
+  if (!cidr.includes('/')) return ip === cidr;
+  const [network, bitsStr] = cidr.split('/');
+  const bits = parseInt(bitsStr, 10);
+  if (isNaN(bits) || bits < 0 || bits > 32) return false;
+  const mask = bits === 0 ? 0 : (~((1 << (32 - bits)) - 1)) >>> 0;
+  const ipNum  = ipToNum(ip);
+  const netNum = ipToNum(network);
+  if (ipNum === null || netNum === null) return false;
+  return (ipNum & mask) === (netNum & mask);
+}
+
+// ── Resolve node fill/stroke from color mode ──────────────────────────────────
+function resolveNodeColor(node, mode, rules, pColors, nodePrivate, nodePrivateS, nodeExternal, nodeExternalS) {
+  switch (mode) {
+    case 'os': {
+      const os = node.os_guess || '';
+      if (os.includes('Windows')) return ['#0d2137', '#388bfd'];
+      if (os.includes('Linux') || os.includes('Unix')) return ['#0d2a1a', '#3fb950'];
+      if (os.includes('macOS')) return ['#1c1c1c', '#8b949e'];
+      if (os.includes('Network')) return ['#2a1a10', '#d29922'];
+      return ['#1c1122', '#bc8cff'];
+    }
+    case 'protocol': {
+      const proto = (node.protocol_set || [])[0];
+      const c = proto ? (pColors[proto] || '#64748b') : '#64748b';
+      return [c + '22', c];
+    }
+    case 'volume': {
+      const b = node.total_bytes || 0;
+      if (b >= 10_000_000) return ['#2a1010', '#f85149'];
+      if (b >=  1_000_000) return ['#2a1a10', '#f0883e'];
+      if (b >=    100_000) return ['#2a2010', '#d29922'];
+      return ['#0d2a1a', '#3fb950'];
+    }
+    case 'custom': {
+      const ips = node.ips || (node.id ? [node.id] : []);
+      for (const rule of (rules || [])) {
+        if (!rule.text || !rule.color) continue;
+        if (ips.some(ip => matchesCidr(ip, rule.text))) {
+          return [rule.color + '22', rule.color];
+        }
+      }
+      // fallback to address mode
+      return node.is_private ? [nodePrivate, nodePrivateS] : [nodeExternal, nodeExternalS];
+    }
+    default: // 'address'
+      return node.is_private ? [nodePrivate, nodePrivateS] : [nodeExternal, nodeExternalS];
+  }
+}
+
+// ── Resolve edge color from color mode ────────────────────────────────────────
+function resolveEdgeColor(edge, mode, rules, pColors) {
+  switch (mode) {
+    case 'volume': {
+      const b = edge.total_bytes || 0;
+      if (b >= 10_000_000) return '#f85149';
+      if (b >=  1_000_000) return '#f0883e';
+      if (b >=    100_000) return '#d29922';
+      return '#3fb950';
+    }
+    case 'sessions': {
+      const s = edge.session_count || 0;
+      if (s >= 100) return '#f85149';
+      if (s >=  21) return '#d29922';
+      if (s >=   6) return '#3fb950';
+      return '#388bfd';
+    }
+    case 'custom': {
+      const proto = edge.protocol || '';
+      for (const rule of (rules || [])) {
+        if (!rule.text || !rule.color) continue;
+        if (proto.toLowerCase().includes(rule.text.toLowerCase())) return rule.color;
+      }
+      return pColors[proto] || '#64748b';
+    }
+    default: // 'protocol'
+      return pColors[edge.protocol] || '#64748b';
+  }
+}
+
 export default function GraphCanvas({
   nodes, edges, onSelect, onInvestigate, onInvestigateNeighbours, onHideNode, investigationNodes,
   displayFilterNodes, displayFilterEdges,
@@ -25,6 +115,13 @@ export default function GraphCanvas({
   onStartPathfind, pathfindSource, onPathfindTarget, onCancelPathfind,
   labelThreshold = 0,
   graphWeightMode = 'bytes',
+  edgeSizeMode = 'bytes',
+  nodeColorMode = 'address',
+  edgeColorMode = 'protocol',
+  nodeColorRules = [],
+  edgeColorRules = [],
+  graphOptionsOpen = false,
+  onToggleGraphOptions,
   queryHighlight = null,
   onClearQueryHighlight,
 }) {
@@ -69,6 +166,17 @@ export default function GraphCanvas({
     }
     if (renRef.current) renRef.current();
   }, [graphWeightMode]);
+  const edgeSizeModeRef   = useRef(edgeSizeMode);
+  const nodeColorModeRef  = useRef(nodeColorMode);
+  const edgeColorModeRef  = useRef(edgeColorMode);
+  const nodeColorRulesRef = useRef(nodeColorRules);
+  const edgeColorRulesRef = useRef(edgeColorRules);
+  useEffect(() => { edgeSizeModeRef.current   = edgeSizeMode;   if (renRef.current) renRef.current(); }, [edgeSizeMode]);
+  useEffect(() => { nodeColorModeRef.current  = nodeColorMode;  if (renRef.current) renRef.current(); }, [nodeColorMode]);
+  useEffect(() => { edgeColorModeRef.current  = edgeColorMode;  if (renRef.current) renRef.current(); }, [edgeColorMode]);
+  useEffect(() => { nodeColorRulesRef.current = nodeColorRules; if (renRef.current) renRef.current(); }, [nodeColorRules]);
+  useEffect(() => { edgeColorRulesRef.current = edgeColorRules; if (renRef.current) renRef.current(); }, [edgeColorRules]);
+
   const invNodesRef = useRef(investigationNodes);
   const dfNodesRef = useRef(displayFilterNodes);
   const dfEdgesRef = useRef(displayFilterEdges);
@@ -166,14 +274,143 @@ export default function GraphCanvas({
     rafRef.current = requestAnimationFrame(renRef.current);
   }, [labelThreshold]);
 
-  // doExportPNG — download the current graph canvas as a PNG
-  function doExportPNG() {
-    const canvas = cRef.current;
-    if (!canvas) return;
+  // doExportHTML — export the current graph as a self-contained interactive HTML file.
+  // Serialises current node/edge positions and resolved colors from the live canvas refs.
+  // The output is zero-dependency: vanilla JS canvas renderer with pan, zoom, and hover tooltips.
+  function doExportHTML() {
+    const gR = gRRef.current;
+    const pc = pcRef.current;
+    const t  = tRef.current;
+    const nColorMode  = nodeColorModeRef.current;
+    const nColorRules = nodeColorRulesRef.current;
+    const eColorMode  = edgeColorModeRef.current;
+    const eColorRules = edgeColorRulesRef.current;
+
+    // Read computed CSS vars for theme colors at export time
+    const cs = getComputedStyle(document.body);
+    const cv = k => cs.getPropertyValue(k).trim();
+    const nodePrivate   = cv('--node-private')   || '#264060';
+    const nodePrivateS  = cv('--node-private-s') || '#5a9ad5';
+    const nodeExternal  = cv('--node-external')  || '#3d2855';
+    const nodeExternalS = cv('--node-external-s')|| '#9060cc';
+    const bgColor       = cv('--bg')             || '#08090d';
+
+    const snapshotNodes = nRef.current.map(n => {
+      const r = gR(n);
+      const [fill, stroke] = n.is_cluster || n.is_subnet || n.synthetic
+        ? [n.color || '#f0883e', n.color || '#f0883e']
+        : resolveNodeColor(n, nColorMode, nColorRules, pc, nodePrivate, nodePrivateS, nodeExternal, nodeExternalS);
+      return {
+        x: n.x, y: n.y, r,
+        fill, stroke,
+        label: n.hostname || n.id || '',
+        id: n.id || '',
+        bytes: n.total_bytes || 0,
+        packets: n.packet_count || 0,
+      };
+    });
+
+    const snapshotEdges = eRef.current.map(e => {
+      const src = typeof e.source === 'object' ? e.source : nRef.current.find(n => n.id === e.source);
+      const tgt = typeof e.target === 'object' ? e.target : nRef.current.find(n => n.id === e.target);
+      if (!src || !tgt) return null;
+      const color = resolveEdgeColor(e, eColorMode, eColorRules, pc);
+      const metric = edgeSizeModeRef.current === 'packets' ? (e.packet_count || 0)
+        : edgeSizeModeRef.current === 'sessions' ? (e.session_count || 0)
+        : (e.total_bytes || 0);
+      const maxMetric = Math.max(...eRef.current.map(ex =>
+        edgeSizeModeRef.current === 'packets' ? (ex.packet_count || 0)
+          : edgeSizeModeRef.current === 'sessions' ? (ex.session_count || 0)
+          : (ex.total_bytes || 0)
+      ), 1);
+      return {
+        sx: src.x, sy: src.y, tx: tgt.x, ty: tgt.y,
+        color, width: Math.max(0.6, (metric / maxMetric) * 10),
+        protocol: e.protocol || '', bytes: e.total_bytes || 0, packets: e.packet_count || 0,
+      };
+    }).filter(Boolean);
+
+    const data = JSON.stringify({ nodes: snapshotNodes, edges: snapshotEdges, bg: bgColor, tx: t.x, ty: t.y, tk: t.k });
+
+    const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>SwiftEye Graph Export</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#08090d;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh}
+#tip{position:fixed;pointer-events:none;background:rgba(14,17,23,.95);border:1px solid #30363d;
+border-radius:6px;padding:6px 10px;font:11px/1.6 "JetBrains Mono",monospace;color:#e6edf3;
+display:none;z-index:10;max-width:220px}
+</style></head><body>
+<canvas id="c"></canvas><div id="tip"></div>
+<script>
+const D=${data};
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const tip=document.getElementById('tip');
+let tx=D.tx,ty=D.ty,tk=D.tk,drag=false,lx=0,ly=0,hover=null;
+function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+function fB(b){if(b>=1e9)return(b/1e9).toFixed(1)+'GB';if(b>=1e6)return(b/1e6).toFixed(1)+'MB';if(b>=1e3)return(b/1e3).toFixed(1)+'KB';return b+'B';}
+function fN(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n);}
+function draw(){
+  const w=canvas.width,h=canvas.height;
+  ctx.fillStyle=D.bg||'#08090d';ctx.fillRect(0,0,w,h);
+  ctx.save();ctx.translate(tx,ty);ctx.scale(tk,tk);
+  for(const e of D.edges){
+    ctx.beginPath();ctx.moveTo(e.sx,e.sy);ctx.lineTo(e.tx,e.ty);
+    ctx.strokeStyle=e.color;ctx.lineWidth=e.width/tk;ctx.globalAlpha=0.7;ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  for(const n of D.nodes){
+    const isH=hover===n;
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+    ctx.fillStyle=n.fill;ctx.fill();
+    ctx.strokeStyle=isH?'#fff':n.stroke;ctx.lineWidth=(isH?2.5:1.5)/tk;ctx.stroke();
+    if(n.label&&tk>0.5){
+      ctx.font=\`\${Math.max(8,10/tk)}px JetBrains Mono,monospace\`;
+      ctx.textAlign='center';ctx.textBaseline='top';
+      ctx.fillStyle='rgba(0,0,0,0.7)';
+      const tw=ctx.measureText(n.label).width;
+      ctx.fillRect(n.x-tw/2-2,n.y+n.r+2,tw+4,12/tk);
+      ctx.fillStyle=isH?'#fff':'#8b949e';
+      ctx.fillText(n.label,n.x,n.y+n.r+3);
+    }
+  }
+  ctx.restore();
+}
+function hitNode(cx,cy){
+  const wx=(cx-tx)/tk,wy=(cy-ty)/tk;
+  for(let i=D.nodes.length-1;i>=0;i--){
+    const n=D.nodes[i];const dx=wx-n.x,dy=wy-n.y;
+    if(dx*dx+dy*dy<=n.r*n.r)return n;
+  }return null;
+}
+window.addEventListener('resize',()=>{resize();draw();});
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();const f=e.deltaY<0?1.12:1/1.12;
+  const ox=e.clientX,oy=e.clientY;
+  tx=ox+(tx-ox)*f;ty=oy+(ty-oy)*f;tk*=f;draw();
+},{passive:false});
+canvas.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+canvas.addEventListener('mousemove',e=>{
+  if(drag){tx+=e.clientX-lx;ty+=e.clientY-ly;lx=e.clientX;ly=e.clientY;draw();}
+  const n=hitNode(e.clientX,e.clientY);
+  if(n!==hover){hover=n;draw();}
+  if(n){
+    tip.style.display='block';
+    tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-8)+'px';
+    tip.innerHTML=n.id+'<br><span style="color:#8b949e">'+fB(n.bytes)+' · '+fN(n.packets)+' pkts</span>';
+  } else {tip.style.display='none';}
+});
+canvas.addEventListener('mouseup',()=>{drag=false;});
+canvas.addEventListener('mouseleave',()=>{drag=false;tip.style.display='none';hover=null;draw();});
+resize();draw();
+</script></body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
     const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/png');
-    a.download = 'swifteye-graph.png';
+    a.href = URL.createObjectURL(blob);
+    a.download = 'swifteye-graph.html';
     a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   // doRelayout — unpin all nodes, restore initial charge, and reheat the simulation.
@@ -361,8 +598,14 @@ export default function GraphCanvas({
       }
 
       // Edges
-      const wMode = graphWeightModeRef.current;
-      const edgeMetric = e => wMode === 'packets' ? (e.packet_count || 0) : (e.total_bytes || 0);
+      const eSizeMode = edgeSizeModeRef.current;
+      const eColorMode = edgeColorModeRef.current;
+      const eColorRules = edgeColorRulesRef.current;
+      const edgeMetric = e => {
+        if (eSizeMode === 'packets')  return e.packet_count  || 0;
+        if (eSizeMode === 'sessions') return e.session_count || 0;
+        return e.total_bytes || 0;
+      };
       const meb = Math.max(...eRef.current.map(edgeMetric), 1);
       for (const edge of eRef.current) {
         const src = typeof edge.source === 'object' ? edge.source : nRef.current.find(n => n.id === edge.source);
@@ -370,14 +613,14 @@ export default function GraphCanvas({
         if (!src || !tgt) continue;
         const isSel = se?.id === edge.id;
         const w = Math.max(0.6, (edgeMetric(edge) / meb) * 10);
-        const col = pc[edge.protocol] || '#64748b';
         const sId = typeof src === 'object' ? src.id : src;
         const tId = typeof tgt === 'object' ? tgt.id : tgt;
         const con = hs && (ss.has(sId) || ss.has(tId));
         const inInv = !inv || (inv.has(sId) && inv.has(tId));
         const inDf  = !dfE || dfE.has(edge.id);
 
-        const edgeColor = edge.synthetic ? (edge.color || '#f0883e') : col;
+        const resolvedCol = edge.synthetic ? (edge.color || '#f0883e') : resolveEdgeColor(edge, eColorMode, eColorRules, pc);
+        const edgeColor = resolvedCol;
         // Synthetic edges use a fixed visible width; real edges are traffic-proportional
         const edgeW = edge.synthetic ? 2 : w;
 
@@ -499,7 +742,6 @@ export default function GraphCanvas({
         } else {
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
-          const p = node.is_private;
           if (node.synthetic) {
             // Looks like a regular node but in the chosen colour.
             // Dashed border is kept as a subtle indicator; fill is solid and visible.
@@ -512,9 +754,13 @@ export default function GraphCanvas({
             ctx.stroke();
             ctx.setLineDash([]);
           } else {
-            ctx.fillStyle = isSel ? acColor + '33' : p ? nodePrivate : nodeExternal;
+            const [nFill, nStroke] = resolveNodeColor(
+              node, nodeColorModeRef.current, nodeColorRulesRef.current, pc,
+              nodePrivate, nodePrivateS, nodeExternal, nodeExternalS,
+            );
+            ctx.fillStyle = isSel ? acColor + '33' : nFill;
             ctx.fill();
-            ctx.strokeStyle = isSel ? acColor : isH ? acGColor : p ? nodePrivateS : nodeExternalS;
+            ctx.strokeStyle = isSel ? acColor : isH ? acGColor : nStroke;
             ctx.lineWidth = isSel || isH ? 2.5 : 1.5;
             ctx.stroke();
           }
@@ -1035,10 +1281,10 @@ export default function GraphCanvas({
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <canvas ref={cRef} style={{ width: '100%', height: '100%', display: 'block', cursor: pathfindSource ? 'crosshair' : undefined }} />
 
-      {/* Export PNG button */}
-      <button onClick={doExportPNG} title="Export graph as PNG"
+      {/* Export HTML button */}
+      <button onClick={doExportHTML} title="Export interactive graph as self-contained HTML"
         style={{
-          position: 'absolute', bottom: 84, right: 12, zIndex: 10,
+          position: 'absolute', bottom: 120, right: 12, zIndex: 10,
           display: 'flex', alignItems: 'center', gap: 5,
           background: 'rgba(14,17,23,.85)', border: '1px solid var(--bdL)',
           borderRadius: 6, padding: '5px 10px', fontSize: 10,
@@ -1047,7 +1293,25 @@ export default function GraphCanvas({
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
-        Export PNG
+        Export HTML
+      </button>
+
+      {/* Graph Options button */}
+      <button onClick={onToggleGraphOptions} title="Graph Options"
+        style={{
+          position: 'absolute', bottom: 84, right: 12, zIndex: 10,
+          display: 'flex', alignItems: 'center', gap: 5,
+          background: graphOptionsOpen ? 'rgba(88,166,255,.15)' : 'rgba(14,17,23,.85)',
+          border: '1px solid ' + (graphOptionsOpen ? 'var(--ac)' : 'var(--bdL)'),
+          borderRadius: 6, padding: '5px 10px', fontSize: 10,
+          color: graphOptionsOpen ? 'var(--ac)' : 'var(--txM)',
+          cursor: 'pointer', fontFamily: 'var(--fn)', transition: 'all .15s',
+        }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+        </svg>
+        Graph Options
       </button>
 
       {/* Relayout button — bottom-right of graph (avoids overlap with hidden nodes badge) */}
