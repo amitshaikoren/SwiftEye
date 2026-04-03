@@ -68,7 +68,6 @@ in this file for the base layout dict to merge into.
     Zero computation happens client-side beyond rendering.
 """
 
-import re
 import logging
 from abc import ABC
 from dataclasses import dataclass
@@ -78,71 +77,40 @@ from constants import PROTOCOL_COLORS, SWIFTEYE_LAYOUT
 
 logger = logging.getLogger("swifteye.research")
 
-_IP_RE = re.compile(r'^\d{1,3}(\.\d{1,3}){3}$')
-_TS_KEYS = {'ts', 'ts_ms', 'time', 'timestamp', 't'}
-_SCHEMA_SAMPLE = 300   # entries to sample for type detection
-_LIST_MAX_CARDINALITY = 20   # unique values threshold for list vs string
-
 
 # ── Per-chart filter helpers ─────────────────────────────────────────
 
-def _detect_schema(entries: List[dict]) -> Dict[str, Any]:
+def _normalize_schema(raw: dict) -> Dict[str, Any]:
     """
-    Auto-detect filterable field types from a sample of entry dicts.
+    Normalize entry_schema shorthand to full dicts.
 
-    Returns a dict:  { field_name: { "type": ..., ["options": [...]] } }
+    'ip'      → {'type': 'ip'}
+    'string'  → {'type': 'string'}
+    'numeric' → {'type': 'numeric'}
+    'list'    → {'type': 'list'}            # options populated at runtime from entries
+    {'type': 'list', 'options': [...]}      # static options — passed through unchanged
+    """
+    result = {}
+    for k, v in raw.items():
+        result[k] = {'type': v} if isinstance(v, str) else dict(v)
+    return result
 
-    Types:
-      "ip"      — value matches IPv4 regex; frontend renders prefix/exact text input
-      "string"  — high-cardinality string; frontend renders contains text input
-      "list"    — low-cardinality string (≤ LIST_MAX_CARDINALITY unique values);
-                  frontend renders multi-select chips; options = sorted unique values
-      "numeric" — int or float; frontend renders min/max number inputs
 
-    Fields whose names are in _TS_KEYS (time axis fields) are skipped.
-    Boolean fields are skipped (not useful to filter).
+def _enrich_list_options(schema: Dict[str, Any], entries: List[dict]) -> Dict[str, Any]:
+    """
+    For 'list' fields that have no static options, collect unique values from entries.
+    Returns a new schema dict with options filled in.
     """
     if not entries:
-        return {}
-
-    sample = entries[:_SCHEMA_SAMPLE]
-    schema: Dict[str, Any] = {}
-
-    all_keys: set = set()
-    for e in sample:
-        all_keys.update(e.keys())
-
-    for key in sorted(all_keys):
-        if key in _TS_KEYS:
-            continue
-
-        values = [e[key] for e in sample if key in e and e[key] is not None]
-        if not values:
-            continue
-
-        first = values[0]
-
-        if isinstance(first, bool):
-            continue
-
-        if isinstance(first, (int, float)):
-            schema[key] = {"type": "numeric"}
-            continue
-
-        if isinstance(first, str):
-            # Check if all sampled values look like IPv4
-            check = values[:20]
-            if all(_IP_RE.match(v) for v in check if isinstance(v, str)):
-                schema[key] = {"type": "ip"}
-                continue
-
-            unique = sorted({str(v) for v in values})
-            if len(unique) <= _LIST_MAX_CARDINALITY:
-                schema[key] = {"type": "list", "options": unique}
-            else:
-                schema[key] = {"type": "string"}
-
-    return schema
+        return schema
+    enriched = {}
+    for k, spec in schema.items():
+        if spec['type'] == 'list' and 'options' not in spec:
+            unique = sorted({str(e[k]) for e in entries if k in e and e[k] is not None})
+            enriched[k] = {**spec, 'options': unique}
+        else:
+            enriched[k] = spec
+    return enriched
 
 
 def _apply_filters(entries: List[dict], filter_params: dict, schema: Dict[str, Any]) -> List[dict]:
@@ -250,13 +218,22 @@ class ResearchChart(ABC):
 
     == Preferred pattern: build_data + build_figure ==
 
-    Split your logic into two methods:
+    Declare entry_schema to describe the shape of your data entries, then
+    split your logic into two methods:
+
+      entry_schema = {
+          'peer':      'ip',
+          'protocol':  'list',                              # options collected at runtime
+          'direction': {'type': 'list', 'options': ['in', 'out']},  # static options
+          'bytes':     'numeric',
+          'uri':       'string',
+      }
 
       def build_data(self, ctx, params) -> List[dict]:
           # Return one dict per plotted point/bar.
-          # Each dict key is a data field (e.g. "ts", "src", "protocol", "bytes").
-          # The framework auto-detects filterable fields and types from these dicts.
-          return [{"ts": pkt.timestamp * 1000, "src": pkt.src_ip, ...}, ...]
+          # Keys must match entry_schema.
+          # Use "ts" for the time axis (excluded from filters).
+          return [{"ts": pkt.timestamp * 1000, "peer": peer, ...}, ...]
 
       def build_figure(self, entries, params) -> go.Figure:
           # Receives the already-filtered entries list.
@@ -265,12 +242,25 @@ class ResearchChart(ABC):
           ...
           return fig
 
-    The framework: calls build_data → detects filter schema → applies _filter_* params
-    → calls build_figure → applies SWIFTEYE_LAYOUT → returns figure + filter_schema.
+    The framework: normalises entry_schema → enriches list options from entries
+    → applies _filter_* params → calls build_figure → applies SWIFTEYE_LAYOUT
+    → returns figure + filter_schema.
+
+    == entry_schema field types ==
+
+      'ip'      — IPv4 address; frontend renders a text input (prefix/exact match)
+      'string'  — free text; frontend renders a contains text input
+      'numeric' — int or float; frontend renders min / max number inputs
+      'list'    — categorical; frontend renders multi-select chips
+                  Omit 'options' and the framework collects unique values at runtime.
+                  Supply 'options' for a static known set (shown before first run).
+
+    Shorthand: just write the type as a string when you have no extra keys.
+      'ip'  is equivalent to  {'type': 'ip'}
 
     == Legacy pattern: compute ==
 
-    If you only implement compute(), it works unchanged (no auto-filter support).
+    If you only implement compute(), it works unchanged (no filter support).
 
       def compute(self, ctx, params) -> go.Figure | dict:
           ...
@@ -282,6 +272,7 @@ class ResearchChart(ABC):
     description: str = ""       # one sentence — what question does this answer?
     category:    str = "capture"  # "host" | "session" | "capture" | "alerts" | "other"
     params: List[Param] = []
+    entry_schema: dict = {}     # declares filterable fields — see class docstring
 
     # ── New pattern ───────────────────────────────────────────────────
 
@@ -289,13 +280,7 @@ class ResearchChart(ABC):
         """
         Return one flat dict per plotted point or bar.
 
-        Each dict key becomes a candidate filterable field. The framework
-        auto-detects field types (ip, string, list, numeric) and returns
-        a filter_schema alongside the figure so the frontend can render
-        the appropriate controls.
-
-        Reserve the key "ts" (or "ts_ms") for the time axis — it is
-        excluded from filter detection.
+        Keys should match entry_schema. Use "ts" for the time axis.
         """
         return NotImplemented  # sentinel: not overridden
 
@@ -324,11 +309,12 @@ class ResearchChart(ABC):
     def to_info(self) -> Dict[str, Any]:
         """Serialise chart metadata for /api/research endpoint."""
         return {
-            "name":        self.name,
-            "title":       self.title,
-            "description": self.description,
-            "category":    self.category,
-            "params":      [p.to_dict() for p in self.params],
+            "name":         self.name,
+            "title":        self.title,
+            "description":  self.description,
+            "category":     self.category,
+            "params":       [p.to_dict() for p in self.params],
+            "entry_schema": _normalize_schema(self.entry_schema),
         }
 
 
@@ -375,7 +361,8 @@ def run_chart(name: str, ctx: AnalysisContext, params: dict,
         # ── New path: build_data + build_figure ───────────────────────
         entries = chart.build_data(ctx, params)
         if entries is not NotImplemented:
-            schema = _detect_schema(entries)
+            schema = _normalize_schema(chart.entry_schema)
+            schema = _enrich_list_options(schema, entries)
             filtered = _apply_filters(entries, filter_params or {}, schema)
             fig = chart.build_figure(filtered, params)
             if isinstance(fig, go.Figure):

@@ -42,6 +42,15 @@ class HTTPUserAgentTimeline(ResearchChart):
     category    = "capture"
 
     params = []
+    entry_schema = {
+        'src':    'ip',
+        'dst':    'ip',
+        'method': {'type': 'list', 'options': ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH']},
+        'host':   'string',
+        'uri':    'string',
+        'ua':     'string',
+        'bytes':  'numeric',
+    }
 
     def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         entries = []

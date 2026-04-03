@@ -467,9 +467,14 @@ function PlacedCard({
   const [figure, setFigure]         = useState(null);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
-  // Per-chart filter schema returned by the backend after first run.
+  // Per-chart filter schema — initialized from chart.entry_schema (static, available
+  // immediately). Updated after first run with any dynamic list options from the backend.
   // Shape: { fieldName: { type: 'ip'|'string'|'list'|'numeric', options?: [...] } }
-  const [filterSchema, setFilterSchema] = useState(null);
+  const [filterSchema, setFilterSchema] = useState(
+    () => (chart.entry_schema && Object.keys(chart.entry_schema).length > 0)
+      ? chart.entry_schema
+      : null
+  );
   // Per-chart filter values keyed by field name.
   const [chartFilters, setChartFilters] = useState({});
 
@@ -762,11 +767,6 @@ function PlacedCard({
                 </div>
               ))}
             </>
-          )}
-          {filterSchema && Object.keys(filterSchema).length === 0 && (
-            <div style={{ fontSize: 9, color: 'var(--txD)', paddingTop: 4 }}>
-              Run the chart once to detect available chart filters.
-            </div>
           )}
         </div>
       )}

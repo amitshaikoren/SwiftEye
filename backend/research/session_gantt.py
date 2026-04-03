@@ -36,6 +36,14 @@ class SessionGantt(ResearchChart):
     description = "All sessions — when each started, ended, and how long it lasted. No input required."
     category    = "session"
     params      = []
+    entry_schema = {
+        'src_ip':   'ip',
+        'dst_ip':   'ip',
+        'protocol': 'list',
+        'duration': 'numeric',
+        'packets':  'numeric',
+        'bytes':    'numeric',
+    }
 
     def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         sessions = ctx.sessions

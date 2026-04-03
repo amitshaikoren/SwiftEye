@@ -34,6 +34,14 @@ class ConversationTimeline(ResearchChart):
             placeholder="e.g. 192.168.1.177",
         ),
     ]
+    entry_schema = {
+        'peer':      'ip',
+        'protocol':  'list',
+        'direction': {'type': 'list', 'options': ['in', 'out']},
+        'bytes':     'numeric',
+        'src_port':  'numeric',
+        'dst_port':  'numeric',
+    }
 
     def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         target = params["target_ip"].strip()

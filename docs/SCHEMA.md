@@ -657,12 +657,38 @@ per-chart filter controls in the UI at no extra cost.
 
 ### How it works
 
-1. `build_data(ctx, params)` returns a flat list of entry dicts — one per plotted point or bar.
-2. The framework calls `_detect_schema(entries)` to infer the type of each field.
-3. The schema is returned alongside the figure as `filter_schema` in the API response.
-4. The frontend renders appropriate filter controls in the card's "Chart filters" drawer.
-5. When the researcher changes a filter, the card auto-reruns and sends `_filter_<field>` params.
-6. The framework calls `_apply_filters(entries, filter_params, schema)` before `build_figure()`.
+1. Chart declares `entry_schema` — the explicit types of each filterable field.
+2. The schema is included in `/api/research` response — the frontend renders filter controls immediately, before first run.
+3. `build_data(ctx, params)` returns a flat list of entry dicts — one per plotted point or bar.
+4. The framework enriches any `list` fields without static `options` by collecting unique values from entries.
+5. The enriched schema is returned alongside the figure as `filter_schema` in the API response.
+6. When the researcher changes a filter, the card auto-reruns and sends `_filter_<field>` params.
+7. The framework calls `_apply_filters(entries, filter_params, schema)` before `build_figure()`.
+
+### entry_schema declaration
+
+Declare `entry_schema` as a class attribute. The schema is explicit — no runtime inference.
+
+```python
+class MyChart(ResearchChart):
+    entry_schema = {
+        'src':      'ip',
+        'protocol': 'list',                              # options collected from entries at runtime
+        'method':   {'type': 'list', 'options': ['GET', 'POST', 'PUT', 'DELETE']},  # static
+        'bytes':    'numeric',
+        'uri':      'string',
+    }
+```
+
+**Shorthand:** write just the type string when you have no extra keys. Only use dict form
+when you need static `options`.
+
+| Type | Frontend control | Notes |
+|------|-----------------|-------|
+| `'ip'` | Text input — prefix or exact match | e.g. `192.168.1` matches all in that subnet |
+| `'string'` | Text input — case-insensitive contains | |
+| `'numeric'` | Min / max number inputs (both optional) | int or float field |
+| `'list'` | Multi-select chips | Omit `options` → unique values collected from entries after run; supply `options` → shown immediately |
 
 ### Entry dict conventions
 
@@ -670,33 +696,19 @@ per-chart filter controls in the UI at no extra cost.
 def build_data(self, ctx, params) -> List[dict]:
     return [
         {
-            "ts":       pkt.timestamp * 1000,  # time axis — EXCLUDED from filters
-            "src":      pkt.src_ip,             # ip type   → text input (prefix match)
-            "dst":      pkt.dst_ip,             # ip type
-            "protocol": pkt.protocol,           # list type  → chips (≤20 unique values)
-            "bytes":    pkt.orig_len,           # numeric    → min/max inputs
-            "uri":      ex.get("http_uri",""),  # string     → contains text input
+            "ts":       pkt.timestamp * 1000,  # time axis — not declared in entry_schema
+            "src":      pkt.src_ip,
+            "protocol": pkt.protocol,
+            "bytes":    pkt.orig_len,
+            "uri":      ex.get("http_uri", ""),
         }
         for pkt in ctx.packets
         ...
     ]
 ```
 
-Reserve `"ts"` (also `"ts_ms"`, `"time"`, `"timestamp"`) for the time axis. These keys
-are excluded from filter detection. All other keys are candidates.
-
-### Auto-detected field types
-
-| Condition | Detected type | Frontend control |
-|-----------|--------------|-----------------|
-| Value matches `^\d{1,3}(\.\d{1,3}){3}$` | `ip` | Text input — prefix or exact match |
-| int or float | `numeric` | Min / max number inputs (both optional) |
-| String, ≤ 20 unique values in sample | `list` | Multi-select chips; options = unique values |
-| String, > 20 unique values | `string` | Text input — case-insensitive contains match |
-| bool | skipped | — |
-
-Detection samples the first 300 entries. For `ip` detection, the first 20 non-null values
-are checked.
+Use `"ts"` for the time axis. By convention don't declare it in `entry_schema` — it's
+the X axis, not a filter dimension.
 
 ### Filter param names sent to the backend
 

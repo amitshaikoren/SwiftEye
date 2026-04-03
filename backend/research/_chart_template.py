@@ -12,16 +12,20 @@ This file is NOT registered and will never appear in the UI.
 
 == Authoring pattern ==
 
-Split your logic into two methods:
+Declare entry_schema, then split your logic into two methods:
+
+  entry_schema = {
+      'peer':      'ip',
+      'protocol':  'list',                              # options collected at runtime
+      'direction': {'type': 'list', 'options': ['in', 'out']},  # static options
+      'bytes':     'numeric',
+      'uri':       'string',
+  }
 
   build_data(ctx, params)  → List[dict]
       Collect the raw records you want to plot. Return one flat dict per
-      plotted point or bar. These dicts are what the framework inspects to
-      auto-generate per-chart filter controls — the researcher gets sliders,
-      chips, and text inputs for free without any extra work.
-
-      Name your keys clearly — they become filter labels in the UI.
-      Reserve "ts" for the time axis (automatically excluded from filters).
+      plotted point or bar. Keys must match entry_schema.
+      Reserve "ts" for the time axis (excluded from filters by convention).
 
   build_figure(entries, params)  → go.Figure
       Receives the already-filtered entries list. Build and return a
@@ -31,27 +35,31 @@ Split your logic into two methods:
 This mirrors the typical Jupyter workflow:
 
   # Cell 1: build data
-  entries = [{"ts": pkt.timestamp * 1000, "src": pkt.src_ip, ...}
+  entries = [{"ts": pkt.timestamp * 1000, "peer": peer, ...}
              for pkt in packets if ...]
 
   # Cell 2: plot
-  fig = px.scatter(pd.DataFrame(entries), x="ts", y="src", color="protocol")
+  fig = px.scatter(pd.DataFrame(entries), x="ts", y="peer", color="protocol")
+
+== entry_schema field types ==
+
+  'ip'      — IPv4 address; frontend renders a text input (prefix/exact match)
+  'string'  — free text; frontend renders a contains text input
+  'numeric' — int or float; frontend renders min/max number inputs
+  'list'    — categorical; frontend renders multi-select chips
+              Omit 'options' → framework collects unique values from entries at runtime
+              Supply 'options' → static known set, shown before first run
+
+  Shorthand: write just the type string when you have no extra keys.
+    'ip'  is equivalent to  {'type': 'ip'}
+  Only use dict form when you need to specify 'options':
+    {'type': 'list', 'options': ['GET', 'POST', ...]}
 
 == Legacy pattern ==
 
 If you only implement compute(), everything works unchanged and you get no
-auto-filter support. This is fine for charts that already handle filtering
-internally or have no useful per-point data fields.
-
-== Field type detection ==
-
-The framework samples the first 300 entries and infers filter types:
-  IPv4 address string  →  "ip"     (prefix/exact text input)
-  Low-cardinality str  →  "list"   (multi-select chips; ≤ 20 unique values)
-  High-cardinality str →  "string" (contains text input)
-  int or float         →  "numeric" (min/max number inputs)
-  "ts", "ts_ms", etc.  →  skipped  (time axis field)
-  bool                 →  skipped
+auto-filter support. Fine for per-session charts or charts with no useful
+slice-able data fields.
 """
 
 import plotly.graph_objects as go
@@ -78,7 +86,7 @@ class MyChart(ResearchChart):
     category    = "capture"
 
     # ── Params ────────────────────────────────────────────────────────────────
-    # Declared params become input fields in the chart runner UI.
+    # Declared params become input fields in the chart runner UI (e.g. target IP).
     # Remove params = [] if the chart needs no user input.
     params = [
         Param(
@@ -97,6 +105,29 @@ class MyChart(ResearchChart):
         #     default     = "500",
         # ),
     ]
+
+    # ── entry_schema ──────────────────────────────────────────────────────────
+    # Declares the filterable fields in your build_data() entries.
+    # The frontend renders filter controls based on this — available immediately,
+    # before the chart is run for the first time.
+    #
+    # Shorthand (no extra options needed):
+    #   'field': 'ip'        — text input, prefix/exact match
+    #   'field': 'string'    — text input, case-insensitive contains
+    #   'field': 'numeric'   — min/max number inputs
+    #   'field': 'list'      — chips; unique values collected from entries at runtime
+    #
+    # Dict form (when you need static options):
+    #   'field': {'type': 'list', 'options': ['GET', 'POST', 'PUT', ...]}
+    #            chips shown immediately with the declared options
+    entry_schema = {
+        'peer':      'ip',
+        'protocol':  'list',
+        'direction': {'type': 'list', 'options': ['in', 'out']},
+        'bytes':     'numeric',
+        'src_port':  'numeric',
+        'dst_port':  'numeric',
+    }
 
     # ── build_data() ──────────────────────────────────────────────────────────
     def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:

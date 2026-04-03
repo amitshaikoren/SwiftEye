@@ -31,6 +31,14 @@ class TTLOverTime(ResearchChart):
         Param(name="ip_a", label="IP A", type="ip", placeholder="e.g. 192.168.1.177"),
         Param(name="ip_b", label="IP B", type="ip", placeholder="e.g. 44.217.73.9"),
     ]
+    entry_schema = {
+        'ttl':       'numeric',
+        'direction': 'list',    # options collected at runtime: "A → B" / "B → A"
+        'bytes':     'numeric',
+        'protocol':  'list',
+        'src_port':  'numeric',
+        'dst_port':  'numeric',
+    }
 
     def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         ip_a = params["ip_a"].strip()

@@ -42,6 +42,13 @@ class DNSTimeline(ResearchChart):
     description = "All DNS queries over time — Y = domain, colour = response code. NXDOMAINs in red, NOERROR green."
 
     params = []
+    entry_schema = {
+        'domain':  'string',
+        'status':  {'type': 'list', 'options': ['NOERROR', 'NXDOMAIN', 'SERVFAIL', 'REFUSED', 'query']},
+        'qtype':   {'type': 'list', 'options': ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'PTR', 'SRV', 'NS', 'SOA']},
+        'client':  'ip',
+        'answers': 'string',
+    }
 
     def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         entries = []

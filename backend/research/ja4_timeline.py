@@ -28,6 +28,15 @@ class JA4Timeline(ResearchChart):
         Param(name="target_ip", label="Target IP", type="ip",
               placeholder="e.g. 192.168.1.177"),
     ]
+    entry_schema = {
+        'remote_ip': 'ip',
+        'ja4':       'string',
+        'sni':       'string',
+        'tls_ver':   'list',
+        'bytes':     'numeric',
+        'duration':  'numeric',
+        'role':      {'type': 'list', 'options': ['→ (initiator)', '← (responder)']},
+    }
 
     def build_data(self, ctx: AnalysisContext, params: dict) -> List[dict]:
         target = params.get("target_ip", "").strip()
