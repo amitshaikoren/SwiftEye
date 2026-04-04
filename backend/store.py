@@ -5,12 +5,10 @@ Holds viewer-layer data (sessions, stats, time buckets, subnets, graph cache).
 Does NOT run plugins — that's the server's orchestration concern.
 """
 
-import math
 import time
 import uuid
 import logging
 from typing import Optional
-from collections import Counter
 
 from fastapi import HTTPException
 
@@ -19,67 +17,10 @@ from data import (
     build_time_buckets, build_graph, build_analysis_graph,
     filter_packets, build_sessions, compute_global_stats, get_subnets,
 )
+from storage.memory import MemoryBackend
+from storage.serializers import _payload_hexdump, _payload_hex, _payload_ascii, _payload_entropy
 
 logger = logging.getLogger("swifteye.store")
-
-
-# ── Payload preview helpers ─────────────────────────────────────────────
-
-def _payload_hexdump(data: bytes) -> str:
-    """
-    Format raw bytes as a unified Wireshark-style hex dump.
-    Each row: offset  hex-bytes (padded to 16)  ascii
-    Example:  0000  16 03 01 00 f1 01 00 00  .......
-    Returned as a single string with newline-separated rows.
-    The frontend renders this in a single <pre> block — no column splitting needed.
-    """
-    if not data:
-        return ""
-    rows = []
-    for i in range(0, len(data), 16):
-        chunk = data[i:i + 16]
-        hex_part  = " ".join(f"{b:02x}" for b in chunk)
-        ascii_part = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
-        rows.append(f"{i:04x}  {hex_part:<47}  {ascii_part}")
-    return "\n".join(rows)
-
-
-# Keep old names as aliases for any callers — both now point to the unified dump
-def _payload_hex(data: bytes) -> str:
-    return _payload_hexdump(data)
-
-def _payload_ascii(data: bytes) -> str:
-    return ""  # ASCII is now embedded in the hex dump rows; no longer served separately
-
-
-def _payload_entropy(data: bytes) -> dict:
-    """
-    Compute Shannon entropy of payload bytes and classify it.
-
-    Returns {value, label, min_bytes} or empty dict if too few bytes.
-    Minimum 16 bytes for a meaningful reading.
-    """
-    if not data or len(data) < 16:
-        return {}
-    counts = Counter(data)
-    length = len(data)
-    entropy = -sum((c / length) * math.log2(c / length) for c in counts.values())
-    entropy = round(entropy, 2)
-
-    if entropy < 1.0:
-        label = "Structured/repetitive"
-    elif entropy < 3.5:
-        label = "Low entropy (structured binary)"
-    elif entropy < 5.0:
-        label = "Text/markup"
-    elif entropy < 6.5:
-        label = "Mixed/encoded"
-    elif entropy < 7.5:
-        label = "High entropy (compressed)"
-    else:
-        label = "Likely encrypted/compressed"
-
-    return {"value": entropy, "label": label, "byte_count": length}
 
 
 # ── Capture State (in-memory, single-user) ───────────────────────────────
@@ -109,6 +50,7 @@ class CaptureStore:
         self.graph_cache: dict = {}        # last built graph: {"nodes": [...], "edges": [...]}
         self.analysis_graph = None         # persistent NetworkX graph for query engine
         self.investigation: dict = {"markdown": "", "images": {}}  # investigation notebook
+        self.backend: MemoryBackend = MemoryBackend()
 
     def load(self, packets: list[PacketRecord], file_name: str, source_files: list[str] = None):
         """
@@ -151,65 +93,17 @@ class CaptureStore:
         self.analysis_graph = build_analysis_graph(packets, self.sessions)
         logger.info(f"  Analysis graph in {time.time()-t0:.2f}s")
 
+        logger.info("Building storage indexes...")
+        t0 = time.time()
+        self.backend.load(self.packets, self.sessions)
+        logger.info(f"  Indexes in {time.time()-t0:.2f}s")
+
         logger.info(f"Capture '{file_name}' loaded: {len(packets)} packets, "
                      f"{len(self.sessions)} sessions, {len(self.protocols)} protocols")
 
-    def get_packets_for_session(self, session_id: str, limit: int = 200) -> list[dict]:
-        """Get packets belonging to a specific session, with full detail."""
-        session = None
-        for s in self.sessions:
-            if s["id"] == session_id:
-                session = s
-                break
-        if not session:
-            return []
-
-        result = []
-        count = 0
-        for pkt in self.packets:
-            if pkt.session_key == session_id:
-                result.append({
-                    "timestamp": pkt.timestamp,
-                    "src_ip": pkt.src_ip,
-                    "dst_ip": pkt.dst_ip,
-                    "src_port": pkt.src_port,
-                    "dst_port": pkt.dst_port,
-                    "protocol": pkt.protocol,
-                    "transport": pkt.transport,
-                    "length": pkt.orig_len,
-                    "payload_len": pkt.payload_len,
-                    "ttl": pkt.ttl,
-                    "tcp_flags_str": pkt.tcp_flags_str,
-                    "tcp_flags_list": pkt.tcp_flags_list,
-                    "seq_num": pkt.seq_num,
-                    "ack_num": pkt.ack_num,
-                    "window_size": pkt.window_size,
-                    "tcp_options": pkt.tcp_options,
-                    "tcp_data_offset": pkt.tcp_data_offset,
-                    "urg_ptr": pkt.urg_ptr,
-                    # ICMP
-                    "icmp_type": pkt.icmp_type,
-                    "icmp_code": pkt.icmp_code,
-                    # IP header fields
-                    "ip_version": pkt.ip_version,
-                    "dscp": pkt.dscp,
-                    "ecn": pkt.ecn,
-                    "ip_id": pkt.ip_id,
-                    "ip_flags": pkt.ip_flags,
-                    "frag_offset": pkt.frag_offset,
-                    "ip_checksum": pkt.ip_checksum,
-                    "ip6_flow_label": pkt.ip6_flow_label,
-                    "tcp_checksum": pkt.tcp_checksum,
-                    "extra": pkt.extra,
-                    "payload_hex":   _payload_hex(pkt.payload_preview),
-                    "payload_ascii": _payload_ascii(pkt.payload_preview),
-                    "payload_bytes": pkt.payload_preview.hex() if pkt.payload_preview else "",
-                    "payload_entropy": _payload_entropy(pkt.payload_preview),
-                })
-                count += 1
-                if count >= limit:
-                    break
-        return result
+    def get_packets_for_session(self, session_id: str, limit: int = 1000, offset: int = 0) -> list[dict]:
+        """Get packets for a session. O(1) indexed lookup via MemoryBackend."""
+        return self.backend.get_packets_for_session(session_id, limit=limit, offset=offset)
 
     @property
     def is_loaded(self) -> bool:

@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.16.0 — April 2026
+- **Storage backend Phase 1** — new `backend/storage/` module with `StorageBackend` ABC and `MemoryBackend` implementation. Replaces three O(n) hot-path scans with O(1) indexed lookups: session detail packet fetch (was full 2M packet scan, now dict index), session-by-ID lookup (was linear scan, now dict), and time-range session scoping (was full packet scan, now 15-second bucket index). New `EventRecord` dataclass defined as Phase 2 migration target (not yet wired). `session_key` fixed for non-IP packets (ARP, raw L2) — falls back to MAC-pair grouping with `l2|` prefix. Session detail API: `packet_limit` raised from 1000→50000, `packet_offset` param added. Sessions API: limit raised from 5000→100000, `offset` param added. Payload serialization helpers (`_payload_hexdump`, `_payload_entropy`) moved from `store.py` to `storage/serializers.py`.
+
 ### v0.15.28 — April 2026
 - **Graph Options in right panel** — `GraphOptionsPanel` now renders as a proper right-panel view (`rPanel === 'graph-options'`) instead of overlaying the canvas. Accessible via "Graph Options" in the left-panel nav (same list as Overview, Sessions, etc.). The panel fills the right panel area and uses the existing resize handle; its own resize handle and slide-in animation removed. The canvas-overlay Graph Options button and Export PCAP button both removed.
 

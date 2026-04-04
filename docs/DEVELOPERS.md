@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.15.25 | April 2026**
+**Version 0.16.0 | April 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -22,6 +22,7 @@
 12. [File Format Reference](#12-file-format-reference)
 13. [Graph Algorithms](#13-graph-algorithms)
 14. [Analysis Graph & Query System](#14-analysis-graph--query-system)
+15. [Storage Backend](#15-storage-backend)
 
 ---
 
@@ -1434,6 +1435,73 @@ User types SQL but backend is Neo4j → sqlglot transpiles SQL→Cypher → Neo4
   "summary": "1 of 48 nodes matching query"
 }
 ```
+
+---
+
+## 15. Storage Backend
+
+### Overview
+
+The storage backend provides indexed access to packets and sessions, replacing O(n) scans with O(1) lookups on the hot paths. It is an abstraction layer: the ABC (`StorageBackend`) defines the contract; concrete implementations provide the storage.
+
+**Phases:**
+| Phase | Class | Storage | Status |
+|-------|-------|---------|--------|
+| 1 | `MemoryBackend` | In-memory lists + dict indexes | **Shipped (v0.16.0)** |
+| 2 | `SQLiteBackend` | Embedded SQLite file | Planned |
+| 3 | `PostgresBackend` | PostgreSQL + TimescaleDB | Planned |
+
+### Directory structure
+
+```
+backend/storage/
+    __init__.py          # exports: StorageBackend, MemoryBackend, EventRecord
+    backend.py           # StorageBackend ABC
+    memory.py            # MemoryBackend (Phase 1)
+    serializers.py       # Packet serialization helpers (_payload_hexdump, _payload_entropy, etc.)
+    event_record.py      # EventRecord dataclass (Phase 2 migration target, not yet wired)
+```
+
+### StorageBackend ABC (`backend/storage/backend.py`)
+
+```python
+class StorageBackend(ABC):
+    def load(self, packets: List["PacketRecord"], sessions: List[dict]) -> None: ...
+    def clear(self) -> None: ...
+    def get_packets_for_session(self, session_id: str, limit: int = 1000, offset: int = 0) -> List[dict]: ...
+    def get_session(self, session_id: str) -> Optional[dict]: ...
+    def get_sessions(self, sort_by="time", limit=200, offset=0, search="", time_start=None, time_end=None) -> Tuple[List[dict], int]: ...
+    def get_session_keys_for_time_range(self, time_start: float, time_end: float) -> Set[str]: ...
+    @property is_loaded -> bool
+    @property packet_count -> int
+    @property session_count -> int
+```
+
+### MemoryBackend indexes
+
+| Index | Type | Purpose |
+|-------|------|---------|
+| `_by_session_key` | `Dict[str, List[int]]` | session_key → packet list indices |
+| `_sessions_by_id` | `Dict[str, dict]` | session ID → session dict (O(1) lookup) |
+| `_session_keys_by_15s_bucket` | `Dict[int, Set[str]]` | time bucket → session keys active in that window |
+
+### Integration with CaptureStore
+
+`CaptureStore` owns a `backend: MemoryBackend` instance. At the end of `load()`, after `build_sessions()` and `build_analysis_graph()`, it calls `self.backend.load(self.packets, self.sessions)` to build indexes. `get_packets_for_session()` delegates to the backend.
+
+The `AnalysisContext` contract is unchanged — plugins and research charts still receive `packets=store.packets, sessions=store.sessions` as plain Python lists.
+
+### EventRecord (Phase 2 target)
+
+`EventRecord` is the planned universal normalized data record that all ingestion sources will map to. Defined in `backend/storage/event_record.py`. Not wired to any pipeline in Phase 1 — it exists so Phase 2 has a migration target. See HANDOFF.md §7 for the full ETL architecture design.
+
+### Phase 2 contract (SQLiteBackend)
+
+Phase 2 implements the same `StorageBackend` ABC with a SQLite file backend. The ABC signatures are designed so Phase 2 is a drop-in swap with no call-site changes. Key design decisions:
+- `get_sessions()` returns `(List[dict], int)` → maps to `SELECT ... LIMIT ? OFFSET ?` + `SELECT COUNT(*)`
+- `get_packets_for_session()` takes `(session_id, limit, offset)` → maps to `SELECT * FROM packets WHERE session_key=? LIMIT ? OFFSET ?`
+- `get_session_keys_for_time_range()` returns `Set[str]` → maps to `SELECT DISTINCT session_key FROM packets WHERE timestamp BETWEEN ? AND ?`
+- Backend selection via `SWIFTEYE_BACKEND=memory|sqlite|postgres` env var (Phase 3)
 
 ### Frontend query builder
 

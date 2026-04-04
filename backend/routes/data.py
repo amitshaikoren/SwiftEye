@@ -268,7 +268,8 @@ async def get_paths(
 @router.get("/api/sessions", response_model=SessionsResponse)
 async def get_sessions(
     sort_by: str = Query(default="bytes", enum=["bytes", "packets", "duration", "time"]),
-    limit: int = Query(default=200, ge=1, le=5000),
+    limit: int = Query(default=200, ge=1, le=100000),
+    offset: int = Query(default=0, ge=0),
     search: str = "",
     time_start: Optional[float] = None,
     time_end:   Optional[float] = None,
@@ -276,48 +277,33 @@ async def get_sessions(
     """Get session list, optionally scoped to a time range."""
     _require_capture()
 
-    sessions = store.sessions
-
-    if time_start is not None and time_end is not None:
-        active_keys = {p.session_key for p in store.packets
-                       if time_start <= p.timestamp <= time_end}
-        sessions = [s for s in sessions if s.get('id') in active_keys]
-
-    if search:
-        q = search.lower()
-        sessions = [s for s in sessions if (
-            q in s["src_ip"].lower() or
-            q in s["dst_ip"].lower() or
-            q in s["protocol"].lower() or
-            q in str(s["src_port"]) or
-            q in str(s["dst_port"])
-        )]
-
-    if sort_by == "packets":
-        sessions = sorted(sessions, key=lambda s: s["packet_count"], reverse=True)
-    elif sort_by == "duration":
-        sessions = sorted(sessions, key=lambda s: s["duration"], reverse=True)
-    elif sort_by == "time":
-        sessions = sorted(sessions, key=lambda s: s.get("start_time", 0))
-
-    return SessionsResponse(sessions=sessions[:limit], total=len(sessions))
+    sessions, total = store.backend.get_sessions(
+        sort_by=sort_by,
+        limit=limit,
+        offset=offset,
+        search=search,
+        time_start=time_start,
+        time_end=time_end,
+    )
+    return SessionsResponse(sessions=sessions, total=total)
 
 
 @router.get("/api/session_detail")
-async def get_session_detail(session_id: str = Query(...), packet_limit: int = Query(default=200, ge=1, le=1000)):
+async def get_session_detail(
+    session_id: str = Query(...),
+    packet_limit: int = Query(default=1000, ge=1, le=50000),
+    packet_offset: int = Query(default=0, ge=0),
+):
     """Get detailed session info including packets."""
     _require_capture()
 
-    session = None
-    for s in store.sessions:
-        if s["id"] == session_id:
-            session = s
-            break
-
+    session = store.backend.get_session(session_id)
     if not session:
-        raise HTTPException(404, "Session not found")
+        raise HTTPException(404, f"Session {session_id!r} not found")
 
-    packets = store.get_packets_for_session(session_id, limit=packet_limit)
+    packets = store.backend.get_packets_for_session(
+        session_id, limit=packet_limit, offset=packet_offset
+    )
     return SessionDetailResponse(session=session, packets=packets)
 
 

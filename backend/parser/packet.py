@@ -106,18 +106,30 @@ class PacketRecord:
     @property
     def session_key(self) -> str:
         """Canonical session key (sorted IPs+ports for bidirectional matching).
-        Cached after first access — src/dst/ports/transport never change post-parse."""
+        Cached after first access — src/dst/ports/transport never change post-parse.
+        Non-IP packets (ARP, raw L2) fall back to MAC-pair + protocol with l2| prefix."""
         if self._session_key_cache:
             return self._session_key_cache
-        if self.src_ip <= self.dst_ip:
-            ip_a, ip_b = self.src_ip, self.dst_ip
+
+        if self.src_ip and self.dst_ip:
+            # Standard IP packet
+            if self.src_ip <= self.dst_ip:
+                ip_a, ip_b = self.src_ip, self.dst_ip
+            else:
+                ip_a, ip_b = self.dst_ip, self.src_ip
+            if self.src_port <= self.dst_port:
+                p_a, p_b = self.src_port, self.dst_port
+            else:
+                p_a, p_b = self.dst_port, self.src_port
+            key = f"{ip_a}|{ip_b}|{p_a}|{p_b}|{self.transport}"
         else:
-            ip_a, ip_b = self.dst_ip, self.src_ip
-        if self.src_port <= self.dst_port:
-            p_a, p_b = self.src_port, self.dst_port
-        else:
-            p_a, p_b = self.dst_port, self.src_port
-        key = f"{ip_a}|{ip_b}|{p_a}|{p_b}|{self.transport}"
+            # Non-IP packet (ARP, raw L2, etc.) — group by MAC pair + protocol
+            mac_a = self.src_mac or ""
+            mac_b = self.dst_mac or ""
+            if mac_a > mac_b:
+                mac_a, mac_b = mac_b, mac_a
+            key = f"l2|{mac_a}|{mac_b}|{self.protocol}"
+
         object.__setattr__(self, '_session_key_cache', key)
         return key
     
