@@ -75,7 +75,6 @@ export function useCapture() {
   const [edgeColorMode, setEdgeColorMode] = useState('protocol');  // 'protocol' | 'volume' | 'sessions' | 'custom'
   const [nodeColorRules, setNodeColorRules] = useState([]);        // [{color, text}] — custom node coloring rules
   const [edgeColorRules, setEdgeColorRules] = useState([]);        // [{color, text}] — custom edge coloring rules
-  const [graphOptionsOpen, setGraphOptionsOpen] = useState(false); // Graph Options panel open/closed
 
   const [subnetPrefix, setSubnetPrefix] = useState(24);
   const [debouncedSubnetPrefix, setDebouncedSubnetPrefix] = useState(24);
@@ -983,7 +982,6 @@ export function useCapture() {
     edgeColorMode, setEdgeColorMode,
     nodeColorRules, setNodeColorRules,
     edgeColorRules, setEdgeColorRules,
-    graphOptionsOpen, setGraphOptionsOpen,
     subnetPrefix, setSubnetPrefix: setSubnetPrefixOuter,
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,

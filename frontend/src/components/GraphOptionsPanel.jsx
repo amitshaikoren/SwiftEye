@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import { fB } from '../utils';
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────
@@ -295,7 +295,6 @@ function ColorBySection({ modes, legends, selected, onSelect, rules, onRulesChan
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 export default function GraphOptionsPanel({
-  open,
   onClose,
   // Node display
   nodeColorMode, setNodeColorMode,
@@ -320,31 +319,8 @@ export default function GraphOptionsPanel({
   visibleNodes,
 }) {
   const [neMode, setNeMode] = useState('node'); // 'node' | 'edge'
-  const [width, setWidth] = useState(300);
-  const resizeRef = useRef(null);
 
   const hasOsData = (visibleNodes || []).some(n => n.os_guess);
-
-  // ── Resize handle ──────────────────────────────────────────────────
-  const onResizeMouseDown = useCallback(e => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startW = width;
-    function onMove(ev) {
-      const delta = startX - ev.clientX;
-      setWidth(Math.max(220, Math.min(520, startW + delta)));
-    }
-    function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  }, [width]);
 
   // ── Label threshold step index ─────────────────────────────────────
   const lblIdx = LBL_STEPS.reduce((best, v, i) =>
@@ -360,32 +336,11 @@ export default function GraphOptionsPanel({
 
   return (
     <div style={{
-      position: 'absolute', top: 0, right: 0, bottom: 0,
-      display: 'flex', pointerEvents: open ? 'all' : 'none',
-      zIndex: 20,
+      width: '100%', height: '100%',
+      background: 'var(--bgP)',
+      display: 'flex', flexDirection: 'column',
+      overflow: 'hidden',
     }}>
-      {/* Resize handle */}
-      <div
-        ref={resizeRef}
-        onMouseDown={onResizeMouseDown}
-        style={{
-          width: 4, background: 'transparent', cursor: 'col-resize', flexShrink: 0,
-          transition: 'background .15s', display: open ? 'block' : 'none',
-        }}
-        onMouseEnter={e => e.currentTarget.style.background = 'var(--ac)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-      />
-
-      {/* Panel */}
-      <div style={{
-        width, minWidth: 220, maxWidth: 520,
-        background: 'var(--bgP)', borderLeft: '1px solid var(--bd)',
-        display: 'flex', flexDirection: 'column',
-        transform: open ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform .22s cubic-bezier(.4,0,.2,1)',
-        boxShadow: '-8px 0 32px rgba(0,0,0,.45)',
-        overflow: 'hidden',
-      }}>
 
         {/* Header */}
         <div style={{
@@ -599,7 +554,6 @@ export default function GraphOptionsPanel({
           </Section>
 
         </div>
-      </div>
     </div>
   );
 }

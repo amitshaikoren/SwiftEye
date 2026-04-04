@@ -120,8 +120,6 @@ export default function GraphCanvas({
   edgeColorMode = 'protocol',
   nodeColorRules = [],
   edgeColorRules = [],
-  graphOptionsOpen = false,
-  onToggleGraphOptions,
   queryHighlight = null,
   onClearQueryHighlight,
 }) {
@@ -1284,7 +1282,7 @@ resize();draw();
       {/* Export HTML button */}
       <button onClick={doExportHTML} title="Export interactive graph as self-contained HTML"
         style={{
-          position: 'absolute', bottom: 120, right: 12, zIndex: 10,
+          position: 'absolute', bottom: 84, right: 12, zIndex: 10,
           display: 'flex', alignItems: 'center', gap: 5,
           background: 'rgba(14,17,23,.85)', border: '1px solid var(--bdL)',
           borderRadius: 6, padding: '5px 10px', fontSize: 10,
@@ -1294,24 +1292,6 @@ resize();draw();
           <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
         Export HTML
-      </button>
-
-      {/* Graph Options button */}
-      <button onClick={onToggleGraphOptions} title="Graph Options"
-        style={{
-          position: 'absolute', bottom: 84, right: 12, zIndex: 10,
-          display: 'flex', alignItems: 'center', gap: 5,
-          background: graphOptionsOpen ? 'rgba(88,166,255,.15)' : 'rgba(14,17,23,.85)',
-          border: '1px solid ' + (graphOptionsOpen ? 'var(--ac)' : 'var(--bdL)'),
-          borderRadius: 6, padding: '5px 10px', fontSize: 10,
-          color: graphOptionsOpen ? 'var(--ac)' : 'var(--txM)',
-          cursor: 'pointer', fontFamily: 'var(--fn)', transition: 'all .15s',
-        }}>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
-        </svg>
-        Graph Options
       </button>
 
       {/* Relayout button — bottom-right of graph (avoids overlap with hidden nodes badge) */}

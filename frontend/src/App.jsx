@@ -287,6 +287,28 @@ export default function App() {
         }}
       />
     );
+  } else if (c.rPanel === 'graph-options') {
+    rightContent = (
+      <GraphOptionsPanel
+        onClose={() => c.switchPanel('stats')}
+        nodeColorMode={c.nodeColorMode} setNodeColorMode={c.setNodeColorMode}
+        nodeColorRules={c.nodeColorRules} setNodeColorRules={c.setNodeColorRules}
+        graphWeightMode={c.graphWeightMode} setGraphWeightMode={c.setGraphWeightMode}
+        labelThreshold={c.labelThreshold} setLabelThreshold={c.setLabelThreshold}
+        edgeColorMode={c.edgeColorMode} setEdgeColorMode={c.setEdgeColorMode}
+        edgeColorRules={c.edgeColorRules} setEdgeColorRules={c.setEdgeColorRules}
+        edgeSizeMode={c.edgeSizeMode} setEdgeSizeMode={c.setEdgeSizeMode}
+        subnetG={c.subnetG} setSubnetG={c.setSubnetG} toggleSubnetG={c.toggleSubnetG}
+        subnetPrefix={c.subnetPrefix} setSubnetPrefix={c.setSubnetPrefix}
+        mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
+        includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
+        showHostnames={c.showHostnames} setShowHostnames={c.setShowHostnames}
+        excludeBroadcasts={c.excludeBroadcasts} setExcludeBroadcasts={c.setExcludeBroadcasts}
+        clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
+        clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
+        visibleNodes={c.visibleNodes}
+      />
+    );
   } else {
     rightContent = (
       <StatsPanel
@@ -382,22 +404,6 @@ export default function App() {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               {/* Graph area */}
               <div ref={graphContainerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg)' }}>
-
-                {/* Export pcap button */}
-                {c.loaded && (
-                  <a href={c.getSlicePcapUrl()} download style={{
-                    position: 'absolute', bottom: 12, right: 12, zIndex: 10,
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    background: 'rgba(14,17,23,.85)', border: '1px solid var(--bdL)',
-                    borderRadius: 6, padding: '5px 10px', fontSize: 10,
-                    color: 'var(--txM)', textDecoration: 'none', fontFamily: 'var(--fn)',
-                  }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                    </svg>
-                    Export pcap
-                  </a>
-                )}
 
                 {/* Hidden nodes badge */}
                 {c.hiddenNodes.size > 0 && (
@@ -509,32 +515,8 @@ export default function App() {
                   edgeColorMode={c.edgeColorMode}
                   nodeColorRules={c.nodeColorRules}
                   edgeColorRules={c.edgeColorRules}
-                  graphOptionsOpen={c.graphOptionsOpen}
-                  onToggleGraphOptions={() => c.setGraphOptionsOpen(o => !o)}
                   queryHighlight={queryHighlight}
                   onClearQueryHighlight={() => setQueryHighlight(null)}
-                />
-
-                {/* Graph Options Panel — slide-in overlay on right edge of canvas */}
-                <GraphOptionsPanel
-                  open={c.graphOptionsOpen}
-                  onClose={() => c.setGraphOptionsOpen(false)}
-                  nodeColorMode={c.nodeColorMode} setNodeColorMode={c.setNodeColorMode}
-                  nodeColorRules={c.nodeColorRules} setNodeColorRules={c.setNodeColorRules}
-                  graphWeightMode={c.graphWeightMode} setGraphWeightMode={c.setGraphWeightMode}
-                  labelThreshold={c.labelThreshold} setLabelThreshold={c.setLabelThreshold}
-                  edgeColorMode={c.edgeColorMode} setEdgeColorMode={c.setEdgeColorMode}
-                  edgeColorRules={c.edgeColorRules} setEdgeColorRules={c.setEdgeColorRules}
-                  edgeSizeMode={c.edgeSizeMode} setEdgeSizeMode={c.setEdgeSizeMode}
-                  subnetG={c.subnetG} setSubnetG={c.setSubnetG} toggleSubnetG={c.toggleSubnetG}
-                  subnetPrefix={c.subnetPrefix} setSubnetPrefix={c.setSubnetPrefix}
-                  mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
-                  includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
-                  showHostnames={c.showHostnames} setShowHostnames={c.setShowHostnames}
-                  excludeBroadcasts={c.excludeBroadcasts} setExcludeBroadcasts={c.setExcludeBroadcasts}
-                  clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
-                  clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
-                  visibleNodes={c.visibleNodes}
                 />
 
                 {(!c.graph.nodes || c.graph.nodes.length === 0) && (

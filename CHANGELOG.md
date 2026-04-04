@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.15.28 — April 2026
+- **Graph Options in right panel** — `GraphOptionsPanel` now renders as a proper right-panel view (`rPanel === 'graph-options'`) instead of overlaying the canvas. Accessible via "Graph Options" in the left-panel nav (same list as Overview, Sessions, etc.). The panel fills the right panel area and uses the existing resize handle; its own resize handle and slide-in animation removed. The canvas-overlay Graph Options button and Export PCAP button both removed.
+
 ### v0.15.27 — April 2026
 - **Graph Options Panel** — `GraphOptionsPanel.jsx`: slide-in overlay on the right edge of the canvas, opened by ⚙ toolbar button. Resizable drag handle on left edge (220–520px, default 300). Replaces the inline Graph Options block in `LeftPanel.jsx`. Three collapsible sections: Display (Nodes/Edges flip + Size by + Color by + label threshold for nodes), Data (subnet, merge, IPv6, hostnames, broadcasts — now with toggle switches), Clustering (algorithm + resolution unchanged).
 - **Node Color modes** — new `nodeColorMode` state ('address'|'os'|'protocol'|'volume'|'custom'). Address=default (RFC1918 private/external). OS reads `node.os_guess`; mode card greyed if no OS data in capture. Protocol uses dominant entry from `node.protocol_set` → `pColors`. Volume maps `node.total_bytes` to a 4-stop heat gradient. Custom: array of `{color, text}` rules matched by CIDR/IP against `node.ips`; first match wins; falls back to Address. GraphCanvas.jsx updated with `resolveNodeColor()` helper; refs pattern used so render loop stays allocation-free.
