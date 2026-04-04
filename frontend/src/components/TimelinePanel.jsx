@@ -255,7 +255,7 @@ export default function TimelinePanel({
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 9, color: 'var(--txD)' }}>
                 Adjust the window then click <strong style={{ color: 'var(--txM)' }}>Run</strong> — the slider does not auto-recompute.
-                {(filterProtocols || filterSearch || !filterIncludeIPv6) && (
+                {(filterCtx.enabledP.size < filterCtx.allProtocolKeysCount || filterCtx.search || !filterCtx.includeIPv6) && (
                   <span style={{ color: 'var(--ac)', marginLeft: 6 }}>· active filters will be applied</span>
                 )}
               </div>
