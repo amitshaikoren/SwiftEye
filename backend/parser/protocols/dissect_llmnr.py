@@ -18,13 +18,14 @@ Fields extracted:
 """
 
 from typing import Dict, Any, List
+from scapy.layers.dns import DNS
 from . import register_dissector
 
 _QTYPES = {1: "A", 2: "NS", 5: "CNAME", 12: "PTR",
            15: "MX", 16: "TXT", 28: "AAAA", 33: "SRV", 255: "ANY"}
 
 
-@register_dissector("LLMNR")
+@register_dissector("LLMNR", scapy_layer=DNS)
 def dissect_llmnr(pkt) -> Dict[str, Any]:
     """LLMNR uses the same wire format as DNS — try scapy DNS layer first."""
     info: Dict[str, Any] = {}

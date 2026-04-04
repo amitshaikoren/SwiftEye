@@ -14,20 +14,34 @@ To add a new protocol:
   4. Add dissector in a new dissect_*.py file (for metadata extraction)
 """
 
-from typing import Callable, Dict, Any, Optional, List, Tuple
+from typing import Callable, Dict, Any, List, Optional, Tuple
 
 # ── Registries ───────────────────────────────────────────────────────────
 # These are populated by the dissector and signature files when they import
 # register_dissector / register_payload_signature from this module.
 
 DISSECTORS: Dict[str, Callable] = {}
+DISSECTOR_SCAPY_LAYERS: Dict[str, type] = {}  # protocol → scapy class (e.g. DNS)
 PAYLOAD_SIGNATURES: List[Tuple[int, str, Callable]] = []
 
 
-def register_dissector(protocol: str):
-    """Decorator to register a protocol dissector."""
+def register_dissector(protocol: str, scapy_layer: Optional[type] = None):
+    """
+    Decorator to register a protocol dissector.
+
+    Args:
+        protocol: Protocol name (e.g. "DNS", "HTTP")
+        scapy_layer: Optional scapy class this dissector needs (e.g. DNS).
+                     If set, l5_dispatch constructs that scapy object from
+                     raw payload bytes before calling the dissector.
+                     If None (default), the dissector receives a lightweight
+                     proxy with haslayer("Raw") / pkt["Raw"].load — no scapy
+                     overhead. Most dissectors should NOT set this.
+    """
     def wrapper(func: Callable):
         DISSECTORS[protocol] = func
+        if scapy_layer is not None:
+            DISSECTOR_SCAPY_LAYERS[protocol] = scapy_layer
         return func
     return wrapper
 

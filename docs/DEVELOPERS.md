@@ -51,10 +51,11 @@ swifteye/
 │   ├── models.py                    # Pydantic response models
 │   ├── parser/                      # LAYER 1: Raw packet parsing
 │   │   ├── packet.py                # PacketRecord dataclass (normalised packet)
-│   │   ├── pcap_reader.py           # Router: <500MB → scapy (full dissection), ≥500MB → dpkt (partial)
-│   │   ├── dpkt_reader.py           # dpkt reader (≥500MB files). NOTE: dissectors using
-│   │                                #   scapy layers return empty on this path — DNS hostnames
-│   │                                #   won't resolve. See roadmap for dissector parity fix.
+│   │   ├── pcap_reader.py           # Public entry point (read_pcap), delegates to parallel_reader
+│   │   ├── dpkt_reader.py           # L2/L3/L4 parsing via dpkt (all files use this path)
+│   │   ├── l5_dispatch.py           # L5 enrichment: protocol detection, scapy L5 object construction,
+│   │                                #   dissector dispatch, JA3/JA4 fingerprinting
+│   │   ├── parallel_reader.py       # Multiprocessing wrapper: pre-scan pcap offsets, split, spawn workers
 │   │   ├── oui.py                   # MAC OUI → vendor name lookup (~700 entries, clean keys)
 │   │   ├── ja3_db.py                # JA3 hash → {name, category, is_malware} (~60 entries, no duplicates)
 │   │   └── protocols/               # Protocol registry package
@@ -380,13 +381,19 @@ Every parsed packet becomes a `PacketRecord`. All downstream code operates on th
 
 ### `parser/pcap_reader.py` — read_pcap()
 
-Routes to the best reader:
-- **< 500MB** → scapy — full protocol dissection (DNS, TLS, HTTP, all dissectors work)
-- **≥ 500MB** → `dpkt_reader` — faster for very large files but dissection is partial (DNS hostnames will not resolve, dissectors that use scapy layers return empty)
+Public entry point. Delegates to `parallel_reader.read_pcap_parallel()` which uses dpkt for L2/L3/L4 parsing and the registered protocol dissectors (via `l5_dispatch.py`) for L5 enrichment. All file sizes use the same code path.
 
-**Roadmap:** port all dissectors to work on raw bytes so dpkt and scapy paths produce identical output, then lower the threshold.
+Max file size: 2 GB. Max packets: 2M. Dissector exceptions are caught and logged as `WARNING` — malformed packets never crash the parse.
 
-Max file size: 500MB. Max packets: 2M. Dissector exceptions are caught and logged as `WARNING` — malformed packets never crash the parse.
+### `parser/l5_dispatch.py` — enrich_l5()
+
+L5 (application layer) enrichment. Called after dpkt has parsed L2/L3/L4 fields into a PacketRecord. Constructs the appropriate scapy L5 object from raw payload bytes (`DNS(payload)`, `TLS(payload)`, or `Raw(load=payload)`) and dispatches to the registered protocol dissector. Also handles JA3/JA4 fingerprinting for TLS. Strips transport-layer quirks (e.g. TCP DNS 2-byte length prefix) before passing to dissectors.
+
+### `parser/parallel_reader.py` — read_pcap_parallel()
+
+Multiprocessing wrapper. Pre-scans pcap packet header byte offsets (I/O only, no packet data), splits into N chunks, spawns workers via `multiprocessing.get_context('spawn')`. Falls back to single-threaded for pcapng, small files, or on failure. Can be disabled via `use_parallel=False` for debugging.
+
+pcapng support is best-effort via dpkt. Standard captures (EPB/SPB blocks) work correctly. NRB, DSB, and custom blocks are silently skipped. See roadmap item `pcapng-battle-test`.
 
 ### `parser/protocols/` — Protocol Registry
 
@@ -426,6 +433,8 @@ Max file size: 500MB. Max packets: 2M. Dissector exceptions are caught and logge
 
 **Adding a new dissector:**
 
+See `backend/parser/protocols/dissect_template.py` for a complete starter file.
+
 ```python
 # backend/parser/protocols/dissect_myproto.py
 from typing import Dict, Any
@@ -451,10 +460,62 @@ from . import dissect_myproto  # noqa: F401
 
 And in `constants.py` add to `PROTOCOL_COLORS` and `WELL_KNOWN_PORTS`.
 
+**`scapy_layer` parameter:**
+
+Most dissectors should NOT set `scapy_layer` — they receive a lightweight proxy
+with `haslayer("Raw")` / `pkt["Raw"].load` and parse raw bytes themselves.
+This is fast (no scapy overhead per packet).
+
+Only set `scapy_layer` when your dissector needs a real scapy-parsed object
+(e.g. DNS needs `pkt.haslayer(DNS)` / `pkt[DNS].qd.qname`):
+
+```python
+from scapy.layers.dns import DNS
+@register_dissector("mDNS", scapy_layer=DNS)
+def dissect_mdns(pkt): ...
+```
+
+Currently only DNS, mDNS, and LLMNR use this (all with `scapy_layer=DNS` since
+they share DNS wire format). If you're unsure, don't set it — the proxy works
+for all dissectors that use `haslayer("Raw")`.
+
 **Signature priority guidelines:**
 - 10–15: High-confidence magic bytes (TLS `0x16`, SSH `SSH-`)
 - 20–30: Banner detection (SMTP `220...ESMTP`, DHCP magic cookie)
 - 40–60: Heuristic content patterns
+
+### Writing a Protocol Dissector (Contract)
+
+Dissectors live in `backend/parser/protocols/dissect_<protocol>.py`.
+They are called for all files via the same unified code path (since v0.17.0).
+
+**What the dissector receives:**
+A scapy L5 object. Depending on the protocol:
+- DNS: `DNS(payload_bytes)` — use `pkt.haslayer(DNS)` / `pkt[DNS]`
+- TLS: `TLS(payload_bytes)` — use `pkt.haslayer(TLS)` if scapy-TLS installed
+- Everything else: `Raw(load=bytes)` — use `pkt.haslayer("Raw")` / `pkt["Raw"].load`
+
+Transport-layer quirks are stripped before the dissector is called:
+- TCP DNS: the 2-byte length prefix is removed. You receive clean DNS wire format.
+- Future protocols with TCP prefix: handle it in `l5_dispatch.enrich_l5()`.
+
+**What the dissector does NOT receive:**
+- IP addresses, ports, transport type — those are on PacketRecord already
+- Reassembled TCP stream — you see ONE packet's payload at a time
+- Guaranteed complete payload — the packet may have been captured truncated
+
+**Rules:**
+1. Always return `{}` on any parse failure — never raise an exception
+2. Do not assume the protocol is on its well-known port
+3. Use `pkt.haslayer("Raw")` and `pkt["Raw"].load` to access payload bytes — this works with the lightweight proxy (default, fast) and with real scapy objects
+4. Only add `scapy_layer=SomeClass` to `@register_dissector` if you truly need scapy's parsed object (e.g. DNS). This is slower — avoid unless necessary
+5. Do not import inside functions — module level only
+6. Register with `@register_dissector("PROTOCOL_NAME")`
+
+**Edge cases:**
+- TCP protocols may span multiple packets (streams). You see one packet. Handle partial data gracefully (return partial info rather than `{}`).
+- Non-standard ports: protocol detection runs payload signatures first. Your dissector may be called on traffic from any port.
+- Application layer depends on lower layers. If you need to know whether the transport was TCP or UDP (e.g. for DNS), that decision belongs in `l5_dispatch.py`, not inside the dissector.
 
 ### `parser/oui.py` — MAC Vendor Lookup
 

@@ -75,7 +75,7 @@ def _parse_rr_section(rr, max_count: int) -> List[Dict[str, Any]]:
     return records
 
 
-@register_dissector("DNS")
+@register_dissector("DNS", scapy_layer=DNS)
 def dissect_dns(pkt) -> Dict[str, Any]:
     info = {}
     if not pkt.haslayer(DNS):

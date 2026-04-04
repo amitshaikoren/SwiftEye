@@ -1,5 +1,14 @@
 # SwiftEye — Changelog
 
+### v0.17.0 — April 2026
+- **Unified dpkt reader** — eliminated the dual scapy/dpkt parser split. All pcap/pcapng files now use dpkt for L2/L3/L4 parsing (Ethernet, IP, TCP/UDP, ARP, ICMP) and scapy L5 objects (`DNS(payload)`, `TLS(payload)`, `Raw(load=payload)`) for application-layer dissection via the existing protocol dissectors. One code path for all file sizes — no threshold constant, no dissector parity problem.
+- **New `l5_dispatch.py`** — L5 enrichment module: protocol detection (payload signatures + TLS byte marker), transport-quirk stripping (TCP DNS 2-byte prefix), scapy L5 object construction, dissector dispatch, JA3/JA4 fingerprinting. Clean separation: dpkt owns L2-L4, l5_dispatch owns L5.
+- **Multiprocessing for large pcap files** — new `parallel_reader.py` pre-scans pcap packet header offsets (I/O only, no packet data), splits into N chunks (N = cpu_count, capped at 8), spawns workers via `multiprocessing.get_context('spawn')` (Windows + Linux). Falls back to single-threaded for pcapng, small files (<10K packets), or on failure. Configurable via `use_parallel` parameter.
+- **MAX_FILE_SIZE raised to 2 GB** — scapy memory limit removed since scapy is no longer used for full-packet parsing.
+- **Missing PacketRecord fields filled** — ECN bits (IPv4 + IPv6), `ip_checksum`, `tcp_checksum`, `urg_ptr`, `ip6_flow_label`, SAck TCP option, ARP extra fields (opcode, broadcast flag), ICMP dissector now called via Raw fallback path.
+- **pcapng best-effort** — dpkt.pcapng.Reader handles standard captures (EPB/SPB blocks). NRB, DSB, custom blocks silently skipped. Roadmap item `pcapng-battle-test` added.
+- **ICMPv6 known gap** — ICMPv6 dissector has no raw fallback path; `extra` stays `{}` for ICMPv6 packets. Documented, not blocking.
+
 ### v0.16.0 — April 2026
 - **Storage backend Phase 1** — new `backend/storage/` module with `StorageBackend` ABC and `MemoryBackend` implementation. Replaces three O(n) hot-path scans with O(1) indexed lookups: session detail packet fetch (was full 2M packet scan, now dict index), session-by-ID lookup (was linear scan, now dict), and time-range session scoping (was full packet scan, now 15-second bucket index). New `EventRecord` dataclass defined as Phase 2 migration target (not yet wired). `session_key` fixed for non-IP packets (ARP, raw L2) — falls back to MAC-pair grouping with `l2|` prefix. Session detail API: `packet_limit` raised from 1000→50000, `packet_offset` param added. Sessions API: limit raised from 5000→100000, `offset` param added. Payload serialization helpers (`_payload_hexdump`, `_payload_entropy`) moved from `store.py` to `storage/serializers.py`.
 
