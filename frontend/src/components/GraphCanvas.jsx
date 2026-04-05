@@ -112,7 +112,7 @@ export default function GraphCanvas({
   onAddNodeAnnotation, onAddEdgeAnnotation,
   onAddSyntheticNode, onAddSyntheticEdge, onDeleteSynthetic, onUnclusterSubnet,
   onExpandCluster, onRelayout, onCreateManualCluster,
-  onStartPathfind, pathfindSource, onPathfindTarget, onCancelPathfind,
+  onStartPathfind, pathfindSource, onPathfindTarget, onCancelPathfind, onAnimate,
   labelThreshold = 0,
   graphWeightMode = 'bytes',
   edgeSizeMode = 'bytes',
@@ -1373,6 +1373,12 @@ resize();draw();
             {/* INVESTIGATE */}
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>}
               onClick={() => { onInvNbRef.current?.(ctxMenu.nodeId); setCtxMenu(null); }}>Investigate neighbours</MenuItem>
+
+            {/* ANIMATE */}
+            {onAnimate && !ctxMenu.isCluster && !ctxMenu.isSubnet && (
+              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6ab4ff" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+                onClick={() => { onAnimate([ctxMenu.nodeId]); setCtxMenu(null); }}>Animate timeline</MenuItem>
+            )}
             {!ctxMenu.isCluster && (
               <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>}
                 onClick={() => { onInvRef.current?.(ctxMenu.nodeId); setCtxMenu(null); }}>Isolate connected graph</MenuItem>

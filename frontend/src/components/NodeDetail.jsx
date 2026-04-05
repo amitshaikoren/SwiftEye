@@ -259,7 +259,7 @@ function useScopeState(key) {
 export default function NodeDetail({
   nodeId, nodes, edges, sessions, pColors, onClear, onSelectNode, onSelectEdge, onSelectSession,
   pluginResults, uiSlots, annotations = [], onSaveNote, onUpdateSynthetic,
-  fullSessions, fullGraph,
+  fullSessions, fullGraph, onAnimate,
 }) {
   const filterCtx = useFilterContext();
   const [scope, setScope] = useScopeState('swifteye_scope_node');
@@ -348,6 +348,19 @@ export default function NodeDetail({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div className="sh" style={{ marginBottom: 0 }}>Node Detail</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {onAnimate && (
+            <button
+              className="btn"
+              onClick={() => onAnimate([nodeId])}
+              style={{
+                background: 'rgba(88,166,255,.08)', borderColor: 'rgba(88,166,255,.28)',
+                color: '#6ab4ff', fontSize: 10, padding: '3px 10px',
+              }}
+              title="Animate session timeline for this node"
+            >
+              ▶ Animate
+            </button>
+          )}
           <ScopePill value={scope} onChange={setScope} />
           <button className="btn" onClick={onClear}>✕</button>
         </div>

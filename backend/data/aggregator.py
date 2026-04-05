@@ -766,3 +766,94 @@ def _is_private(ip: str) -> bool:
         return a.is_private
     except Exception:
         return False
+
+
+# ── Animation events ─────────────────────────────────────────────────────────
+
+def build_node_session_events(
+    sessions: List[Dict[str, Any]],
+    node_ids: Set[str],
+    protocols: Optional[Set[str]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Build a sorted list of session start/end events for the given node IPs.
+
+    Filters sessions where src OR dst is in node_ids.
+    Optionally filters by protocol set.
+    Returns one "start" event and one "end" event per qualifying session,
+    sorted by time (start events before end events at the same timestamp).
+
+    This is the frame list for the animation timeline — one frame per event.
+    """
+    events: List[Dict[str, Any]] = []
+
+    for s in sessions:
+        src = s.get("src_ip", "")
+        dst = s.get("dst_ip", "")
+        if src not in node_ids and dst not in node_ids:
+            continue
+
+        proto = s.get("protocol", "")
+        if protocols and proto not in protocols:
+            continue
+
+        sid = s.get("id", "")
+        base = {
+            "session_id": sid,
+            "src": src,
+            "dst": dst,
+            "protocol": proto,
+            "bytes": s.get("total_bytes", 0),
+            "packets": s.get("packet_count", 0),
+        }
+
+        events.append({**base, "type": "start", "time": s.get("start_time", 0)})
+        events.append({**base, "type": "end",   "time": s.get("end_time", 0)})
+
+    # Sort by time; at same time, starts before ends (so the session appears before it closes)
+    events.sort(key=lambda e: (e["time"], 0 if e["type"] == "start" else 1))
+
+    return events
+
+
+def build_node_animation_response(
+    sessions: List[Dict[str, Any]],
+    node_ids: Set[str],
+    protocols: Optional[Set[str]] = None,
+    hostname_map: Optional[Dict[str, Set[str]]] = None,
+) -> Dict[str, Any]:
+    """
+    Build the full animation response: events + node metadata for spotlight/neighbour nodes.
+
+    node_ids: the spotlight node IPs.
+    Returns { events, nodes: {ip: {is_spotlight, is_private, hostname, bytes, packets}} }
+    """
+    hn_map = hostname_map or {}
+    events = build_node_session_events(sessions, node_ids, protocols)
+
+    # Collect all IPs that appear in the events (spotlight + neighbours)
+    all_ips: Set[str] = set()
+    ip_bytes: Dict[str, int] = defaultdict(int)
+    ip_packets: Dict[str, int] = defaultdict(int)
+
+    for ev in events:
+        if ev["type"] != "start":
+            continue
+        for ip in (ev["src"], ev["dst"]):
+            all_ips.add(ip)
+            ip_bytes[ip] += ev["bytes"]
+            ip_packets[ip] += ev["packets"]
+
+    nodes: Dict[str, Dict[str, Any]] = {}
+    for ip in all_ips:
+        hostnames = sorted(hn_map.get(ip, set()))
+        nodes[ip] = {
+            "is_spotlight": ip in node_ids,
+            "is_private": _is_private(ip),
+            "hostname": hostnames[0] if hostnames else "",
+            "hostnames": hostnames,
+            "bytes": ip_bytes[ip],
+            "packets": ip_packets[ip],
+        }
+
+    return {"events": events, "nodes": nodes}

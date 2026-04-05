@@ -52,6 +52,11 @@ class SubnetsResponse(BaseModel):
     subnets: Dict[str, List[str]]
 
 
+class NodeAnimationResponse(BaseModel):
+    events: List[Dict[str, Any]]
+    nodes: Dict[str, Dict[str, Any]]
+
+
 class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None

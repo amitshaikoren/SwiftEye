@@ -28,11 +28,15 @@ import {
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
 import { applyClusterView } from '../clusterView';
+import { useAnimationMode } from './useAnimationMode';
 
 const SESSIONS_FETCH_LIMIT = 1000;
 const TIME_RANGE_DEBOUNCE_MS = 300;
 
 export function useCapture() {
+
+  // ── Animation mode (decoupled sub-hook) ─────────────────────────
+  const anim = useAnimationMode();
 
   // ── Capture lifecycle ────────────────────────────────────────────
   const [loaded, setLoaded]   = useState(false);
@@ -1034,5 +1038,8 @@ export function useCapture() {
 
     // Graph setter (used by synthetic add)
     setGraph,
+
+    // Animation mode (decoupled sub-hook)
+    ...anim,
   };
 }

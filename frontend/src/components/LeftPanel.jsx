@@ -231,7 +231,7 @@ export default function LeftPanel({
       {/* Panel switcher */}
       <div style={{ borderTop: '1px solid var(--bd)', marginTop: 10, paddingTop: 10 }}>
         <div className="sh">Panel</div>
-        {[['stats', 'Overview'], ['sessions', 'Sessions'], ['timeline', 'Timeline'], ['query', 'Query'], ['research', 'Research'], ['analysis', 'Analysis ✦'], ['investigation', 'Investigation'], ['visualize', 'Visualize'], ['logs', 'Server Logs'], ['help', 'Help'], ['graph-options', 'Graph Options']].map(([k, l]) => {
+        {[['stats', 'Overview'], ['sessions', 'Sessions'], ['timeline', 'Timeline'], ['query', 'Query'], ['research', 'Research'], ['analysis', 'Analysis ✦'], ['investigation', 'Investigation'], ['visualize', 'Visualize'], ['graph-options', 'Graph Options'], ['logs', 'Server Logs'], ['help', 'Help']].map(([k, l]) => {
           const isActive = rPanel === k && !selNodes.length && !selEdge && !selSession;
           const showBadge = k === 'sessions' && activeSearch && sessionTotal > 0 && sessionFiltered !== sessionTotal;
           return (

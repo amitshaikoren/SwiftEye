@@ -10,6 +10,7 @@ import { fN, fB, fD, fT } from '../utils';
  */
 export default function MultiSelectPanel({
   selectedNodes, nodes, edges, sessions, pColors, onClear, onSelectNode, onSelectEdge, onSelectSession,
+  onAnimate,
 }) {
   const selSet = useMemo(() => new Set(selectedNodes), [selectedNodes]);
 
@@ -116,7 +117,22 @@ export default function MultiSelectPanel({
         <div className="sh" style={{ marginBottom: 0 }}>
           Selection ({selectedNodes.length} nodes)
         </div>
-        <button className="btn" onClick={onClear}>✕</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {onAnimate && (
+            <button
+              className="btn"
+              onClick={() => onAnimate(selectedNodes)}
+              style={{
+                background: 'rgba(88,166,255,.08)', borderColor: 'rgba(88,166,255,.28)',
+                color: '#6ab4ff', fontSize: 10, padding: '3px 10px',
+              }}
+              title="Animate session timeline for selected nodes"
+            >
+              ▶ Animate
+            </button>
+          )}
+          <button className="btn" onClick={onClear}>✕</button>
+        </div>
       </div>
 
       {/* Summary grid */}

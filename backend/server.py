@@ -38,6 +38,7 @@ from routes.query import router as query_router
 from routes.plugins import router as plugins_router
 from routes.investigation import router as investigation_router
 from routes.research import router as research_router
+from routes.animation import router as animation_router
 from routes.utility import router as utility_router, setup_log_handler, _log_buffer
 
 
@@ -122,6 +123,7 @@ app.include_router(query_router)
 app.include_router(plugins_router)
 app.include_router(investigation_router)
 app.include_router(research_router)
+app.include_router(animation_router)
 app.include_router(utility_router)
 
 

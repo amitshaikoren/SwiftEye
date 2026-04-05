@@ -1,5 +1,12 @@
 # SwiftEye — Changelog
 
+### v0.18.0 — April 2026
+- **Node temporal animation** — select one or more nodes on the graph and replay their session activity as a frame-by-frame animation. Backend: `build_node_session_events()` in `aggregator.py`, new `/api/node-animation` endpoint in `routes/animation.py`. Frontend: `useAnimationMode.js` hook (playback state, transport controls, speed 0.5×–5×), `AnimationPane.jsx` (~1100 lines: canvas render, header, scrubber, history panel, options popover, keyboard shortcuts, tooltips). Entry points: right-click context menu on graph nodes ("Animate timeline"), "Animate" button in NodeDetail and MultiSelectPanel.
+- **Animation Phase 2** — focused node filtering (pill row in header to filter edges to one spotlight node when multiple selected), draggable nodes (pointer-capture drag with D3 zoom suppression), right-click context menu on animation nodes (hide node, focus, view details), bulk hide inactive neighbours (options popover button + restore-all badge in header).
+- **Panel nav reorder** — "Graph Options" moved above "Server Logs" and "Help" in the left panel navigation.
+- **Logo navigates overview** — clicking the SwiftEye logo returns to the overview panel (clears selection, stops animation).
+- **14 animation backend tests** — single/multi spotlight, event sorting, protocol filter, response shape, hostname passthrough, bytes aggregation, neighbour inclusion.
+
 ### v0.17.0 — April 2026
 - **Unified dpkt reader** — eliminated the dual scapy/dpkt parser split. All pcap/pcapng files now use dpkt for L2/L3/L4 parsing (Ethernet, IP, TCP/UDP, ARP, ICMP) and scapy L5 objects (`DNS(payload)`, `TLS(payload)`, `Raw(load=payload)`) for application-layer dissection via the existing protocol dissectors. One code path for all file sizes — no threshold constant, no dissector parity problem.
 - **New `l5_dispatch.py`** — L5 enrichment module: protocol detection (payload signatures + TLS byte marker), transport-quirk stripping (TCP DNS 2-byte prefix), scapy L5 object construction, dissector dispatch, JA3/JA4 fingerprinting. Clean separation: dpkt owns L2-L4, l5_dispatch owns L5.

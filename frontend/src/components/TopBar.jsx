@@ -8,7 +8,7 @@ import { VERSION } from '../version.js';
 export default function TopBar({
   fileName, sourceFiles = [], stats, search, setSearch,
   searchResult, onSelectNode, onSelectEdge,
-  onNewFile, onMetadataFile, onSettings,
+  onNewFile, onMetadataFile, onSettings, onLogoClick,
 }) {
   const isMulti = sourceFiles.length > 1;
   const fileTitle = isMulti ? sourceFiles.join('\n') : fileName;
@@ -44,7 +44,11 @@ export default function TopBar({
       height: 54, background: 'var(--bgP)', borderBottom: '1px solid var(--bd)',
       display: 'flex', alignItems: 'center', padding: '0 14px', gap: 10, flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div
+        onClick={onLogoClick}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: onLogoClick ? 'pointer' : 'default' }}
+        title={onLogoClick ? 'Back to overview' : undefined}
+      >
         <img src={logoIconData} alt="SwiftEye icon" style={{ height: 46, objectFit: 'contain' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <img src={logoWordmarkData} alt="SwiftEye" style={{ height: 24, objectFit: 'contain', objectPosition: 'left' }} />

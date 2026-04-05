@@ -257,3 +257,10 @@ export async function deleteSynthetic(id) {
 export async function clearSynthetic() {
   return api('/api/synthetic', { method: 'DELETE' });
 }
+
+export async function fetchNodeAnimation(nodeIds, protocols) {
+  const p = new URLSearchParams();
+  p.set('nodes', nodeIds.join(','));
+  if (protocols) p.set('protocols', protocols);
+  return api(`/api/node-animation?${p}`);
+}

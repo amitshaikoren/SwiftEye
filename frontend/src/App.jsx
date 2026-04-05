@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useCapture } from './hooks/useCapture';
 import { useSettings } from './hooks/useSettings';
-import { FilterContext } from './FilterContext';
+import { FilterContext, toProtocolNames } from './FilterContext';
 import logoFullData from './logoFullData.js';
 import TopBar from './components/TopBar';
 import FilterBar from './components/FilterBar';
@@ -32,6 +32,7 @@ import ClusterDetail from './components/ClusterDetail';
 import PathDetail from './components/PathDetail';
 import QueryBuilder from './components/QueryBuilder';
 import GraphOptionsPanel from './components/GraphOptionsPanel';
+import AnimationPane from './components/AnimationPane';
 
 export default function App() {
   const c = useCapture();
@@ -231,6 +232,10 @@ export default function App() {
             annotations={c.annotations}
             onSaveNote={c.handleSaveNote}
             onUpdateSynthetic={c.handleUpdateSyntheticNode}
+            onAnimate={(nodeIds) => {
+                  const protos = toProtocolNames(c.enabledP, c.allProtocolKeysCountRef.current);
+                  c.startAnimation(nodeIds, protos || undefined);
+                }}
           />
         </>
       );
@@ -243,6 +248,10 @@ export default function App() {
         onSelectNode={c.selectNodePanel}
         onSelectEdge={e => c.handleGSel('edge', e, false)}
         onSelectSession={c.selectSession}
+        onAnimate={(nodeIds) => {
+                  const protos = toProtocolNames(c.enabledP, c.allProtocolKeysCountRef.current);
+                  c.startAnimation(nodeIds, protos || undefined);
+                }}
       />
     );
   } else if (c.pathfindResult) {
@@ -335,6 +344,7 @@ export default function App() {
         onNewFile={() => document.getElementById('pcap-re').click()}
         onMetadataFile={() => document.getElementById('meta-up').click()}
         onSettings={() => setShowSettings(true)}
+        onLogoClick={() => { c.clearAll(); if (c.animActive) c.stopAnimation(); }}
       />
       <FilterBar
         value={c.dfExpr}
@@ -405,8 +415,8 @@ export default function App() {
               {/* Graph area */}
               <div ref={graphContainerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg)' }}>
 
-                {/* Hidden nodes badge */}
-                {c.hiddenNodes.size > 0 && (
+                {/* Hidden nodes badge (hidden in animation mode) */}
+                {!c.animActive && c.hiddenNodes.size > 0 && (
                   <div style={{
                     position: 'absolute', top: c.investigatedIp ? 38 : 8, right: 8, zIndex: 10,
                     display: 'flex', alignItems: 'center', gap: 6,
@@ -419,8 +429,8 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Pathfind pick-target banner */}
-                {c.pathfindSource && (
+                {/* Pathfind pick-target banner (hidden in animation mode) */}
+                {!c.animActive && c.pathfindSource && (
                   <div style={{
                     position: 'absolute', top: 0, left: 0, right: 0, zIndex: 11,
                     background: 'rgba(227,179,65,.12)', borderBottom: '1px solid rgba(227,179,65,.3)',
@@ -441,8 +451,8 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Investigation banner */}
-                {c.investigatedIp && (
+                {/* Investigation banner (hidden in animation mode) */}
+                {!c.animActive && c.investigatedIp && (
                   <div style={{
                     position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
                     background: 'rgba(88,166,255,.12)', borderBottom: '1px solid rgba(88,166,255,.3)',
@@ -467,115 +477,154 @@ export default function App() {
                   </div>
                 )}
 
-                <GraphCanvas
-                  nodes={c.visibleNodes}
-                  edges={c.visibleEdges}
-                  onSelect={c.handleGSel}
-                  onInvestigate={c.handleInvestigate}
-                  onInvestigateNeighbours={c.handleInvestigateNeighbours}
-                  onHideNode={c.handleHideNode}
-                  investigationNodes={c.investigationNodes}
-                  displayFilterNodes={(() => {
-                    const df = c.dfResult?.nodes ?? null;
-                    const sr = c.searchResult?.nodes ?? null;
-                    if (df && sr) return new Set([...df].filter(x => sr.has(x)));
-                    return df || sr;
-                  })()}
-                  displayFilterEdges={(() => {
-                    const df = c.dfResult?.edges ?? null;
-                    const sr = c.searchResult?.edges ?? null;
-                    if (df && sr) return new Set([...df].filter(x => sr.has(x)));
-                    return df || sr;
-                  })()}
-                  selectedNodes={c.selNodes}
-                  selectedEdge={c.selEdge}
-                  pColors={c.pColors}
-                  containerRef={graphContainerRef}
-                  theme={settings.theme}
-                  annotations={c.annotations}
-                  onAddAnnotation={c.handleAddAnnotation}
-                  onUpdateAnnotation={c.handleUpdateAnnotation}
-                  onDeleteAnnotation={c.handleDeleteAnnotation}
-                  onAddNodeAnnotation={c.handleAddNodeAnnotation}
-                  onAddEdgeAnnotation={c.handleAddEdgeAnnotation}
-                  onAddSyntheticNode={c.handleAddSyntheticNode}
-                  onAddSyntheticEdge={c.handleAddSyntheticEdge}
-                  onDeleteSynthetic={c.handleDeleteSynthetic}
-                  onUnclusterSubnet={c.handleUnclusterSubnet}
-                  onExpandCluster={c.handleExpandCluster}
-                  onCreateManualCluster={c.handleCreateManualCluster}
-                  onStartPathfind={c.startPathfind}
-                  pathfindSource={c.pathfindSource}
-                  onPathfindTarget={c.executePathfind}
-                  onCancelPathfind={c.cancelPathfind}
-                  labelThreshold={c.labelThreshold}
-                  graphWeightMode={c.graphWeightMode}
-                  edgeSizeMode={c.edgeSizeMode}
-                  nodeColorMode={c.nodeColorMode}
-                  edgeColorMode={c.edgeColorMode}
-                  nodeColorRules={c.nodeColorRules}
-                  edgeColorRules={c.edgeColorRules}
-                  queryHighlight={queryHighlight}
-                  onClearQueryHighlight={() => setQueryHighlight(null)}
-                />
+                {c.animActive ? (
+                  <AnimationPane
+                    animNodes={c.animNodes}
+                    animEvents={c.animEvents}
+                    animNodeMeta={c.animNodeMeta}
+                    animFrame={c.animFrame}
+                    animPlaying={c.animPlaying}
+                    animSpeed={c.animSpeed}
+                    animOpts={c.animOpts}
+                    frameState={c.frameState}
+                    currentEvent={c.currentEvent}
+                    animTimeRange={c.animTimeRange}
+                    totalFrames={c.totalFrames}
+                    togglePlay={c.togglePlay}
+                    goToFrame={c.goToFrame}
+                    stepForward={c.stepForward}
+                    stepBackward={c.stepBackward}
+                    goToStart={c.goToStart}
+                    goToEnd={c.goToEnd}
+                    setAnimSpeed={c.setAnimSpeed}
+                    setAnimOpts={c.setAnimOpts}
+                    stopAnimation={c.stopAnimation}
+                    mainNodes={c.graph?.nodes || []}
+                    pColors={c.pColors}
+                    onSelectNode={id => id ? c.handleGSel('node', id, false) : c.clearSel()}
+                    onSelectSession={sid => {
+                      const sess = c.sessions.find(s => s.id === sid);
+                      if (sess) c.selectSession(sess);
+                    }}
+                  />
+                ) : (
+                  <GraphCanvas
+                    nodes={c.visibleNodes}
+                    edges={c.visibleEdges}
+                    onSelect={c.handleGSel}
+                    onInvestigate={c.handleInvestigate}
+                    onInvestigateNeighbours={c.handleInvestigateNeighbours}
+                    onHideNode={c.handleHideNode}
+                    investigationNodes={c.investigationNodes}
+                    displayFilterNodes={(() => {
+                      const df = c.dfResult?.nodes ?? null;
+                      const sr = c.searchResult?.nodes ?? null;
+                      if (df && sr) return new Set([...df].filter(x => sr.has(x)));
+                      return df || sr;
+                    })()}
+                    displayFilterEdges={(() => {
+                      const df = c.dfResult?.edges ?? null;
+                      const sr = c.searchResult?.edges ?? null;
+                      if (df && sr) return new Set([...df].filter(x => sr.has(x)));
+                      return df || sr;
+                    })()}
+                    selectedNodes={c.selNodes}
+                    selectedEdge={c.selEdge}
+                    pColors={c.pColors}
+                    containerRef={graphContainerRef}
+                    theme={settings.theme}
+                    annotations={c.annotations}
+                    onAddAnnotation={c.handleAddAnnotation}
+                    onUpdateAnnotation={c.handleUpdateAnnotation}
+                    onDeleteAnnotation={c.handleDeleteAnnotation}
+                    onAddNodeAnnotation={c.handleAddNodeAnnotation}
+                    onAddEdgeAnnotation={c.handleAddEdgeAnnotation}
+                    onAddSyntheticNode={c.handleAddSyntheticNode}
+                    onAddSyntheticEdge={c.handleAddSyntheticEdge}
+                    onDeleteSynthetic={c.handleDeleteSynthetic}
+                    onUnclusterSubnet={c.handleUnclusterSubnet}
+                    onExpandCluster={c.handleExpandCluster}
+                    onCreateManualCluster={c.handleCreateManualCluster}
+                    onStartPathfind={c.startPathfind}
+                    pathfindSource={c.pathfindSource}
+                    onPathfindTarget={c.executePathfind}
+                    onCancelPathfind={c.cancelPathfind}
+                    onAnimate={(nodeIds) => {
+                  const protos = toProtocolNames(c.enabledP, c.allProtocolKeysCountRef.current);
+                  c.startAnimation(nodeIds, protos || undefined);
+                }}
+                    labelThreshold={c.labelThreshold}
+                    graphWeightMode={c.graphWeightMode}
+                    edgeSizeMode={c.edgeSizeMode}
+                    nodeColorMode={c.nodeColorMode}
+                    edgeColorMode={c.edgeColorMode}
+                    nodeColorRules={c.nodeColorRules}
+                    edgeColorRules={c.edgeColorRules}
+                    queryHighlight={queryHighlight}
+                    onClearQueryHighlight={() => setQueryHighlight(null)}
+                  />
+                )}
 
-                {(!c.graph.nodes || c.graph.nodes.length === 0) && (
+                {!c.animActive && (!c.graph.nodes || c.graph.nodes.length === 0) && (
                   <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', color: 'var(--txD)', fontSize: 12 }}>
                     No data matches filters
                   </div>
                 )}
 
-                {/* Cluster legend (only renders when clustering active) */}
-                <ClusterLegend
-                  nodes={c.visibleNodes}
-                  onSelect={c.handleGSel}
-                  clusterNames={c.clusterNames}
-                />
+                {/* Cluster legend (only renders when clustering active, hidden in animation) */}
+                {!c.animActive && (
+                  <ClusterLegend
+                    nodes={c.visibleNodes}
+                    onSelect={c.handleGSel}
+                    clusterNames={c.clusterNames}
+                  />
+                )}
 
-                {/* Legend */}
-                <div style={{
-                  position: 'absolute', bottom: 10, left: 10, background: 'var(--bgP)',
-                  border: '1px solid var(--bd)', borderRadius: 'var(--r)', padding: '6px 10px',
-                  display: 'flex', flexWrap: 'wrap', gap: 7, maxWidth: 500, opacity: 0.9,
-                }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid var(--node-private-s)', display: 'inline-block', background: 'var(--node-private)' }} />
-                    <span style={{ color: 'var(--txM)' }}>Private</span>
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid var(--node-external-s)', display: 'inline-block', background: 'var(--node-external)' }} />
-                    <span style={{ color: 'var(--txM)' }}>External</span>
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, border: '1.5px solid var(--node-subnet-s)', display: 'inline-block', background: 'var(--node-subnet)' }} />
-                    <span style={{ color: 'var(--txM)' }}>Subnet</span>
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                    <span style={{
-                      width: 10, height: 10, display: 'inline-block',
-                      background: 'var(--node-gateway)', border: '1.5px solid var(--node-gateway-s)',
-                      transform: 'rotate(45deg)', borderRadius: 1,
-                    }} />
-                    <span style={{ color: 'var(--txM)' }}>Gateway</span>
-                  </span>
-                  <span style={{ color: 'var(--txD)', fontSize: 9 }}>|</span>
-                  {(() => {
-                    // Extract unique protocol names from composite keys like "4/TCP/HTTPS"
-                    const seen = new Set();
-                    const protos = [];
-                    for (const key of c.enabledP) {
-                      const parts = key.split('/');
-                      const name = parts.length === 3 ? parts[2] : key;
-                      if (!seen.has(name)) { seen.add(name); protos.push(name); }
-                    }
-                    return protos.slice(0, 8).map(p => (
-                      <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9 }}>
-                        <span style={{ width: 10, height: 2.5, background: c.pColors[p] || '#64748b', display: 'inline-block', borderRadius: 1 }} />
-                        <span style={{ color: 'var(--txM)' }}>{p}</span>
-                      </span>
-                    ));
-                  })()}
-                </div>
+                {/* Legend (hidden during animation — AnimationPane has its own) */}
+                {!c.animActive && (
+                  <div style={{
+                    position: 'absolute', bottom: 10, left: 10, background: 'var(--bgP)',
+                    border: '1px solid var(--bd)', borderRadius: 'var(--r)', padding: '6px 10px',
+                    display: 'flex', flexWrap: 'wrap', gap: 7, maxWidth: 500, opacity: 0.9,
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid var(--node-private-s)', display: 'inline-block', background: 'var(--node-private)' }} />
+                      <span style={{ color: 'var(--txM)' }}>Private</span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid var(--node-external-s)', display: 'inline-block', background: 'var(--node-external)' }} />
+                      <span style={{ color: 'var(--txM)' }}>External</span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, border: '1.5px solid var(--node-subnet-s)', display: 'inline-block', background: 'var(--node-subnet)' }} />
+                      <span style={{ color: 'var(--txM)' }}>Subnet</span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
+                      <span style={{
+                        width: 10, height: 10, display: 'inline-block',
+                        background: 'var(--node-gateway)', border: '1.5px solid var(--node-gateway-s)',
+                        transform: 'rotate(45deg)', borderRadius: 1,
+                      }} />
+                      <span style={{ color: 'var(--txM)' }}>Gateway</span>
+                    </span>
+                    <span style={{ color: 'var(--txD)', fontSize: 9 }}>|</span>
+                    {(() => {
+                      const seen = new Set();
+                      const protos = [];
+                      for (const key of c.enabledP) {
+                        const parts = key.split('/');
+                        const name = parts.length === 3 ? parts[2] : key;
+                        if (!seen.has(name)) { seen.add(name); protos.push(name); }
+                      }
+                      return protos.slice(0, 8).map(p => (
+                        <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9 }}>
+                          <span style={{ width: 10, height: 2.5, background: c.pColors[p] || '#64748b', display: 'inline-block', borderRadius: 1 }} />
+                          <span style={{ color: 'var(--txM)' }}>{p}</span>
+                        </span>
+                      ));
+                    })()}
+                  </div>
+                )}
               </div>
 
               {/* Timeline strip */}
