@@ -1,5 +1,12 @@
 # SwiftEye — Changelog
 
+### v0.20.0 — April 2026
+- **Directional edges** — graph edges are now directional (source = initiator, target = responder). Edge ID format: `src|dst|protocol`. A→B and B→A are separate edges representing different traffic flows. This enables accurate port scan detection, per-direction port analysis, and proper attribution of HTTP user-agents.
+- **Separate src/dst ports on edges** — edges carry `src_ports` and `dst_ports` instead of a mixed `ports` set. The `ports` field (union) is kept for backward compatibility. Port scan detection can now distinguish "many dst_ports from few src_ports" directly from the graph.
+- **HTTP user-agents on edges** — edges now carry `http_fwd_user_agents` collected from packet extras. Suspicious UA detection can work from edge data in v0.20.1.
+- **Node↔edge cross-references** — nodes gain `edge_ids` (list of connected edge IDs). `AnalysisContext` gains lazy `node_map` and `edge_map` properties for O(1) lookups. Detectors can navigate from edge → node → other edges without scanning.
+- **Zeek conn_state → has_handshake** — Zeek conn.log adapter now derives `has_handshake` from `conn_state` field (SF/S1/S2/S3/RSTO/RSTR = handshake complete). Port scan TCP detection is now accurate on Zeek data. Sessions respect adapter-provided `has_handshake` without overwriting.
+
 ### v0.19.0 — April 2026
 - **Alerts panel** — new full-width `AlertsPanel` page for security-relevant pattern detection. Four Phase 1 detectors: ARP spoofing (IP claimed by multiple MACs, gratuitous ARP floods), suspicious HTTP user-agents (scripting tools, empty UA), malicious JA3 fingerprints (known malware hashes from `ja3_db.py`, deprecated TLS 1.0/1.1), and port scanning (TCP + UDP, threshold-based with handshake ratio analysis).
 - **Alert plugin tier** — new `AlertPluginBase` in `plugins/alerts/`. Detectors subclass it, implement `detect(ctx) → List[AlertRecord]`, and register in `server.py`. Detectors run after graph build, reading from the same `AnalysisContext` as analysis plugins. `AlertRecord` dataclass: id, title, subtitle, severity (high/medium/low/info), detector name, source (detector/external), timestamp, src/dst IPs, evidence rows, and node/edge/session ID lists for graph navigation.

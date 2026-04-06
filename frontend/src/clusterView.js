@@ -111,6 +111,10 @@ export function applyClusterView(nodes, edges, clusters, exclusions) {
       existing.packet_count += e.packet_count || 0;
       const portSet = new Set([...(existing.ports || []), ...(e.ports || [])]);
       existing.ports = [...portSet].slice(0, 20);
+      const srcPortSet = new Set([...(existing.src_ports || []), ...(e.src_ports || [])]);
+      existing.src_ports = [...srcPortSet].slice(0, 20);
+      const dstPortSet = new Set([...(existing.dst_ports || []), ...(e.dst_ports || [])]);
+      existing.dst_ports = [...dstPortSet].slice(0, 20);
     } else {
       edgeMap[edgeKey] = {
         ...e,

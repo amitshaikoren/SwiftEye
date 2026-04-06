@@ -215,7 +215,7 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
                 "ack_nums": [],
                 "tcp_options_seen": set(),
                 "tcp_options_detail": [],
-                "has_handshake": False,
+                "has_handshake": None,   # None = not yet determined; adapter or finalization sets it
                 "has_fin": False,
                 "has_reset": False,
                 # Initiator tracking
@@ -347,6 +347,9 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         ex = pkt.extra
         if ex:
             all_accumulate(s, ex, is_from_initiator, ex.get("source_type"))
+            # Adapter-provided has_handshake (e.g. Zeek conn_state mapping)
+            if ex.get("has_handshake") is True:
+                s["has_handshake"] = True
 
     # Post-process sessions
     results = []
@@ -367,9 +370,10 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         # ── Protocol fields (auto-discovered) ──
         all_serialize(s)
 
-        # TCP state detection
+        # TCP state detection (adapter may pre-set has_handshake, e.g. Zeek conn_state)
         fc = s["flag_counts"]
-        s["has_handshake"] = fc.get("SYN", 0) >= 2 and fc.get("ACK", 0) >= 1
+        if s.get("has_handshake") is None:
+            s["has_handshake"] = fc.get("SYN", 0) >= 2 and fc.get("ACK", 0) >= 1
         s["has_fin"] = fc.get("FIN", 0) >= 1
         s["has_reset"] = fc.get("RST", 0) >= 1
         

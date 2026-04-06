@@ -320,7 +320,8 @@ function evalEdgePred(edge, field, op, value) {
           : applyOp(op, edge._dstIp, value)
       ) : false;
     case 'port':
-      return (edge.ports || []).some(p => applyOp(op, p, value));
+      return (edge.src_ports || []).some(p => applyOp(op, p, value))
+          || (edge.dst_ports || []).some(p => applyOp(op, p, value));
     case 'bytes':
       return applyOp(op, edge.total_bytes || 0, value);
     case 'packets':

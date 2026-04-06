@@ -192,7 +192,8 @@ export default function EdgeDetail({ edge: e, pColors, onClear, sessions, nodes 
         <Row l="Packets" v={fN(e.packet_count)} />
         <Row l="Traffic volume" v={fB(e.total_bytes)} />
         {e.first_seen && <Row l="Time range" v={fT(e.first_seen) + ' — ' + fT(e.last_seen)} />}
-        {e.ports?.length > 0 && <Row l="Ports" v={e.ports.slice(0, 10).join(', ') + (e.ports.length > 10 ? '…' : '')} />}
+        {e.dst_ports?.length > 0 && <Row l="Dst ports" v={e.dst_ports.slice(0, 10).join(', ') + (e.dst_ports.length > 10 ? '…' : '')} />}
+        {e.src_ports?.length > 0 && <Row l="Src ports" v={e.src_ports.slice(0, 10).join(', ') + (e.src_ports.length > 10 ? '…' : '')} />}
       </div>
 
       {hasTLS && (

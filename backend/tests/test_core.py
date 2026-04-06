@@ -177,6 +177,70 @@ class TestBuildGraph:
         assert '10.0.0.2' in node_ids
 
 
+class TestDirectionalEdges:
+    """Tests for v0.20.0 edge refactor: directional edges, src/dst ports, cross-refs."""
+
+    def test_edges_are_directional(self, packets):
+        """Edge source should be the packet initiator, not alphabetically sorted."""
+        result = build_graph(packets)
+        edges = result['edges']
+        # 10.0.0.1:1234 → 10.0.0.2:443 (HTTPS) — source should be 10.0.0.1
+        https_edge = [e for e in edges if e['protocol'] == 'HTTPS']
+        assert len(https_edge) == 1
+        assert https_edge[0]['source'] == '10.0.0.1'
+        assert https_edge[0]['target'] == '10.0.0.2'
+
+    def test_edge_id_format(self, packets):
+        """Edge ID should be src|dst|protocol (directional)."""
+        result = build_graph(packets)
+        edges = result['edges']
+        https_edge = [e for e in edges if e['protocol'] == 'HTTPS'][0]
+        assert https_edge['id'] == '10.0.0.1|10.0.0.2|HTTPS'
+
+    def test_src_dst_ports(self, packets):
+        """Edges should have separate src_ports and dst_ports."""
+        result = build_graph(packets)
+        edges = result['edges']
+        https_edge = [e for e in edges if e['protocol'] == 'HTTPS'][0]
+        assert 'src_ports' in https_edge
+        assert 'dst_ports' in https_edge
+        assert 1234 in https_edge['src_ports']
+        assert 443 in https_edge['dst_ports']
+        # Compat field should be union
+        assert 'ports' in https_edge
+        assert set(https_edge['ports']) == set(https_edge['src_ports']) | set(https_edge['dst_ports'])
+
+    def test_node_edge_cross_refs(self, packets):
+        """Nodes should have edge_ids listing their connected edges."""
+        result = build_graph(packets)
+        nodes = result['nodes']
+        edges = result['edges']
+        node_map = {n['id']: n for n in nodes}
+        for n in nodes:
+            assert 'edge_ids' in n, f"Node {n['id']} missing edge_ids"
+        # Node 10.0.0.1 connects to 10.0.0.2 (HTTPS) and 10.0.0.3 (DNS) — at least 2 edges
+        n1 = node_map['10.0.0.1']
+        assert len(n1['edge_ids']) >= 2
+        # Every edge_id in a node should exist in the edge list
+        edge_ids = {e['id'] for e in edges}
+        for n in nodes:
+            for eid in n['edge_ids']:
+                assert eid in edge_ids, f"Node {n['id']} references non-existent edge {eid}"
+
+    def test_http_user_agents_on_edges(self):
+        """Edges should carry http_fwd_user_agents from packet extras."""
+        pkts = [
+            _make_pkt('10.0.0.1', '10.0.0.2', 5000, 80, 'HTTP', 'TCP', 1.0),
+            _make_pkt('10.0.0.1', '10.0.0.2', 5000, 80, 'HTTP', 'TCP', 2.0),
+        ]
+        pkts[0].extra = {"http_user_agent": "python-requests/2.28", "http_host": "example.com"}
+        pkts[1].extra = {"http_user_agent": "curl/7.88", "http_host": "example.com"}
+        result = build_graph(pkts)
+        edges = result['edges']
+        assert len(edges) == 1
+        assert set(edges[0]['http_fwd_user_agents']) == {"python-requests/2.28", "curl/7.88"}
+
+
 class TestBuildTimeBuckets:
     def test_returns_list(self, packets):
         buckets = build_time_buckets(packets)

@@ -115,6 +115,24 @@ class AnalysisContext:
     target_edge_id: Optional[str] = None   # if analysis is for a specific edge
     target_session_id: Optional[str] = None  # if analysis is for a specific session
 
+    # Lazy-built indexes for O(1) lookup by ID
+    _node_map: Optional[dict] = field(default=None, repr=False)
+    _edge_map: Optional[dict] = field(default=None, repr=False)
+
+    @property
+    def node_map(self) -> dict:
+        """Dict[node_id, node_dict] — built lazily on first access."""
+        if self._node_map is None:
+            self._node_map = {n["id"]: n for n in self.nodes} if self.nodes else {}
+        return self._node_map
+
+    @property
+    def edge_map(self) -> dict:
+        """Dict[edge_id, edge_dict] — built lazily on first access."""
+        if self._edge_map is None:
+            self._edge_map = {e["id"]: e for e in self.edges} if self.edges else {}
+        return self._edge_map
+
 
 class PluginBase(ABC):
     """

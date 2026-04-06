@@ -420,14 +420,13 @@ def build_graph(
         src_n["_neighbor_bytes"][dst_id] = src_n["_neighbor_bytes"].get(dst_id, 0) + pkt.orig_len
         dst_n["_neighbor_bytes"][src_id] = dst_n["_neighbor_bytes"].get(src_id, 0) + pkt.orig_len
 
-        # Build edges
-        ek = tuple(sorted([src_id, dst_id]))
-        edge_key = f"{ek[0]}|{ek[1]}|{pkt.protocol}"
+        # Build edges (directional: source = initiator)
+        edge_key = f"{src_id}|{dst_id}|{pkt.protocol}"
         if edge_key not in edge_map:
             edge_map[edge_key] = {
                 "id": edge_key,
-                "source": ek[0],
-                "target": ek[1],
+                "source": src_id,
+                "target": dst_id,
                 "protocol": pkt.protocol,
                 "total_bytes": 0,
                 "packet_count": 0,
@@ -438,8 +437,10 @@ def build_graph(
                 "tls_ciphers": set(),
                 "tls_selected_ciphers": set(),
                 "http_hosts": set(),
+                "http_fwd_user_agents": set(),
                 "dns_queries": set(),
-                "ports": set(),
+                "src_ports": set(),
+                "dst_ports": set(),
                 "ja3_hashes": set(),
                 "ja4_hashes": set(),
                 "has_protocol_conflict": False,
@@ -451,9 +452,9 @@ def build_graph(
         e["packet_count"] += 1
         e["last_seen"] = max(e["last_seen"], pkt.timestamp)
         if pkt.src_port > 0:
-            e["ports"].add(pkt.src_port)
+            e["src_ports"].add(pkt.src_port)
         if pkt.dst_port > 0:
-            e["ports"].add(pkt.dst_port)
+            e["dst_ports"].add(pkt.dst_port)
         # Track protocol detection conflicts
         if pkt.protocol_conflict:
             e["has_protocol_conflict"] = True
@@ -475,6 +476,8 @@ def build_graph(
                     e["tls_ciphers"].add(cs)
             if ex.get("http_host"):
                 e["http_hosts"].add(ex["http_host"])
+            if ex.get("http_user_agent"):
+                e["http_fwd_user_agents"].add(ex["http_user_agent"])
             if ex.get("dns_query"):
                 e["dns_queries"].add(ex["dns_query"])
             if ex.get("ja3"):
@@ -537,6 +540,8 @@ def build_graph(
     
     edges = []
     for e in edge_map.values():
+        src_ports = sorted(e["src_ports"])
+        dst_ports = sorted(e["dst_ports"])
         edge_data = {
             "id": e["id"],
             "source": e["source"],
@@ -546,12 +551,15 @@ def build_graph(
             "packet_count": e["packet_count"],
             "first_seen": e["first_seen"],
             "last_seen": e["last_seen"],
-            "ports": sorted(e["ports"]),
+            "src_ports": src_ports,
+            "dst_ports": dst_ports,
+            "ports": sorted(set(src_ports) | set(dst_ports)),  # compat: union
             "tls_snis": sorted(e["tls_snis"]),
             "tls_versions": sorted(e["tls_versions"]),
             "tls_ciphers": sorted(e["tls_ciphers"])[:EDGE_TLS_CIPHERS],
             "tls_selected_ciphers": sorted(e["tls_selected_ciphers"]),
             "http_hosts": sorted(e["http_hosts"]),
+            "http_fwd_user_agents": sorted(e["http_fwd_user_agents"])[:20],
             "dns_queries": sorted(e["dns_queries"])[:EDGE_DNS_QUERIES],
             "ja3_hashes": sorted(e["ja3_hashes"]),
             "ja4_hashes": sorted(e["ja4_hashes"]),
@@ -562,6 +570,17 @@ def build_graph(
             edge_data["protocol_by_payload"] = sorted(e["protocol_by_payload"])
         edges.append(edge_data)
     
+    # ── Cross-references: node.edge_ids ←→ edge.source/target ────────────
+    node_id_set = {n["id"] for n in nodes}
+    node_edge_map = {n["id"]: [] for n in nodes}
+    for e in edges:
+        if e["source"] in node_edge_map:
+            node_edge_map[e["source"]].append(e["id"])
+        if e["target"] in node_edge_map:
+            node_edge_map[e["target"]].append(e["id"])
+    for n in nodes:
+        n["edge_ids"] = node_edge_map[n["id"]]
+
     # ── Post-filter: remove external IPv6 nodes when include_ipv6=False ──
     # The packet-level IPv6 filter (above) keeps packets where at least one
     # resolved endpoint is IPv4 — this is correct for preserving merged

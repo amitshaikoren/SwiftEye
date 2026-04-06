@@ -163,9 +163,15 @@ class ZeekConnAdapter(IngestionAdapter):
         # Determine IP version
         ip_version = 6 if ":" in src_ip else 4
 
+        # Derive has_handshake from Zeek conn_state
+        conn_state = row.get("conn_state", "-")
+        # SF=normal, S1=SYN+SYN/ACK, S2/S3=established variants, RSTO/RSTR=reset after established
+        has_handshake = conn_state in ("SF", "S1", "S2", "S3", "RSTO", "RSTR")
+
         # Build extra dict with Zeek-specific fields
         extra: Dict[str, Any] = {
             "source_type": "zeek",
+            "has_handshake": has_handshake,
         }
         # Always include these Zeek fields
         for field in ("uid", "conn_state", "history", "duration",

@@ -265,6 +265,8 @@ def collapse_clusters(
             existing["total_bytes"] += e.get("total_bytes", 0)
             existing["packet_count"] += e.get("packet_count", 0)
             existing["ports"] = sorted(set(existing.get("ports", []) + e.get("ports", [])))[:20]
+            existing["src_ports"] = sorted(set(existing.get("src_ports", []) + e.get("src_ports", [])))[:20]
+            existing["dst_ports"] = sorted(set(existing.get("dst_ports", []) + e.get("dst_ports", [])))[:20]
         else:
             edge_map[edge_key] = {
                 **e,
