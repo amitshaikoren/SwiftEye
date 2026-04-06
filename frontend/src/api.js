@@ -258,6 +258,10 @@ export async function clearSynthetic() {
   return api('/api/synthetic', { method: 'DELETE' });
 }
 
+export async function fetchAlerts() {
+  return api('/api/alerts').catch(() => ({ alerts: [], summary: {} }));
+}
+
 export async function fetchNodeAnimation(nodeIds, protocols) {
   const p = new URLSearchParams();
   p.set('nodes', nodeIds.join(','));

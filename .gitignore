@@ -15,3 +15,9 @@ toggle_mockup.html
 graph_options_mockup.html
 swifteye_external_review.md
 DB_PHASE1_PLAN.md
+ALERTS_PANEL_PLAN.md
+ALERTS_PHASE2_PLAN.md
+DPKT_UNIFIED_PLAN.md
+alerts_panel_mockup.html
+animation_mode_mockup.html
+backend/routes/_demo_alerts.py

@@ -18,6 +18,11 @@ from data import build_graph, build_sessions, compute_global_stats, filter_packe
 from plugins import register_plugin, run_global_analysis, get_global_results, AnalysisContext, _plugins, _global_results
 from plugins.analyses.node_centrality import NodeCentralityAnalysis
 from plugins.analyses.traffic_characterisation import TrafficCharacterisationAnalysis
+from plugins.alerts.arp_spoofing import ArpSpoofingDetector
+from plugins.alerts.suspicious_ua import SuspiciousUADetector
+from plugins.alerts.malicious_ja3 import MaliciousJA3Detector
+from plugins.alerts.port_scan import PortScanDetector
+from plugins.alerts import run_all_detectors, register_detector
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
@@ -474,3 +479,185 @@ class TestAnalysisPlugins:
         assert '_display' in result
         assert 'summary' in result
         assert result['summary']['total'] == 3
+
+
+# ── Alert detector tests ───────────────────────────────────────────────────
+
+class TestArpSpoofingDetector:
+    def test_ip_claimed_by_multiple_macs(self):
+        """Two ARP packets from different MACs claiming the same IP should trigger a high alert."""
+        t0 = 1700000000.0
+        pkts = [
+            _make_pkt('0.0.0.0', '255.255.255.255', 0, 0, 'ARP', 'ARP', t0,
+                       src_mac='aa:bb:cc:dd:ee:01', dst_mac='ff:ff:ff:ff:ff:ff'),
+            _make_pkt('0.0.0.0', '255.255.255.255', 0, 0, 'ARP', 'ARP', t0 + 1,
+                       src_mac='aa:bb:cc:dd:ee:02', dst_mac='ff:ff:ff:ff:ff:ff'),
+        ]
+        pkts[0].extra = {"arp_opcode": 2, "arp_src_mac": "aa:bb:cc:dd:ee:01", "arp_src_ip": "10.0.0.1", "arp_dst_ip": "10.0.0.1"}
+        pkts[1].extra = {"arp_opcode": 2, "arp_src_mac": "aa:bb:cc:dd:ee:02", "arp_src_ip": "10.0.0.1", "arp_dst_ip": "10.0.0.1"}
+        ctx = AnalysisContext(packets=pkts, sessions=[])
+        ctx.nodes = []
+        ctx.edges = []
+        alerts = ArpSpoofingDetector().detect(ctx)
+        spoof_alerts = [a for a in alerts if a.title == "ARP Spoofing"]
+        assert len(spoof_alerts) == 1
+        assert spoof_alerts[0].severity == "high"
+        assert "10.0.0.1" in spoof_alerts[0].node_ids
+
+    def test_no_spoofing_clean(self):
+        """Single MAC per IP should produce no spoofing alerts."""
+        t0 = 1700000000.0
+        pkts = [
+            _make_pkt('0.0.0.0', '255.255.255.255', 0, 0, 'ARP', 'ARP', t0 + i,
+                       src_mac='aa:bb:cc:dd:ee:01', dst_mac='ff:ff:ff:ff:ff:ff')
+            for i in range(5)
+        ]
+        for p in pkts:
+            p.extra = {"arp_opcode": 1, "arp_src_mac": "aa:bb:cc:dd:ee:01", "arp_src_ip": "10.0.0.1", "arp_dst_ip": "10.0.0.2"}
+        ctx = AnalysisContext(packets=pkts, sessions=[])
+        ctx.nodes = []
+        ctx.edges = []
+        alerts = ArpSpoofingDetector().detect(ctx)
+        spoof_alerts = [a for a in alerts if a.title == "ARP Spoofing"]
+        assert len(spoof_alerts) == 0
+
+
+class TestMaliciousJA3Detector:
+    def test_malicious_ja3_detection(self):
+        """Session with known malware JA3 should produce a high alert."""
+        session = {
+            "session_id": "s1", "protocol": "TLS", "transport": "TCP",
+            "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "start_time": 1700000000.0,
+            "ja3_hashes": ["51c64c77e60f3980eea90869b68c58a8"],  # Metasploit
+            "tls_snis": ["evil.example.com"], "tls_versions": ["TLS 1.2"],
+        }
+        ctx = AnalysisContext(packets=[], sessions=[session])
+        ctx.nodes = []
+        ctx.edges = []
+        alerts = MaliciousJA3Detector().detect(ctx)
+        ja3_alerts = [a for a in alerts if a.title == "Malicious JA3 Fingerprint"]
+        assert len(ja3_alerts) == 1
+        assert ja3_alerts[0].severity == "high"
+
+
+class TestSuspiciousUADetector:
+    def test_scripting_tool_ua(self):
+        """HTTP session with python-requests UA should produce a medium alert."""
+        session = {
+            "session_id": "s1", "protocol": "HTTP", "transport": "TCP",
+            "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "start_time": 1700000000.0,
+            "http_fwd_user_agents": ["python-requests/2.28.0"],
+        }
+        ctx = AnalysisContext(packets=[], sessions=[session])
+        ctx.nodes = []
+        ctx.edges = []
+        alerts = SuspiciousUADetector().detect(ctx)
+        ua_alerts = [a for a in alerts if a.title == "Suspicious User-Agent"]
+        assert len(ua_alerts) == 1
+        assert ua_alerts[0].severity == "medium"
+
+    def test_empty_ua_detection(self):
+        """HTTP session with empty UA list should produce a low alert."""
+        session = {
+            "session_id": "s1", "protocol": "HTTP", "transport": "TCP",
+            "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "start_time": 1700000000.0,
+            "http_fwd_user_agents": [],
+        }
+        ctx = AnalysisContext(packets=[], sessions=[session])
+        ctx.nodes = []
+        ctx.edges = []
+        alerts = SuspiciousUADetector().detect(ctx)
+        empty_alerts = [a for a in alerts if a.title == "Empty User-Agent"]
+        assert len(empty_alerts) == 1
+        assert empty_alerts[0].severity == "low"
+
+
+class TestPortScanDetector:
+    def test_tcp_port_scan_detection(self):
+        """20 TCP sessions to distinct ports with no handshakes should trigger an alert."""
+        sessions = []
+        for port in range(20):
+            sessions.append({
+                "session_id": f"s{port}", "protocol": "TCP", "transport": "TCP",
+                "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2",
+                "dst_port": 1000 + port, "start_time": 1700000000.0 + port,
+                "has_handshake": False,
+            })
+        ctx = AnalysisContext(packets=[], sessions=sessions)
+        ctx.nodes = []
+        ctx.edges = []
+        alerts = PortScanDetector().detect(ctx)
+        scan_alerts = [a for a in alerts if a.title == "TCP Port Scan"]
+        assert len(scan_alerts) == 1
+        assert scan_alerts[0].severity == "medium"  # 20 ports: medium (< 50)
+
+    def test_port_scan_below_threshold(self):
+        """10 sessions to distinct ports should NOT trigger (threshold is 15)."""
+        sessions = []
+        for port in range(10):
+            sessions.append({
+                "session_id": f"s{port}", "protocol": "TCP", "transport": "TCP",
+                "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2",
+                "dst_port": 1000 + port, "start_time": 1700000000.0 + port,
+                "has_handshake": False,
+            })
+        ctx = AnalysisContext(packets=[], sessions=sessions)
+        ctx.nodes = []
+        ctx.edges = []
+        alerts = PortScanDetector().detect(ctx)
+        assert len(alerts) == 0
+
+    def test_udp_port_scan_detection(self):
+        """20 UDP sessions to distinct ports should trigger a UDP scan alert."""
+        sessions = []
+        for port in range(20):
+            sessions.append({
+                "session_id": f"s{port}", "protocol": "DNS", "transport": "UDP",
+                "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2",
+                "dst_port": 2000 + port, "start_time": 1700000000.0 + port,
+            })
+        ctx = AnalysisContext(packets=[], sessions=sessions)
+        ctx.nodes = []
+        ctx.edges = []
+        alerts = PortScanDetector().detect(ctx)
+        udp_alerts = [a for a in alerts if a.title == "UDP Port Scan"]
+        assert len(udp_alerts) == 1
+        assert udp_alerts[0].severity == "medium"
+
+
+class TestAlertSortOrder:
+    def test_severity_sort_order(self):
+        """Alerts should be sorted high -> medium -> low -> info."""
+        sessions = [
+            # This triggers a low alert (empty UA)
+            {"session_id": "s1", "protocol": "HTTP", "transport": "TCP",
+             "src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "start_time": 1700000000.0,
+             "http_fwd_user_agents": []},
+            # This triggers a medium alert (python-requests)
+            {"session_id": "s2", "protocol": "HTTP", "transport": "TCP",
+             "src_ip": "10.0.0.3", "dst_ip": "10.0.0.4", "start_time": 1700000001.0,
+             "http_fwd_user_agents": ["python-requests/2.28"]},
+            # This triggers a high alert (malware JA3)
+            {"session_id": "s3", "protocol": "TLS", "transport": "TCP",
+             "src_ip": "10.0.0.5", "dst_ip": "10.0.0.6", "start_time": 1700000002.0,
+             "ja3_hashes": ["51c64c77e60f3980eea90869b68c58a8"],
+             "tls_snis": [], "tls_versions": ["TLS 1.2"]},
+        ]
+        ctx = AnalysisContext(packets=[], sessions=sessions)
+        ctx.nodes = []
+        ctx.edges = []
+        # Run individual detectors and combine via run_all_detectors pattern
+        all_alerts = []
+        all_alerts.extend(a.to_dict() for a in SuspiciousUADetector().detect(ctx))
+        all_alerts.extend(a.to_dict() for a in MaliciousJA3Detector().detect(ctx))
+        # Sort same way as run_all_detectors
+        sev_order = {"high": 0, "medium": 1, "low": 2, "info": 3}
+        all_alerts.sort(key=lambda a: (sev_order.get(a["severity"], 9), a.get("timestamp") or 0))
+        assert len(all_alerts) >= 3
+        severities = [a["severity"] for a in all_alerts]
+        # Verify ordering: all highs before mediums before lows
+        prev_rank = -1
+        for sev in severities:
+            rank = sev_order[sev]
+            assert rank >= prev_rank, f"Sort violation: {sev} after higher-ranked severity"
+            prev_rank = rank

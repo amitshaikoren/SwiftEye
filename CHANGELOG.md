@@ -1,5 +1,13 @@
 # SwiftEye — Changelog
 
+### v0.19.0 — April 2026
+- **Alerts panel** — new full-width `AlertsPanel` page for security-relevant pattern detection. Four Phase 1 detectors: ARP spoofing (IP claimed by multiple MACs, gratuitous ARP floods), suspicious HTTP user-agents (scripting tools, empty UA), malicious JA3 fingerprints (known malware hashes from `ja3_db.py`, deprecated TLS 1.0/1.1), and port scanning (TCP + UDP, threshold-based with handshake ratio analysis).
+- **Alert plugin tier** — new `AlertPluginBase` in `plugins/alerts/`. Detectors subclass it, implement `detect(ctx) → List[AlertRecord]`, and register in `server.py`. Detectors run after graph build, reading from the same `AnalysisContext` as analysis plugins. `AlertRecord` dataclass: id, title, subtitle, severity (high/medium/low/info), detector name, source (detector/external), timestamp, src/dst IPs, evidence rows, and node/edge/session ID lists for graph navigation.
+- **`/api/alerts` endpoint** — returns all alerts sorted by severity (high→medium→low→info), plus a summary object with per-severity counts. New `routes/alerts.py` router.
+- **Alerts in store** — `store.alerts` populated after graph build, cleared on new upload. `run_alert_detectors()` added to `services/capture.py` pipeline.
+- **AlertsPanel UI** — severity filter pills (All/High/Medium/Low/Info), smart search (matches IP, detector, title, subtitle, evidence values), sort by severity/time/detector. Expandable alert cards with evidence key/value rows. "Show in graph" button highlights involved nodes/edges using the existing `queryHighlight` mechanism.
+- **Nav integration** — Alerts item in left panel with red badge showing high+medium count. Badge only shown when count > 0.
+
 ### v0.18.0 — April 2026
 - **Node temporal animation** — select one or more nodes on the graph and replay their session activity as a frame-by-frame animation. Backend: `build_node_session_events()` in `aggregator.py`, new `/api/node-animation` endpoint in `routes/animation.py`. Frontend: `useAnimationMode.js` hook (playback state, transport controls, speed 0.5×–5×), `AnimationPane.jsx` (~1100 lines: canvas render, header, scrubber, history panel, options popover, keyboard shortcuts, tooltips). Entry points: right-click context menu on graph nodes ("Animate timeline"), "Animate" button in NodeDetail and MultiSelectPanel.
 - **Animation Phase 2** — focused node filtering (pill row in header to filter edges to one spotlight node when multiple selected), draggable nodes (pointer-capture drag with D3 zoom suppression), right-click context menu on animation nodes (hide node, focus, view details), bulk hide inactive neighbours (options popover button + restore-all badge in header).

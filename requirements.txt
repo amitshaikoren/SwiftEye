@@ -14,4 +14,4 @@ networkx>=3.0
 # plotly is not imported by the core server — research charts build figure dicts manually
 # so Plotly.js on the frontend can render them without a Python dependency.
 # Install if you want to write new research charts using plotly.graph_objects:
-# plotly>=5.0.0
+plotly>=5.0.0

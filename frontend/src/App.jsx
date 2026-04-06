@@ -33,6 +33,7 @@ import PathDetail from './components/PathDetail';
 import QueryBuilder from './components/QueryBuilder';
 import GraphOptionsPanel from './components/GraphOptionsPanel';
 import AnimationPane from './components/AnimationPane';
+import AlertsPanel from './components/AlertsPanel';
 
 export default function App() {
   const c = useCapture();
@@ -372,6 +373,7 @@ export default function App() {
           activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
           osGuesses={c.osGuesses}
           queryActive={!!queryHighlight}
+          alertSummary={c.alerts.summary}
         />
 
         {c.rPanel === 'research' ? (
@@ -401,6 +403,20 @@ export default function App() {
             sessions={c.sessions}
             pColors={c.pColors}
             onSelectNode={c.selectNodePanel}
+          />
+        ) : c.rPanel === 'alerts' ? (
+          /* ALERTS PAGE — full width, security pattern findings */
+          <AlertsPanel
+            alerts={c.alerts.alerts}
+            summary={c.alerts.summary}
+            onShowInGraph={(alert) => {
+              const nodes = new Set(alert.node_ids || []);
+              const edges = new Set(alert.edge_ids || []);
+              if (nodes.size || edges.size) {
+                setQueryHighlight({ nodes, edges });
+              }
+              c.switchPanel('stats');
+            }}
           />
         ) : c.rPanel === 'investigation' ? (
           /* INVESTIGATION PAGE — markdown notebook */

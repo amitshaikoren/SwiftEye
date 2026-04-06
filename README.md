@@ -38,6 +38,8 @@ Node.js is not required to run SwiftEye. The frontend is pre-built.
 
 **Analysis** — graph-wide computations: node centrality ranking, traffic characterisation (foreground/background/ambiguous sessions with per-session evidence).
 
+**Alerts** — security-relevant pattern detection: ARP spoofing, suspicious user-agents, malicious JA3 fingerprints, port scanning. Expandable evidence cards with severity filtering, smart search, and one-click graph navigation to involved nodes/edges.
+
 **Filtering** — three independent layers: backend filters (IP, port, protocol, time range), a Wireshark-style display filter bar evaluated client-side, and per-node investigation mode. The query engine also translates expressions to SQL, Cypher, and PySpark for downstream use.
 
 **Visualize** — upload any CSV/TSV/JSON and map columns to a force-directed graph. No capture needed. Useful for AD trust relationships, firewall rules, certificate chains, BGP paths, or any relational data.
@@ -77,6 +79,7 @@ SwiftEye is designed to be extended without touching core code.
 - **Insight plugins** — annotate graph nodes with computed properties (OS fingerprint, hostname, role).
 - **Analysis plugins** — graph-wide computations that render on the Analysis page automatically.
 - **Research charts** — subclass `ResearchChart`, implement `compute()`, register in `server.py`. The full Plotly API is available.
+- **Alert detectors** — subclass `AlertPluginBase`, implement `detect(ctx)`, register in `server.py`. Findings appear on the Alerts page automatically.
 
 See `DEVELOPERS.md` for full extension documentation.
 

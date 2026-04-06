@@ -23,7 +23,7 @@ import {
   uploadPcap, uploadMetadata,
   fetchAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
   fetchSynthetic, createSynthetic, updateSynthetic, deleteSynthetic,
-  fetchPaths,
+  fetchPaths, fetchAlerts,
 } from '../api';
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
@@ -142,6 +142,7 @@ export function useCapture() {
   // ── Annotations & synthetic ───────────────────────────────────────
   const [annotations, setAnnotations] = useState([]);
   const [synthetic, setSynthetic]     = useState([]);
+  const [alerts, setAlerts]           = useState({ alerts: [], summary: {} });
 
   // ── Selection & UI routing ────────────────────────────────────────
   const [selNodes, setSelNodes]   = useState([]);
@@ -554,10 +555,10 @@ export function useCapture() {
         .forEach(k => localStorage.removeItem(k));
     } catch {}
 
-    const [sd, td, pd, ss, pr, ps, an, sy] = await Promise.all([
+    const [sd, td, pd, ss, pr, ps, an, sy, al] = await Promise.all([
       fetchStats(), fetchTimeline(), fetchProtocols(),
       fetchSessions(), fetchPluginResults(), fetchPluginSlots(),
-      fetchAnnotations(), fetchSynthetic(),
+      fetchAnnotations(), fetchSynthetic(), fetchAlerts(),
     ]);
     setStats(sd.stats);
     setTimeline(td.buckets);
@@ -592,6 +593,7 @@ export function useCapture() {
     setPluginSlots(ps.ui_slots || []);
     setAnnotations(an.annotations || []);
     setSynthetic(sy.synthetic || []);
+    setAlerts(al || { alerts: [], summary: {} });
     setLoaded(true);
   }
 
@@ -1011,6 +1013,9 @@ export function useCapture() {
     annotations,
     handleAddAnnotation, handleUpdateAnnotation, handleDeleteAnnotation,
     handleAddNodeAnnotation, handleAddEdgeAnnotation,
+
+    // Alerts
+    alerts, setAlerts,
 
     // Synthetic
     handleAddSyntheticNode, handleAddSyntheticEdge, handleDeleteSynthetic,

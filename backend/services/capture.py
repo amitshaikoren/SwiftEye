@@ -11,6 +11,7 @@ import logging
 from data import build_graph
 from plugins import AnalysisContext, run_global_analysis, get_global_results
 from plugins.analyses import run_all_analyses
+from plugins.alerts import run_all_detectors
 from store import store
 
 logger = logging.getLogger("swifteye.services")
@@ -51,6 +52,23 @@ def build_analysis_graph_and_run():
     logger.info(f"  Unfiltered graph: {len(unfiltered['nodes'])} nodes, {len(unfiltered['edges'])} edges in {time.time()-t0:.2f}s")
 
     run_analyses()
+    run_alert_detectors()
+
+
+def run_alert_detectors():
+    """Run all registered alert detectors against the current capture."""
+    if not store.is_loaded or not store.graph_cache:
+        return
+    logger.info("Running alert detectors...")
+    t0 = time.time()
+    ctx = AnalysisContext(
+        packets=store.packets,
+        sessions=store.sessions,
+        nodes=store.graph_cache.get("nodes", []),
+        edges=store.graph_cache.get("edges", []),
+    )
+    store.alerts = run_all_detectors(ctx)
+    logger.info(f"  Alert detectors: {len(store.alerts)} findings in {time.time()-t0:.2f}s")
 
 
 def run_analyses():

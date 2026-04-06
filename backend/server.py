@@ -31,6 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from plugins import register_plugin
 from plugins.analyses import register_analysis
+from plugins.alerts import register_detector
 from research import register_chart
 
 from routes.data import router as data_router
@@ -39,6 +40,7 @@ from routes.plugins import router as plugins_router
 from routes.investigation import router as investigation_router
 from routes.research import router as research_router
 from routes.animation import router as animation_router
+from routes.alerts import router as alerts_router
 from routes.utility import router as utility_router, setup_log_handler, _log_buffer
 
 
@@ -115,6 +117,13 @@ _dynamic_register([
     ("research.http_ua_timeline",       "HTTPUserAgentTimeline"),
 ], register_chart, "research chart")
 
+_dynamic_register([
+    ("plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
+    ("plugins.alerts.suspicious_ua", "SuspiciousUADetector"),
+    ("plugins.alerts.malicious_ja3", "MaliciousJA3Detector"),
+    ("plugins.alerts.port_scan",     "PortScanDetector"),
+], register_detector, "alert detector")
+
 
 # ── Mount routers ─────────────────────────────────────────────────────────────
 
@@ -124,6 +133,7 @@ app.include_router(plugins_router)
 app.include_router(investigation_router)
 app.include_router(research_router)
 app.include_router(animation_router)
+app.include_router(alerts_router)
 app.include_router(utility_router)
 
 

@@ -1,6 +1,6 @@
 # SwiftEye Developer Documentation
 
-**Version 0.16.0 | April 2026**
+**Version 0.19.0 | April 2026**
 
 > **Doc maintenance rule:** Update this file whenever you touch architecture, extension points, API contracts, or developer-facing patterns. Update the version header when cutting a release. Stale docs are worse than no docs.
 
@@ -34,7 +34,7 @@ SwiftEye is a network traffic visualization platform for security researchers. I
 
 **What it does**: Displays network traffic visually — who talked to whom, over what protocols, with what TCP behavior. Researchers bring the expertise; SwiftEye shows the data.
 
-**What the core does NOT do**: Make security judgments, flag threats, or generate alerts. The core viewer and analysis layers present evidence for the researcher to interpret. Threat detection, alerting, and security scoring belong in the plugin system — specifically the analyses tier (graph-wide computation), where they can correlate across sessions and nodes without polluting the core viewer.
+**What the core does NOT do**: Make security judgments or generate verdicts. The core viewer and analysis layers present evidence for the researcher to interpret. Pattern detection and alerting belong in the plugin system — the **alerts tier** (`plugins/alerts/`) surfaces security-relevant patterns as evidence cards, never as verdicts. Descriptions say "may indicate X", never "this is X".
 
 **Long-term vision**: SwiftEye's single-capture, single-user mode is Phase 1. The platform will grow into a **multi-capture, multi-user data platform** where teams of researchers work across many captures, correlate findings, and query at scale. Architectural decisions today (engine-agnostic query contracts, stateless graph building, plugin isolation) are made with this future in mind. See HANDOFF.md §6 "Long-term vision: multi-capture platform" for the full roadmap.
 
@@ -112,10 +112,16 @@ swifteye/
 │   │   │   ├── dns_resolver.py      # DNS hostname resolution from capture
 │   │   │   ├── network_map.py       # ARP table, gateway detection, LAN hosts
 │   │   │   └── node_merger.py       # MAC-based node merging (pre-aggregation)
-│   │   └── analyses/                # Graph-wide computation
-│   │       ├── __init__.py          # AnalysisPluginBase, registry
-│   │       ├── node_centrality.py   # Degree + betweenness + traffic ranking
-│   │       └── traffic_characterisation.py  # Session fg/bg/ambiguous classification
+│   │   ├── analyses/                # Graph-wide computation
+│   │   │   ├── __init__.py          # AnalysisPluginBase, registry
+│   │   │   ├── node_centrality.py   # Degree + betweenness + traffic ranking
+│   │   │   └── traffic_characterisation.py  # Session fg/bg/ambiguous classification
+│   │   └── alerts/                  # Security pattern detectors
+│   │       ├── __init__.py          # AlertRecord, AlertPluginBase, registry, run_all_detectors()
+│   │       ├── arp_spoofing.py      # Multi-MAC IP claims, gratuitous ARP floods
+│   │       ├── suspicious_ua.py     # Scripting tool UAs, empty UA
+│   │       ├── malicious_ja3.py     # Known malware JA3 hashes, deprecated TLS
+│   │       └── port_scan.py         # TCP + UDP port scanning detection
 │   ├── tests/                       # Pytest test suite
 │   │   └── test_core.py             # Core path + regression + plugin tests
 │   └── research/                    # LAYER 4: On-demand Plotly charts
@@ -798,6 +804,7 @@ App.jsx (layout + routing only)
     ├── SessionsTable.jsx    — has own local search, debounced independent fetch
     ├── ResearchPage.jsx     — ChartErrorBoundary wraps each ChartCard
     ├── TimelinePanel.jsx
+    ├── AlertsPanel.jsx      — Alerts page: security pattern findings with severity filter, search, evidence cards
     ├── AnalysisPage.jsx     — AI analysis (skeleton); full-width like Research
     ├── HelpPanel.jsx
     └── LogsPanel.jsx
@@ -872,11 +879,23 @@ Defined inline in both `EdgeDetail.jsx` and `SessionDetail.jsx`. Renders a JA3 h
 
 ### Architecture
 
-The plugin system has two tiers:
+The plugin system has three tiers:
 
 **Insights** (`plugins/insights/`) — per-node/per-session interpretation. Each insight subclasses `PluginBase`, declares UI slots, and implements `analyze_global()`. They run once on pcap load and annotate nodes/edges/sessions. Researchers interact with insight data in NodeDetail, EdgeDetail, and StatsPanel.
 
 **Analyses** (`plugins/analyses/`) — graph-wide computation. Each analysis subclasses `AnalysisPluginBase`, implements `compute(ctx)`, and returns data with `_display` lists. They run lazily after the first graph build and are rendered as expandable cards on the Analysis page. Researchers add new analyses by writing a single Python file — no frontend code needed.
+
+**Alerts** (`plugins/alerts/`) — security pattern detection. Each detector subclasses `AlertPluginBase`, implements `detect(ctx) → List[AlertRecord]`, and returns evidence-based findings. They run after graph build (after analyses) and are rendered as expandable cards on the Alerts page. Philosophy: alerts surface patterns for the researcher to investigate, never verdicts. Descriptions say "may indicate X", not "this is X".
+
+**Two alert sources (architectural context):**
+- **Generated alerts (Phase 1):** detectors run on capture data inside SwiftEye. `AlertPluginBase` plugins receive `ctx`, find patterns, return `AlertRecord` objects.
+- **Provided alerts (future):** pre-formed alerts from external systems (e.g. Suricata `eve.json`). Ingested via the adapter system, not derived by SwiftEye. `AlertRecord.source` distinguishes: `"detector"` vs `"external"`.
+
+**Future extension points:**
+- `AlertPluginBase.get_charts()` — optional method to declare per-detector Research panel charts (scope 1: per-instance, scope 2: same-type aggregate). Not yet implemented.
+- Scope 3 cross-type charts live as standalone `ResearchChart` subclasses in `research/alerts/`, reading `store.alerts` directly.
+- Alert correlation — grouping related `AlertRecord` objects into higher-level findings (Phase 2).
+- Graph-structural detectors — lateral movement, beaconing, DNS tunneling using graph topology as signal (Phase 3).
 
 All plugin execution is isolated in try/except. A crashing plugin logs an error and is skipped — it never affects the core viewer or other plugins.
 
@@ -947,6 +966,72 @@ Register in `server.py`'s `_register_analyses()`:
 ```python
 ("plugins.analyses.my_analysis", "MyAnalysis"),
 ```
+
+### Creating an Alert Detector
+
+```python
+# backend/plugins/alerts/my_detector.py
+import uuid
+from plugins.alerts import AlertPluginBase, AlertRecord
+
+class MyDetector(AlertPluginBase):
+    name    = "my_detector"
+    version = "1.0"
+
+    def detect(self, ctx):
+        # ctx has: packets, sessions, nodes, edges
+        alerts = []
+        for s in ctx.sessions:
+            if s.get("protocol") == "HTTP" and not s.get("http_fwd_user_agents"):
+                alerts.append(AlertRecord(
+                    id=uuid.uuid4().hex[:8],
+                    title="Empty User-Agent",
+                    subtitle=f"HTTP session with no UA from {s.get('src_ip')}",
+                    severity="low",
+                    detector=self.name,
+                    source="detector",
+                    source_name=self.name,
+                    timestamp=s.get("start_time"),
+                    src_ip=s.get("src_ip"),
+                    dst_ip=s.get("dst_ip"),
+                    evidence=[{"key": "Sessions", "value": "1", "note": "No UA string"}],
+                    node_ids=[s.get("src_ip")],
+                ))
+        return alerts
+```
+
+Register in `server.py`'s detector registration block:
+```python
+("plugins.alerts.my_detector", "MyDetector"),
+```
+
+**`AlertRecord` fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `str` | Unique ID (uuid4 hex, 8 chars) |
+| `title` | `str` | Detector type name, e.g. "ARP Spoofing" |
+| `subtitle` | `str` | One-line finding, e.g. "IP claimed by 2 MACs" |
+| `severity` | `str` | `"high"` / `"medium"` / `"low"` / `"info"` |
+| `detector` | `str` | Plugin name, e.g. `"arp_spoofing"` |
+| `source` | `str` | `"detector"` (generated) or `"external"` (provided) |
+| `source_name` | `str` | Human-readable source name |
+| `timestamp` | `float?` | Epoch of first triggering packet/session |
+| `src_ip` | `str?` | Primary involved IP |
+| `dst_ip` | `str?` | Secondary involved IP |
+| `evidence` | `list` | List of `{"key": str, "value": str, "note": str}` |
+| `node_ids` | `list` | IPs involved (for graph highlight) |
+| `edge_ids` | `list` | Edge IDs involved |
+| `session_ids` | `list` | Session IDs involved |
+
+### Existing Alert Detectors
+
+| Detector | File | Severity | Description |
+|----------|------|----------|-------------|
+| `arp_spoofing` | `alerts/arp_spoofing.py` | high/medium | IP claimed by multiple MACs, gratuitous ARP floods |
+| `suspicious_ua` | `alerts/suspicious_ua.py` | medium/low | Scripting tool UAs (curl, nmap, etc.), empty UA |
+| `malicious_ja3` | `alerts/malicious_ja3.py` | high/low | Known malware JA3 hashes, deprecated TLS 1.0/1.1 |
+| `port_scan` | `alerts/port_scan.py` | high/medium | TCP + UDP port scanning (threshold-based) |
 
 ### Display Primitives
 
@@ -1051,6 +1136,12 @@ When any endpoint accepts `time_start`/`time_end`, sessions are scoped by checki
 | `GET` | `/api/analysis` | Registered analysis plugins (metadata, no capture required) |
 | `GET` | `/api/analysis/results` | All analysis results. Runs lazily on first graph build. |
 | `POST` | `/api/analysis/rerun` | Force re-run all analyses (e.g. after graph filters change) |
+
+### Alert Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/alerts` | All alerts sorted by severity + summary counts. Returns `{alerts: [...], summary: {high, medium, low, info, total}}`. Requires loaded capture. |
 
 ### Research Endpoints
 

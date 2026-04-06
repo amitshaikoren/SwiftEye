@@ -7,6 +7,7 @@ export default function LeftPanel({
   sessionTotal = 0, sessionFiltered = 0, activeSearch = '',
   onApplyDisplayFilter, activeOsFilter, osGuesses = [],
   queryActive = false,
+  alertSummary = {},
 }) {
   const [collapsed, setCollapsed] = useState({});
   const toggle = k => setCollapsed(c => ({ ...c, [k]: !c[k] }));
@@ -231,7 +232,7 @@ export default function LeftPanel({
       {/* Panel switcher */}
       <div style={{ borderTop: '1px solid var(--bd)', marginTop: 10, paddingTop: 10 }}>
         <div className="sh">Panel</div>
-        {[['stats', 'Overview'], ['sessions', 'Sessions'], ['timeline', 'Timeline'], ['query', 'Query'], ['research', 'Research'], ['analysis', 'Analysis ✦'], ['investigation', 'Investigation'], ['visualize', 'Visualize'], ['graph-options', 'Graph Options'], ['logs', 'Server Logs'], ['help', 'Help']].map(([k, l]) => {
+        {[['stats', 'Overview'], ['sessions', 'Sessions'], ['timeline', 'Timeline'], ['query', 'Query'], ['research', 'Research'], ['analysis', 'Analysis ✦'], ['alerts', 'Alerts'], ['investigation', 'Investigation'], ['visualize', 'Visualize'], ['graph-options', 'Graph Options'], ['logs', 'Server Logs'], ['help', 'Help']].map(([k, l]) => {
           const isActive = rPanel === k && !selNodes.length && !selEdge && !selSession;
           const showBadge = k === 'sessions' && activeSearch && sessionTotal > 0 && sessionFiltered !== sessionTotal;
           return (
@@ -256,6 +257,17 @@ export default function LeftPanel({
                   background: '#f0883e', flexShrink: 0,
                 }} />
               )}
+              {k === 'alerts' && (() => {
+                const ac = (alertSummary.high || 0) + (alertSummary.medium || 0);
+                return ac > 0 ? (
+                  <span style={{
+                    fontSize: 8, fontFamily: 'var(--fn)', fontWeight: 700,
+                    color: '#f85149',
+                    background: 'rgba(248,81,73,.10)', borderRadius: 10, padding: '1px 6px',
+                    border: '1px solid rgba(248,81,73,.28)', flexShrink: 0,
+                  }}>{ac}</span>
+                ) : null;
+              })()}
               {k === 'visualize' && (
                 <span style={{
                   fontSize: 7, letterSpacing: '.05em', padding: '0px 4px', borderRadius: 6,

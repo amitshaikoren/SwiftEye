@@ -49,6 +49,7 @@ class CaptureStore:
         self.synthetic: dict = {}          # uuid → {id, type:"node"|"edge", ...fields}
         self.graph_cache: dict = {}        # last built graph: {"nodes": [...], "edges": [...]}
         self.analysis_graph = None         # persistent NetworkX graph for query engine
+        self.alerts: list = []                                     # AlertRecord dicts from detectors
         self.investigation: dict = {"markdown": "", "images": {}}  # investigation notebook
         self.backend: MemoryBackend = MemoryBackend()
 
@@ -68,6 +69,7 @@ class CaptureStore:
         self.synthetic = {}
         self.metadata_map = {}
         self.graph_cache = {}
+        self.alerts = []
         self.investigation = {"markdown": "", "images": {}}
 
         logger.info(f"Building sessions...")
