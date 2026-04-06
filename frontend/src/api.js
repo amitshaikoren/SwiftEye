@@ -196,10 +196,6 @@ export async function uploadInvestigationImage(file) {
   return api('/api/investigation/image', { method: 'POST', body: form });
 }
 
-export function investigationExportUrl() {
-  return '/api/investigation/export';
-}
-
 // ── Annotations ──────────────────────────────────────────────────────────────
 
 export async function fetchAnnotations() {

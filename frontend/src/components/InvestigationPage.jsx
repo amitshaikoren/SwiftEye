@@ -7,7 +7,7 @@
  * Export to PDF via backend endpoint.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchInvestigation, saveInvestigation, uploadInvestigationImage, investigationExportUrl } from '../api';
+import { fetchInvestigation, saveInvestigation, uploadInvestigationImage } from '../api';
 
 // ── Lightweight markdown renderer ──────────────────────────────────────────
 
@@ -177,17 +177,20 @@ export default function InvestigationPage() {
   }
 
   async function handleExport() {
-    // Force save first
     setExporting(true);
     try {
       await saveInvestigation(markdown);
-      // Trigger download
+      const res = await fetch('/api/investigation/export', { method: 'POST' });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = investigationExportUrl();
+      link.href = url;
       link.download = 'investigation.pdf';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (e) {
       console.error('Export failed:', e);
     } finally {
