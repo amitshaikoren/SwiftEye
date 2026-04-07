@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useCapture } from './hooks/useCapture';
+import { fetchSessionDetail } from './api';
 import { useSettings } from './hooks/useSettings';
 import { FilterContext, toProtocolNames } from './FilterContext';
 import logoFullData from './logoFullData.js';
@@ -183,8 +184,7 @@ export default function App() {
         <EdgeDetail
           edge={c.selEdge} pColors={c.pColors}
           onClear={c.clearSel}
-          sessions={c.sessions} nodes={c.visibleNodes}
-          fullSessions={c.fullSessions}
+          nodes={c.visibleNodes}
           onSelectSession={c.selectSessionWithContext}
           annotations={c.annotations}
           onSaveNote={c.handleSaveNote}
@@ -520,7 +520,11 @@ export default function App() {
                     onSelectNode={id => id ? c.handleGSel('node', id, false) : c.clearSel()}
                     onSelectSession={sid => {
                       const sess = c.sessions.find(s => s.id === sid);
-                      if (sess) c.selectSession(sess);
+                      if (sess) { c.selectSession(sess); return; }
+                      // Session not in local list (capped at 1000) — fetch from API
+                      fetchSessionDetail(sid, 0)
+                        .then(d => { if (d.session) c.selectSession(d.session); })
+                        .catch(() => {});
                     }}
                   />
                 ) : (

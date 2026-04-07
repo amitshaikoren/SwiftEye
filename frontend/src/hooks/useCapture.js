@@ -28,6 +28,7 @@ import {
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
 import { applyClusterView } from '../clusterView';
+import { matchSessionToEdge } from '../sessionMatch';
 import { useAnimationMode } from './useAnimationMode';
 
 const SESSIONS_FETCH_LIMIT = 1000;
@@ -494,28 +495,16 @@ export function useCapture() {
 
     // Search sessions and map matches back to edges + nodes
     if (sessions.length > 0) {
-      // Build a lookup: for each edge, collect its source+target node IPs for matching
-      const nodeIpSets = {};
-      for (const n of nodes) {
-        nodeIpSets[n.id] = new Set(n.ips || [n.id]);
-      }
       for (const sess of sessions) {
         if (matchSession(sess)) {
-          // Find matching edge(s) for this session
+          // Find matching edge(s) for this session using canonical matcher
           for (const e of edges) {
             if (directEdgeIds.has(e.id)) continue;
             const eSrc = e.source?.id || e.source;
             const eTgt = e.target?.id || e.target;
-            const srcIps = nodeIpSets[eSrc] || new Set([eSrc]);
-            const tgtIps = nodeIpSets[eTgt] || new Set([eTgt]);
-            const sessProto = (sess.protocol || '').toLowerCase();
-            const edgeProto = (e.protocol || '').toLowerCase();
-            if (sessProto === edgeProto &&
-                ((srcIps.has(sess.src_ip) && tgtIps.has(sess.dst_ip)) ||
-                 (srcIps.has(sess.dst_ip) && tgtIps.has(sess.src_ip)))) {
+            if (matchSessionToEdge(sess, eSrc, eTgt, e.protocol)) {
               directEdges.push({ edge: e, reason: 'session match' });
               directEdgeIds.add(e.id);
-              // Also include the endpoint nodes
               if (!directNodeIds.has(eSrc)) { directNodeIds.add(eSrc); }
               if (!directNodeIds.has(eTgt)) { directNodeIds.add(eTgt); }
             }

@@ -265,6 +265,36 @@ async def get_paths(
     )
 
 
+@router.get("/api/edge-sessions", response_model=SessionsResponse)
+async def get_edge_sessions(
+    edge_id: str = Query(..., description="Edge ID: 'src|dst|protocol'"),
+    sort_by: str = Query(default="bytes", enum=["bytes", "packets", "duration", "time"]),
+    limit: int = Query(default=500, ge=1, le=10000),
+):
+    """
+    Get sessions belonging to a specific edge.
+
+    Single canonical endpoint for session↔edge matching.
+    Handles directional edges, subnet grouping, MAC-split nodes,
+    and protocol/transport matching.
+    """
+    _require_capture()
+
+    parts = edge_id.split("|")
+    if len(parts) != 3:
+        raise HTTPException(400, f"Invalid edge_id format: expected 'src|dst|protocol', got '{edge_id}'")
+
+    edge_src, edge_dst, edge_protocol = parts
+    sessions, total = store.backend.get_sessions_for_edge(
+        edge_src=edge_src,
+        edge_dst=edge_dst,
+        edge_protocol=edge_protocol,
+        sort_by=sort_by,
+        limit=limit,
+    )
+    return SessionsResponse(sessions=sessions, total=total)
+
+
 @router.get("/api/sessions", response_model=SessionsResponse)
 async def get_sessions(
     sort_by: str = Query(default="bytes", enum=["bytes", "packets", "duration", "time"]),

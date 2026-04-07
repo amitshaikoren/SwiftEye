@@ -88,6 +88,32 @@ class StorageBackend(ABC):
         """
         ...
 
+    @abstractmethod
+    def get_sessions_for_edge(
+        self,
+        edge_src: str,
+        edge_dst: str,
+        edge_protocol: str,
+        sort_by: str = "bytes",
+        limit: int = 500,
+    ) -> Tuple[List[dict], int]:
+        """
+        Return sessions that belong to a specific edge.
+
+        Canonical matching logic (single source of truth):
+          - IP match: session src/dst IPs match edge src/dst in either direction.
+            Handles subnet CIDRs (e.g. "192.168.1.0/24") and MAC-split IDs
+            (e.g. "10.0.0.1::aa:bb:cc") as edge endpoints.
+          - Protocol match: session.protocol == edge_protocol
+            OR session.transport == edge_protocol.
+            This handles the common case where a session starts as "TCP" and
+            upgrades to "TLS"/"HTTP" — the transport still matches the TCP edge,
+            and the upgraded protocol matches the TLS/HTTP edge.
+
+        Returns (matched_sessions, total_count).
+        """
+        ...
+
     @property
     @abstractmethod
     def is_loaded(self) -> bool:

@@ -1,5 +1,13 @@
 # SwiftEye — Changelog
 
+### v0.20.1 — April 2026
+- **Fix: Edge "No sessions found"** — replaced 3 ad-hoc session↔edge matching implementations with a single canonical function. Root cause: `s.protocol === e.protocol` failed when sessions stayed as transport protocol (e.g. "TCP") while edge was app-layer (e.g. "TLS"). Also failed with subnet grouping (CIDR node IDs) and MAC-split node IDs.
+- **Canonical session↔edge matching** — new `_session_matches_edge()` in `storage/memory.py`. Handles: protocol/transport matching (session.protocol OR session.transport matches edge.protocol), bidirectional IP matching (sessions use sorted IPs, edges don't), subnet CIDR containment, MAC-split node IDs. Used by `MemoryBackend.get_sessions_for_edge()`, `build_analysis_graph()`, and frontend `sessionMatch.js`.
+- **New `/api/edge-sessions` endpoint** — `GET /api/edge-sessions?edge_id=src|dst|protocol`. Returns all sessions for an edge using the canonical matcher. EdgeDetail now fetches from this endpoint instead of client-side filtering from a capped 1000-session list.
+- **Frontend `sessionMatch.js`** — shared client-side mirror of the backend matcher for fast in-memory matching in NodeDetail and search.
+- **Fix: animation "View session" does nothing** — the handler looked up sessions in the local 1000-item list. Now falls back to `fetchSessionDetail()` from the API when not found locally.
+- **EdgeDetail simplified** — removed `sessions`/`fullSessions` props, `ScopePill`, `edgeFilter`, `nodeIpsMap`, `resolveSearchIp`. Session data comes entirely from the API.
+
 ### v0.20.0 — April 2026
 - **Directional edges** — graph edges are now directional (source = initiator, target = responder). Edge ID format: `src|dst|protocol`. A→B and B→A are separate edges representing different traffic flows. This enables accurate port scan detection, per-direction port analysis, and proper attribution of HTTP user-agents.
 - **Separate src/dst ports on edges** — edges carry `src_ports` and `dst_ports` instead of a mixed `ports` set. The `ports` field (union) is kept for backward compatibility. Port scan detection can now distinguish "many dst_ports from few src_ports" directly from the graph.

@@ -67,6 +67,11 @@ export async function fetchSessions(limit = 1000, search = '', timeParams = {}) 
   return api(`/api/sessions?${p}`);
 }
 
+export async function fetchEdgeSessions(edgeId, { sortBy = 'bytes', limit = 500 } = {}) {
+  const p = new URLSearchParams({ edge_id: edgeId, sort_by: sortBy, limit });
+  return api(`/api/edge-sessions?${p}`);
+}
+
 export async function fetchPaths(source, target, { cutoff = 5, maxPaths = 10, directed = false } = {}) {
   const p = new URLSearchParams({ source, target, cutoff, max_paths: maxPaths, directed });
   return api(`/api/paths?${p}`);

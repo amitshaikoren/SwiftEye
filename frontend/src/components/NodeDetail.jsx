@@ -6,6 +6,7 @@ import Row from './Row';
 import { PluginSections, GenericDisplay } from './PluginSection';
 import { fN, fB, fD } from '../utils';
 import { useFilterContext, applyDisplayFilter } from '../FilterContext';
+import { matchSessionToEdge } from '../sessionMatch';
 
 /**
  * Classify an IP address into its address type.
@@ -498,11 +499,9 @@ export default function NodeDetail({
           const other = s === nodeId ? t : s;
 
           const nodeIps = new Set(node.ips || [nodeId]);
-          const edgeSess = displaySessions.filter(sess => {
-            const sessIps = new Set([sess.src_ip, sess.dst_ip]);
-            const nodeMatch = [...nodeIps].some(ip => sessIps.has(ip));
-            return nodeMatch && sess.protocol === e.protocol;
-          });
+          const edgeSess = displaySessions.filter(sess =>
+            matchSessionToEdge(sess, s, t, e.protocol)
+          );
 
           let initCount = 0, respCount = 0;
           for (const sess of edgeSess) {

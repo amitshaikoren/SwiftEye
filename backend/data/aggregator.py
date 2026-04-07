@@ -25,6 +25,7 @@ from ipaddress import IPv4Address, IPv4Network, IPv4Address
 from parser.packet import PacketRecord
 from parser.oui import lookup_vendor
 from parser.ja3_db import lookup_ja3
+from storage.memory import _session_matches_edge
 
 logger = logging.getLogger("swifteye.aggregator")
 
@@ -723,14 +724,26 @@ def build_analysis_graph(
                 ed["ja3s"].add(ex["ja3"])
 
     # ── Attach session IDs to edges ──
-    # Index sessions by sorted IP pair for O(1) lookup
-    _ses_by_pair: Dict[tuple, set] = defaultdict(set)
+    # Uses canonical _session_matches_edge from storage.memory which handles
+    # subnet CIDRs, MAC-split node IDs, and protocol/transport matching.
+    # Pre-index sessions by sorted IP pair for fast lookup, then refine
+    # with the canonical matcher for protocol and subnet correctness.
+    _ses_by_pair: Dict[tuple, list] = defaultdict(list)
     for s in sessions:
-        pair = tuple(sorted([s["src_ip"], s["dst_ip"]]))
-        _ses_by_pair[pair].add(s["id"])
+        pair = tuple(sorted([s.get("src_ip", ""), s.get("dst_ip", "")]))
+        _ses_by_pair[pair].append(s)
     for u, v, ed in G.edges(data=True):
         pair = tuple(sorted([u, v]))
-        ed["session_ids"] = _ses_by_pair.get(pair, set())
+        candidates = _ses_by_pair.get(pair, [])
+        # If no direct IP match, try all sessions (handles subnet/MAC-split)
+        if not candidates and ("/" in u or "/" in v or "::" in u or "::" in v):
+            candidates = sessions
+        matched = set()
+        for proto in ed.get("protocols", set()):
+            for s in candidates:
+                if s["id"] not in matched and _session_matches_edge(s, u, v, proto):
+                    matched.add(s["id"])
+        ed["session_ids"] = matched
 
     # ── Compute derived node attributes ──
     for ip, nd in G.nodes(data=True):
