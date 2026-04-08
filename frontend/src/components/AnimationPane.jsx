@@ -8,6 +8,7 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { fB, fN, fTtime } from '../utils';
+import { useFilterContext } from '../FilterContext';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -155,6 +156,7 @@ export default function AnimationPane({
   const [hovered, setHovered] = useState(null); // { type: 'node'|'edge', id, x, y }
   const [focusedNode, setFocusedNode] = useState(null); // null = show all, IP string = filter to that spotlight
   const [hiddenNodes, setHiddenNodes] = useState(new Set()); // IPs hidden by user
+  const [isIsolated, setIsIsolated] = useState(false); // show only spotlight↔spotlight edges
   const [contextMenu, setContextMenu] = useState(null); // { x, y, ip }
   const [dragState, setDragState] = useState(null); // { ip, startX, startY } for node dragging
   const flashRef = useRef({}); // session_id → timestamp of flash start
@@ -166,15 +168,27 @@ export default function AnimationPane({
   // Build derived data
   const sessionMap = useMemo(() => buildSessionMap(animEvents), [animEvents]);
   const edgeList = useMemo(() => buildEdgeList(sessionMap), [sessionMap]);
+  const filterCtx = useFilterContext();
 
-  // Filtered edges: apply focusedNode + hiddenNodes
+  // Filtered edges: apply protocol filter + isolate + focusedNode + hiddenNodes
   const visibleEdges = useMemo(() => {
+    const { enabledP, allProtocolKeysCount } = filterCtx;
+    const noneSelected = enabledP.size === 0 && allProtocolKeysCount > 0;
+    const someFiltered = enabledP.size > 0 && enabledP.size < allProtocolKeysCount;
+    const appProtos = someFiltered
+      ? new Set([...enabledP].map(k => k.split('/').pop().toUpperCase()))
+      : null;
+    const spotSet = new Set(animNodes);
+
     return edgeList.filter(e => {
+      if (noneSelected) return false;
+      if (appProtos && !appProtos.has((e.protocol || '').toUpperCase())) return false;
+      if (isIsolated && (!spotSet.has(e.src) || !spotSet.has(e.dst))) return false;
       if (focusedNode && e.src !== focusedNode && e.dst !== focusedNode) return false;
       if (hiddenNodes.has(e.src) || hiddenNodes.has(e.dst)) return false;
       return true;
     });
-  }, [edgeList, focusedNode, hiddenNodes]);
+  }, [edgeList, focusedNode, hiddenNodes, isIsolated, animNodes, filterCtx]);
 
   // Filtered events for history panel
   const visibleEvents = useMemo(() => {
@@ -800,6 +814,18 @@ export default function AnimationPane({
             <HiddenBadge count={hiddenNodes.size} onRestoreAll={() => setHiddenNodes(new Set())} />
           )}
         </div>
+        <button
+          onClick={() => setIsIsolated(prev => !prev)}
+          title="Show only traffic between spotlight nodes"
+          style={{
+            padding: '4px 11px', height: 28, background: isIsolated ? 'rgba(210,153,34,0.10)' : 'transparent',
+            border: `1px solid ${isIsolated ? 'rgba(210,153,34,0.45)' : 'var(--bdL)'}`,
+            color: isIsolated ? '#d29922' : 'var(--txD)', borderRadius: 4, cursor: 'pointer',
+            fontFamily: 'inherit', fontSize: 10.5, flexShrink: 0,
+          }}
+        >
+          {isIsolated ? '⊙ Isolated' : '⊙ Isolate'}
+        </button>
         <button
           onClick={() => setShowHistory(prev => !prev)}
           style={{

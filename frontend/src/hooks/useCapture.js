@@ -376,7 +376,9 @@ export function useCapture() {
 
     const ctrl = new AbortController();
     fetchGraph(params, ctrl.signal).then(d => {
-      setRawGraph(d);
+      // If user explicitly selected no protocols (and protocols are loaded), show no edges
+      const noneSelected = enabledP.size === 0 && allProtocolKeysCountRef.current > 0;
+      setRawGraph(noneSelected ? { ...d, edges: [] } : d);
       if (!fullGraphRef.current) fullGraphRef.current = { nodes: d.nodes || [], edges: d.edges || [] };
     }).catch(e => {
       if (e.name !== 'AbortError') console.error(e);
