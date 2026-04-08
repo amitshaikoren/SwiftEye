@@ -78,7 +78,9 @@ export async function fetchPaths(source, target, { cutoff = 5, maxPaths = 10, di
 }
 
 export async function fetchSessionDetail(sessionId, packetLimit = 200) {
-  return api(`/api/session_detail?session_id=${encodeURIComponent(sessionId)}&packet_limit=${packetLimit}`);
+  // Mirror backend Query constraint (data.py: ge=1, le=50000) so no caller can 422 us.
+  const lim = Math.max(1, Math.min(50000, packetLimit | 0));
+  return api(`/api/session_detail?session_id=${encodeURIComponent(sessionId)}&packet_limit=${lim}`);
 }
 
 export async function fetchProtocols() {

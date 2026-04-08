@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.20.2 — April 2026
+- **Fix: animation "View session" returns 422** — `fetchSessionDetail(sid, 0)` from `App.jsx`'s animation fallback was rejected by FastAPI: `/api/session_detail` declares `packet_limit: int = Query(default=1000, ge=1, le=50000)`, so `0` failed validation before the handler ran. Regression from v0.20.1's animation fallback (which only fixed the no-op case, not the boundary). Same code path is hit by any other caller that lands on a session outside the local top-1000 list.
+- **`fetchSessionDetail()` clamps `packetLimit`** — `frontend/src/api.js` now mirrors the backend constraint at the single frontend gateway: `Math.max(1, Math.min(50000, packetLimit))`. The animation fallback's `0` is normalized to `1`; the response's `d.packets` is still discarded by the caller (it only reads `d.session`), so the wasted work is one packet's worth of serialization. Any future caller that underflows or overflows the bound is silently corrected instead of getting a 422.
+
 ### v0.20.1 — April 2026
 - **Fix: Edge "No sessions found"** — replaced 3 ad-hoc session↔edge matching implementations with a single canonical function. Root cause: `s.protocol === e.protocol` failed when sessions stayed as transport protocol (e.g. "TCP") while edge was app-layer (e.g. "TLS"). Also failed with subnet grouping (CIDR node IDs) and MAC-split node IDs.
 - **Canonical session↔edge matching** — new `_session_matches_edge()` in `storage/memory.py`. Handles: protocol/transport matching (session.protocol OR session.transport matches edge.protocol), bidirectional IP matching (sessions use sorted IPs, edges don't), subnet CIDR containment, MAC-split node IDs. Used by `MemoryBackend.get_sessions_for_edge()`, `build_analysis_graph()`, and frontend `sessionMatch.js`.
