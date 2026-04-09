@@ -443,18 +443,55 @@ export default function App() {
             updateEvent={c.updateEvent}
             onSelectEntity={(entity_type, entity_id) => {
               if (!entity_type || !entity_id) return;
+              // Switch to the main graph view FIRST. switchPanel calls
+              // clearSel() internally, so any selection or highlight we set
+              // afterwards survives the React 18 setState batching (last write
+              // wins per state slot in the same event handler).
+              c.switchPanel('stats');
               if (entity_type === 'node') {
                 const node = c.graph?.nodes?.find(n => n.id === entity_id);
                 if (node) c.handleGSel('node', node, false);
+                // Pulse-highlight the node in the main GraphCanvas so the
+                // user can see WHERE the entity lives after switching tabs.
+                setQueryHighlight({ nodes: new Set([entity_id]), edges: new Set() });
               } else if (entity_type === 'edge') {
                 const edge = c.graph?.edges?.find(e => e.id === entity_id);
                 if (edge) c.handleGSel('edge', edge, false);
+                // Edge IDs are already in the canonical "u|v" form GraphCanvas expects.
+                // Also light up both endpoint nodes for context.
+                const endpoints = new Set();
+                if (edge?.source) endpoints.add(typeof edge.source === 'object' ? edge.source.id : edge.source);
+                if (edge?.target) endpoints.add(typeof edge.target === 'object' ? edge.target.id : edge.target);
+                setQueryHighlight({ nodes: endpoints, edges: new Set([entity_id]) });
               } else if (entity_type === 'session') {
                 fetchSessionDetail(entity_id, 0).then(d => {
-                  if (d.session) c.selectSession(d.session);
+                  if (d.session) {
+                    c.selectSession(d.session);
+                    // Resolve session src_ip / dst_ip to node IDs (which may
+                    // be a CIDR for subnetted nodes), so the highlight ring
+                    // lights up the right hosts on the canvas.
+                    const findNodeId = (ip) => {
+                      if (!ip) return null;
+                      const direct = c.graph?.nodes?.find(n => n.id === ip);
+                      if (direct) return direct.id;
+                      const byIps = c.graph?.nodes?.find(n => n.ips?.includes(ip));
+                      return byIps?.id || null;
+                    };
+                    const nodes = new Set();
+                    const sId = findNodeId(d.session.src_ip);
+                    const tId = findNodeId(d.session.dst_ip);
+                    if (sId) nodes.add(sId);
+                    if (tId) nodes.add(tId);
+                    const edges = new Set();
+                    if (sId && tId) {
+                      // Edge IDs are the canonical "u|v" form (sorted) — try both.
+                      edges.add(`${sId}|${tId}`);
+                      edges.add(`${tId}|${sId}`);
+                    }
+                    if (nodes.size) setQueryHighlight({ nodes, edges });
+                  }
                 }).catch(() => {});
               }
-              c.switchPanel('stats');
             }}
           />
         ) : c.rPanel === 'visualize' ? (
