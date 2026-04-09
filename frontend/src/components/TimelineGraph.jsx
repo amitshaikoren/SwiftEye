@@ -59,6 +59,34 @@ function shortLabel(text, max = 18) {
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
 }
 
+// Sorted pair key — duplicates between the same two events share this key
+// regardless of from/to direction.
+function edgePairKey(a, b) {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+// Build a quadratic-Bezier path between two points, offset perpendicular to
+// the chord by `offset` pixels. Returns the SVG path d-string AND the
+// approximate midpoint of the curve so we can place a label/badge there.
+// offset = 0 → straight line.
+function arcPath(ax, ay, bx, by, offset) {
+  if (!offset) {
+    return { d: `M ${ax},${ay} L ${bx},${by}`, midX: (ax + bx) / 2, midY: (ay + by) / 2 };
+  }
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  // Perpendicular unit vector (rotate 90° CCW)
+  const nx = -dy / len;
+  const ny =  dx / len;
+  const mx = (ax + bx) / 2;
+  const my = (ay + by) / 2;
+  const cx = mx + nx * offset * 2; // control point — 2x because Bezier midpoint is half the control offset
+  const cy = my + ny * offset * 2;
+  // Quadratic Bezier midpoint at t=0.5 = 0.25*P0 + 0.5*Pc + 0.25*P2 = mid + perp*offset
+  return { d: `M ${ax},${ay} Q ${cx},${cy} ${bx},${by}`, midX: mx + nx * offset, midY: my + ny * offset };
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function TimelineGraph({
@@ -357,6 +385,38 @@ export default function TimelineGraph({
     });
   }, [suggestedEdges, placedEvents, timelineEdges]);
 
+  // ── Multi-edge offset table ──────────────────────────────────────────────
+  //
+  // Multiple manual edges between the same pair of placed events are spread
+  // across parallel arcs so they don't visually collapse into a single line.
+  // For each edge id we precompute the offset (in pixels, perpendicular to
+  // the chord) it should render at.
+  //
+  //   1 edge:  [0]
+  //   2 edges: [-CURVE/2, +CURVE/2]
+  //   3 edges: [-CURVE,    0,    +CURVE]
+  //   N edges: (i - (N-1)/2) * step
+  //
+  // Step is fixed so the spread grows with N rather than packing into a
+  // fixed lane width.
+  const pairOffsets = useMemo(() => {
+    const CURVE_STEP = 22;
+    const groups = new Map(); // pairKey → [edgeId,...] in stable order
+    for (const te of timelineEdges) {
+      const k = edgePairKey(te.from_event_id, te.to_event_id);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(te.id);
+    }
+    const out = new Map();
+    for (const ids of groups.values()) {
+      const n = ids.length;
+      ids.forEach((id, i) => {
+        out.set(id, (i - (n - 1) / 2) * CURVE_STEP);
+      });
+    }
+    return out;
+  }, [timelineEdges]);
+
   // ── Coordinate lookup for an event id ────────────────────────────────────
 
   function eventXY(eventId) {
@@ -548,29 +608,27 @@ export default function TimelineGraph({
           );
         })}
 
-        {/* Manual / accepted edges */}
+        {/* Manual / accepted edges — parallel arcs for multi-edges on same pair */}
         {timelineEdges.map(te => {
           const a = eventXY(te.from_event_id);
           const b = eventXY(te.to_event_id);
           if (!a || !b) return null;
           const isSelected = selectedEdge === te.id;
+          const offset = pairOffsets.get(te.id) || 0;
+          const { d, midX, midY } = arcPath(a.x, a.y, b.x, b.y, offset);
           return (
             <g key={'te:' + te.id} data-pan-skip="true" style={{ cursor: 'pointer' }}
               onClick={e => onManualEdgeClick(e, te)}>
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+              <path d={d} fill="none"
                 stroke={te.color || MANUAL_EDGE_COLOR}
                 strokeWidth={isSelected ? 3 : 2}
                 opacity={isSelected ? 1 : 0.85} />
-              {te.label && (() => {
-                const mx = (a.x + b.x) / 2;
-                const my = (a.y + b.y) / 2 - 6;
-                return (
-                  <text x={mx} y={my} fill={te.color || MANUAL_EDGE_COLOR} fontSize={10}
-                    textAnchor="middle" style={{ pointerEvents: 'none' }}>
-                    {shortLabel(te.label, 24)}
-                  </text>
-                );
-              })()}
+              {te.label && (
+                <text x={midX} y={midY - 6} fill={te.color || MANUAL_EDGE_COLOR} fontSize={10}
+                  textAnchor="middle" style={{ pointerEvents: 'none' }}>
+                  {shortLabel(te.label, 24)}
+                </text>
+              )}
             </g>
           );
         })}
