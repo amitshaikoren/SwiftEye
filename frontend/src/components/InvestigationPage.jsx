@@ -176,8 +176,14 @@ export default function InvestigationPage({
   removeEvent,
   updateEvent,
   onSelectEntity, // (entity_type, entity_id) — switch to graph + highlight
+  tab: tabProp,
+  setTab: setTabProp,
 }) {
-  const [tab, setTab] = useState('documentation'); // 'documentation' | 'timeline'
+  // Tab state may be lifted into App.jsx (so the back-to-timeline breadcrumb
+  // can restore the right tab on return). Fall back to local state if not.
+  const [localTab, setLocalTab] = useState('documentation');
+  const tab = tabProp ?? localTab;
+  const setTab = setTabProp ?? setLocalTab;
   const [markdown, setMarkdown] = useState('');
   const [images, setImages] = useState({});
   const [loading, setLoading] = useState(true);

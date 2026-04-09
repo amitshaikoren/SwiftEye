@@ -42,6 +42,22 @@ export default function App() {
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
+  // InvestigationPage tab state lifted here so the back-to-timeline breadcrumb
+  // can restore whichever tab the user was on when they hit "View in graph".
+  const [investigationTab, setInvestigationTab] = useState('documentation');
+  // When the user hits "View in graph" from inside InvestigationPage, we
+  // remember which tab they came from so the floating breadcrumb on the main
+  // graph view can offer a one-click return. null = breadcrumb hidden.
+  const [returnToInvestigationTab, setReturnToInvestigationTab] = useState(null);
+  // Once the user is back on the investigation panel (whether via the
+  // breadcrumb or by clicking the left-nav button manually), the breadcrumb
+  // has nothing to point at — clear it so it doesn't reappear next time they
+  // visit the main graph view.
+  useEffect(() => {
+    if (c.rPanel === 'investigation' && returnToInvestigationTab !== null) {
+      setReturnToInvestigationTab(null);
+    }
+  }, [c.rPanel, returnToInvestigationTab]);
 
   // ── Subgraph-scoped stats (when investigation is active) ─────────
   const subgraphInfo = useMemo(() => {
@@ -441,8 +457,13 @@ export default function App() {
             unplaceEvent={c.unplaceEvent}
             removeEvent={c.removeEvent}
             updateEvent={c.updateEvent}
+            tab={investigationTab}
+            setTab={setInvestigationTab}
             onSelectEntity={(entity_type, entity_id) => {
               if (!entity_type || !entity_id) return;
+              // Remember which tab the user was on so the floating breadcrumb
+              // on the main graph view can offer a one-click return.
+              setReturnToInvestigationTab(investigationTab);
               // Switch to the main graph view FIRST. switchPanel calls
               // clearSel() internally, so any selection or highlight we set
               // afterwards survives the React 18 setState batching (last write
@@ -503,6 +524,42 @@ export default function App() {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               {/* Graph area */}
               <div ref={graphContainerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg)' }}>
+
+                {/* Back-to-investigation breadcrumb (after "View in graph" from InvestigationPage) */}
+                {!c.animActive && returnToInvestigationTab && (
+                  <div style={{
+                    position: 'absolute', top: 8, left: 8, zIndex: 12,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'rgba(88,166,255,.12)', border: '1px solid rgba(88,166,255,.35)',
+                    borderRadius: 6, padding: '4px 8px 4px 10px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,.35)',
+                    fontFamily: 'var(--fn)',
+                  }}>
+                    <button
+                      onClick={() => {
+                        const dest = returnToInvestigationTab;
+                        setInvestigationTab(dest);
+                        setReturnToInvestigationTab(null);
+                        c.switchPanel('investigation');
+                      }}
+                      style={{
+                        background: 'none', border: 'none', color: '#58a6ff',
+                        fontSize: 11, fontFamily: 'var(--fn)', cursor: 'pointer',
+                        padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+                      }}>
+                      <span style={{ fontSize: 13, lineHeight: 1 }}>←</span>
+                      Back to {returnToInvestigationTab === 'timeline' ? 'Timeline Graph' : 'Documentation'}
+                    </button>
+                    <button
+                      onClick={() => setReturnToInvestigationTab(null)}
+                      title="Dismiss"
+                      style={{
+                        background: 'none', border: 'none', color: '#8b949e',
+                        fontSize: 12, lineHeight: 1, cursor: 'pointer',
+                        padding: '0 2px', marginLeft: 2,
+                      }}>×</button>
+                  </div>
+                )}
 
                 {/* Hidden nodes badge (hidden in animation mode) */}
                 {!c.animActive && c.hiddenNodes.size > 0 && (
