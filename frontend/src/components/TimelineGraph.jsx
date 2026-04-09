@@ -31,12 +31,27 @@ const CHARGE = -40;         // light repulsion (the "low force push")
 const ALPHA_DECAY = 0.04;   // simulation cools quickly
 const MANUAL_EDGE_COLOR = '#c9d1d9';
 
+// Distinct fill tint per entity type. The full-saturation hex is used for
+// the legend swatches; a low-alpha version is used as the node disc fill.
+const ENTITY_COLOR = {
+  node:    '#58a6ff',  // blue
+  edge:    '#a371f7',  // purple
+  session: '#3fb950',  // green
+};
+const ENTITY_FILL_ALPHA = '22'; // ~13% opacity (8-bit hex alpha)
+const ENTITY_LABEL = { node: 'Node', edge: 'Edge', session: 'Session' };
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function entityIcon(entity_type) {
   if (entity_type === 'edge')    return '↔';
   if (entity_type === 'session') return '◫';
   return '◉';
+}
+
+function entityFill(entity_type) {
+  const c = ENTITY_COLOR[entity_type];
+  return c ? c + ENTITY_FILL_ALPHA : 'var(--bgP)';
 }
 
 function shortLabel(text, max = 18) {
@@ -432,9 +447,23 @@ export default function TimelineGraph({
         )}
         <div style={{ width: 1, height: 16, background: 'var(--bd)' }} />
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: 'var(--txM)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={rulerOn} onChange={e => setRulerOn(e.target.checked)} />
+          <input type="checkbox" checked={rulerOn} onChange={e => setRulerOn?.(e.target.checked)} />
           Ruler (time)
         </label>
+        <div style={{ width: 1, height: 16, background: 'var(--bd)' }} />
+        {/* Entity-color legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {['node', 'edge', 'session'].map(t => (
+            <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: 'var(--txM)' }}>
+              <span style={{
+                width: 10, height: 10, borderRadius: '50%',
+                background: ENTITY_COLOR[t] + ENTITY_FILL_ALPHA,
+                border: `1.5px solid ${ENTITY_COLOR[t]}`,
+              }} />
+              {ENTITY_LABEL[t]}
+            </span>
+          ))}
+        </div>
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 9, color: 'var(--txD)' }}>
           {placedEvents.length} placed · {timelineEdges.length} manual · {visibleSuggested.length} suggested
@@ -562,9 +591,9 @@ export default function TimelineGraph({
               onPointerDown={e => onNodePointerDown(e, n)}
               onClick={e => onNodeClick(e, n)}
               onContextMenu={e => onNodeContextMenu(e, n)}>
-              {/* Severity ring */}
+              {/* Severity ring + entity-tinted fill */}
               <circle cx={cx} cy={cy} r={NODE_R}
-                fill="var(--bgP)" stroke={sevColor}
+                fill={entityFill(ev.entity_type)} stroke={sevColor}
                 strokeWidth={isSelected || isDrawSrc ? 3 : 2}
                 opacity={1} />
               {/* Entity icon */}
