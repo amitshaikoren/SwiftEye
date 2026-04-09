@@ -1,15 +1,36 @@
 /**
- * InvestigationPage — Researcher notebook for documenting findings.
+ * InvestigationPage — Researcher notebook + Timeline Graph (v0.21.0).
  *
- * Split-pane: markdown editor (left) + live preview (right).
- * Supports screenshots via paste (Ctrl+V) or drag-and-drop.
- * Images are uploaded to the backend and embedded via ![alt](img_id).
- * Export to PDF via backend endpoint.
+ * Two tabs:
+ *   - Documentation: markdown editor (split / edit / preview) — UNCHANGED
+ *     behavior except that dragging an Event card from the right-side panel
+ *     into the editor inserts an `<event-ref/>` token, and the preview
+ *     renders those tokens as colored, clickable chips.
+ *   - Timeline Graph: SVG canvas of placed events with manual + suggested
+ *     edges, ruler-by-time toggle, and edge detail panel. Implemented in
+ *     `TimelineGraph.jsx`.
+ *
+ * The Flagged Events panel (`EventsPanel`) is always visible on the right
+ * in both tabs — researchers drag cards from it into the editor or onto
+ * the canvas.
+ *
+ * Props (passed from App.jsx via useCapture):
+ *   events, suggestedEdges, timelineEdges, addTimelineEdge, ...
+ *   onSelectEntity(entity_type, entity_id) — chip click → graph
+ *   removeEvent, updateEvent, openFlagModal, etc.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchInvestigation, saveInvestigation, uploadInvestigationImage } from '../api';
+import EventsPanel from './EventsPanel';
+import TimelineGraph from './TimelineGraph';
+import { SEVERITY_COLOR } from '../hooks/useEvents';
 
-// ── Lightweight markdown renderer ──────────────────────────────────────────
+// ── Markdown rendering ─────────────────────────────────────────────────────
+//
+// Lightweight renderer (carried over from the original page). New in v0.21.0:
+// `<event-ref id="..." title="..." severity="..."/>` tokens are inlined as
+// colored chips. Render is HTML-string based; click handling is done by a
+// delegated listener on the preview container (looks for [data-event-ref]).
 
 function renderMarkdown(md, images) {
   if (!md) return '';
@@ -69,7 +90,6 @@ function renderMarkdown(md, images) {
     html += `<div style="font-size:12px;color:var(--txM);line-height:1.7;margin:2px 0">${inline(s)}</div>`;
   }
 
-  // Close unclosed code block
   if (inCode && codeLines.length) {
     html += `<pre style="background:var(--bgH);border:1px solid var(--bd);border-radius:6px;padding:10px 14px;font-size:11px;font-family:var(--fn);overflow-x:auto;margin:8px 0;color:var(--tx)">${esc(codeLines.join('\n'))}</pre>`;
   }
@@ -77,15 +97,48 @@ function renderMarkdown(md, images) {
   return html;
 }
 
-function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Render a single event-ref token as a colored chip span. Quotes inside
+// the attribute values are HTML-escaped to prevent attribute breaking.
+function renderEventChip(id, title, severity) {
+  const color = SEVERITY_COLOR[severity] || '#8b949e';
+  const safeTitle = esc(title || 'Event');
+  const safeId = esc(id || '');
+  return `<span data-event-ref="${safeId}" style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.04);border:1px solid ${color};border-radius:10px;padding:0 8px 0 6px;color:${color};font-size:11px;font-family:var(--fn);cursor:pointer;vertical-align:baseline;line-height:1.7;margin:0 2px"><span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block"></span>${safeTitle}</span>`;
+}
 
 function inline(text) {
-  let s = esc(text);
+  // Process event-ref tokens BEFORE escaping the text. We pull them out,
+  // render them to HTML chips, and replace each with a placeholder that
+  // survives escaping, then swap back at the end.
+  const placeholders = [];
+  const stripped = String(text).replace(
+    /<event-ref\s+([^/>]*)\/?>/gi,
+    (_, attrs) => {
+      const idMatch = attrs.match(/id="([^"]*)"/i);
+      const titleMatch = attrs.match(/title="([^"]*)"/i);
+      const sevMatch = attrs.match(/severity="([^"]*)"/i);
+      const html = renderEventChip(
+        idMatch ? idMatch[1] : '',
+        titleMatch ? titleMatch[1] : 'Event',
+        sevMatch ? sevMatch[1] : null,
+      );
+      placeholders.push(html);
+      return `\u0000EVREF${placeholders.length - 1}\u0000`;
+    }
+  );
+
+  let s = esc(stripped);
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--tx)">$1</strong>');
   s = s.replace(/__(.+?)__/g, '<strong style="color:var(--tx)">$1</strong>');
   s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
   s = s.replace(/_(.+?)_/g, '<em>$1</em>');
   s = s.replace(/`(.+?)`/g, '<code style="background:var(--bgH);padding:1px 5px;border-radius:3px;font-size:11px;font-family:var(--fn)">$1</code>');
+  // Swap event-ref placeholders back. The escape pass turned our \u0000
+  // sentinels into themselves (NUL is preserved by .replace), so we can
+  // match the same pattern.
+  s = s.replace(/\u0000EVREF(\d+)\u0000/g, (_, i) => placeholders[Number(i)] || '');
   return s;
 }
 
@@ -107,16 +160,29 @@ function useAutoSave(markdown, delay = 1500) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export default function InvestigationPage() {
+export default function InvestigationPage({
+  // Events plumbing — passed from useCapture via App.jsx
+  events = [],
+  timelineEdges = [],
+  suggestedEdges = [],
+  addTimelineEdge,
+  removeTimelineEdge,
+  acceptSuggestion,
+  placeEvent,
+  unplaceEvent,
+  removeEvent,
+  updateEvent,
+  onSelectEntity, // (entity_type, entity_id) — switch to graph + highlight
+}) {
+  const [tab, setTab] = useState('documentation'); // 'documentation' | 'timeline'
   const [markdown, setMarkdown] = useState('');
   const [images, setImages] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [view, setView] = useState('split'); // 'edit' | 'preview' | 'split'
+  const [view, setView] = useState('split'); // edit | preview | split
   const editorRef = useRef(null);
 
-  // Load on mount
   useEffect(() => {
     setLoading(true);
     fetchInvestigation().then(d => {
@@ -125,10 +191,10 @@ export default function InvestigationPage() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  // Auto-save
   useAutoSave(markdown);
 
-  // Handle image paste / drop
+  // ── Image paste / drop ───────────────────────────────────────────────────
+
   const handleImage = useCallback(async (file) => {
     if (!file || !file.type.startsWith('image/')) return;
     try {
@@ -142,7 +208,6 @@ export default function InvestigationPage() {
           const before = prev.slice(0, pos);
           const after = prev.slice(pos);
           const next = before + '\n' + tag + '\n' + after;
-          // Move cursor after the inserted tag
           setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + tag.length + 2; ta.focus(); }, 0);
           return next;
         }
@@ -165,10 +230,46 @@ export default function InvestigationPage() {
     }
   }
 
+  // ── Drop handler — image OR event card ───────────────────────────────────
+
   function handleDrop(e) {
     e.preventDefault();
+    // Event card dropped: insert ref-chip token at cursor
+    const eventId = e.dataTransfer?.getData('application/x-swifteye-event');
+    if (eventId) {
+      const ev = events.find(x => x.id === eventId);
+      if (!ev) return;
+      const sevAttr = ev.severity ? ` severity="${ev.severity}"` : '';
+      const safeTitle = (ev.title || '').replace(/"/g, "'");
+      const token = `<event-ref id="${ev.id}" title="${safeTitle}"${sevAttr}/>`;
+      insertAtCursor(token);
+      return;
+    }
+    // Otherwise: image drop
     const file = e.dataTransfer?.files?.[0];
     if (file && file.type.startsWith('image/')) handleImage(file);
+  }
+
+  function handleDragOver(e) {
+    if (e.dataTransfer?.types?.includes('application/x-swifteye-event') ||
+        e.dataTransfer?.types?.includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  function insertAtCursor(text) {
+    setMarkdown(prev => {
+      const ta = editorRef.current;
+      if (ta) {
+        const pos = ta.selectionStart ?? prev.length;
+        const before = prev.slice(0, pos);
+        const after = prev.slice(pos);
+        setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + text.length; ta.focus(); }, 0);
+        return before + text + after;
+      }
+      return prev + text;
+    });
   }
 
   function handleFileUpload(e) {
@@ -203,16 +304,30 @@ export default function InvestigationPage() {
     try { await saveInvestigation(markdown); } catch {} finally { setSaving(false); }
   }
 
-  // Template insertion helpers
   function insertTemplate(template) {
-    const ta = editorRef.current;
-    if (!ta) return;
-    const pos = ta.selectionStart;
-    const before = markdown.slice(0, pos);
-    const after = markdown.slice(pos);
-    setMarkdown(before + template + after);
-    setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + template.length; ta.focus(); }, 0);
+    insertAtCursor(template);
   }
+
+  // ── Click-on-chip in preview → highlight entity in main graph ────────────
+
+  function handlePreviewClick(e) {
+    let el = e.target;
+    while (el && el !== e.currentTarget) {
+      const refId = el.getAttribute && el.getAttribute('data-event-ref');
+      if (refId) {
+        const ev = events.find(x => x.id === refId);
+        if (ev && onSelectEntity) {
+          if (ev.entity_type === 'node')    onSelectEntity('node', ev.node_id);
+          if (ev.entity_type === 'edge')    onSelectEntity('edge', ev.edge_id);
+          if (ev.entity_type === 'session') onSelectEntity('session', ev.session_id);
+        }
+        return;
+      }
+      el = el.parentElement;
+    }
+  }
+
+  // ── Loading screen ───────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -232,79 +347,127 @@ export default function InvestigationPage() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--bg)' }}>
       {/* Toolbar */}
-      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, background: 'var(--bgP)' }}>
+      <div style={{
+        padding: '8px 16px', borderBottom: '1px solid var(--bd)',
+        display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+        background: 'var(--bgP)', flexWrap: 'wrap',
+      }}>
         <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--fd)', color: 'var(--tx)', marginRight: 8 }}>Investigation</div>
 
-        {/* View toggles */}
-        {['edit', 'split', 'preview'].map(v => (
-          <button key={v} className={'btn' + (view === v ? ' on' : '')}
-            onClick={() => setView(v)} style={{ fontSize: 9, padding: '2px 8px', textTransform: 'capitalize' }}>{v}</button>
-        ))}
+        {/* Tab bar */}
+        <div style={{ display: 'flex', gap: 2, marginRight: 8 }}>
+          <button className={'btn' + (tab === 'documentation' ? ' on' : '')}
+            onClick={() => setTab('documentation')} style={{ fontSize: 10, padding: '3px 12px' }}>Documentation</button>
+          <button className={'btn' + (tab === 'timeline' ? ' on' : '')}
+            onClick={() => setTab('timeline')} style={{ fontSize: 10, padding: '3px 12px' }}>Timeline Graph</button>
+        </div>
+
+        {/* Documentation tab tools */}
+        {tab === 'documentation' && (
+          <>
+            <div style={{ width: 1, height: 18, background: 'var(--bd)' }} />
+            {['edit', 'split', 'preview'].map(v => (
+              <button key={v} className={'btn' + (view === v ? ' on' : '')}
+                onClick={() => setView(v)} style={{ fontSize: 9, padding: '2px 8px', textTransform: 'capitalize' }}>{v}</button>
+            ))}
+            <div style={{ width: 1, height: 18, background: 'var(--bd)' }} />
+            <button className="btn" onClick={() => insertTemplate('# ')} title="Heading" style={{ fontSize: 10, padding: '2px 6px', fontWeight: 700 }}>H</button>
+            <button className="btn" onClick={() => insertTemplate('**bold**')} title="Bold" style={{ fontSize: 10, padding: '2px 6px', fontWeight: 700 }}>B</button>
+            <button className="btn" onClick={() => insertTemplate('*italic*')} title="Italic" style={{ fontSize: 10, padding: '2px 6px', fontStyle: 'italic' }}>I</button>
+            <button className="btn" onClick={() => insertTemplate('```\ncode\n```')} title="Code block" style={{ fontSize: 9, padding: '2px 6px', fontFamily: 'var(--fn)' }}>&lt;/&gt;</button>
+            <button className="btn" onClick={() => insertTemplate('- ')} title="Bullet list" style={{ fontSize: 10, padding: '2px 6px' }}>•</button>
+            <button className="btn" onClick={() => insertTemplate('---\n')} title="Horizontal rule" style={{ fontSize: 10, padding: '2px 6px' }}>—</button>
+            <label className="btn" style={{ fontSize: 9, padding: '2px 8px', cursor: 'pointer' }} title="Upload image">
+              📷
+              <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+            </label>
+          </>
+        )}
 
         <div style={{ flex: 1 }} />
 
-        {/* Insert buttons */}
-        <button className="btn" onClick={() => insertTemplate('# ')} title="Heading" style={{ fontSize: 10, padding: '2px 6px', fontWeight: 700 }}>H</button>
-        <button className="btn" onClick={() => insertTemplate('**bold**')} title="Bold" style={{ fontSize: 10, padding: '2px 6px', fontWeight: 700 }}>B</button>
-        <button className="btn" onClick={() => insertTemplate('*italic*')} title="Italic" style={{ fontSize: 10, padding: '2px 6px', fontStyle: 'italic' }}>I</button>
-        <button className="btn" onClick={() => insertTemplate('```\ncode\n```')} title="Code block" style={{ fontSize: 9, padding: '2px 6px', fontFamily: 'var(--fn)' }}>&lt;/&gt;</button>
-        <button className="btn" onClick={() => insertTemplate('- ')} title="Bullet list" style={{ fontSize: 10, padding: '2px 6px' }}>•</button>
-        <button className="btn" onClick={() => insertTemplate('---\n')} title="Horizontal rule" style={{ fontSize: 10, padding: '2px 6px' }}>—</button>
-
-        <label className="btn" style={{ fontSize: 9, padding: '2px 8px', cursor: 'pointer' }} title="Upload image">
-          📷
-          <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
-        </label>
-
-        <span style={{ width: 1, height: 16, background: 'var(--bd)', margin: '0 4px' }} />
-
+        {/* Save / export — always visible */}
         <button className="btn" onClick={handleManualSave} disabled={saving}
           style={{ fontSize: 9, padding: '2px 10px' }}>{saving ? 'Saving…' : 'Save'}</button>
-
         <button className="btn" onClick={handleExport} disabled={exporting || !markdown.trim()}
           style={{ fontSize: 9, padding: '2px 10px', background: 'rgba(88,166,255,.1)', borderColor: 'var(--ac)', color: 'var(--ac)' }}>
           {exporting ? 'Exporting…' : '⬇ Export PDF'}
         </button>
       </div>
 
-      {/* Editor + Preview */}
+      {/* Main row: tab content + EventsPanel */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-        {/* Editor pane */}
-        {showEditor && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderRight: showPreview ? '1px solid var(--bd)' : 'none' }}>
-            <div style={{ padding: '4px 12px', fontSize: 9, color: 'var(--txD)', borderBottom: '1px solid var(--bd)', background: 'var(--bgP)', flexShrink: 0 }}>
-              MARKDOWN · Ctrl+V to paste screenshots · auto-saves
-            </div>
-            <textarea
-              ref={editorRef}
-              value={markdown}
-              onChange={e => setMarkdown(e.target.value)}
-              onPaste={handlePaste}
-              onDrop={handleDrop}
-              onDragOver={e => e.preventDefault()}
-              placeholder={"# Investigation Notes\n\nStart documenting your findings here...\n\n## Key Observations\n\n- Paste screenshots with Ctrl+V\n- Use **bold** and *italic* for emphasis\n- Code blocks with triple backticks\n\n## Conclusion\n\n..."}
-              style={{
-                flex: 1, resize: 'none', border: 'none', outline: 'none',
-                background: 'var(--bg)', color: 'var(--tx)',
-                fontFamily: 'var(--fn)', fontSize: 12, lineHeight: 1.7,
-                padding: '16px 20px', overflow: 'auto',
-              }}
-              spellCheck={false}
-            />
-          </div>
-        )}
 
-        {/* Preview pane */}
-        {showPreview && (
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '4px 12px', fontSize: 9, color: 'var(--txD)', borderBottom: '1px solid var(--bd)', background: 'var(--bgP)', flexShrink: 0 }}>
-              PREVIEW
+        {/* Tab content (left/center) */}
+        <div style={{ flex: 1, display: 'flex', minWidth: 0, minHeight: 0 }}>
+          {tab === 'documentation' ? (
+            <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+              {/* Editor pane */}
+              {showEditor && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderRight: showPreview ? '1px solid var(--bd)' : 'none' }}>
+                  <div style={{ padding: '4px 12px', fontSize: 9, color: 'var(--txD)', borderBottom: '1px solid var(--bd)', background: 'var(--bgP)', flexShrink: 0 }}>
+                    MARKDOWN · Ctrl+V to paste screenshots · drag event cards in · auto-saves
+                  </div>
+                  <textarea
+                    ref={editorRef}
+                    value={markdown}
+                    onChange={e => setMarkdown(e.target.value)}
+                    onPaste={handlePaste}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    placeholder={"# Investigation Notes\n\nStart documenting your findings here...\n\n## Key Observations\n\n- Drag flagged events from the right panel into your notes\n- Paste screenshots with Ctrl+V\n- Use **bold** and *italic* for emphasis\n\n## Conclusion\n\n..."}
+                    style={{
+                      flex: 1, resize: 'none', border: 'none', outline: 'none',
+                      background: 'var(--bg)', color: 'var(--tx)',
+                      fontFamily: 'var(--fn)', fontSize: 12, lineHeight: 1.7,
+                      padding: '16px 20px', overflow: 'auto',
+                    }}
+                    spellCheck={false}
+                  />
+                </div>
+              )}
+
+              {/* Preview pane */}
+              {showPreview && (
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '4px 12px', fontSize: 9, color: 'var(--txD)', borderBottom: '1px solid var(--bd)', background: 'var(--bgP)', flexShrink: 0 }}>
+                    PREVIEW · click an event chip to highlight in graph
+                  </div>
+                  <div
+                    onClick={handlePreviewClick}
+                    style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(markdown, images) || '<div style="color:var(--txD);font-size:12px;font-style:italic">Start typing to see the preview…</div>' }}
+                  />
+                </div>
+              )}
             </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(markdown, images) || '<div style="color:var(--txD);font-size:12px;font-style:italic">Start typing to see the preview…</div>' }}
+          ) : (
+            // Timeline Graph tab
+            <TimelineGraph
+              events={events}
+              timelineEdges={timelineEdges}
+              suggestedEdges={suggestedEdges}
+              addTimelineEdge={addTimelineEdge}
+              removeTimelineEdge={removeTimelineEdge}
+              acceptSuggestion={acceptSuggestion}
+              placeEvent={placeEvent}
+              unplaceEvent={unplaceEvent}
+              onSelectEntity={onSelectEntity}
             />
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Right-side flagged events panel — always visible */}
+        <EventsPanel
+          events={events}
+          onEventClick={(ev) => {
+            if (ev.entity_type === 'node')    onSelectEntity?.('node', ev.node_id);
+            if (ev.entity_type === 'edge')    onSelectEntity?.('edge', ev.edge_id);
+            if (ev.entity_type === 'session') onSelectEntity?.('session', ev.session_id);
+          }}
+          onEditEvent={(ev) => {/* TODO Phase 2: edit modal */}}
+          onRemoveEvent={(ev) => removeEvent?.(ev.id)}
+        />
       </div>
     </div>
   );

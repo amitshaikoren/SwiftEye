@@ -110,6 +110,9 @@ export default function GraphCanvas({
   containerRef, theme,
   annotations = [], onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
   onAddNodeAnnotation, onAddEdgeAnnotation,
+  // Events (v0.21.0) — researcher-flagged entities
+  nodeEventSeverity, edgeEventSeverity,
+  onFlagNode, onFlagEdge,
   onAddSyntheticNode, onAddSyntheticEdge, onDeleteSynthetic, onUnclusterSubnet,
   onExpandCluster, onRelayout, onCreateManualCluster,
   onStartPathfind, pathfindSource, onPathfindTarget, onCancelPathfind, onAnimate,
@@ -1416,6 +1419,12 @@ resize();draw();
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
               onClick={() => { onAddNodeAnnotation?.(ctxMenu.nodeId, ctxMenu.nodeLabel); setCtxMenu(null); }}>Add annotation</MenuItem>
 
+            {/* FLAG AS EVENT (v0.21.0) */}
+            {!ctxMenu.isCluster && !ctxMenu.isSubnet && (
+              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f85149" strokeWidth="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>}
+                onClick={() => { onFlagNode?.(ctxMenu.nodeId); setCtxMenu(null); }}>Flag as Event</MenuItem>
+            )}
+
             <MenuDivider />
 
             {/* EDIT */}
@@ -1452,6 +1461,12 @@ resize();draw();
             {/* ANNOTATE */}
             <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bc8cff" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
               onClick={() => { onAddEdgeAnnotation?.(ctxMenu.edgeId); setCtxMenu(null); }}>Add annotation</MenuItem>
+
+            {/* FLAG AS EVENT (v0.21.0) */}
+            {!ctxMenu.isSyntheticEdge && (
+              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f85149" strokeWidth="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>}
+                onClick={() => { onFlagEdge?.(ctxMenu.edgeId); setCtxMenu(null); }}>Flag as Event</MenuItem>
+            )}
 
             {/* EDIT */}
             {ctxMenu.isSyntheticEdge && (
@@ -1506,6 +1521,55 @@ resize();draw();
           <SyntheticEdgeForm onClose={() => setShowSyntheticEdgeForm(false)} />
         </>
       )}
+
+      {/* Event indicator dots (v0.21.0) — small severity dot pinned to     */}
+      {/* flagged nodes/edges. Drives only display, not selection. Read     */}
+      {/* `nodeEventSeverity` / `edgeEventSeverity` Maps from useEvents.    */}
+      {(() => {
+        if ((!nodeEventSeverity || nodeEventSeverity.size === 0) &&
+            (!edgeEventSeverity || edgeEventSeverity.size === 0)) {
+          return null;
+        }
+        const SEV_COLOR = {
+          critical: '#f85149', high: '#f0883e', medium: '#d29922',
+          low: '#58a6ff', info: '#8b949e',
+        };
+        const t = tRef.current;
+        const dots = [];
+        if (nodeEventSeverity) {
+          for (const [nid, sev] of nodeEventSeverity.entries()) {
+            const node = nRef.current.find(n => n.id === nid);
+            if (!node || node.x == null) continue;
+            const r = (gRRef.current ? gRRef.current(node) : 10);
+            const sx = (node.x + r * 0.7) * t.k + t.x;
+            const sy = (node.y - r * 0.7) * t.k + t.y;
+            dots.push({ key: `n:${nid}`, sx, sy, color: SEV_COLOR[sev] || '#8b949e' });
+          }
+        }
+        if (edgeEventSeverity) {
+          for (const [eid, sev] of edgeEventSeverity.entries()) {
+            const edge = eRef.current.find(e => e.id === eid);
+            if (!edge) continue;
+            const src = typeof edge.source === 'object' ? edge.source : nRef.current.find(n => n.id === edge.source);
+            const tgt = typeof edge.target === 'object' ? edge.target : nRef.current.find(n => n.id === edge.target);
+            if (!src || !tgt || src.x == null || tgt.x == null) continue;
+            const sx = ((src.x + tgt.x) / 2) * t.k + t.x;
+            const sy = ((src.y + tgt.y) / 2) * t.k + t.y;
+            dots.push({ key: `e:${eid}`, sx, sy, color: SEV_COLOR[sev] || '#8b949e' });
+          }
+        }
+        return dots.map(d => (
+          <div key={d.key} style={{
+            position: 'absolute', left: d.sx, top: d.sy, zIndex: 49,
+            width: 9, height: 9, borderRadius: '50%',
+            background: d.color,
+            border: '1.5px solid var(--bg)',
+            boxShadow: `0 0 6px ${d.color}aa`,
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+          }} />
+        ));
+      })()}
 
       {/* Annotation overlays — HTML labels pinned to graph-space coords */}
       {/* Canvas annotations use absolute position from graph-space coords.   */}

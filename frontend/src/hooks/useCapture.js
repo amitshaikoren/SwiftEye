@@ -30,6 +30,7 @@ import { applyDisplayFilter } from '../displayFilter';
 import { applyClusterView } from '../clusterView';
 import { matchSessionToEdge } from '../sessionMatch';
 import { useAnimationMode } from './useAnimationMode';
+import useEvents from './useEvents';
 
 const SESSIONS_FETCH_LIMIT = 1000;
 const TIME_RANGE_DEBOUNCE_MS = 300;
@@ -38,6 +39,17 @@ export function useCapture() {
 
   // ── Animation mode (decoupled sub-hook) ─────────────────────────
   const anim = useAnimationMode();
+
+  // ── Events: researcher-flagged nodes/edges/sessions (v0.21.0) ────
+  const evs = useEvents();
+  // Modal state — { entity, entity_type } or null
+  const [flaggingTarget, setFlaggingTarget] = useState(null);
+
+  function openFlagModal(entity_type, entity) {
+    if (!entity || !entity_type) return;
+    setFlaggingTarget({ entity, entity_type });
+  }
+  function closeFlagModal() { setFlaggingTarget(null); }
 
   // ── Capture lifecycle ────────────────────────────────────────────
   const [loaded, setLoaded]   = useState(false);
@@ -1037,5 +1049,23 @@ export function useCapture() {
 
     // Animation mode (decoupled sub-hook)
     ...anim,
+
+    // Events (v0.21.0) — researcher-flagged nodes/edges/sessions
+    events: evs.events,
+    timelineEdges: evs.timelineEdges,
+    suggestedEdges: evs.suggestedEdges,
+    addEvent: evs.addEvent,
+    updateEvent: evs.updateEvent,
+    removeEvent: evs.removeEvent,
+    placeEvent: evs.placeEvent,
+    unplaceEvent: evs.unplaceEvent,
+    addTimelineEdge: evs.addTimelineEdge,
+    updateTimelineEdge: evs.updateTimelineEdge,
+    removeTimelineEdge: evs.removeTimelineEdge,
+    acceptSuggestion: evs.acceptSuggestion,
+    nodeEventSeverity: evs.nodeEventSeverity,
+    edgeEventSeverity: evs.edgeEventSeverity,
+    getEventsForEntity: evs.getEventsForEntity,
+    flaggingTarget, openFlagModal, closeFlagModal,
   };
 }

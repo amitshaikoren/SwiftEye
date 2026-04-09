@@ -25,6 +25,7 @@ import MultiSelectPanel from './components/MultiSelectPanel';
 import ResearchPage from './components/ResearchPage';
 import HelpPanel from './components/HelpPanel';
 import SettingsPanel from './components/SettingsPanel';
+import EventFlagModal from './components/EventFlagModal';
 import AnalysisPage from './components/AnalysisPage';
 import InvestigationPage from './components/InvestigationPage';
 import VisualizePage from './components/VisualizePage';
@@ -172,6 +173,7 @@ export default function App() {
         pColors={c.pColors}
         annotations={c.annotations}
         onSaveNote={c.handleSaveNote}
+        onFlagEvent={() => c.openFlagModal('session', c.selSession)}
         onTabChange={tab => {
           if (tab === 'charts' && c.panelWidth < 500) c.setPanelWidth(500);
         }}
@@ -419,8 +421,34 @@ export default function App() {
             }}
           />
         ) : c.rPanel === 'investigation' ? (
-          /* INVESTIGATION PAGE — markdown notebook */
-          <InvestigationPage />
+          /* INVESTIGATION PAGE — markdown notebook + Timeline Graph (v0.21.0) */
+          <InvestigationPage
+            events={c.events}
+            timelineEdges={c.timelineEdges}
+            suggestedEdges={c.suggestedEdges}
+            addTimelineEdge={c.addTimelineEdge}
+            removeTimelineEdge={c.removeTimelineEdge}
+            acceptSuggestion={c.acceptSuggestion}
+            placeEvent={c.placeEvent}
+            unplaceEvent={c.unplaceEvent}
+            removeEvent={c.removeEvent}
+            updateEvent={c.updateEvent}
+            onSelectEntity={(entity_type, entity_id) => {
+              if (!entity_type || !entity_id) return;
+              if (entity_type === 'node') {
+                const node = c.graph?.nodes?.find(n => n.id === entity_id);
+                if (node) c.handleGSel('node', node, false);
+              } else if (entity_type === 'edge') {
+                const edge = c.graph?.edges?.find(e => e.id === entity_id);
+                if (edge) c.handleGSel('edge', edge, false);
+              } else if (entity_type === 'session') {
+                fetchSessionDetail(entity_id, 0).then(d => {
+                  if (d.session) c.selectSession(d.session);
+                }).catch(() => {});
+              }
+              c.switchPanel('stats');
+            }}
+          />
         ) : c.rPanel === 'visualize' ? (
           /* VISUALIZE PAGE — full width, custom data graph */
           <VisualizePage />
@@ -582,6 +610,16 @@ export default function App() {
                     edgeColorRules={c.edgeColorRules}
                     queryHighlight={queryHighlight}
                     onClearQueryHighlight={() => setQueryHighlight(null)}
+                    nodeEventSeverity={c.nodeEventSeverity}
+                    edgeEventSeverity={c.edgeEventSeverity}
+                    onFlagNode={(nodeId) => {
+                      const node = c.graph?.nodes?.find(n => n.id === nodeId);
+                      if (node) c.openFlagModal('node', node);
+                    }}
+                    onFlagEdge={(edgeId) => {
+                      const edge = c.graph?.edges?.find(e => e.id === edgeId);
+                      if (edge) c.openFlagModal('edge', edge);
+                    }}
                   />
                 )}
 
@@ -711,6 +749,44 @@ export default function App() {
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      {/* Event flag modal (v0.21.0) — opened via context menu / SessionDetail */}
+      <EventFlagModal
+        open={!!c.flaggingTarget}
+        entity={c.flaggingTarget?.entity}
+        entity_type={c.flaggingTarget?.entity_type}
+        graph={c.graph}
+        existingAnnotation={(() => {
+          const tgt = c.flaggingTarget;
+          if (!tgt) return null;
+          const ann = (c.annotations || []).find(a =>
+            (tgt.entity_type === 'node' && a.node_id === tgt.entity?.id) ||
+            (tgt.entity_type === 'edge' && a.edge_id === tgt.entity?.id)
+          );
+          return ann?.label || null;
+        })()}
+        onConfirm={({ title, severity, description, includeAnnotation }) => {
+          const tgt = c.flaggingTarget;
+          if (!tgt) return;
+          let annotation_snapshot = null;
+          if (includeAnnotation) {
+            const ann = (c.annotations || []).find(a =>
+              (tgt.entity_type === 'node' && a.node_id === tgt.entity?.id) ||
+              (tgt.entity_type === 'edge' && a.edge_id === tgt.entity?.id)
+            );
+            annotation_snapshot = ann?.label || null;
+          }
+          c.addEvent({
+            entity: tgt.entity,
+            entity_type: tgt.entity_type,
+            title, severity, description,
+            annotation_snapshot,
+            graph: c.graph,
+          });
+          c.closeFlagModal();
+        }}
+        onClose={c.closeFlagModal}
+      />
     </div>
     </FilterContext.Provider>
   );
