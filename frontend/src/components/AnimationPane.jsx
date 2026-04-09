@@ -139,10 +139,10 @@ function buildEdgeList(sessionMap) {
 export default function AnimationPane({
   // Animation state (from useCapture → useAnimationMode)
   animNodes, animEvents, animNodeMeta, animFrame, animPlaying, animSpeed,
-  animOpts, frameState, currentEvent, animTimeRange, totalFrames,
+  animOpts, frameState, currentEvent, animTimeRange, totalFrames, isIsolated,
   // Actions
   togglePlay, goToFrame, stepForward, stepBackward, goToStart, goToEnd,
-  setAnimSpeed, setAnimOpts, stopAnimation,
+  setAnimSpeed, setAnimOpts, stopAnimation, setIsIsolated,
   // External data for positioning
   mainNodes, pColors,
   // Click handlers for detail panels
@@ -156,7 +156,6 @@ export default function AnimationPane({
   const [hovered, setHovered] = useState(null); // { type: 'node'|'edge', id, x, y }
   const [focusedNode, setFocusedNode] = useState(null); // null = show all, IP string = filter to that spotlight
   const [hiddenNodes, setHiddenNodes] = useState(new Set()); // IPs hidden by user
-  const [isIsolated, setIsIsolated] = useState(false); // show only spotlight↔spotlight edges
   const [contextMenu, setContextMenu] = useState(null); // { x, y, ip }
   const [dragState, setDragState] = useState(null); // { ip, startX, startY } for node dragging
   const flashRef = useRef({}); // session_id → timestamp of flash start
@@ -170,7 +169,9 @@ export default function AnimationPane({
   const edgeList = useMemo(() => buildEdgeList(sessionMap), [sessionMap]);
   const filterCtx = useFilterContext();
 
-  // Filtered edges: apply protocol filter + isolate + focusedNode + hiddenNodes
+  // Filtered edges: apply protocol filter + focusedNode + hiddenNodes.
+  // Note: when isIsolated is on, the event list itself is already filtered upstream
+  // in useAnimationMode, so edgeList only contains spotlight↔spotlight sessions here.
   const visibleEdges = useMemo(() => {
     const { enabledP, allProtocolKeysCount } = filterCtx;
     const noneSelected = enabledP.size === 0 && allProtocolKeysCount > 0;
@@ -178,17 +179,15 @@ export default function AnimationPane({
     const appProtos = someFiltered
       ? new Set([...enabledP].map(k => k.split('/').pop().toUpperCase()))
       : null;
-    const spotSet = new Set(animNodes);
 
     return edgeList.filter(e => {
       if (noneSelected) return false;
       if (appProtos && !appProtos.has((e.protocol || '').toUpperCase())) return false;
-      if (isIsolated && (!spotSet.has(e.src) || !spotSet.has(e.dst))) return false;
       if (focusedNode && e.src !== focusedNode && e.dst !== focusedNode) return false;
       if (hiddenNodes.has(e.src) || hiddenNodes.has(e.dst)) return false;
       return true;
     });
-  }, [edgeList, focusedNode, hiddenNodes, isIsolated, animNodes, filterCtx]);
+  }, [edgeList, focusedNode, hiddenNodes, filterCtx]);
 
   // Filtered events for history panel
   const visibleEvents = useMemo(() => {

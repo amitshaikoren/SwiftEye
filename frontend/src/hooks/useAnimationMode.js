@@ -16,13 +16,14 @@ const SPEED_MS = { 0.5: 2000, 1: 1000, 2: 500, 5: 200 };
 export function useAnimationMode() {
   const [animActive, setAnimActive] = useState(false);
   const [animNodes, setAnimNodes] = useState([]);          // spotlight IPs
-  const [animEvents, setAnimEvents] = useState([]);        // raw events from API
+  const [rawEvents, setRawEvents] = useState([]);          // unfiltered events from API
   const [animNodeMeta, setAnimNodeMeta] = useState({});    // {ip: {is_spotlight, is_private, ...}}
   const [animFrame, setAnimFrame] = useState(0);           // 0..N (0 = before first event)
   const [animPlaying, setAnimPlaying] = useState(false);
   const [animSpeed, setAnimSpeed] = useState(1);
   const [animLoading, setAnimLoading] = useState(false);
   const [animError, setAnimError] = useState(null);
+  const [isIsolated, setIsIsolated] = useState(false);     // filter timeline to spotlight↔spotlight events
   const [animOpts, setAnimOpts] = useState({
     endedMode: 'fade',     // 'disappear' | 'fade' | 'color'
     endedColor: '#555555',
@@ -30,9 +31,23 @@ export function useAnimationMode() {
     edgeLabels: 'protocol', // 'protocol' | 'bytes' | 'off'
   });
 
+  // Effective events: when isolated, only events where both endpoints are spotlight nodes.
+  // This is the single source of truth for the timeline — frames, play loop, history,
+  // frame state, and slider all derive from it.
+  const animEvents = useMemo(() => {
+    if (!isIsolated || animNodes.length === 0) return rawEvents;
+    const spot = new Set(animNodes);
+    return rawEvents.filter(ev => spot.has(ev.src) && spot.has(ev.dst));
+  }, [rawEvents, isIsolated, animNodes]);
+
   const playTimerRef = useRef(null);
   const eventsRef = useRef([]);
   useEffect(() => { eventsRef.current = animEvents; }, [animEvents]);
+
+  // Clamp animFrame whenever the effective event list shrinks (e.g. toggling isolate on).
+  useEffect(() => {
+    setAnimFrame(prev => Math.min(prev, animEvents.length));
+  }, [animEvents.length]);
 
   // ── Start / Stop ──────────────────────────────────────────────────
 
@@ -42,10 +57,11 @@ export function useAnimationMode() {
     try {
       const resp = await fetchNodeAnimation(nodeIds, protocols);
       setAnimNodes(nodeIds);
-      setAnimEvents(resp.events || []);
+      setRawEvents(resp.events || []);
       setAnimNodeMeta(resp.nodes || {});
       setAnimFrame(0);
       setAnimPlaying(false);
+      setIsIsolated(false);
       setAnimActive(true);
     } catch (err) {
       setAnimError(err.message || 'Failed to load animation data');
@@ -58,9 +74,10 @@ export function useAnimationMode() {
     setAnimActive(false);
     setAnimPlaying(false);
     setAnimFrame(0);
-    setAnimEvents([]);
+    setRawEvents([]);
     setAnimNodeMeta({});
     setAnimNodes([]);
+    setIsIsolated(false);
     setAnimError(null);
     if (playTimerRef.current) {
       clearInterval(playTimerRef.current);
@@ -170,6 +187,7 @@ export function useAnimationMode() {
     animLoading,
     animError,
     animOpts,
+    isIsolated,
 
     // Derived
     frameState,
@@ -188,5 +206,6 @@ export function useAnimationMode() {
     goToEnd,
     setAnimSpeed,
     setAnimOpts,
+    setIsIsolated,
   };
 }

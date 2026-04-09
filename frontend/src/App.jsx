@@ -539,6 +539,7 @@ export default function App() {
                     currentEvent={c.currentEvent}
                     animTimeRange={c.animTimeRange}
                     totalFrames={c.totalFrames}
+                    isIsolated={c.isIsolated}
                     togglePlay={c.togglePlay}
                     goToFrame={c.goToFrame}
                     stepForward={c.stepForward}
@@ -547,6 +548,7 @@ export default function App() {
                     goToEnd={c.goToEnd}
                     setAnimSpeed={c.setAnimSpeed}
                     setAnimOpts={c.setAnimOpts}
+                    setIsIsolated={c.setIsIsolated}
                     stopAnimation={c.stopAnimation}
                     mainNodes={c.graph?.nodes || []}
                     pColors={c.pColors}
