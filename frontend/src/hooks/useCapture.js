@@ -1063,6 +1063,7 @@ export function useCapture() {
     updateTimelineEdge: evs.updateTimelineEdge,
     removeTimelineEdge: evs.removeTimelineEdge,
     acceptSuggestion: evs.acceptSuggestion,
+    rejectSuggestion: evs.rejectSuggestion,
     nodeEventSeverity: evs.nodeEventSeverity,
     edgeEventSeverity: evs.edgeEventSeverity,
     getEventsForEntity: evs.getEventsForEntity,

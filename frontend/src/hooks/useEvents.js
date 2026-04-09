@@ -129,9 +129,14 @@ function defaultTitle(entity_type, entity) {
 
 // ── Hook ───────────────────────────────────────────────────────────────────
 
+// Pair-key helper: rejected suggestions are keyed by the unordered pair so
+// rejecting once survives a swap of from/to.
+function pairKey(a, b) { return [a, b].sort().join('|'); }
+
 export default function useEvents() {
-  const [events, setEvents]               = useState([]);
-  const [timelineEdges, setTimelineEdges] = useState([]);
+  const [events, setEvents]                             = useState([]);
+  const [timelineEdges, setTimelineEdges]               = useState([]);
+  const [rejectedSuggestions, setRejectedSuggestions]   = useState(() => new Set());
 
   // Mirror events into a ref for stable callbacks that need the latest list
   // without re-creating identity (used by getEventByEntityId).
@@ -236,6 +241,21 @@ export default function useEvents() {
     });
   }, [addTimelineEdge]);
 
+  // Reject a suggestion permanently (for the lifetime of the in-memory store).
+  // Stored as a Set of unordered pair-keys so reject survives a from/to swap.
+  // Same-events reasons are still computed by the memo, but the pair is
+  // filtered out before it's exposed.
+  const rejectSuggestion = useCallback((from_event_id, to_event_id) => {
+    if (!from_event_id || !to_event_id) return;
+    setRejectedSuggestions(prev => {
+      const k = pairKey(from_event_id, to_event_id);
+      if (prev.has(k)) return prev;
+      const next = new Set(prev);
+      next.add(k);
+      return next;
+    });
+  }, []);
+
   // ── Derived: suggested edges (O(n²) over events, n is small) ─────────────
   //
   // Computed for ALL pairs. The Timeline Graph renderer is responsible for
@@ -247,6 +267,8 @@ export default function useEvents() {
       for (let j = i + 1; j < events.length; j++) {
         const a = events[i];
         const b = events[j];
+        // Skip permanently-rejected pairs (unordered key).
+        if (rejectedSuggestions.has(pairKey(a.id, b.id))) continue;
         // Order so the earlier capture_time is "from" — falls back to
         // creation order when either is null.
         let from = a, to = b;
@@ -285,7 +307,7 @@ export default function useEvents() {
       }
     }
     return out;
-  }, [events]);
+  }, [events, rejectedSuggestions]);
 
   // ── Indicator maps for the main GraphCanvas ──────────────────────────────
   //
@@ -341,6 +363,7 @@ export default function useEvents() {
     updateTimelineEdge,
     removeTimelineEdge,
     acceptSuggestion,
+    rejectSuggestion,
 
     nodeEventSeverity,
     edgeEventSeverity,

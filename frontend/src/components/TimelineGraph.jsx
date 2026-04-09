@@ -53,6 +53,7 @@ export default function TimelineGraph({
   addTimelineEdge,
   removeTimelineEdge,
   acceptSuggestion,
+  rejectSuggestion,
   placeEvent,
   unplaceEvent,
   onSelectEntity,
@@ -609,7 +610,13 @@ export default function TimelineGraph({
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-              <button className="btn" onClick={() => setSuggestionPopup(null)}
+              <button className="btn" onClick={() => {
+                rejectSuggestion?.(
+                  suggestionPopup.suggestion.from_event_id,
+                  suggestionPopup.suggestion.to_event_id,
+                );
+                setSuggestionPopup(null);
+              }}
                 style={{ fontSize: 9, padding: '2px 10px' }}>Reject all</button>
             </div>
           </div>

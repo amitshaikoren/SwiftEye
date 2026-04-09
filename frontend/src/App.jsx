@@ -434,6 +434,7 @@ export default function App() {
             addTimelineEdge={c.addTimelineEdge}
             removeTimelineEdge={c.removeTimelineEdge}
             acceptSuggestion={c.acceptSuggestion}
+            rejectSuggestion={c.rejectSuggestion}
             placeEvent={c.placeEvent}
             unplaceEvent={c.unplaceEvent}
             removeEvent={c.removeEvent}
