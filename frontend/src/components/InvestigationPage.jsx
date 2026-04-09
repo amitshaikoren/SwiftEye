@@ -169,6 +169,8 @@ export default function InvestigationPage({
   removeTimelineEdge,
   acceptSuggestion,
   rejectSuggestion,
+  rulerOn,
+  setRulerOn,
   placeEvent,
   unplaceEvent,
   removeEvent,
@@ -456,6 +458,8 @@ export default function InvestigationPage({
               removeTimelineEdge={removeTimelineEdge}
               acceptSuggestion={acceptSuggestion}
               rejectSuggestion={rejectSuggestion}
+              rulerOn={rulerOn}
+              setRulerOn={setRulerOn}
               placeEvent={placeEvent}
               unplaceEvent={unplaceEvent}
               onSelectEntity={onSelectEntity}

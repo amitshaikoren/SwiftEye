@@ -137,6 +137,9 @@ export default function useEvents() {
   const [events, setEvents]                             = useState([]);
   const [timelineEdges, setTimelineEdges]               = useState([]);
   const [rejectedSuggestions, setRejectedSuggestions]   = useState(() => new Set());
+  // TimelineGraph view state lives here so it survives tab navigation /
+  // panel switches that unmount the TimelineGraph component.
+  const [rulerOn, setRulerOn]                           = useState(false);
 
   // Mirror events into a ref for stable callbacks that need the latest list
   // without re-creating identity (used by getEventByEntityId).
@@ -368,5 +371,9 @@ export default function useEvents() {
     nodeEventSeverity,
     edgeEventSeverity,
     getEventsForEntity,
+
+    // TimelineGraph view state (persisted across tab nav)
+    rulerOn,
+    setRulerOn,
   };
 }

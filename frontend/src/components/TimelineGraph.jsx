@@ -54,6 +54,8 @@ export default function TimelineGraph({
   removeTimelineEdge,
   acceptSuggestion,
   rejectSuggestion,
+  rulerOn = false,
+  setRulerOn,
   placeEvent,
   unplaceEvent,
   onSelectEntity,
@@ -71,9 +73,11 @@ export default function TimelineGraph({
   const [zoomTick, setZoomTick] = useState(0);
   const [size, setSize] = useState({ w: 800, h: 600 });
 
-  // UI state
-  const [rulerOn, setRulerOn] = useState(false);
+  // UI state (rulerOn lives in useEvents so it survives tab nav)
   const [drawMode, setDrawMode] = useState(false);
+  // Tracks the previous rulerOn value so we can detect the on→off
+  // transition and persist the post-ruler positions back to canvas_x/canvas_y.
+  const prevRulerRef = useRef(rulerOn);
   const [drawSrc, setDrawSrc]   = useState(null); // event id picked first
   const [selectedNode, setSelectedNode] = useState(null);  // event id
   const [selectedEdge, setSelectedEdge] = useState(null);  // timeline edge id
@@ -151,29 +155,55 @@ export default function TimelineGraph({
     const next = placedEvents.map(ev => {
       const prev = prevById.get(ev.id);
       if (prev) {
-        // Update event reference but preserve simulation x/y/vx/vy
+        // Update event reference but preserve simulation x/y/vx/vy/fx/fy
         prev.event = ev;
         return prev;
       }
+      // New node — seed at the persisted canvas position AND lock it via
+      // fx/fy so the simulation doesn't drift it. This is the key insight
+      // for tab-switch persistence: on remount, every node enters the
+      // sim already locked at its canvas_x/canvas_y, so charge + collide
+      // can't push them around.
       return {
         id: ev.id,
         event: ev,
         x: ev.canvas_x,
         y: ev.canvas_y,
         vx: 0, vy: 0,
+        fx: ev.canvas_x,
+        fy: ev.canvas_y,
       };
     });
     nodesRef.current = next;
     sim.nodes(next);
 
-    // Ruler-mode y force (pull each node toward its time-mapped y).
+    // Ruler mode toggles between two layout regimes:
+    //   OFF — every node is locked via fx/fy. Sim is stopped. Nothing moves
+    //          unless a drag explicitly releases a node.
+    //   ON  — release every node, run the y-force pulling each toward its
+    //          time-mapped y, plus charge + collide. Nodes settle by time.
     if (rulerOn) {
+      for (const n of next) { n.fx = null; n.fy = null; }
       sim.force('y-time', d3.forceY(d => timeToY(d.event?.capture_time)).strength(0.18));
+      sim.alpha(0.5).restart();
     } else {
+      // Re-lock any released nodes at their current position.
+      for (const n of next) {
+        if (n.fx == null) n.fx = n.x;
+        if (n.fy == null) n.fy = n.y;
+      }
       sim.force('y-time', null);
+      sim.alpha(0).stop();
+      // On the ruler-on → ruler-off transition, persist the post-ruler
+      // positions back to canvas_x/canvas_y so they survive the next remount.
+      if (prevRulerRef.current === true) {
+        for (const n of next) {
+          placeEvent?.(n.id, n.fx, n.fy);
+        }
+      }
     }
-    sim.alpha(0.5).restart();
-  }, [placedEvents, rulerOn, size.w, size.h]);
+    prevRulerRef.current = rulerOn;
+  }, [placedEvents, rulerOn, size.w, size.h, placeEvent]);
 
   // ── Zoom + pan ───────────────────────────────────────────────────────────
   //
@@ -261,10 +291,15 @@ export default function TimelineGraph({
     const node = nodesRef.current.find(n => n.id === drag.id);
     simRef.current?.alphaTarget(0);
     if (node) {
-      // Persist final position back to the parent event store
-      placeEvent?.(node.id, node.fx ?? node.x, node.fy ?? node.y);
-      node.fx = null;
-      node.fy = null;
+      const fx = node.fx ?? node.x;
+      const fy = node.fy ?? node.y;
+      // Persist final position back to the parent event store.
+      placeEvent?.(node.id, fx, fy);
+      // Keep the node locked at the drop point so it doesn't drift.
+      // Exception: in ruler mode we leave fy unlocked so the y-force can
+      // continue to pull the node toward its time-mapped y.
+      node.fx = fx;
+      node.fy = rulerOn ? null : fy;
     }
     dragRef.current = null;
   }
