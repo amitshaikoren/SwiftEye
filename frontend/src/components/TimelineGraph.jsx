@@ -60,10 +60,14 @@ export default function TimelineGraph({
   const svgRef    = useRef(null);
   const wrapRef   = useRef(null);
   const simRef    = useRef(null);
+  // Persistent zoom/pan transform. Updated by d3.zoom; read by render.
+  // Kept in a ref (not state) so the d3-zoom drag loop doesn't fight React.
+  const tRef      = useRef(d3.zoomIdentity);
   // Local mirror of placed events with live x/y. Source of truth for the
   // simulation; React state used for re-renders.
   const nodesRef  = useRef([]);
   const [tick, setTick] = useState(0);
+  const [zoomTick, setZoomTick] = useState(0);
   const [size, setSize] = useState({ w: 800, h: 600 });
 
   // UI state
@@ -170,15 +174,53 @@ export default function TimelineGraph({
     sim.alpha(0.5).restart();
   }, [placedEvents, rulerOn, size.w, size.h]);
 
+  // ── Zoom + pan ───────────────────────────────────────────────────────────
+  //
+  // d3.zoom() handles wheel-zoom and click-drag-pan on the SVG background.
+  // Pan is suppressed when the gesture starts on a node or edge (those have
+  // data-pan-skip and their own pointer handlers).
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const sel = d3.select(svg);
+    const zoom = d3.zoom()
+      .scaleExtent([0.3, 3])
+      .filter((e) => {
+        // Always allow wheel zoom; only allow drag-pan from background.
+        if (e.type === 'wheel') return true;
+        return !e.target.closest('[data-pan-skip]');
+      })
+      .on('zoom', (e) => {
+        tRef.current = e.transform;
+        setZoomTick((t) => t + 1);
+      });
+    sel.call(zoom);
+    // Keep d3-zoom's internal state in sync with our ref so programmatic
+    // resets (later) work cleanly.
+    return () => { sel.on('.zoom', null); };
+  }, []);
+
   // ── Drag handlers (placed nodes) ─────────────────────────────────────────
 
   const dragRef = useRef(null);  // { id, offsetX, offsetY }
 
+  // Screen-space coordinate (for popup positioning).
   function svgPoint(clientX, clientY) {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
     return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  // Canvas-space coordinate (for node positions / drops). Inverts the
+  // current zoom/pan transform so node coordinates remain stable across
+  // zoom levels — the simulation, persisted canvas_x/canvas_y, and the
+  // ruler all live in untransformed canvas space.
+  function canvasPoint(clientX, clientY) {
+    const sp = svgPoint(clientX, clientY);
+    const [cx, cy] = tRef.current.invert([sp.x, sp.y]);
+    return { x: cx, y: cy };
   }
 
   function onNodePointerDown(e, node) {
@@ -195,7 +237,7 @@ export default function TimelineGraph({
     }
     e.stopPropagation();
     e.target.setPointerCapture?.(e.pointerId);
-    const pt = svgPoint(e.clientX, e.clientY);
+    const pt = canvasPoint(e.clientX, e.clientY);
     dragRef.current = { id: node.id, dx: pt.x - node.x, dy: pt.y - node.y };
     simRef.current?.alphaTarget(0.3).restart();
     node.fx = node.x;
@@ -207,7 +249,7 @@ export default function TimelineGraph({
     if (!drag) return;
     const node = nodesRef.current.find(n => n.id === drag.id);
     if (!node) return;
-    const pt = svgPoint(e.clientX, e.clientY);
+    const pt = canvasPoint(e.clientX, e.clientY);
     node.fx = pt.x - drag.dx;
     node.fy = pt.y - drag.dy;
   }
@@ -241,7 +283,7 @@ export default function TimelineGraph({
     if (!eventId) return;
     const ev = events.find(x => x.id === eventId);
     if (!ev) return;
-    const pt = svgPoint(e.clientX, e.clientY);
+    const pt = canvasPoint(e.clientX, e.clientY);
     placeEvent?.(eventId, pt.x, pt.y);
   }
 
@@ -386,6 +428,14 @@ export default function TimelineGraph({
         onPointerMove={onNodePointerMove}
         onPointerUp={onNodePointerUp}
       >
+        {/* Transparent background rect — gives d3.zoom a target so pan
+            works over empty canvas. Without it, pointerdowns on empty
+            space hit the <svg> root only when there are no children. */}
+        <rect x={0} y={0} width={size.w} height={Math.max(120, size.h - 36)} fill="transparent" />
+
+        {/* All zoom/pan-affected content lives inside this group. The
+            ruler is included so its ticks scale with the canvas. */}
+        <g transform={tRef.current.toString()}>
         {/* Ruler axis (only when ruler mode is on) */}
         {rulerOn && timeRange && (
           <g pointerEvents="none">
@@ -408,7 +458,7 @@ export default function TimelineGraph({
           const id = `${s.from_event_id}|${s.to_event_id}`;
           const isHovered = hoveredEdgeId === id;
           return (
-            <g key={'sugg:' + id} style={{ cursor: 'pointer' }}
+            <g key={'sugg:' + id} data-pan-skip="true" style={{ cursor: 'pointer' }}
               onMouseEnter={() => setHoveredEdgeId(id)}
               onMouseLeave={() => setHoveredEdgeId(null)}
               onClick={e => onSuggestedClick(e, s)}>
@@ -440,7 +490,7 @@ export default function TimelineGraph({
           if (!a || !b) return null;
           const isSelected = selectedEdge === te.id;
           return (
-            <g key={'te:' + te.id} style={{ cursor: 'pointer' }}
+            <g key={'te:' + te.id} data-pan-skip="true" style={{ cursor: 'pointer' }}
               onClick={e => onManualEdgeClick(e, te)}>
               <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
                 stroke={te.color || MANUAL_EDGE_COLOR}
@@ -471,7 +521,7 @@ export default function TimelineGraph({
           const cy = n.fy ?? n.y;
           if (cx == null || cy == null) return null;
           return (
-            <g key={'n:' + ev.id}
+            <g key={'n:' + ev.id} data-pan-skip="true"
               style={{ cursor: drawMode ? 'crosshair' : 'grab' }}
               onPointerDown={e => onNodePointerDown(e, n)}
               onClick={e => onNodeClick(e, n)}
@@ -502,6 +552,7 @@ export default function TimelineGraph({
             </g>
           );
         })}
+        </g>
       </svg>
 
       {/* Node context menu */}
