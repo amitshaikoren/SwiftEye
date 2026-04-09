@@ -1737,4 +1737,4 @@ Out of scope (use Spark notebook): UDFs, joins, groupBy+agg, withColumn/explode/
 
 See HANDOFF.md §6 for the full PySpark→SQL translation table and scope boundary.
 
-See `query_system_design.html` for visual architecture diagram and UI mockups.
+See `docs/mockups/query_system_design.html` for visual architecture diagram and UI mockups.

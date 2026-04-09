@@ -1,23 +1,25 @@
-﻿frontend/node_modules/
+frontend/node_modules/
 __pycache__/
 *.pyc
 backend/swifteye.log
 .claude/
-init_prompt.md
 /tests/
 audits/
-ROADMAP.md
+
+# Project docs kept private (sensitive design / WIP)
+CLAUDE.md
 HANDOFF.md
-FOR_OPUS.md
-architecture.html
-query.html
-toggle_mockup.html
-graph_options_mockup.html
-swifteye_external_review.md
-DB_PHASE1_PLAN.md
-ALERTS_PANEL_PLAN.md
-ALERTS_PHASE2_PLAN.md
-DPKT_UNIFIED_PLAN.md
-alerts_panel_mockup.html
-animation_mode_mockup.html
+ROADMAP.md
+
+# AI mirror docs (cache tier — derivatives of private docs, regenerated on flush)
+*.ai.md
+SESSION.md
+
+# Plans and design artifacts under docs/
+docs/plans/
+docs/mockups/
+docs/swifteye_external_review.md
+docs/METHODOLOGY.md
+
+# Misc
 backend/routes/_demo_alerts.py
