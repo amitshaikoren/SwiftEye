@@ -191,6 +191,7 @@ export default function App() {
           annotations={c.annotations}
           onSaveNote={c.handleSaveNote}
           clusterNames={c.clusterNames}
+          onFlagEvent={() => c.openFlagModal('edge', c.selEdge)}
         />
       </>
     );
@@ -239,6 +240,10 @@ export default function App() {
                   const protos = toProtocolNames(c.enabledP, c.allProtocolKeysCountRef.current);
                   c.startAnimation(nodeIds, protos || undefined);
                 }}
+            onFlagEvent={() => {
+              const nObj = detailNodes.find(n => n.id === c.selNodes[0]);
+              if (nObj) c.openFlagModal('node', nObj);
+            }}
           />
         </>
       );

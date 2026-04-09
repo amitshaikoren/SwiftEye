@@ -386,13 +386,17 @@ export default function InvestigationPage({
 
         <div style={{ flex: 1 }} />
 
-        {/* Save / export — always visible */}
-        <button className="btn" onClick={handleManualSave} disabled={saving}
-          style={{ fontSize: 9, padding: '2px 10px' }}>{saving ? 'Saving…' : 'Save'}</button>
-        <button className="btn" onClick={handleExport} disabled={exporting || !markdown.trim()}
-          style={{ fontSize: 9, padding: '2px 10px', background: 'rgba(88,166,255,.1)', borderColor: 'var(--ac)', color: 'var(--ac)' }}>
-          {exporting ? 'Exporting…' : '⬇ Export PDF'}
-        </button>
+        {/* Save / export — only on Documentation tab (PDF export is markdown-only) */}
+        {tab === 'documentation' && (
+          <>
+            <button className="btn" onClick={handleManualSave} disabled={saving}
+              style={{ fontSize: 9, padding: '2px 10px' }}>{saving ? 'Saving…' : 'Save'}</button>
+            <button className="btn" onClick={handleExport} disabled={exporting || !markdown.trim()}
+              style={{ fontSize: 9, padding: '2px 10px', background: 'rgba(88,166,255,.1)', borderColor: 'var(--ac)', color: 'var(--ac)' }}>
+              {exporting ? 'Exporting…' : '⬇ Export PDF'}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Main row: tab content + EventsPanel */}

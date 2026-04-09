@@ -260,7 +260,7 @@ function useScopeState(key) {
 export default function NodeDetail({
   nodeId, nodes, edges, sessions, pColors, onClear, onSelectNode, onSelectEdge, onSelectSession,
   pluginResults, uiSlots, annotations = [], onSaveNote, onUpdateSynthetic,
-  fullSessions, fullGraph, onAnimate,
+  fullSessions, fullGraph, onAnimate, onFlagEvent,
 }) {
   const filterCtx = useFilterContext();
   const [scope, setScope] = useScopeState('swifteye_scope_node');
@@ -360,6 +360,18 @@ export default function NodeDetail({
               title="Animate session timeline for this node"
             >
               ▶ Animate
+            </button>
+          )}
+          {onFlagEvent && (
+            <button className="btn" onClick={onFlagEvent}
+              title="Flag this node as an Event"
+              style={{
+                fontSize: 9, padding: '2px 8px',
+                color: '#f85149', borderColor: '#f85149',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+              Flag
             </button>
           )}
           <ScopePill value={scope} onChange={setScope} />

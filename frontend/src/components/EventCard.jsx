@@ -43,15 +43,16 @@ export default function EventCard({
       }}
       onClick={onClick}
       style={{
-        background: 'var(--bgP)',
-        border: '1px solid var(--bd)',
+        background: 'rgba(255,255,255,.045)',
+        border: '1px solid rgba(255,255,255,.14)',
         borderLeft: `3px solid ${sevColor}`,
         borderRadius: 4,
-        padding: '6px 8px',
+        padding: '7px 9px',
         marginBottom: 6,
         cursor: 'grab',
         position: 'relative',
         opacity: isPlaced ? 0.55 : 1,
+        boxShadow: '0 1px 2px rgba(0,0,0,.25)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
