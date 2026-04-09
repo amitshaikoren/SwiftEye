@@ -122,7 +122,10 @@ export default function TimelineGraph({
   // transition and persist the post-ruler positions back to canvas_x/canvas_y.
   const prevRulerRef = useRef(rulerOn);
   const [drawSrc, setDrawSrc]   = useState(null); // event id picked first
-  const [selectedNode, setSelectedNode] = useState(null);  // event id
+  const [selectedNode, setSelectedNode] = useState(null);  // event id (single)
+  // Shift-click selection — up to 2 ids; when length === 2 we render an
+  // operations popover anchored to the midpoint of the pair.
+  const [selectedPair, setSelectedPair] = useState([]);
   const [selectedEdge, setSelectedEdge] = useState(null);  // timeline edge id
   const [suggestionPopup, setSuggestionPopup] = useState(null);  // { suggestion, x, y }
   const [edgeLabelPrompt, setEdgeLabelPrompt] = useState(null); // { from, to } awaiting label
@@ -430,6 +433,7 @@ export default function TimelineGraph({
   function onCanvasClick() {
     setSelectedNode(null);
     setSelectedEdge(null);
+    setSelectedPair([]);
     setSuggestionPopup(null);
     setCtxMenu(null);
   }
@@ -449,7 +453,22 @@ export default function TimelineGraph({
   function onNodeClick(e, node) {
     if (drawMode) return;
     e.stopPropagation();
+    if (e.shiftKey) {
+      // Shift-click — accumulate into selectedPair (max 2, FIFO drop oldest)
+      setSelectedPair(prev => {
+        if (prev.includes(node.id)) {
+          // Toggle off
+          return prev.filter(id => id !== node.id);
+        }
+        const next = [...prev, node.id];
+        return next.length > 2 ? next.slice(-2) : next;
+      });
+      setSelectedNode(null);
+      setSelectedEdge(null);
+      return;
+    }
     setSelectedNode(node.id);
+    setSelectedPair([]);
     setSelectedEdge(null);
   }
 
@@ -639,6 +658,7 @@ export default function TimelineGraph({
           if (!ev) return null;
           const sevColor = SEVERITY_COLOR[ev.severity] || '#8b949e';
           const isSelected = selectedNode === ev.id;
+          const isPairSelected = selectedPair.includes(ev.id);
           const isDrawSrc = drawSrc === ev.id;
           const cx = n.fx ?? n.x;
           const cy = n.fy ?? n.y;
@@ -649,10 +669,16 @@ export default function TimelineGraph({
               onPointerDown={e => onNodePointerDown(e, n)}
               onClick={e => onNodeClick(e, n)}
               onContextMenu={e => onNodeContextMenu(e, n)}>
+              {/* Pair-select halo (shift-click) */}
+              {isPairSelected && (
+                <circle cx={cx} cy={cy} r={NODE_R + 4}
+                  fill="none" stroke="#58a6ff" strokeWidth={2}
+                  strokeDasharray="3 3" opacity={0.85} />
+              )}
               {/* Severity ring + entity-tinted fill */}
               <circle cx={cx} cy={cy} r={NODE_R}
                 fill={entityFill(ev.entity_type)} stroke={sevColor}
-                strokeWidth={isSelected || isDrawSrc ? 3 : 2}
+                strokeWidth={isSelected || isDrawSrc || isPairSelected ? 3 : 2}
                 opacity={1} />
               {/* Entity icon */}
               <text x={cx} y={cy + 5} textAnchor="middle"
@@ -777,6 +803,55 @@ export default function TimelineGraph({
           </div>
         </>
       )}
+
+      {/* Shift-select operations popover (2 nodes selected) */}
+      {selectedPair.length === 2 && (() => {
+        const a = eventXY(selectedPair[0]);
+        const b = eventXY(selectedPair[1]);
+        if (!a || !b) return null;
+        // Anchor in screen-space (apply current zoom transform to canvas midpoint).
+        const t = tRef.current;
+        const cmx = (a.x + b.x) / 2;
+        const cmy = (a.y + b.y) / 2;
+        const sx = cmx * t.k + t.x;
+        const sy = cmy * t.k + t.y;
+        // Already-connected check — disable "Draw edge" if a manual edge for this pair exists.
+        const pk = edgePairKey(selectedPair[0], selectedPair[1]);
+        const alreadyConnected = timelineEdges.some(te =>
+          edgePairKey(te.from_event_id, te.to_event_id) === pk
+        );
+        return (
+          <div data-pan-skip="true" style={{
+            position: 'absolute', left: sx, top: sy - 14,
+            transform: 'translate(-50%, -100%)',
+            zIndex: 197,
+            background: 'var(--bgP)', border: '1px solid #58a6ff',
+            borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,.55)',
+            padding: 6, display: 'flex', alignItems: 'center', gap: 4,
+            fontFamily: 'var(--fn)', pointerEvents: 'auto',
+          }}>
+            <span style={{ fontSize: 9, color: 'var(--txM)', padding: '0 6px 0 4px' }}>
+              2 selected
+            </span>
+            <button className="btn"
+              disabled={alreadyConnected}
+              onClick={() => {
+                setEdgeLabelPrompt({ from: selectedPair[0], to: selectedPair[1] });
+                setSelectedPair([]);
+              }}
+              title={alreadyConnected ? 'These events already have a manual edge' : 'Draw a labeled edge between the two events'}
+              style={{
+                fontSize: 10, padding: '3px 10px',
+                opacity: alreadyConnected ? 0.45 : 1,
+                cursor: alreadyConnected ? 'not-allowed' : 'pointer',
+              }}>Draw edge</button>
+            <button className="btn"
+              onClick={() => setSelectedPair([])}
+              title="Clear selection"
+              style={{ fontSize: 10, padding: '3px 8px' }}>Clear</button>
+          </div>
+        );
+      })()}
 
       {/* Selected node detail card */}
       {selectedNodeObj && (
