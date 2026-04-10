@@ -1,8 +1,8 @@
 # Session State
 
-**Last updated:** 2026-04-11 · **Current version:** v0.25.0
+**Last updated:** 2026-04-11 · **Current version:** v0.25.1
 **Current branch:** main
-**Mirror sync state:** all mirrors current as of v0.25.0
+**Mirror sync state:** all mirrors current as of v0.25.1
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -11,11 +11,11 @@
 
 ## Shipped this session
 
-- v0.25.0 (branch: refactor/usecapture-decomposition) — useCapture.js decomposition. Split 1143-line monolith hook into 5 domain slices + coordinator. Pure refactor, identical return object. Phase 3 item #1 complete.
+- v0.25.1 — GraphCanvas.jsx decomposition. Split 1665-line monolith into 4 hooks + 5 components + graphColorUtils. Coordinator ~170 lines. Shared refs declared in coordinator, passed to hooks. Pure refactor, identical props API. Phase 3 item #2 complete.
 
-- v0.24.0 (branch: fix/qol-bugs) — QOL bug batch: alerts live-load bug, schema-dialog-in-app, manual-type-override (TypePickerDialog), detail-panel flag button polish, animation direction mismatch (initiator_ip), timeline-graph drag-render bug (setTick in onNodePointerMove).
+- v0.25.0 — useCapture.js decomposition. 5 domain slices + coordinator. Phase 3 item #1.
 
-- v0.23.0 — **adapter-schema-negotiation** merged to main. New `backend/parser/schema/` package (contracts, inspector, staging) sits as its own layer before any adapter. All Zeek + tshark metadata adapters declare `declared_fields` and implement `get_header_columns()` / `get_raw_rows()` / `_rows_to_packets()` / `parse_with_mapping(mapping)`. Upload is two-phase: detect → inspect schema → if clean proceed; if mismatch, stage file (UUID token), return `schema_negotiation_required: true` + `schema_report` + `staging_token`. `POST /api/upload/confirm-schema` accepts token + confirmed mapping → resumes ingestion. Frontend: `SchemaDialog.jsx` (mapping table, required-field warnings, suggested-mapping pre-fill, Confirm & Ingest). Detection is now format-based (Zeek conn = catch-all with `#fields` marker only, no extension required; tshark metadata = catch-all with `.csv` + ≥15 tab-separated columns). 25 backend tests. Test fixtures gitignored.
+> Older entries (v0.24.x and below) trimmed — see `CHANGELOG.ai.md` for full history.
 
 ---
 
@@ -43,7 +43,7 @@ Second-pass: `09_second_pass_frontend_hotspots.md`, `10_second_pass_backend_hots
 | Priority | Target | Split into | Opus? |
 |---|---|---|---|
 | 1 | `useCapture.js` | `useCaptureLoad`, `useCaptureFilters`, `useCaptureData`, `useSelectionAndNavigation`, `useAnnotationsAndSynthetic` + coordinator | ✅ Done (Opus, v0.25.0) |
-| 2 | `GraphCanvas.jsx` | `useGraphSim` · `useGraphViewSync` · `useGraphInteraction` · `useGraphResizePolling` · `GraphContextMenu` · `GraphAnnotationOverlay` · `GraphEventDots` · `SyntheticNodeForm` · `SyntheticEdgeForm` · `graphColorUtils` | Yes — **recon done, plan at `docs/plans/graphcanvas-decomposition.md`** |
+| 2 | `GraphCanvas.jsx` | `useGraphSim` · `useGraphViewSync` · `useGraphInteraction` · `useGraphResizePolling` · `GraphContextMenu` · `GraphAnnotationOverlay` · `GraphEventDots` · `SyntheticNodeForm` · `SyntheticEdgeForm` · `graphColorUtils` | ✅ Done (Opus, v0.25.1) |
 | 3 | `ResearchPage.jsx` | `ResearchPage` · `ResearchSlotBoard` · `PlacedCard` · `CustomChartBuilder` · persistence helpers | — |
 | 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | — |
 | 5 | `SessionDetail.jsx` | packet loader hook · payload/stream viewers · charts panel | — |
@@ -57,8 +57,8 @@ Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read co
 
 | # | Audit | Status | Session focus |
 |---|---|---|---|
-| 02 | code_readability / maintainability | **in progress** (this session) | backend fixes + frontend split plan |
-| 03 | computational_efficiency | pending | — |
+| 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.1) | backend fixes + frontend splits |
+| 03 | computational_efficiency | **next** | — |
 | 04 | storage_efficiency | pending | — |
 | 05 | architecture_principles | pending | — |
 | 06 | ui_ux_accessibility | pending | — |

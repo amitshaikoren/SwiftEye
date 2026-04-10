@@ -36,7 +36,7 @@ Phase 2 batch of Timeline Graph UX improvements, all descending from v0.21.0 Pha
 
 ### event-type-system
 
-First-class flagged-event primitive for threat-hunt narratives. Phase 1 shipped across v0.21.0 (core) and v0.21.1 (polish). Full Opus design plan: `docs/plans/event-type-system.md`.
+First-class flagged-event primitive for threat-hunt narratives. Phase 1 shipped across v0.21.0 (core) and v0.21.1 (polish). Full Opus design plan: `docs/plans/archive/event-type-system.md`.
 
 Phase 1 shipped: `useEvents` hook, `EventFlagModal`, `EventsPanel` + `EventCard`, `TimelineGraph` SVG canvas, `InvestigationPage` tab bar, ref-chip drag-to-insert in markdown editor, `GraphCanvas` indicator dots + context menu, `SessionDetail`/`EdgeDetail`/`NodeDetail` Flag buttons.
 

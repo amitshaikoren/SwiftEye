@@ -9,8 +9,8 @@ audits/
 ROADMAP.md
 HANDOFF.md
 FOR_OPUS.md
-architecture.html
-query.html
+architecture_diagram.html
+query_system_design.html
 toggle_mockup.html
 graph_options_mockup.html
 swifteye_external_review.md
@@ -22,3 +22,8 @@ alerts_panel_mockup.html
 animation_mode_mockup.html
 backend/routes/_demo_alerts.py
 backend/tests/fixtures/
+docs/plans/
+docs/mockups/
+*.ai.md
+SESSION.md
+COMPLETED.md

@@ -13,6 +13,8 @@
 
 ## Log
 
+v0.25.1 | 2026-04-11 | refactor | frontend | GraphCanvas decomposition — split 1665-line monolith into 4 hooks (`useGraphSim`, `useGraphViewSync`, `useGraphInteraction`, `useGraphResizePolling`) + 5 components (`GraphContextMenu`, `GraphAnnotationOverlay`, `GraphEventDots`, `SyntheticNodeForm`, `SyntheticEdgeForm`) + `graphColorUtils.js`. Coordinator is ~170 lines. Shared refs (`renRef`, `rafRef`, `hRef`, `tRef`) declared in coordinator, passed to hooks. Pure refactor — identical props API, no behavior change. Phase 3 item #2 complete.
+
 v0.25.0 | 2026-04-11 | refactor | frontend | useCapture decomposition — split 1143-line monolith into 5 domain slices (`useAnnotationsAndSynthetic`, `useSelectionAndNavigation`, `useCaptureFilters`, `useCaptureData`, `useCaptureLoad`) + coordinator. Cross-slice wiring via shared callback refs. Lifted `loaded` to coordinator, `visibleNodes`/`visibleEdges` computed at coordinator level. `handleCreateManualCluster` moved to coordinator (crosses 3 slices). Return object shape identical — pure refactor, zero API change.
 
 v0.24.2 | 2026-04-10 | refactor | backend | audit-02 phase 2 — (1) extract session↔edge matching helpers into `data/session_match.py`; removes storage import from data layer. (2) consolidate `flag_filter` + `search_query` into `filter_packets`; `build_graph` no longer duplicates these. (3) add view-layer-limit comment on edge field caps (EDGE_TLS_CIPHER_SUITES, EDGE_TLS_CIPHERS, EDGE_DNS_QUERIES).
