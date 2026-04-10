@@ -17,8 +17,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from parser.packet import PacketRecord
+from parser.schema.contracts import SchemaField
 from .. import IngestionAdapter, register_adapter
-from .common import parse_zeek_log, safe_int, safe_float, is_zeek_log
+from .common import parse_zeek_log, get_zeek_columns, safe_int, safe_float, is_zeek_log
 
 logger = logging.getLogger("swifteye.adapters.zeek_http")
 
@@ -30,26 +31,43 @@ class ZeekHttpAdapter(IngestionAdapter):
     granularity = "session"
     source_type = "zeek"
 
+    declared_fields = [
+        SchemaField("ts",           required=True,  description="Request timestamp"),
+        SchemaField("id.orig_h",    required=True,  description="Client IP"),
+        SchemaField("id.orig_p",    required=True,  description="Client port"),
+        SchemaField("id.resp_h",    required=True,  description="Server IP"),
+        SchemaField("id.resp_p",    required=True,  description="Server port"),
+        SchemaField("method",       required=False, description="HTTP method (GET, POST, …)"),
+        SchemaField("host",         required=False, description="HTTP Host header"),
+        SchemaField("uri",          required=False, description="Request URI"),
+        SchemaField("user_agent",   required=False, description="User-Agent header"),
+        SchemaField("status_code",  required=False, description="HTTP response status code"),
+        SchemaField("request_body_len",  required=False, description="Request body length"),
+        SchemaField("response_body_len", required=False, description="Response body length"),
+        SchemaField("uid",          required=False, description="Unique connection identifier"),
+    ]
+
     def can_handle(self, path: Path, header: bytes) -> bool:
         if path.suffix.lower() != ".log":
             return False
-        # http.log has "status_code" and "user_agent" fields
         return is_zeek_log(header, "user_agent") and is_zeek_log(header, "status_code")
 
-    def parse(self, path: Path, **opts) -> List[PacketRecord]:
-        rows = parse_zeek_log(path)
-        if not rows:
-            logger.warning("No data rows in %s", path.name)
-            return []
+    def get_header_columns(self, path: Path) -> List[str]:
+        return get_zeek_columns(path)
 
+    def get_raw_rows(self, path: Path) -> List[Dict[str, str]]:
+        return parse_zeek_log(path)
+
+    def _rows_to_packets(self, rows: List[Dict[str, str]]) -> List[PacketRecord]:
+        if not rows:
+            return []
         packets = []
         for row in rows:
             pkt = self._row_to_packet(row)
             if pkt:
                 packets.append(pkt)
-
         packets.sort(key=lambda p: p.timestamp)
-        logger.info("Parsed %d HTTP transactions from Zeek http.log (%s)", len(packets), path.name)
+        logger.info("Parsed %d HTTP transactions from Zeek http.log", len(packets))
         return packets
 
     def _row_to_packet(self, row: Dict[str, str]) -> Optional[PacketRecord]:

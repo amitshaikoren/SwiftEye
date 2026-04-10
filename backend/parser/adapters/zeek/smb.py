@@ -24,8 +24,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from parser.packet import PacketRecord
+from parser.schema.contracts import SchemaField
 from .. import IngestionAdapter, register_adapter
-from .common import parse_zeek_log, safe_int, safe_float, is_zeek_log
+from .common import parse_zeek_log, get_zeek_columns, safe_int, safe_float, is_zeek_log
 
 logger = logging.getLogger("swifteye.adapters.zeek_smb")
 
@@ -37,26 +38,41 @@ class ZeekSmbFilesAdapter(IngestionAdapter):
     granularity = "session"
     source_type = "zeek"
 
+    declared_fields = [
+        SchemaField("ts",           required=True,  description="Operation timestamp"),
+        SchemaField("id.orig_h",    required=True,  description="Client IP"),
+        SchemaField("id.orig_p",    required=True,  description="Client port"),
+        SchemaField("id.resp_h",    required=True,  description="Server IP"),
+        SchemaField("id.resp_p",    required=True,  description="Server port"),
+        SchemaField("fuid",         required=False, description="File UID"),
+        SchemaField("action",       required=False, description="SMB file action (SMB::FILE_OPEN, …)"),
+        SchemaField("path",         required=False, description="Share UNC path"),
+        SchemaField("name",         required=False, description="Filename within share"),
+        SchemaField("size",         required=False, description="File size in bytes"),
+        SchemaField("uid",          required=False, description="Connection UID"),
+    ]
+
     def can_handle(self, path: Path, header: bytes) -> bool:
         if path.suffix.lower() != ".log":
             return False
-        # smb_files.log has "fuid" (file UID) and "action" fields
         return is_zeek_log(header, "fuid") and is_zeek_log(header, "action")
 
-    def parse(self, path: Path, **opts) -> List[PacketRecord]:
-        rows = parse_zeek_log(path)
-        if not rows:
-            logger.warning("No data rows in %s", path.name)
-            return []
+    def get_header_columns(self, path: Path) -> List[str]:
+        return get_zeek_columns(path)
 
+    def get_raw_rows(self, path: Path) -> List[Dict[str, str]]:
+        return parse_zeek_log(path)
+
+    def _rows_to_packets(self, rows: List[Dict[str, str]]) -> List[PacketRecord]:
+        if not rows:
+            return []
         packets = []
         for row in rows:
             pkt = self._row_to_packet(row)
             if pkt:
                 packets.append(pkt)
-
         packets.sort(key=lambda p: p.timestamp)
-        logger.info("Parsed %d SMB file operations from Zeek smb_files.log (%s)", len(packets), path.name)
+        logger.info("Parsed %d SMB file operations from Zeek smb_files.log", len(packets))
         return packets
 
     def _row_to_packet(self, row: Dict[str, str]) -> Optional[PacketRecord]:
@@ -140,26 +156,40 @@ class ZeekSmbMappingAdapter(IngestionAdapter):
     granularity = "session"
     source_type = "zeek"
 
+    declared_fields = [
+        SchemaField("ts",                  required=True,  description="Connection timestamp"),
+        SchemaField("id.orig_h",           required=True,  description="Client IP"),
+        SchemaField("id.orig_p",           required=True,  description="Client port"),
+        SchemaField("id.resp_h",           required=True,  description="Server IP"),
+        SchemaField("id.resp_p",           required=True,  description="Server port"),
+        SchemaField("path",                required=False, description="Share UNC path"),
+        SchemaField("service",             required=False, description="Share service type"),
+        SchemaField("share_type",          required=False, description="Share type (DISK, PIPE, PRINT)"),
+        SchemaField("native_file_system",  required=False, description="Native filesystem (NTFS, …)"),
+        SchemaField("uid",                 required=False, description="Connection UID"),
+    ]
+
     def can_handle(self, path: Path, header: bytes) -> bool:
         if path.suffix.lower() != ".log":
             return False
-        # smb_mapping.log has "share_type" and "native_file_system"
         return is_zeek_log(header, "share_type") and is_zeek_log(header, "native_file_system")
 
-    def parse(self, path: Path, **opts) -> List[PacketRecord]:
-        rows = parse_zeek_log(path)
-        if not rows:
-            logger.warning("No data rows in %s", path.name)
-            return []
+    def get_header_columns(self, path: Path) -> List[str]:
+        return get_zeek_columns(path)
 
+    def get_raw_rows(self, path: Path) -> List[Dict[str, str]]:
+        return parse_zeek_log(path)
+
+    def _rows_to_packets(self, rows: List[Dict[str, str]]) -> List[PacketRecord]:
+        if not rows:
+            return []
         packets = []
         for row in rows:
             pkt = self._row_to_packet(row)
             if pkt:
                 packets.append(pkt)
-
         packets.sort(key=lambda p: p.timestamp)
-        logger.info("Parsed %d SMB tree connects from Zeek smb_mapping.log (%s)", len(packets), path.name)
+        logger.info("Parsed %d SMB tree connects from Zeek smb_mapping.log", len(packets))
         return packets
 
     def _row_to_packet(self, row: Dict[str, str]) -> Optional[PacketRecord]:

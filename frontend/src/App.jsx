@@ -36,6 +36,7 @@ import QueryBuilder from './components/QueryBuilder';
 import GraphOptionsPanel from './components/GraphOptionsPanel';
 import AnimationPane from './components/AnimationPane';
 import AlertsPanel from './components/AlertsPanel';
+import SchemaDialog from './components/SchemaDialog';
 
 export default function App() {
   const c = useCapture();
@@ -143,6 +144,17 @@ export default function App() {
           </button>
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        {/* Schema negotiation dialog — renders on top of the upload screen */}
+        {c.schemaNegotiation && (
+          <SchemaDialog
+            report={c.schemaNegotiation.report}
+            stagingToken={c.schemaNegotiation.stagingToken}
+            fileName={c.schemaNegotiation.fileName}
+            onConfirm={c.handleSchemaConfirm}
+            onCancel={c.handleSchemaCancel}
+            loading={c.schemaConfirming}
+          />
+        )}
       </div>
     );
   }

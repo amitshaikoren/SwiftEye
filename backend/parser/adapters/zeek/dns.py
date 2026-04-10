@@ -19,8 +19,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from parser.packet import PacketRecord
+from parser.schema.contracts import SchemaField
 from .. import IngestionAdapter, register_adapter
-from .common import parse_zeek_log, safe_int, safe_float, is_zeek_log
+from .common import parse_zeek_log, get_zeek_columns, safe_int, safe_float, is_zeek_log
 
 logger = logging.getLogger("swifteye.adapters.zeek_dns")
 
@@ -32,26 +33,52 @@ class ZeekDnsAdapter(IngestionAdapter):
     granularity = "session"
     source_type = "zeek"
 
+    declared_fields = [
+        SchemaField("ts",          required=True,  description="Query timestamp (Unix epoch)"),
+        SchemaField("id.orig_h",   required=True,  description="Client IP"),
+        SchemaField("id.orig_p",   required=True,  description="Client port"),
+        SchemaField("id.resp_h",   required=True,  description="DNS server IP"),
+        SchemaField("id.resp_p",   required=True,  description="DNS server port"),
+        SchemaField("proto",       required=True,  description="Transport protocol"),
+        SchemaField("qtype_name",  required=True,  description="Query type name (A, AAAA, MX, …)"),
+        SchemaField("query",       required=False, description="DNS query name"),
+        SchemaField("qtype",       required=False, description="Query type integer"),
+        SchemaField("qclass_name", required=False, description="Query class (IN, CH, …)"),
+        SchemaField("rcode",       required=False, description="Response code integer"),
+        SchemaField("rcode_name",  required=False, description="Response code name (NOERROR, NXDOMAIN, …)"),
+        SchemaField("answers",     required=False, description="Comma-separated answer RRs"),
+        SchemaField("TTLs",        required=False, description="Comma-separated TTL values"),
+        SchemaField("AA",          required=False, description="Authoritative answer flag"),
+        SchemaField("TC",          required=False, description="Truncated flag"),
+        SchemaField("RD",          required=False, description="Recursion desired flag"),
+        SchemaField("RA",          required=False, description="Recursion available flag"),
+        SchemaField("trans_id",    required=False, description="DNS transaction ID"),
+        SchemaField("rtt",         required=False, description="Round-trip time"),
+        SchemaField("uid",         required=False, description="Unique connection identifier"),
+        SchemaField("rejected",    required=False, description="True if the query was rejected"),
+    ]
+
     def can_handle(self, path: Path, header: bytes) -> bool:
         if path.suffix.lower() != ".log":
             return False
-        # dns.log has "qtype_name" which is unique to it
         return is_zeek_log(header, "qtype_name")
 
-    def parse(self, path: Path, **opts) -> List[PacketRecord]:
-        rows = parse_zeek_log(path)
-        if not rows:
-            logger.warning("No data rows in %s", path.name)
-            return []
+    def get_header_columns(self, path: Path) -> List[str]:
+        return get_zeek_columns(path)
 
+    def get_raw_rows(self, path: Path) -> List[Dict[str, str]]:
+        return parse_zeek_log(path)
+
+    def _rows_to_packets(self, rows: List[Dict[str, str]]) -> List[PacketRecord]:
+        if not rows:
+            return []
         packets = []
         for row in rows:
             pkt = self._row_to_packet(row)
             if pkt:
                 packets.append(pkt)
-
         packets.sort(key=lambda p: p.timestamp)
-        logger.info("Parsed %d DNS queries from Zeek dns.log (%s)", len(packets), path.name)
+        logger.info("Parsed %d DNS queries from Zeek dns.log", len(packets))
         return packets
 
     def _row_to_packet(self, row: Dict[str, str]) -> Optional[PacketRecord]:

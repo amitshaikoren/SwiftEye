@@ -11,6 +11,7 @@
 |----|---------|-------|
 | `timeline-graph-phase2` | v0.22.0–v0.22.7 (2026-04-10) | All 8 items done. See detail block below. |
 | `event-type-system` | v0.21.0+v0.21.1 (2026-04-09) | Phase 1 done. Phase 2 tracked as `event-suggested-edges-pluggable`. |
+| `adapter-schema-negotiation` | v0.23.0 (2026-04-10) | Two-phase upload + `backend/parser/schema/` package + `SchemaDialog.jsx`. |
 
 ---
 
@@ -40,3 +41,9 @@ First-class flagged-event primitive for threat-hunt narratives. Phase 1 shipped 
 Phase 1 shipped: `useEvents` hook, `EventFlagModal`, `EventsPanel` + `EventCard`, `TimelineGraph` SVG canvas, `InvestigationPage` tab bar, ref-chip drag-to-insert in markdown editor, `GraphCanvas` indicator dots + context menu, `SessionDetail`/`EdgeDetail`/`NodeDetail` Flag buttons.
 
 Phase 2 deferred: backend persistence (workspace save), pluggable suggested-edge logic (see `event-suggested-edges-pluggable`), Phenomena templates (needs real-usage data), edge-label edit in TimelineGraph.
+
+---
+
+### adapter-schema-negotiation
+Shipped v0.23.0. New `backend/parser/schema/` package (contracts, inspector, staging) sits as its own layer before any adapter. All Zeek adapters (conn, dns, http, ssl, smb_files, smb_mapping, dce_rpc) and tshark metadata adapter now declare `declared_fields` and implement `get_header_columns()` / `get_raw_rows()` / `_rows_to_packets()` / `parse_with_mapping(mapping)`. Upload is two-phase: detect adapter → inspect schema → if clean proceed; if mismatch, stage the file (UUID token), return `schema_negotiation_required: true` + `schema_report` + `staging_token`. `POST /api/upload/confirm-schema` accepts confirmed mapping → `parse_with_mapping` → full ingest. Frontend: `SchemaDialog.jsx` renders detected-vs-expected columns as a mapping table with dropdowns, required-field warnings, suggested-mapping pre-population, and Confirm & Ingest button disabled until all required fields are mapped. Detection made format-based: Zeek conn is a catch-all (checked last, requires only `#fields` marker, no extension required); tshark metadata is a catch-all (checked last, requires `.csv` + tab-separated first line with ≥15 columns). 25 backend tests.
+`status: done` · `shipped: v0.23.0`

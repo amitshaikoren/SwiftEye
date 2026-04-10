@@ -63,6 +63,16 @@ def safe_float(val: str) -> float:
         return 0.0
 
 
+def get_tshark_columns(path: Path) -> List[str]:
+    """Read just the first (header) line and return column names.
+
+    Fast — reads one line only, suitable for schema inspection.
+    """
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        header_line = f.readline().rstrip("\n\r")
+    return header_line.split(TSHARK_SEPARATOR) if header_line else []
+
+
 def is_tshark_csv(header: bytes, *required_fields: str) -> bool:
     """Check if a file header looks like a tshark CSV with specific fields."""
     try:

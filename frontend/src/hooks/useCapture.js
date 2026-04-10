@@ -20,7 +20,7 @@ import {
   fetchStatus, fetchStats, slicePcapUrl,
   fetchTimeline, fetchProtocols, fetchSessions,
   fetchPluginResults, fetchPluginSlots, fetchGraph,
-  uploadPcap, uploadMetadata,
+  uploadPcap, uploadMetadata, confirmSchemaMapping,
   fetchAnnotations, createAnnotation, updateAnnotation, deleteAnnotation,
   fetchSynthetic, createSynthetic, updateSynthetic, deleteSynthetic,
   fetchPaths, fetchAlerts,
@@ -58,6 +58,12 @@ export function useCapture() {
   const [error, setError]     = useState('');
   const [fileName, setFileName] = useState('');
   const [sourceFiles, setSourceFiles] = useState([]);
+
+  // ── Schema negotiation ────────────────────────────────────────────
+  // Set when the backend returns schema_negotiation_required=true.
+  const [schemaNegotiation, setSchemaNegotiation] = useState(null);
+  // { stagingToken, fileName, report }
+  const [schemaConfirming, setSchemaConfirming] = useState(false);
 
   // ── Server data ──────────────────────────────────────────────────
   const [stats, setStats]           = useState(null);
@@ -607,6 +613,18 @@ export function useCapture() {
     try {
       setLoadMsg('Parsing capture data...');
       const res = await uploadPcap(files);
+
+      // Phase 1 — schema mismatch detected, show mapping dialog.
+      if (res.schema_negotiation_required) {
+        setSchemaNegotiation({
+          stagingToken: res.staging_token,
+          fileName: res.file_name,
+          report: res.schema_report,
+        });
+        setLoading(false);
+        return;
+      }
+
       setFileName(res.file_name);
       setSourceFiles(res.source_files || [res.file_name]);
       setLoadMsg('Loading...');
@@ -616,6 +634,27 @@ export function useCapture() {
       setError(err.message);
       setLoading(false);
     }
+  }
+
+  async function handleSchemaConfirm(mapping) {
+    if (!schemaNegotiation) return;
+    setSchemaConfirming(true);
+    try {
+      const res = await confirmSchemaMapping(schemaNegotiation.stagingToken, mapping);
+      setSchemaNegotiation(null);
+      setFileName(res.file_name);
+      setSourceFiles(res.source_files || [res.file_name]);
+      setLoadMsg('Loading...');
+      await loadAll();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSchemaConfirming(false);
+    }
+  }
+
+  function handleSchemaCancel() {
+    setSchemaNegotiation(null);
   }
 
   function handleDrop(e) {
@@ -969,6 +1008,7 @@ export function useCapture() {
     // Lifecycle
     loaded, loading, loadMsg, error, fileName, sourceFiles,
     handleUpload, handleDrop, handleFileInput, handleMetadataInput,
+    schemaNegotiation, schemaConfirming, handleSchemaConfirm, handleSchemaCancel,
 
     // Data
     stats, timeline, graph, rawGraph, sessions, sessionTotal,

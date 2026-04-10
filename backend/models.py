@@ -14,6 +14,16 @@ class UploadResponse(BaseModel):
     packet_count: int
     parse_time_ms: int
     file_size_bytes: int
+    # Schema negotiation fields — only populated when a mismatch is detected.
+    schema_negotiation_required: bool = False
+    staging_token: Optional[str] = None
+    schema_report: Optional[Dict[str, Any]] = None
+
+
+class SchemaNegotiationRequest(BaseModel):
+    """Phase 2: user-confirmed column mapping to resume ingestion."""
+    staging_token: str
+    mapping: Dict[str, str]  # {actual_col_in_file: expected_field_name}
 
 
 class StatsResponse(BaseModel):

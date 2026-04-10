@@ -19,8 +19,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from parser.packet import PacketRecord
+from parser.schema.contracts import SchemaField
 from .. import IngestionAdapter, register_adapter
-from .common import parse_zeek_log, safe_int, safe_float, is_zeek_log
+from .common import parse_zeek_log, get_zeek_columns, safe_int, safe_float, is_zeek_log
 
 logger = logging.getLogger("swifteye.adapters.zeek_conn")
 
@@ -94,27 +95,53 @@ class ZeekConnAdapter(IngestionAdapter):
     granularity = "session"
     source_type = "zeek"
 
+    declared_fields = [
+        SchemaField("ts",           required=True,  description="Connection start timestamp (Unix epoch)"),
+        SchemaField("id.orig_h",    required=True,  description="Originating host IP"),
+        SchemaField("id.orig_p",    required=True,  description="Originating port"),
+        SchemaField("id.resp_h",    required=True,  description="Responding host IP"),
+        SchemaField("id.resp_p",    required=True,  description="Responding port"),
+        SchemaField("proto",        required=True,  description="Transport protocol (tcp/udp/icmp)"),
+        SchemaField("conn_state",   required=True,  description="Connection state (SF, S0, REJ, …)"),
+        SchemaField("service",      required=False, description="Application-layer service detected by Zeek"),
+        SchemaField("duration",     required=False, description="Connection duration in seconds"),
+        SchemaField("orig_bytes",   required=False, description="Payload bytes sent by originator"),
+        SchemaField("resp_bytes",   required=False, description="Payload bytes sent by responder"),
+        SchemaField("orig_ip_bytes",required=False, description="IP-level bytes sent by originator"),
+        SchemaField("resp_ip_bytes",required=False, description="IP-level bytes sent by responder"),
+        SchemaField("orig_pkts",    required=False, description="Packets sent by originator"),
+        SchemaField("resp_pkts",    required=False, description="Packets sent by responder"),
+        SchemaField("history",      required=False, description="TCP state history string"),
+        SchemaField("uid",          required=False, description="Unique connection identifier"),
+        SchemaField("missed_bytes", required=False, description="Bytes missed due to content gaps"),
+        SchemaField("local_orig",   required=False, description="True if originator is local"),
+        SchemaField("local_resp",   required=False, description="True if responder is local"),
+        SchemaField("tunnel_parents", required=False, description="Parent tunnel UIDs"),
+    ]
+
     def can_handle(self, path: Path, header: bytes) -> bool:
-        if path.suffix.lower() != ".log":
-            return False
-        # Must have Zeek header with conn.log-specific fields
-        # Use "conn_state" to distinguish from other Zeek logs that also have id.orig_h
-        return is_zeek_log(header, "conn_state")
+        # Catch-all for Zeek logs — checked last, so specific types (dns/http/ssl/smb)
+        # have already been tried. Detection is format-based only: the `#fields` marker
+        # is distinctive enough; column names may be renamed (schema negotiation handles
+        # the mismatch). No extension requirement — Zeek files can be named arbitrarily.
+        return is_zeek_log(header, "")
 
-    def parse(self, path: Path, **opts) -> List[PacketRecord]:
-        rows = parse_zeek_log(path)
+    def get_header_columns(self, path: Path) -> List[str]:
+        return get_zeek_columns(path)
+
+    def get_raw_rows(self, path: Path) -> List[Dict[str, str]]:
+        return parse_zeek_log(path)
+
+    def _rows_to_packets(self, rows: List[Dict[str, str]]) -> List[PacketRecord]:
         if not rows:
-            logger.warning("No data rows in %s", path.name)
             return []
-
         packets = []
         for row in rows:
             pkt = self._row_to_packet(row)
             if pkt:
                 packets.append(pkt)
-
         packets.sort(key=lambda p: p.timestamp)
-        logger.info("Parsed %d sessions from Zeek conn.log (%s)", len(packets), path.name)
+        logger.info("Parsed %d sessions from Zeek conn.log", len(packets))
         return packets
 
     def _row_to_packet(self, row: Dict[str, str]) -> Optional[PacketRecord]:

@@ -34,8 +34,9 @@ from typing import List, Dict, Any, Optional
 
 from parser.packet import PacketRecord
 from parser.protocols import resolve_protocol
+from parser.schema.contracts import SchemaField
 from .. import IngestionAdapter, register_adapter
-from .common import parse_tshark_csv, safe_int, safe_float, is_tshark_csv
+from .common import parse_tshark_csv, get_tshark_columns, safe_int, safe_float, is_tshark_csv
 
 logger = logging.getLogger("swifteye.adapters.tshark_metadata")
 
@@ -65,28 +66,68 @@ class TsharkMetadataAdapter(IngestionAdapter):
     granularity = "packet"
     source_type = "tshark"
 
+    declared_fields = [
+        SchemaField("frameNumber",       required=True,  description="Frame/packet sequence number"),
+        SchemaField("ts",                required=True,  description="Packet timestamp (Unix epoch)"),
+        SchemaField("sourceIp",          required=True,  description="Source IP address"),
+        SchemaField("destIp",            required=True,  description="Destination IP address"),
+        SchemaField("ipProtoType",       required=True,  description="IP protocol number (6=TCP, 17=UDP, 1=ICMP)"),
+        SchemaField("sourceMac",         required=True,  description="Source MAC address"),
+        SchemaField("destMac",           required=True,  description="Destination MAC address"),
+        SchemaField("sourcePort",        required=False, description="Source port"),
+        SchemaField("destPort",          required=False, description="Destination port"),
+        SchemaField("ipVersion",         required=False, description="IP version (4 or 6)"),
+        SchemaField("ipTotalLength",     required=False, description="IP total length in bytes"),
+        SchemaField("ipTtl",             required=False, description="IP time-to-live"),
+        SchemaField("ipId",              required=False, description="IP identification field"),
+        SchemaField("ipFlags",           required=False, description="IP flags"),
+        SchemaField("ipfragmentOffset",  required=False, description="IP fragment offset"),
+        SchemaField("ipChecksum",        required=False, description="IP header checksum"),
+        SchemaField("tcpSeqNumber",      required=False, description="TCP sequence number"),
+        SchemaField("tcpAckNumber",      required=False, description="TCP acknowledgement number"),
+        SchemaField("tcpHeaderLength",   required=False, description="TCP header length"),
+        SchemaField("tcpFlags",          required=False, description="TCP flags bitmask"),
+        SchemaField("tcpWindowSize",     required=False, description="TCP window size"),
+        SchemaField("tcpChecksum",       required=False, description="TCP checksum"),
+        SchemaField("tcpUrgentPointer",  required=False, description="TCP urgent pointer"),
+        SchemaField("udpLength",         required=False, description="UDP datagram length"),
+        SchemaField("udpChecksum",       required=False, description="UDP checksum"),
+        SchemaField("icmpType",          required=False, description="ICMP type"),
+        SchemaField("icmpCode",          required=False, description="ICMP code"),
+        SchemaField("icmpChecksum",      required=False, description="ICMP checksum"),
+        SchemaField("layerFiveLength",   required=False, description="Application-layer payload length"),
+        SchemaField("etherType",         required=False, description="Ethernet type field"),
+        SchemaField("ipHeaderLength",    required=False, description="IP header length"),
+    ]
+
     def can_handle(self, path: Path, header: bytes) -> bool:
         if path.suffix.lower() != ".csv":
             return False
-        return is_tshark_csv(
-            header, "frameNumber", "sourceIp", "destIp", "ipProtoType",
-            "sourceMac", "destMac"
-        )
+        # Catch-all for tshark metadata CSVs — checked last, so specific protocol
+        # adapters (dns/http/smb/arp) have already been tried.  Column names may be
+        # renamed; detect by structure: tab-separated first line with ≥15 columns.
+        try:
+            first_line = header.split(b"\n", 1)[0].decode("utf-8", errors="replace").strip()
+            return "\t" in first_line and len(first_line.split("\t")) >= 15
+        except Exception:
+            return False
 
-    def parse(self, path: Path, **opts) -> List[PacketRecord]:
-        rows = parse_tshark_csv(path)
+    def get_header_columns(self, path: Path) -> List[str]:
+        return get_tshark_columns(path)
+
+    def get_raw_rows(self, path: Path) -> List[Dict[str, str]]:
+        return parse_tshark_csv(path)
+
+    def _rows_to_packets(self, rows: List[Dict[str, str]]) -> List[PacketRecord]:
         if not rows:
-            logger.warning("No data rows in %s", path.name)
             return []
-
         packets = []
         for row in rows:
             pkt = self._row_to_packet(row)
             if pkt:
                 packets.append(pkt)
-
         packets.sort(key=lambda p: p.timestamp)
-        logger.info("Parsed %d packets from tshark metadata CSV (%s)", len(packets), path.name)
+        logger.info("Parsed %d packets from tshark metadata CSV", len(packets))
         return packets
 
     def _row_to_packet(self, row: Dict[str, str]) -> Optional[PacketRecord]:
