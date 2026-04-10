@@ -71,3 +71,20 @@ def is_zeek_log(header: bytes, signature_field: str) -> bool:
         return signature_field in header_str
     except Exception:
         return False
+
+
+def get_zeek_columns(path: Path) -> List[str]:
+    """Read just the #fields header line and return the column names.
+
+    Much faster than parse_zeek_log() for schema inspection — reads only
+    until the #fields line is found.
+    """
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            line = line.rstrip("\n\r")
+            if line.startswith("#fields"):
+                return line.split("\t")[1:]
+            if not line.startswith("#") and line:
+                # Data line before #fields — malformed, fall back to empty
+                break
+    return []

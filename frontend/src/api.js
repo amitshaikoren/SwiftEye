@@ -21,6 +21,14 @@ export async function uploadPcap(files) {
   return api('/api/upload', { method: 'POST', body: form });
 }
 
+export async function confirmSchemaMapping(stagingToken, mapping) {
+  return api('/api/upload/confirm-schema', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ staging_token: stagingToken, mapping }),
+  });
+}
+
 export async function fetchStats(params = {}) {
   const p = new URLSearchParams();
   if (params.timeStart != null) p.set('time_start', params.timeStart);

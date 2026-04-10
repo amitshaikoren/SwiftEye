@@ -1,0 +1,19 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	dns
+#open	2024-01-15-10-00-00
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	trans_id	rtt	query	qclass	qclass_name	qtype	qtype_name	rcode	rcode_name	AA	TC	RD	RA	Z	answers	TTLs	rejected
+#types	time	string	addr	port	addr	port	enum	count	interval	string	count	string	count	string	count	string	bool	bool	bool	bool	count	vector[string]	vector[interval]	bool
+1705312800.100000	DxYZ01	10.0.0.3	49152	8.8.8.8	53	udp	12345	0.005000	example.com	1	C_INTERNET	1	A	0	NOERROR	F	F	T	T	0	93.184.216.34	300.000000	F
+1705312800.200000	DxYZ02	10.0.0.3	49153	8.8.8.8	53	udp	12346	0.007000	google.com	1	C_INTERNET	1	A	0	NOERROR	F	F	T	T	0	142.250.80.46,142.250.80.78	300.000000,300.000000	F
+1705312800.300000	DxYZ03	10.0.0.1	50000	1.1.1.1	53	udp	9999	0.003000	evil.example	1	C_INTERNET	1	A	3	NXDOMAIN	F	F	T	T	0	-	-	F
+1705312800.400000	DxYZ04	10.0.0.5	51000	8.8.8.8	53	udp	22222	0.010000	api.stripe.com	1	C_INTERNET	28	AAAA	0	NOERROR	F	F	T	T	0	2607:f8b0:4004:c09::5e	120.000000	F
+1705312800.500000	DxYZ05	10.0.0.3	49154	8.8.8.8	53	udp	33333	0.006000	mail.example.com	1	C_INTERNET	15	MX	0	NOERROR	F	F	T	T	0	10 smtp.example.com	3600.000000	F
+1705312801.000000	DxYZ06	10.0.0.2	52000	10.0.0.10	53	udp	44444	0.002000	internal.corp	1	C_INTERNET	1	A	0	NOERROR	F	F	T	T	0	10.0.0.50	60.000000	F
+1705312801.100000	DxYZ07	10.0.0.4	53000	8.8.8.8	53	udp	55555	0.004000	windows.com	1	C_INTERNET	1	A	0	NOERROR	F	F	T	T	0	20.112.52.29	3600.000000	F
+1705312801.200000	DxYZ08	192.168.1.10	54000	8.8.8.8	53	udp	66666	0.009000	cdn.cloudflare.com	1	C_INTERNET	1	A	0	NOERROR	F	F	T	T	0	104.21.234.11	300.000000	F
+1705312801.300000	DxYZ09	10.0.0.1	55000	1.1.1.1	53	udp	77777	0.003000	github.com	1	C_INTERNET	1	A	0	NOERROR	F	F	T	T	0	140.82.112.4	60.000000	F
+1705312801.400000	DxYZ10	10.0.0.3	49155	8.8.8.8	53	udp	88888	0.008000	suspicious.xyz	1	C_INTERNET	16	TXT	0	NOERROR	F	F	T	T	0	v=spf1 ip4:1.2.3.4 -all	3600.000000	F
+#close	2024-01-15-10-00-10

@@ -15,6 +15,7 @@ from plugins.insights.node_merger import build_entity_map
 from plugins.analyses import get_analysis_results, clear_analysis_results
 from parser import read_pcap, PacketRecord, MAX_FILE_SIZE
 from parser.adapters import detect_adapter, ADAPTERS
+from parser.schema import inspect_schema, stage_file
 from constants import PROTOCOL_COLORS
 from models import (
     UploadResponse, StatsResponse, TimelineResponse, GraphResponse,
@@ -43,6 +44,8 @@ async def upload_pcap(files: List[UploadFile] = File(...)):
 
     tmp_dir = tempfile.mkdtemp(prefix="swifteye_upload_")
     tmp_files: list[Path] = []
+    # Tracks whether we moved a file into staging — if so, don't clean tmp_dir.
+    needs_staging = False
 
     try:
         for file in files:
@@ -71,6 +74,52 @@ async def upload_pcap(files: List[UploadFile] = File(...)):
                 if not adapter:
                     raise HTTPException(400, f"Unsupported file type: {tmp_path.name}")
 
+                # ── Schema negotiation (phase 1) ──────────────────────────
+                # Only applies to adapters that declare a schema.
+                # For multi-file uploads we only negotiate when there is
+                # exactly one file — negotiating mid-merge is ambiguous.
+                if adapter.declared_fields and len(tmp_files) == 1:
+                    report = inspect_schema(adapter, tmp_path)
+                    if not report.is_clean:
+                        # Stage the file so phase 2 can resume ingestion.
+                        needs_staging = True
+                        token = stage_file(
+                            tmp_path,
+                            adapter_name=adapter.name,
+                            original_filename=tmp_path.name,
+                        )
+                        parse_ms = int((time.time() - t0) * 1000)
+
+                        # Serialise the report into a plain dict for JSON.
+                        report_dict = {
+                            "adapter_name": report.adapter_name,
+                            "detected_columns": report.detected_columns,
+                            "declared_fields": [
+                                {
+                                    "name": f.name,
+                                    "required": f.required,
+                                    "description": f.description,
+                                }
+                                for f in report.declared_fields
+                            ],
+                            "missing_required": report.missing_required,
+                            "missing_optional": report.missing_optional,
+                            "unknown_columns": report.unknown_columns,
+                            "suggested_mappings": report.suggested_mappings,
+                        }
+                        return UploadResponse(
+                            success=False,
+                            capture_id="",
+                            file_name=tmp_path.name,
+                            source_files=[tmp_path.name],
+                            packet_count=0,
+                            parse_time_ms=parse_ms,
+                            file_size_bytes=total_size,
+                            schema_negotiation_required=True,
+                            staging_token=token,
+                            schema_report=report_dict,
+                        )
+
                 logger.info(f"Parsing {tmp_path.name} ({tmp_path.stat().st_size/1024/1024:.1f}MB) with {adapter.name}...")
                 packets = adapter.parse(tmp_path)
                 logger.info(f"  {len(packets)} records from {tmp_path.name}")
@@ -83,7 +132,8 @@ async def upload_pcap(files: List[UploadFile] = File(...)):
                 logger.exception(f"Parse error on {tmp_path.name}")
                 raise HTTPException(500, f"Parse error: {e}")
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if not needs_staging:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     if not all_packets:
         raise HTTPException(400, "No packets found in uploaded file(s)")

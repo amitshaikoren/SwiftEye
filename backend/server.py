@@ -42,6 +42,7 @@ from routes.research import router as research_router
 from routes.animation import router as animation_router
 from routes.alerts import router as alerts_router
 from routes.utility import router as utility_router, setup_log_handler, _log_buffer
+from routes.schema import router as schema_router
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -135,6 +136,7 @@ app.include_router(research_router)
 app.include_router(animation_router)
 app.include_router(alerts_router)
 app.include_router(utility_router)
+app.include_router(schema_router)
 
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
