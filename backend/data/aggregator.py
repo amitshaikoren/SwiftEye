@@ -25,11 +25,14 @@ from ipaddress import IPv4Address, IPv4Network
 from parser.packet import PacketRecord
 from parser.oui import lookup_vendor
 from parser.ja3_db import lookup_ja3
-from storage.memory import _session_matches_edge
+from data.session_match import _session_matches_edge
 
 logger = logging.getLogger("swifteye.aggregator")
 
 # ── Edge field caps ───────────────────────────────────────────────────
+# View-layer display limits only — raw packet data is never truncated.
+# These cap the number of unique values serialized into each graph edge
+# response to keep payload size reasonable for large captures.
 EDGE_TLS_CIPHER_SUITES = 10
 EDGE_TLS_CIPHERS       = 15
 EDGE_DNS_QUERIES       = 30
@@ -166,6 +169,7 @@ def filter_packets(
     protocol_filters: Optional[Set[str]] = None,
     ip_filter: str = "",
     port_filter: str = "",
+    flag_filter: str = "",
     search_query: str = "",
     include_ipv6: bool = True,
     exclude_broadcasts: bool = False,
@@ -185,6 +189,7 @@ def filter_packets(
                        Each packet must match at least one key to be included.
         ip_filter:     Substring match against src_ip or dst_ip only.
         port_filter:   Integer port string to match src_port or dst_port.
+        flag_filter:   TCP flag substring to require (e.g. "SYN", "RST").
         search_query:  Broad substring match — src_ip, dst_ip, src_mac, dst_mac,
                        protocol, tcp_flags, src_port, dst_port. Supersedes ip_filter
                        and port_filter for the general search use case.
@@ -234,6 +239,10 @@ def filter_packets(
             filtered = [p for p in filtered if p.src_port == pf or p.dst_port == pf]
         except ValueError:
             pass
+
+    if flag_filter:
+        ff = flag_filter.upper()
+        filtered = [p for p in filtered if ff in p.tcp_flags_str]
 
     if search_query:
         q = search_query.lower()
@@ -312,6 +321,8 @@ def build_graph(
             protocol_filters=protocol_filters,
             ip_filter=ip_filter,
             port_filter=port_filter,
+            flag_filter=flag_filter,
+            search_query=search_query,
             include_ipv6=True,   # already handled above
             exclude_broadcasts=exclude_broadcasts,
         )
@@ -323,26 +334,11 @@ def build_graph(
             protocol_filters=protocol_filters,
             ip_filter=ip_filter,
             port_filter=port_filter,
+            flag_filter=flag_filter,
+            search_query=search_query,
             include_ipv6=include_ipv6,
             exclude_broadcasts=exclude_broadcasts,
         )
-
-    if flag_filter:
-        ff = flag_filter.upper()
-        filtered = [p for p in filtered if ff in p.tcp_flags_str]
-
-    if search_query:
-        q = search_query.lower()
-        filtered = [p for p in filtered if (
-            q in p.src_ip.lower() or
-            q in p.dst_ip.lower() or
-            q in p.src_mac.lower() or
-            q in p.dst_mac.lower() or
-            q in p.protocol.lower() or
-            q in p.tcp_flags_str.lower() or
-            q in str(p.src_port) or
-            q in str(p.dst_port)
-        )]
     
     # Build graph
     _excl = subnet_exclusions or set()

@@ -1,8 +1,8 @@
 # Session State
 
-**Last updated:** 2026-04-10 · **Current version:** v0.24.0
-**Current branch:** main
-**Mirror sync state:** all mirrors current as of v0.24.0
+**Last updated:** 2026-04-10 · **Current version:** v0.24.2
+**Current branch:** fix/audit-02-backend-arch
+**Mirror sync state:** CHANGELOG.ai.md current to v0.24.2; HANDOFF.ai.md still at v0.24.0 (no arch constraint changes this session)
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -27,11 +27,10 @@ Second-pass: `09_second_pass_frontend_hotspots.md`, `10_second_pass_backend_hots
 - [x] Fix bucket cap comment drift: comment said 5000, constant is 15000 (`aggregator.py:67`)
 - [x] Fix sort field mismatch: `memory.py` sorted on `bytes_total`, sessions use `total_bytes`
 
-### Phase 2 — Backend architecture (next session — use a feature branch)
-> Create branch `fix/audit-02-backend-arch` before starting.
-- [ ] Extract shared packet-match predicate from `aggregator.py` into neutral module (3-site duplication at lines 176–177, 308–328, 334–345)
-- [ ] Remove private storage import from data layer (`aggregator.py:28`, `727–744`)
-- [ ] Add comment on edge enrichment caps flagging them as view-layer limits (lines 424–487, 560–564)
+### Phase 2 — Backend architecture ✅ done this session (branch: fix/audit-02-backend-arch)
+- [x] Extract `_session_matches_edge` + helpers into `data/session_match.py`; removes storage import from data layer
+- [x] Consolidate `flag_filter` + `search_query` into `filter_packets`; removed duplicate handling in `build_graph`
+- [x] Add view-layer-limit comment on edge field caps
 
 ### Phase 3 — Frontend splits (large, multiple sessions, Opus for useCapture — each on its own branch)
 
