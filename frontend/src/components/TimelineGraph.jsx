@@ -329,6 +329,9 @@ export default function TimelineGraph({
     const pt = canvasPoint(e.clientX, e.clientY);
     node.fx = pt.x - drag.dx;
     node.fy = pt.y - drag.dy;
+    // Trigger re-render so the node moves visually. When ruler is off the
+    // sim is stopped (alpha=0), so ticks don't fire — we must do it manually.
+    setTick(t => t + 1);
   }
 
   function onNodePointerUp(e) {

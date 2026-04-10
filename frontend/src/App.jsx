@@ -37,6 +37,7 @@ import GraphOptionsPanel from './components/GraphOptionsPanel';
 import AnimationPane from './components/AnimationPane';
 import AlertsPanel from './components/AlertsPanel';
 import SchemaDialog from './components/SchemaDialog';
+import TypePickerDialog from './components/TypePickerDialog';
 
 export default function App() {
   const c = useCapture();
@@ -153,6 +154,15 @@ export default function App() {
             onConfirm={c.handleSchemaConfirm}
             onCancel={c.handleSchemaCancel}
             loading={c.schemaConfirming}
+          />
+        )}
+        {/* Type picker — renders on top of the upload screen when detection fails */}
+        {c.typePicker && (
+          <TypePickerDialog
+            fileName={c.typePicker.files[0]?.name || 'file'}
+            availableAdapters={c.typePicker.availableAdapters}
+            onConfirm={c.handleTypePickerConfirm}
+            onCancel={c.handleTypePickerCancel}
           />
         )}
       </div>
@@ -856,6 +866,28 @@ export default function App() {
       <input id="pcap-re" type="file" accept=".pcap,.pcapng,.cap,.log,.csv" multiple onChange={c.handleFileInput} style={{ display: 'none' }} />
       <input id="meta-up" type="file" accept=".json" onChange={c.handleMetadataInput} style={{ display: 'none' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* Schema negotiation dialog — shown when in-app upload triggers a schema mismatch */}
+      {c.schemaNegotiation && (
+        <SchemaDialog
+          report={c.schemaNegotiation.report}
+          stagingToken={c.schemaNegotiation.stagingToken}
+          fileName={c.schemaNegotiation.fileName}
+          onConfirm={c.handleSchemaConfirm}
+          onCancel={c.handleSchemaCancel}
+          loading={c.schemaConfirming}
+        />
+      )}
+
+      {/* Type picker — shown when automatic format detection fails */}
+      {c.typePicker && (
+        <TypePickerDialog
+          fileName={c.typePicker.files[0]?.name || 'file'}
+          availableAdapters={c.typePicker.availableAdapters}
+          onConfirm={c.handleTypePickerConfirm}
+          onCancel={c.handleTypePickerCancel}
+        />
+      )}
 
       {/* Settings panel overlay */}
       {showSettings && (

@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
 
 from store import store, _require_capture
 from data import build_time_buckets, build_graph, filter_packets, compute_global_stats, get_subnets
@@ -14,7 +14,7 @@ from plugins import get_global_results
 from plugins.insights.node_merger import build_entity_map
 from plugins.analyses import get_analysis_results, clear_analysis_results
 from parser import read_pcap, PacketRecord, MAX_FILE_SIZE
-from parser.adapters import detect_adapter, ADAPTERS
+from parser.adapters import detect_adapter, find_adapter_by_name, ADAPTERS
 from parser.schema import inspect_schema, stage_file
 from constants import PROTOCOL_COLORS
 from models import (
@@ -28,7 +28,7 @@ router = APIRouter()
 
 
 @router.post("/api/upload", response_model=UploadResponse)
-async def upload_pcap(files: List[UploadFile] = File(...)):
+async def upload_pcap(files: List[UploadFile] = File(...), force_adapter: Optional[str] = Form(None)):
     """Upload and parse capture files or log files. Multiple files are merged by timestamp."""
     if not files:
         raise HTTPException(400, "No files provided")
@@ -70,9 +70,25 @@ async def upload_pcap(files: List[UploadFile] = File(...)):
 
         for tmp_path in tmp_files:
             try:
-                adapter = detect_adapter(tmp_path)
+                if force_adapter:
+                    adapter = find_adapter_by_name(force_adapter)
+                    if not adapter:
+                        raise HTTPException(400, f"Unknown adapter: {force_adapter!r}")
+                else:
+                    adapter = detect_adapter(tmp_path)
                 if not adapter:
-                    raise HTTPException(400, f"Unsupported file type: {tmp_path.name}")
+                    parse_ms = int((time.time() - t0) * 1000)
+                    return UploadResponse(
+                        success=False,
+                        capture_id="",
+                        file_name=tmp_path.name,
+                        source_files=[tmp_path.name],
+                        packet_count=0,
+                        parse_time_ms=parse_ms,
+                        file_size_bytes=total_size,
+                        detection_failed=True,
+                        available_adapters=[cls.name for cls in ADAPTERS if cls.name],
+                    )
 
                 # ── Schema negotiation (phase 1) ──────────────────────────
                 # Only applies to adapters that declare a schema.

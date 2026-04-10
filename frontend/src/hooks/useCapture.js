@@ -65,6 +65,11 @@ export function useCapture() {
   // { stagingToken, fileName, report }
   const [schemaConfirming, setSchemaConfirming] = useState(false);
 
+  // ── Type picker ───────────────────────────────────────────────────
+  // Set when the backend cannot detect the file format automatically.
+  // { files, availableAdapters }
+  const [typePicker, setTypePicker] = useState(null);
+
   // ── Server data ──────────────────────────────────────────────────
   const [stats, setStats]           = useState(null);
   const [timeline, setTimeline]     = useState([]);
@@ -397,7 +402,12 @@ export function useCapture() {
       // If user explicitly selected no protocols (and protocols are loaded), show no edges
       const noneSelected = enabledP.size === 0 && allProtocolKeysCountRef.current > 0;
       setRawGraph(noneSelected ? { ...d, edges: [] } : d);
-      if (!fullGraphRef.current) fullGraphRef.current = { nodes: d.nodes || [], edges: d.edges || [] };
+      if (!fullGraphRef.current) {
+        fullGraphRef.current = { nodes: d.nodes || [], edges: d.edges || [] };
+        // Alert detectors run inside build_analysis_graph_and_run(), which fires
+        // lazily on the first /api/graph call. Re-fetch alerts now that they're ready.
+        fetchAlerts().then(al => setAlerts(al || { alerts: [], summary: {} })).catch(() => {});
+      }
     }).catch(e => {
       if (e.name !== 'AbortError') console.error(e);
     });
@@ -608,11 +618,18 @@ export function useCapture() {
 
   // ── Upload handlers ───────────────────────────────────────────────
 
-  async function handleUpload(files) {
+  async function handleUpload(files, forceAdapter = null) {
     setLoading(true); setError(''); setLoadMsg('Uploading...');
     try {
       setLoadMsg('Parsing capture data...');
-      const res = await uploadPcap(files);
+      const res = await uploadPcap(files, forceAdapter);
+
+      // Detection failed — backend could not identify the file format.
+      if (res.detection_failed) {
+        setTypePicker({ files, availableAdapters: res.available_adapters || [] });
+        setLoading(false);
+        return;
+      }
 
       // Phase 1 — schema mismatch detected, show mapping dialog.
       if (res.schema_negotiation_required) {
@@ -634,6 +651,17 @@ export function useCapture() {
       setError(err.message);
       setLoading(false);
     }
+  }
+
+  async function handleTypePickerConfirm(adapterName) {
+    if (!typePicker) return;
+    const { files } = typePicker;
+    setTypePicker(null);
+    await handleUpload(files, adapterName);
+  }
+
+  function handleTypePickerCancel() {
+    setTypePicker(null);
   }
 
   async function handleSchemaConfirm(mapping) {
@@ -1009,6 +1037,7 @@ export function useCapture() {
     loaded, loading, loadMsg, error, fileName, sourceFiles,
     handleUpload, handleDrop, handleFileInput, handleMetadataInput,
     schemaNegotiation, schemaConfirming, handleSchemaConfirm, handleSchemaCancel,
+    typePicker, handleTypePickerConfirm, handleTypePickerCancel,
 
     // Data
     stats, timeline, graph, rawGraph, sessions, sessionTotal,

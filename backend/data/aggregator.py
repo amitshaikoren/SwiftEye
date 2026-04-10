@@ -829,11 +829,16 @@ def build_node_session_events(
         if protocols and proto not in protocols:
             continue
 
+        # Prefer initiator/responder when available — they are determined by TCP SYN
+        # tracking and reflect the true connection direction, not just first-packet order.
+        anim_src = s.get("initiator_ip") or src
+        anim_dst = s.get("responder_ip") or dst
+
         sid = s.get("id", "")
         base = {
             "session_id": sid,
-            "src": src,
-            "dst": dst,
+            "src": anim_src,
+            "dst": anim_dst,
             "protocol": proto,
             "bytes": s.get("total_bytes", 0),
             "packets": s.get("packet_count", 0),

@@ -18,6 +18,9 @@ class UploadResponse(BaseModel):
     schema_negotiation_required: bool = False
     staging_token: Optional[str] = None
     schema_report: Optional[Dict[str, Any]] = None
+    # Type detection failure — populated when no adapter can handle the file.
+    detection_failed: bool = False
+    available_adapters: List[str] = []
 
 
 class SchemaNegotiationRequest(BaseModel):

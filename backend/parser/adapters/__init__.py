@@ -115,6 +115,14 @@ def register_adapter(cls: Type[IngestionAdapter]) -> Type[IngestionAdapter]:
     return cls
 
 
+def find_adapter_by_name(name: str) -> Optional[IngestionAdapter]:
+    """Return an instantiated adapter whose name matches exactly, or None."""
+    for adapter_cls in ADAPTERS:
+        if adapter_cls.name == name:
+            return adapter_cls()
+    return None
+
+
 def detect_adapter(path: Path) -> Optional[IngestionAdapter]:
     """Detect which adapter can handle a file by extension + header sniffing."""
     try:

@@ -14,10 +14,11 @@ export async function api(path, opts) {
   return r.json();
 }
 
-export async function uploadPcap(files) {
+export async function uploadPcap(files, forceAdapter = null) {
   const form = new FormData();
   const fileList = Array.isArray(files) ? files : [files];
   for (const f of fileList) form.append('files', f);
+  if (forceAdapter) form.append('force_adapter', forceAdapter);
   return api('/api/upload', { method: 'POST', body: form });
 }
 
