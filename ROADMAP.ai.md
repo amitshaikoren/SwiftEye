@@ -1,6 +1,6 @@
 # Roadmap — AI Reference
 
-**v0.24.0 | 2026-04-10** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.25.0 | 2026-04-11** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
 Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per item — read by anchor (`#item-id`) only when picking up that item.
 
 ---
@@ -12,7 +12,7 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 - **Term:** `short` (next few sessions) · `medium` (weeks–months) · `long` (architectural / multi-month)
 - **Priority:** `critical` · `high` · `medium` · `low`
 - **Effort:** `low` (<1 session) · `medium` (1–3) · `high` (3+)
-- **Opus?:** marked **yes** for items in `docs/plans/FOR_OPUS.md`. Tell the user to switch to Opus.
+- **Opus?:** marked **yes** for items in `docs/plans/persistent/FOR_OPUS.md`. Tell the user to switch to Opus.
 
 ---
 

@@ -1,8 +1,8 @@
 # Session State
 
 **Last updated:** 2026-04-11 · **Current version:** v0.25.0
-**Current branch:** refactor/usecapture-decomposition (merging to main)
-**Mirror sync state:** CHANGELOG.ai.md current; HANDOFF.ai.md, ROADMAP.ai.md will be bumped at merge-flush
+**Current branch:** main
+**Mirror sync state:** all mirrors current as of v0.25.0
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
