@@ -17,7 +17,55 @@
 
 ---
 
-## Do next
+## Audit plan: code_readability / maintainability (audit 02)
+
+Source: `audits/codex_audits/2026-04-09/02_code_readability_scalability_maintainability_audit.md`
+Second-pass: `09_second_pass_frontend_hotspots.md`, `10_second_pass_backend_hotspots.md`
+
+### Phase 1 — Backend bugs (safe, targeted) ✅ done this session
+- [x] Remove duplicate `IPv4Address` import in `backend/data/aggregator.py:23`
+- [x] Fix bucket cap comment drift: comment said 5000, constant is 15000 (`aggregator.py:67`)
+- [x] Fix sort field mismatch: `memory.py` sorted on `bytes_total`, sessions use `total_bytes`
+
+### Phase 2 — Backend architecture (next session — use a feature branch)
+> Create branch `fix/audit-02-backend-arch` before starting.
+- [ ] Extract shared packet-match predicate from `aggregator.py` into neutral module (3-site duplication at lines 176–177, 308–328, 334–345)
+- [ ] Remove private storage import from data layer (`aggregator.py:28`, `727–744`)
+- [ ] Add comment on edge enrichment caps flagging them as view-layer limits (lines 424–487, 560–564)
+
+### Phase 3 — Frontend splits (large, multiple sessions, Opus for useCapture — each on its own branch)
+
+| Priority | Target | Split into | Opus? |
+|---|---|---|---|
+| 1 | `useCapture.js` | `useCaptureLoad`, `useCaptureFilters`, `useGraphData`, `useSelectionAndNavigation`, `useAnnotationsAndSynthetic` | Yes — flag for Opus 4.6 |
+| 2 | `GraphCanvas.jsx` | canvas/sim engine · interaction controller · overlay/context menu · export | recommended |
+| 3 | `ResearchPage.jsx` | `ResearchPage` · `ResearchSlotBoard` · `PlacedCard` · `CustomChartBuilder` · persistence helpers | — |
+| 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | — |
+| 5 | `SessionDetail.jsx` | packet loader hook · payload/stream viewers · charts panel | — |
+| 6 | `App.jsx` | Defer — stable mess, low urgency | — |
+
+---
+
+## Audit-driven work queue (priority over roadmap items)
+
+Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read companion from `claude/` subfolder first. After all audits are addressed, return to roadmap queue below.
+
+| # | Audit | Status | Session focus |
+|---|---|---|---|
+| 02 | code_readability / maintainability | **in progress** (this session) | backend fixes + frontend split plan |
+| 03 | computational_efficiency | pending | — |
+| 04 | storage_efficiency | pending | — |
+| 05 | architecture_principles | pending | — |
+| 06 | ui_ux_accessibility | pending | — |
+| 14 | directory_refactor | pending | — |
+
+Second-pass files (07–13) are companions to the above — read alongside relevant audit.
+
+**Rule for future sessions:** before picking up a roadmap item, check this table. If any audit row is "in progress" or "pending," continue it first. Mark "done" when changes are committed.
+
+---
+
+## Do next (roadmap — after audit queue is cleared)
 
 - `d3-force-tuning` — discuss slider vs constant tweak first
 - `timeline-graph-multi-select-features` — box-select, protocol-select, bulk filter

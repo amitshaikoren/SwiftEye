@@ -179,7 +179,7 @@ class MemoryBackend(StorageBackend):
 
         # Sort
         if sort_by == "bytes":
-            sessions = sorted(sessions, key=lambda s: s.get("bytes_total", 0), reverse=True)
+            sessions = sorted(sessions, key=lambda s: s.get("total_bytes", 0), reverse=True)
         elif sort_by == "packets":
             sessions = sorted(sessions, key=lambda s: s.get("packet_count", 0), reverse=True)
         elif sort_by == "duration":

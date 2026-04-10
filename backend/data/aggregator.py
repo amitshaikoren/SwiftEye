@@ -20,7 +20,7 @@ from typing import List, Dict, Any, Optional, Set
 from collections import defaultdict
 
 import networkx as nx
-from ipaddress import IPv4Address, IPv4Network, IPv4Address
+from ipaddress import IPv4Address, IPv4Network
 
 from parser.packet import PacketRecord
 from parser.oui import lookup_vendor
@@ -64,7 +64,7 @@ def build_time_buckets(
     max_t = packets[-1].timestamp
     total_sec = max(1.0, max_t - min_t)
 
-    # Cap raw buckets at 5000 to prevent memory/performance issues on long captures.
+    # Cap raw buckets at 15000 to prevent memory/performance issues on long captures.
     # If the requested bucket_seconds would exceed this, widen the bucket size.
     MAX_RAW_BUCKETS = 15000
     effective_bucket_sec = bucket_seconds
