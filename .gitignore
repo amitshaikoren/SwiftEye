@@ -21,3 +21,4 @@ DPKT_UNIFIED_PLAN.md
 alerts_panel_mockup.html
 animation_mode_mockup.html
 backend/routes/_demo_alerts.py
+backend/tests/fixtures/

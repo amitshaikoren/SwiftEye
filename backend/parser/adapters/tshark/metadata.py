@@ -103,10 +103,14 @@ class TsharkMetadataAdapter(IngestionAdapter):
     def can_handle(self, path: Path, header: bytes) -> bool:
         if path.suffix.lower() != ".csv":
             return False
-        return is_tshark_csv(
-            header, "frameNumber", "sourceIp", "destIp", "ipProtoType",
-            "sourceMac", "destMac"
-        )
+        # Catch-all for tshark metadata CSVs — checked last, so specific protocol
+        # adapters (dns/http/smb/arp) have already been tried.  Column names may be
+        # renamed; detect by structure: tab-separated first line with ≥15 columns.
+        try:
+            first_line = header.split(b"\n", 1)[0].decode("utf-8", errors="replace").strip()
+            return "\t" in first_line and len(first_line.split("\t")) >= 15
+        except Exception:
+            return False
 
     def get_header_columns(self, path: Path) -> List[str]:
         return get_tshark_columns(path)

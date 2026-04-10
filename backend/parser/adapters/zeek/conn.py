@@ -120,9 +120,11 @@ class ZeekConnAdapter(IngestionAdapter):
     ]
 
     def can_handle(self, path: Path, header: bytes) -> bool:
-        if path.suffix.lower() != ".log":
-            return False
-        return is_zeek_log(header, "conn_state")
+        # Catch-all for Zeek logs — checked last, so specific types (dns/http/ssl/smb)
+        # have already been tried. Detection is format-based only: the `#fields` marker
+        # is distinctive enough; column names may be renamed (schema negotiation handles
+        # the mismatch). No extension requirement — Zeek files can be named arbitrarily.
+        return is_zeek_log(header, "")
 
     def get_header_columns(self, path: Path) -> List[str]:
         return get_zeek_columns(path)
