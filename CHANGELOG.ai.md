@@ -13,6 +13,8 @@
 
 ## Log
 
+v0.25.0 | 2026-04-11 | refactor | frontend | useCapture decomposition — split 1143-line monolith into 5 domain slices (`useAnnotationsAndSynthetic`, `useSelectionAndNavigation`, `useCaptureFilters`, `useCaptureData`, `useCaptureLoad`) + coordinator. Cross-slice wiring via shared callback refs. Lifted `loaded` to coordinator, `visibleNodes`/`visibleEdges` computed at coordinator level. `handleCreateManualCluster` moved to coordinator (crosses 3 slices). Return object shape identical — pure refactor, zero API change.
+
 v0.24.2 | 2026-04-10 | refactor | backend | audit-02 phase 2 — (1) extract session↔edge matching helpers into `data/session_match.py`; removes storage import from data layer. (2) consolidate `flag_filter` + `search_query` into `filter_packets`; `build_graph` no longer duplicates these. (3) add view-layer-limit comment on edge field caps (EDGE_TLS_CIPHER_SUITES, EDGE_TLS_CIPHERS, EDGE_DNS_QUERIES).
 
 v0.24.1 | 2026-04-10 | fix | backend | audit-02 phase 1 — (1) remove duplicate `IPv4Address` import in `aggregator.py:23`; (2) fix bucket-cap comment drift (comment said 5000, constant is 15000) at `aggregator.py:67`; (3) fix sort field mismatch: `memory.py` sorted on `bytes_total` but sessions use `total_bytes`.
@@ -52,7 +54,7 @@ v0.21.0 | 2026-04-09 | feat | graph | GraphCanvas Flag-as-Event context menu ite
 v0.21.0 | 2026-04-09 | feat | session-detail | Flag button in SessionDetail header
 v0.21.0 | 2026-04-09 | feat | investigation | InvestigationPage tab bar (Documentation / Timeline Graph), ref-chip render pass (NUL-byte placeholder), drop handler for EventsPanel drag
 v0.21.0 | 2026-04-09 | feat | investigation | drag-to-insert event ref chips in markdown editor; ref-chip click-throughs via onSelectEntity in App.jsx
-v0.20.4 | 2026-04-09 | docs | planning | event-type-system Opus plan written (docs/plans/event-type-system.md) — full design, phase 1/2 split, 6 open questions, Phenomena concept
+v0.20.4 | 2026-04-09 | docs | planning | event-type-system Opus plan written (docs/plans/archive/event-type-system.md) — full design, phase 1/2 split, 6 open questions, Phenomena concept
 v0.20.4 | 2026-04-09 | docs | planning | event-system-mockup.html created (docs/mockups/) — Documentation tab + Timeline Graph tab with suggested edges
 v0.20.4 | 2026-04-09 | chore | roadmap | FOR_OPUS.md: added event-type-system
 v0.20.4 | 2026-04-09 | chore | roadmap | new item: adapter-schema-negotiation (interactive column mapping for mismatched adapter schemas)

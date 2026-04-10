@@ -1,8 +1,8 @@
 # Session State
 
-**Last updated:** 2026-04-10 · **Current version:** v0.24.2
-**Current branch:** fix/audit-02-backend-arch
-**Mirror sync state:** CHANGELOG.ai.md current to v0.24.2; HANDOFF.ai.md still at v0.24.0 (no arch constraint changes this session)
+**Last updated:** 2026-04-11 · **Current version:** v0.25.0
+**Current branch:** refactor/usecapture-decomposition (merging to main)
+**Mirror sync state:** CHANGELOG.ai.md current; HANDOFF.ai.md, ROADMAP.ai.md will be bumped at merge-flush
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -10,6 +10,8 @@
 ---
 
 ## Shipped this session
+
+- v0.25.0 (branch: refactor/usecapture-decomposition) — useCapture.js decomposition. Split 1143-line monolith hook into 5 domain slices + coordinator. Pure refactor, identical return object. Phase 3 item #1 complete.
 
 - v0.24.0 (branch: fix/qol-bugs) — QOL bug batch: alerts live-load bug, schema-dialog-in-app, manual-type-override (TypePickerDialog), detail-panel flag button polish, animation direction mismatch (initiator_ip), timeline-graph drag-render bug (setTick in onNodePointerMove).
 
@@ -34,10 +36,14 @@ Second-pass: `09_second_pass_frontend_hotspots.md`, `10_second_pass_backend_hots
 
 ### Phase 3 — Frontend splits (large, multiple sessions, Opus for useCapture — each on its own branch)
 
+**Recon pass complete (Sonnet, 2026-04-10):** Full dependency map written to `docs/plans/active/usecapture-decomposition.md`. Covers all state/ref/effect inventory, 12 cross-slice dependency points with resolutions, proposed 5-slice breakdown with coordinator, stale closure traps, and implementation order. Ready for Opus to execute from that doc.
+
+**GraphCanvas recon complete (Sonnet, 2026-04-11):** Full dependency map written to `docs/plans/active/graphcanvas-decomposition.md`. 1665 lines. Covers all 32 refs, 7 state vars, ~24 prop-sync effects + 3 major effects, 10 cross-slice wiring points, 7 issues found, proposed 4-hook + 5-component split, implementation order, and expected coordinator shape (~100 lines). Ready for Opus.
+
 | Priority | Target | Split into | Opus? |
 |---|---|---|---|
-| 1 | `useCapture.js` | `useCaptureLoad`, `useCaptureFilters`, `useGraphData`, `useSelectionAndNavigation`, `useAnnotationsAndSynthetic` | Yes — flag for Opus 4.6 |
-| 2 | `GraphCanvas.jsx` | canvas/sim engine · interaction controller · overlay/context menu · export | recommended |
+| 1 | `useCapture.js` | `useCaptureLoad`, `useCaptureFilters`, `useCaptureData`, `useSelectionAndNavigation`, `useAnnotationsAndSynthetic` + coordinator | ✅ Done (Opus, v0.25.0) |
+| 2 | `GraphCanvas.jsx` | `useGraphSim` · `useGraphViewSync` · `useGraphInteraction` · `useGraphResizePolling` · `GraphContextMenu` · `GraphAnnotationOverlay` · `GraphEventDots` · `SyntheticNodeForm` · `SyntheticEdgeForm` · `graphColorUtils` | Yes — **recon done, plan at `docs/plans/graphcanvas-decomposition.md`** |
 | 3 | `ResearchPage.jsx` | `ResearchPage` · `ResearchSlotBoard` · `PlacedCard` · `CustomChartBuilder` · persistence helpers | — |
 | 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | — |
 | 5 | `SessionDetail.jsx` | packet loader hook · payload/stream viewers · charts panel | — |
@@ -84,7 +90,7 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 
 ## Deferred
 
-- **Alerts Phase 2** — design complete in `docs/plans/ALERTS_PHASE2_PLAN.md`. Deprioritized.
+- **Alerts Phase 2** — design complete in `docs/plans/active/ALERTS_PHASE2_PLAN.md`. Deprioritized.
 
 ---
 

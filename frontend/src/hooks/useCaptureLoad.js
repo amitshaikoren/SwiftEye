@@ -1,0 +1,217 @@
+/**
+ * useCaptureLoad — upload lifecycle state, schema negotiation, type picker,
+ * flag modal, and the loadAll orchestrator.
+ *
+ * Extracted from useCapture as part of the decomposition (v0.25.0).
+ * Created last in the implementation order because onCaptureLoaded depends
+ * on setters from all other slices being in place.
+ *
+ * Cross-slice params:
+ *   - loaded, setLoaded (from coordinator)
+ *   - onCaptureLoaded(data) — callback that fans out to all slices
+ *   - setGraph (from data slice — for handleMetadataInput)
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import {
+  fetchStatus, fetchStats, fetchTimeline, fetchProtocols,
+  fetchSessions, fetchPluginResults, fetchPluginSlots,
+  fetchAnnotations, fetchSynthetic, fetchAlerts,
+  uploadPcap, uploadMetadata, confirmSchemaMapping,
+} from '../api';
+
+export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph }) {
+
+  // ── Capture lifecycle state ──────────────────────────────────────
+
+  const [loading, setLoading] = useState(false);
+  const [loadMsg, setLoadMsg] = useState('');
+  const [error, setError]     = useState('');
+  const [fileName, setFileName] = useState('');
+  const [sourceFiles, setSourceFiles] = useState([]);
+
+  // ── Schema negotiation ───────────────────────────────────────────
+
+  const [schemaNegotiation, setSchemaNegotiation] = useState(null);
+  const [schemaConfirming, setSchemaConfirming] = useState(false);
+
+  // ── Type picker ──────────────────────────────────────────────────
+
+  const [typePicker, setTypePicker] = useState(null);
+
+  // ── Flag modal ───────────────────────────────────────────────────
+
+  const [flaggingTarget, setFlaggingTarget] = useState(null);
+  function openFlagModal(entity_type, entity) {
+    if (!entity || !entity_type) return;
+    setFlaggingTarget({ entity, entity_type });
+  }
+  function closeFlagModal() { setFlaggingTarget(null); }
+
+  // ── loadAll — fetch everything and fan out via callback ──────────
+
+  const loadAll = useCallback(async () => {
+    // Reset scope pills to SCOPED on every fresh capture load
+    try {
+      localStorage.removeItem('swifteye_scope_node');
+      localStorage.removeItem('swifteye_scope_edge');
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('swifteye_scope_slot_'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
+
+    const [sd, td, pd, ss, pr, ps, an, sy, al] = await Promise.all([
+      fetchStats(), fetchTimeline(), fetchProtocols(),
+      fetchSessions(), fetchPluginResults(), fetchPluginSlots(),
+      fetchAnnotations(), fetchSynthetic(), fetchAlerts(),
+    ]);
+
+    // Compute enabled protocol composite keys
+    const sp = sd.stats?.protocols || {};
+    const initKeys = [];
+    const nonIpTransports = new Set(['ARP', 'OTHER']);
+    for (const pName of pd.protocols) {
+      if (!pName || !pName.trim()) continue;
+      const info = sp[pName] || {};
+      const transport = info.transport || pName;
+      const v4 = info.ipv4 || 0;
+      const v6 = info.ipv6 || 0;
+      const total = info.packets || 0;
+      if (nonIpTransports.has(transport)) {
+        initKeys.push(`0/${transport}/${pName}`);
+      } else {
+        if (v4 > 0 || (v6 === 0 && total > 0)) initKeys.push(`4/${transport}/${pName}`);
+        if (v6 > 0) initKeys.push(`6/${transport}/${pName}`);
+      }
+    }
+
+    onCaptureLoaded({
+      stats: sd.stats,
+      timeline: td.buckets,
+      timelineLength: td.buckets.length,
+      protocols: pd.protocols,
+      pColors: pd.colors,
+      sessions: ss.sessions || [],
+      fullSessions: ss.sessions || [],
+      sessionTotal: ss.total ?? ss.sessions?.length ?? 0,
+      pluginResults: pr.results || {},
+      pluginSlots: ps.ui_slots || [],
+      annotations: an.annotations || [],
+      synthetic: sy.synthetic || [],
+      alerts: al || { alerts: [], summary: {} },
+      enabledProtocolKeys: initKeys,
+    });
+  }, [onCaptureLoaded]);
+
+  // ── E1: mount — check if capture already loaded server-side ──────
+
+  useEffect(() => {
+    fetchStatus().then(d => {
+      if (d.capture_loaded) {
+        setFileName(d.file_name);
+        loadAll();
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Upload handlers ──────────────────────────────────────────────
+
+  async function handleUpload(files, forceAdapter = null) {
+    setLoading(true); setError(''); setLoadMsg('Uploading...');
+    try {
+      setLoadMsg('Parsing capture data...');
+      const res = await uploadPcap(files, forceAdapter);
+
+      if (res.detection_failed) {
+        setTypePicker({ files, availableAdapters: res.available_adapters || [] });
+        setLoading(false);
+        return;
+      }
+
+      if (res.schema_negotiation_required) {
+        setSchemaNegotiation({
+          stagingToken: res.staging_token,
+          fileName: res.file_name,
+          report: res.schema_report,
+        });
+        setLoading(false);
+        return;
+      }
+
+      setFileName(res.file_name);
+      setSourceFiles(res.source_files || [res.file_name]);
+      setLoadMsg('Loading...');
+      await loadAll();
+      setLoading(false);
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  }
+
+  async function handleTypePickerConfirm(adapterName) {
+    if (!typePicker) return;
+    const { files } = typePicker;
+    setTypePicker(null);
+    await handleUpload(files, adapterName);
+  }
+
+  function handleTypePickerCancel() {
+    setTypePicker(null);
+  }
+
+  async function handleSchemaConfirm(mapping) {
+    if (!schemaNegotiation) return;
+    setSchemaConfirming(true);
+    try {
+      const res = await confirmSchemaMapping(schemaNegotiation.stagingToken, mapping);
+      setSchemaNegotiation(null);
+      setFileName(res.file_name);
+      setSourceFiles(res.source_files || [res.file_name]);
+      setLoadMsg('Loading...');
+      await loadAll();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSchemaConfirming(false);
+    }
+  }
+
+  function handleSchemaCancel() {
+    setSchemaNegotiation(null);
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter(f =>
+      ['.pcap', '.pcapng', '.cap', '.log', '.csv'].some(ext => f.name.toLowerCase().endsWith(ext))
+    );
+    if (files.length) handleUpload(files);
+  }
+
+  function handleFileInput(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length) handleUpload(files);
+    e.target.value = '';
+  }
+
+  async function handleMetadataInput(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      await uploadMetadata(f);
+      setGraph(prev => ({ ...prev })); // force graph re-fetch
+    } catch (err) {
+      console.error('Metadata upload failed:', err);
+    }
+    e.target.value = '';
+  }
+
+  return {
+    loaded, loading, loadMsg, error, fileName, sourceFiles,
+    handleUpload, handleDrop, handleFileInput, handleMetadataInput,
+    schemaNegotiation, schemaConfirming, handleSchemaConfirm, handleSchemaCancel,
+    typePicker, handleTypePickerConfirm, handleTypePickerCancel,
+    flaggingTarget, openFlagModal, closeFlagModal,
+  };
+}
