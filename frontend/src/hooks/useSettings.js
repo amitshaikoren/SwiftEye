@@ -14,9 +14,13 @@ import { STORAGE_KEYS } from '../storageKeys';
 const STORAGE_KEY = STORAGE_KEYS.SETTINGS;
 
 export const DEFAULTS = {
-  theme:    'dark',  // see THEMES below
-  llmApiKey: '',     // stored locally, never sent to SwiftEye servers
-  llmModel: 'gpt-4o-mini',
+  theme:       'dark',  // see THEMES below
+  llmProvider: 'ollama',   // 'ollama' | 'openai'
+  llmBaseUrl:  '',         // provider base URL (blank = use provider default)
+  llmApiKey:   '',         // stored locally, never sent to SwiftEye servers
+  llmModel:    'qwen2.5:14b-instruct',
+  llmTemperature: 0.2,
+  llmMaxTokens:   1400,
 };
 
 export const THEMES = [
