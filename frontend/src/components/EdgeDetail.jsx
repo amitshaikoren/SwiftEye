@@ -3,7 +3,7 @@ import Tag from './Tag';
 import Collapse from './Collapse';
 import Row from './Row';
 import { fN, fB, fD, fT } from '../utils';
-import { fetchEdgeSessions } from '../api';
+import { fetchEdgeSessions, fetchEdgeDetail } from '../api';
 
 // Renders a JA3 hash with inline app name when known
 function JA3Badge({ hash, apps = [] }) {
@@ -62,6 +62,12 @@ export default function EdgeDetail({ edge: e, pColors, onClear, nodes = [], onSe
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
+  // Lazy-fetched detail fields (TLS/HTTP/DNS/JA3/JA4 — not in graph summary)
+  // Note: fetched without filter params → shows global-capture scope for this edge.
+  // Filter-aware detail can be added later by passing graphParams from the parent.
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   // Fetch sessions from canonical /api/edge-sessions endpoint when edge changes
   useEffect(() => {
     if (!edgeId) { setEdgeSessions([]); setSessionTotal(0); return; }
@@ -73,11 +79,23 @@ export default function EdgeDetail({ edge: e, pColors, onClear, nodes = [], onSe
       .finally(() => setLoading(false));
   }, [edgeId]);
 
+  // Lazy-fetch edge detail (TLS/HTTP/DNS fields) when edge changes
+  useEffect(() => {
+    if (!edgeId) { setDetail(null); return; }
+    setDetail(null);
+    setDetailLoading(true);
+    fetchEdgeDetail(edgeId)
+      .then(d => setDetail(d))
+      .catch(() => setDetail(null))
+      .finally(() => setDetailLoading(false));
+  }, [edgeId]);
+
   if (!e) return null;
 
-  const hasTLS = e.tls_snis?.length > 0 || e.tls_versions?.length > 0 || e.tls_ciphers?.length > 0 || e.ja3_hashes?.length > 0 || e.ja4_hashes?.length > 0;
-  const hasDNS = e.dns_queries?.length > 0;
-  const hasHTTP = e.http_hosts?.length > 0;
+  // Use fetched detail when available; fall back to boolean hints on the edge summary
+  const hasTLS  = detail ? (detail.tls_snis?.length > 0 || detail.tls_versions?.length > 0 || detail.tls_ciphers?.length > 0 || detail.ja3_hashes?.length > 0 || detail.ja4_hashes?.length > 0) : e.has_tls;
+  const hasDNS  = detail ? detail.dns_queries?.length > 0  : e.has_dns;
+  const hasHTTP = detail ? detail.http_hosts?.length > 0   : e.has_http;
 
   return (
     <div className="fi" style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
@@ -125,48 +143,52 @@ export default function EdgeDetail({ edge: e, pColors, onClear, nodes = [], onSe
         {e.src_ports?.length > 0 && <Row l="Src ports" v={e.src_ports.slice(0, 10).join(', ') + (e.src_ports.length > 10 ? '…' : '')} />}
       </div>
 
-      {hasTLS && (
-        <Collapse title={'TLS Details (' + ((e.tls_snis || []).length) + ' SNIs)'} open={true}>
-          {e.tls_snis?.length > 0 && (
+      {detailLoading && (e.has_tls || e.has_http || e.has_dns) && (
+        <div style={{ fontSize: 10, color: 'var(--txD)', padding: '6px 0' }}>Loading protocol details…</div>
+      )}
+
+      {hasTLS && detail && (
+        <Collapse title={'TLS Details (' + ((detail.tls_snis || []).length) + ' SNIs)'} open={true}>
+          {detail.tls_snis?.length > 0 && (
             <div style={{ marginBottom: 6 }}>
               <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 3 }}>SNI (Server Name)</div>
-              {e.tls_snis.map(s => <div key={s} style={{ fontSize: 11, padding: '2px 0' }}>{s}</div>)}
+              {detail.tls_snis.map(s => <div key={s} style={{ fontSize: 11, padding: '2px 0' }}>{s}</div>)}
             </div>
           )}
-          {e.tls_versions?.length > 0 && (
+          {detail.tls_versions?.length > 0 && (
             <div style={{ marginBottom: 6 }}>
               <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 3 }}>TLS Versions</div>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {e.tls_versions.map(v => <Tag key={v} color="#2dd4bf" small>{v}</Tag>)}
+                {detail.tls_versions.map(v => <Tag key={v} color="#2dd4bf" small>{v}</Tag>)}
               </div>
             </div>
           )}
-          {e.tls_selected_ciphers?.length > 0 && (
+          {detail.tls_selected_ciphers?.length > 0 && (
             <div style={{ marginBottom: 6 }}>
               <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 3 }}>Selected Cipher</div>
-              {e.tls_selected_ciphers.map(c => <div key={c} style={{ fontSize: 10, color: 'var(--acG)', padding: '2px 0' }}>{c}</div>)}
+              {detail.tls_selected_ciphers.map(c => <div key={c} style={{ fontSize: 10, color: 'var(--acG)', padding: '2px 0' }}>{c}</div>)}
             </div>
           )}
-          {e.tls_ciphers?.length > 0 && (
-            <Collapse title={'Offered Ciphers (' + e.tls_ciphers.length + ')'}>
-              {e.tls_ciphers.map(c => <div key={c} style={{ fontSize: 10, color: 'var(--txM)', padding: '1px 0' }}>{c}</div>)}
+          {detail.tls_ciphers?.length > 0 && (
+            <Collapse title={'Offered Ciphers (' + detail.tls_ciphers.length + ')'}>
+              {detail.tls_ciphers.map(c => <div key={c} style={{ fontSize: 10, color: 'var(--txM)', padding: '1px 0' }}>{c}</div>)}
             </Collapse>
           )}
-          {(e.ja3_hashes?.length > 0 || e.ja4_hashes?.length > 0) && (
+          {(detail.ja3_hashes?.length > 0 || detail.ja4_hashes?.length > 0) && (
             <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--bd)' }}>
-              {e.ja3_hashes?.length > 0 && (
+              {detail.ja3_hashes?.length > 0 && (
                 <div style={{ marginBottom: 4 }}>
-                  {e.ja3_hashes.map(h => (
+                  {detail.ja3_hashes.map(h => (
                     <div key={h} style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap', marginBottom: 1 }}>
                       <span style={{ fontSize: 9, color: 'var(--txD)', flexShrink: 0 }}>JA3</span>
-                      <JA3Badge hash={h} apps={e.ja3_apps || []} />
+                      <JA3Badge hash={h} apps={detail.ja3_apps || []} />
                     </div>
                   ))}
                 </div>
               )}
-              {e.ja4_hashes?.length > 0 && (
+              {detail.ja4_hashes?.length > 0 && (
                 <div>
-                  {e.ja4_hashes.map(h => (
+                  {detail.ja4_hashes.map(h => (
                     <div key={h} style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap', marginBottom: 1 }}>
                       <span style={{ fontSize: 9, color: 'var(--txD)', flexShrink: 0 }}>JA4</span>
                       <span style={{ fontFamily: 'var(--fn)', fontSize: 10, color: 'var(--acP)', wordBreak: 'break-all' }}>{h}</span>
@@ -179,15 +201,15 @@ export default function EdgeDetail({ edge: e, pColors, onClear, nodes = [], onSe
         </Collapse>
       )}
 
-      {hasHTTP && (
+      {hasHTTP && detail && (
         <Collapse title="HTTP Hosts" open>
-          {e.http_hosts.map(h => <div key={h} style={{ fontSize: 11, padding: '2px 0' }}>{h}</div>)}
+          {detail.http_hosts.map(h => <div key={h} style={{ fontSize: 11, padding: '2px 0' }}>{h}</div>)}
         </Collapse>
       )}
 
-      {hasDNS && (
-        <Collapse title={'DNS Queries (' + e.dns_queries.length + ')'} open>
-          {e.dns_queries.slice(0, 20).map(q => <div key={q} style={{ fontSize: 10, padding: '2px 0', color: 'var(--txM)' }}>{q}</div>)}
+      {hasDNS && detail && (
+        <Collapse title={'DNS Queries (' + detail.dns_queries.length + ')'} open>
+          {detail.dns_queries.slice(0, 20).map(q => <div key={q} style={{ fontSize: 10, padding: '2px 0', color: 'var(--txM)' }}>{q}</div>)}
         </Collapse>
       )}
 

@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 
 from store import store, _require_capture
 from data import filter_packets
+from data.edge_fields import meta_for_api as _edge_fields_meta
 
 from scapy.all import wrpcap, Ether, IP, IPv6, TCP, UDP, ICMP, Raw as ScapyRaw  # type: ignore
 
@@ -34,6 +35,17 @@ def setup_log_handler():
     _fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"))
     logging.getLogger("swifteye").addHandler(_fh)
     logging.getLogger("uvicorn.error").addHandler(_fh)
+
+
+# ── Edge field registry (for frontend search hints) ──────────────────────────
+
+@router.get("/api/meta/edge-fields")
+async def get_edge_field_meta():
+    """
+    Return the edge field registry so the frontend can build dynamic
+    keyword hints for the search bar without hardcoding field names.
+    """
+    return {"fields": _edge_fields_meta()}
 
 
 # ── Metadata ─────────────────────────────────────────────────────────────────

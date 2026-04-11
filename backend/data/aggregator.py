@@ -26,16 +26,13 @@ from parser.packet import PacketRecord
 from parser.oui import lookup_vendor
 from parser.ja3_db import lookup_ja3
 from data.session_match import _session_matches_edge
+from data.edge_fields import (
+    EDGE_FIELD_REGISTRY,
+    init_detail_sets, accumulate_from_extra, serialize_detail,
+    has_tls, has_http, has_dns,
+)
 
 logger = logging.getLogger("swifteye.aggregator")
-
-# ── Edge field caps ───────────────────────────────────────────────────
-# View-layer display limits only — raw packet data is never truncated.
-# These cap the number of unique values serialized into each graph edge
-# response to keep payload size reasonable for large captures.
-EDGE_TLS_CIPHER_SUITES = 10
-EDGE_TLS_CIPHERS       = 15
-EDGE_DNS_QUERIES       = 30
 
 # ── Gap collapse thresholds ───────────────────────────────────────────
 GAP_MIN_SECONDS        = 600.0   # 10 minutes
@@ -297,6 +294,7 @@ def build_graph(
     _em = entity_map or {}
     def resolve(ip: str) -> str:
         return _em.get(ip, ip)
+    # Note: get_node_id below mirrors _make_node_id_fn — keep in sync.
 
     # Apply standard filters.
     # When include_ipv6=False AND merge_by_mac is active: run the filter on RESOLVED
@@ -429,20 +427,12 @@ def build_graph(
                 "packet_count": 0,
                 "first_seen": pkt.timestamp,
                 "last_seen": pkt.timestamp,
-                "tls_snis": set(),
-                "tls_versions": set(),
-                "tls_ciphers": set(),
-                "tls_selected_ciphers": set(),
-                "http_hosts": set(),
-                "http_fwd_user_agents": set(),
-                "dns_queries": set(),
                 "src_ports": set(),
                 "dst_ports": set(),
-                "ja3_hashes": set(),
-                "ja4_hashes": set(),
                 "has_protocol_conflict": False,
                 "protocol_by_port": set(),
                 "protocol_by_payload": set(),
+                **init_detail_sets(),
             }
         e = edge_map[edge_key]
         e["total_bytes"] += pkt.orig_len
@@ -459,28 +449,8 @@ def build_graph(
             e["protocol_by_port"].add(pkt.protocol_by_port)
         if pkt.protocol_by_payload:
             e["protocol_by_payload"].add(pkt.protocol_by_payload)
-        # Collect TLS/HTTP/DNS extras
-        ex = pkt.extra
-        if ex:
-            if ex.get("tls_sni"):
-                e["tls_snis"].add(ex["tls_sni"])
-            if ex.get("tls_hello_version"):
-                e["tls_versions"].add(ex["tls_hello_version"])
-            if ex.get("tls_selected_cipher"):
-                e["tls_selected_ciphers"].add(ex["tls_selected_cipher"])
-            if ex.get("tls_cipher_suites"):
-                for cs in ex["tls_cipher_suites"][:EDGE_TLS_CIPHER_SUITES]:
-                    e["tls_ciphers"].add(cs)
-            if ex.get("http_host"):
-                e["http_hosts"].add(ex["http_host"])
-            if ex.get("http_user_agent"):
-                e["http_fwd_user_agents"].add(ex["http_user_agent"])
-            if ex.get("dns_query"):
-                e["dns_queries"].add(ex["dns_query"])
-            if ex.get("ja3"):
-                e["ja3_hashes"].add(ex["ja3"])
-            if ex.get("ja4"):
-                e["ja4_hashes"].add(ex["ja4"])
+        # Collect TLS/HTTP/DNS extras via registry
+        accumulate_from_extra(e, pkt.extra)
     
     # Serialize sets
     hn_map = hostname_map or {}
@@ -539,6 +509,8 @@ def build_graph(
     for e in edge_map.values():
         src_ports = sorted(e["src_ports"])
         dst_ports = sorted(e["dst_ports"])
+        # Summary only — detail fields (TLS/HTTP/DNS/JA3) are excluded here.
+        # Fetch them on demand via GET /api/edge/{id}/detail.
         edge_data = {
             "id": e["id"],
             "source": e["source"],
@@ -550,16 +522,11 @@ def build_graph(
             "last_seen": e["last_seen"],
             "src_ports": src_ports,
             "dst_ports": dst_ports,
-            "ports": sorted(set(src_ports) | set(dst_ports)),  # compat: union
-            "tls_snis": sorted(e["tls_snis"]),
-            "tls_versions": sorted(e["tls_versions"]),
-            "tls_ciphers": sorted(e["tls_ciphers"])[:EDGE_TLS_CIPHERS],
-            "tls_selected_ciphers": sorted(e["tls_selected_ciphers"]),
-            "http_hosts": sorted(e["http_hosts"]),
-            "http_fwd_user_agents": sorted(e["http_fwd_user_agents"])[:20],
-            "dns_queries": sorted(e["dns_queries"])[:EDGE_DNS_QUERIES],
-            "ja3_hashes": sorted(e["ja3_hashes"]),
-            "ja4_hashes": sorted(e["ja4_hashes"]),
+            "ports": sorted(set(src_ports) | set(dst_ports)),
+            # Boolean hints so search bar can still match "has tls / http / dns"
+            "has_tls":  has_tls(e),
+            "has_http": has_http(e),
+            "has_dns":  has_dns(e),
         }
         if e.get("has_protocol_conflict"):
             edge_data["protocol_conflict"] = True
@@ -597,6 +564,106 @@ def build_graph(
         "filtered_count": len(filtered),
         "filtered_bytes": sum(p.orig_len for p in filtered),
     }
+
+
+def _make_node_id_fn(
+    entity_map: Optional[Dict[str, str]],
+    subnet_grouping: bool,
+    subnet_prefix: int,
+    subnet_exclusions: Optional[set],
+):
+    """
+    Return a (ip → node_id) callable that mirrors the logic in build_graph.
+    Extracted so both build_graph and get_edge_detail use the same resolution.
+    """
+    _em = entity_map or {}
+    _excl = subnet_exclusions or set()
+
+    def resolve(ip: str) -> str:
+        return _em.get(ip, ip)
+
+    def get_node_id(ip: str) -> Optional[str]:
+        if not ip:
+            return None
+        canonical = resolve(ip)
+        if subnet_grouping and ":" not in canonical and canonical != "ARP":
+            try:
+                net = IPv4Network(f"{canonical}/{subnet_prefix}", strict=False)
+                net_str = str(net)
+                if net_str in _excl:
+                    return canonical
+                return net_str
+            except Exception:
+                return canonical
+        return canonical
+
+    return get_node_id
+
+
+def get_edge_detail(
+    edge_id: str,
+    packets: List[PacketRecord],
+    time_range: Optional[tuple] = None,
+    protocols: Optional[Set[str]] = None,
+    protocol_filters: Optional[Set[str]] = None,
+    ip_filter: str = "",
+    port_filter: str = "",
+    flag_filter: str = "",
+    search_query: str = "",
+    include_ipv6: bool = True,
+    subnet_grouping: bool = False,
+    subnet_prefix: int = 24,
+    subnet_exclusions: Optional[set] = None,
+    entity_map: Optional[Dict[str, str]] = None,
+    exclude_broadcasts: bool = False,
+) -> Optional[dict]:
+    """
+    Collect the lazy detail fields (TLS/HTTP/DNS/JA3/JA4) for a single edge.
+
+    Accepts the same filter params as build_graph so the detail reflects
+    the same filtered view the user was looking at when they clicked the edge.
+
+    Returns a dict of {edge_key: sorted-list} or None if the edge_id is not
+    found in the filtered packet set.
+    """
+    filtered = filter_packets(
+        packets,
+        time_range=time_range,
+        protocols=protocols,
+        protocol_filters=protocol_filters,
+        ip_filter=ip_filter,
+        port_filter=port_filter,
+        flag_filter=flag_filter,
+        search_query=search_query,
+        include_ipv6=include_ipv6,
+        exclude_broadcasts=exclude_broadcasts,
+    )
+
+    get_node_id = _make_node_id_fn(
+        entity_map=entity_map,
+        subnet_grouping=subnet_grouping,
+        subnet_prefix=subnet_prefix,
+        subnet_exclusions=subnet_exclusions,
+    )
+
+    detail = init_detail_sets()
+    found = False
+
+    for pkt in filtered:
+        src_id = get_node_id(pkt.src_ip)
+        dst_id = get_node_id(pkt.dst_ip)
+        if not src_id or not dst_id or src_id == dst_id:
+            continue
+        ek = f"{src_id}|{dst_id}|{pkt.protocol}"
+        if ek != edge_id:
+            continue
+        found = True
+        accumulate_from_extra(detail, pkt.extra)
+
+    if not found:
+        return None
+
+    return serialize_detail(detail)
 
 
 def build_analysis_graph(

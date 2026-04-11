@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
 
 from store import store, _require_capture
 from data import build_time_buckets, build_graph, filter_packets, compute_global_stats, get_subnets
+from data.aggregator import get_edge_detail
 from data.algorithms import compute_clusters, find_paths
 from plugins import get_global_results
 from plugins.insights.node_merger import build_entity_map
@@ -359,6 +360,71 @@ async def get_edge_sessions(
         limit=limit,
     )
     return SessionsResponse(sessions=sessions, total=total)
+
+
+@router.get("/api/edge/{edge_id:path}/detail")
+async def get_edge_detail_route(
+    edge_id: str,
+    time_start:         Optional[float] = None,
+    time_end:           Optional[float] = None,
+    protocols:          Optional[str] = None,
+    protocol_filters:   Optional[str] = None,
+    ip_filter:          str = "",
+    port_filter:        str = "",
+    flag_filter:        str = "",
+    search:             str = "",
+    subnet_grouping:    bool = False,
+    subnet_prefix:      int = 24,
+    merge_by_mac:       bool = False,
+    include_ipv6:       bool = True,
+    exclude_broadcasts: bool = False,
+    subnet_exclusions:  Optional[str] = None,
+):
+    """
+    Lazy detail fields for a single edge (TLS/HTTP/DNS/JA3/JA4).
+
+    Accepts the same filter params as /api/graph so the detail reflects
+    the same filtered view the user was looking at when they clicked.
+    Returns 404 if the edge_id is not found in the filtered packet set.
+    """
+    _require_capture()
+
+    time_range = None
+    if time_start is not None and time_end is not None:
+        time_range = (time_start, time_end)
+
+    proto_set = set(protocols.split(",")) if protocols else None
+    pf_set    = set(protocol_filters.split(",")) if protocol_filters else None
+
+    entity_map = {}
+    if merge_by_mac:
+        try:
+            entity_map = build_entity_map(store.packets, merge_by_mac=merge_by_mac)
+        except Exception as _em_err:
+            logger.error(f"Node merger failed for edge detail: {_em_err}")
+
+    detail = get_edge_detail(
+        edge_id,
+        store.packets,
+        time_range=time_range,
+        protocols=proto_set,
+        protocol_filters=pf_set,
+        ip_filter=ip_filter,
+        port_filter=port_filter,
+        flag_filter=flag_filter,
+        search_query=search,
+        include_ipv6=include_ipv6,
+        subnet_grouping=subnet_grouping,
+        subnet_prefix=subnet_prefix,
+        subnet_exclusions=set(subnet_exclusions.split(",")) if subnet_exclusions else None,
+        entity_map=entity_map,
+        exclude_broadcasts=exclude_broadcasts,
+    )
+
+    if detail is None:
+        raise HTTPException(404, f"Edge '{edge_id}' not found in filtered packet set")
+
+    return detail
 
 
 @router.get("/api/sessions", response_model=SessionsResponse)

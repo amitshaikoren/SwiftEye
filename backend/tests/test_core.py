@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from parser.packet import PacketRecord
 from parser.pcap_reader import read_pcap
 from data import build_graph, build_sessions, compute_global_stats, filter_packets, build_time_buckets
+from data.aggregator import get_edge_detail
 from plugins import register_plugin, run_global_analysis, get_global_results, AnalysisContext, _plugins, _global_results
 from plugins.analyses.node_centrality import NodeCentralityAnalysis
 from plugins.analyses.traffic_characterisation import TrafficCharacterisationAnalysis
@@ -228,7 +229,7 @@ class TestDirectionalEdges:
                 assert eid in edge_ids, f"Node {n['id']} references non-existent edge {eid}"
 
     def test_http_user_agents_on_edges(self):
-        """Edges should carry http_fwd_user_agents from packet extras."""
+        """Edge summary carries has_http hint; detail endpoint returns full user-agent list."""
         pkts = [
             _make_pkt('10.0.0.1', '10.0.0.2', 5000, 80, 'HTTP', 'TCP', 1.0),
             _make_pkt('10.0.0.1', '10.0.0.2', 5000, 80, 'HTTP', 'TCP', 2.0),
@@ -238,7 +239,14 @@ class TestDirectionalEdges:
         result = build_graph(pkts)
         edges = result['edges']
         assert len(edges) == 1
-        assert set(edges[0]['http_fwd_user_agents']) == {"python-requests/2.28", "curl/7.88"}
+        # Summary edge: detail fields are lazy — only boolean hint present
+        assert edges[0].get('has_http') is True
+        assert 'http_fwd_user_agents' not in edges[0]
+        # Detail endpoint: returns full field values
+        edge_id = edges[0]['id']
+        detail = get_edge_detail(edge_id, pkts)
+        assert detail is not None
+        assert set(detail['http_fwd_user_agents']) == {"python-requests/2.28", "curl/7.88"}
 
 
 class TestBuildTimeBuckets:
