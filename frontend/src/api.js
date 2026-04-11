@@ -81,6 +81,27 @@ export async function fetchEdgeSessions(edgeId, { sortBy = 'bytes', limit = 500 
   return api(`/api/edge-sessions?${p}`);
 }
 
+export async function fetchEdgeDetail(edgeId, graphParams = {}) {
+  // graphParams mirrors the filter params passed to fetchGraph so the detail
+  // reflects the same filtered view the user was looking at.
+  const p = new URLSearchParams();
+  if (graphParams.timeStart  != null) p.set('time_start',        graphParams.timeStart);
+  if (graphParams.timeEnd    != null) p.set('time_end',          graphParams.timeEnd);
+  if (graphParams.protocols)          p.set('protocols',         graphParams.protocols);
+  if (graphParams.subnetGrouping)     p.set('subnet_grouping',   'true');
+  if (graphParams.subnetPrefix != null) p.set('subnet_prefix',   graphParams.subnetPrefix);
+  if (graphParams.mergeByMac)         p.set('merge_by_mac',      'true');
+  if (graphParams.includeIPv6 === false) p.set('include_ipv6',   'false');
+  if (graphParams.excludeBroadcasts)  p.set('exclude_broadcasts','true');
+  if (graphParams.subnetExclusions)   p.set('subnet_exclusions', graphParams.subnetExclusions);
+  const qs = p.toString();
+  return api(`/api/edge/${encodeURIComponent(edgeId)}/detail${qs ? '?' + qs : ''}`);
+}
+
+export async function fetchEdgeFieldMeta() {
+  return api('/api/meta/edge-fields').catch(() => ({ fields: [] }));
+}
+
 export async function fetchPaths(source, target, { cutoff = 5, maxPaths = 10, directed = false } = {}) {
   const p = new URLSearchParams({ source, target, cutoff, max_paths: maxPaths, directed });
   return api(`/api/paths?${p}`);

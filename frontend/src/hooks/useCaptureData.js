@@ -15,7 +15,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   fetchStats, fetchTimeline, fetchSessions, fetchGraph,
-  fetchAlerts, slicePcapUrl,
+  fetchAlerts, slicePcapUrl, fetchEdgeFieldMeta,
 } from '../api';
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
@@ -46,6 +46,19 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
   const [pColors, setPColors]           = useState({});
   const [pluginResults, setPluginResults] = useState({});
   const [pluginSlots, setPluginSlots]     = useState([]);
+
+  // Edge field hint keywords — loaded from /api/meta/edge-fields so the search
+  // bar doesn't need to hardcode field names. Falls back to static list on error.
+  // Each entry: { flag: 'has_tls'|'has_http'|'has_dns', keyword: string }
+  const [edgeFieldHints, setEdgeFieldHints] = useState([
+    { flag: 'has_tls',  keyword: 'tls'    },
+    { flag: 'has_tls',  keyword: 'sni'    },
+    { flag: 'has_tls',  keyword: 'cipher' },
+    { flag: 'has_http', keyword: 'http'   },
+    { flag: 'has_dns',  keyword: 'dns'    },
+    { flag: 'has_tls',  keyword: 'ja3'    },
+    { flag: 'has_tls',  keyword: 'ja4'    },
+  ]);
 
   // ── setGraph wrapper (for synthetic mutations) ───────────────────
 
@@ -123,6 +136,29 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
   }, []);
 
   // ── Effects ──────────────────────────────────────────────────────
+
+  // E0: load edge field hint keywords once on mount (used by search bar hints)
+  useEffect(() => {
+    fetchEdgeFieldMeta().then(data => {
+      if (!data?.fields?.length) return;
+      // Derive hint entries from registry: map hint_keyword aliases → boolean flag names
+      const flagFor = kw => {
+        if (['tls', 'sni', 'cipher', 'ja3', 'ja4'].includes(kw)) return 'has_tls';
+        if (kw === 'http') return 'has_http';
+        if (kw === 'dns')  return 'has_dns';
+        return null;
+      };
+      const seen = new Set();
+      const hints = [];
+      for (const f of data.fields) {
+        for (const kw of (f.hint_keyword || [])) {
+          const key = `${flagFor(kw)}:${kw}`;
+          if (!seen.has(key) && flagFor(kw)) { seen.add(key); hints.push({ flag: flagFor(kw), keyword: kw }); }
+        }
+      }
+      if (hints.length) setEdgeFieldHints(hints);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // E3: re-fetch timeline when bucket size changes
   useEffect(() => {
@@ -214,6 +250,47 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
     else { setDfResult(result); setDfError(null); }
   }, [graph, dfApplied]);
 
+  // Pre-build search indices when graph/sessions change (not per-keystroke).
+  // nodeIndex: id → concatenated searchable text (lowercase)
+  // sessionIndex: session_key → concatenated searchable text (lowercase)
+  const nodeIndex = useMemo(() => {
+    const idx = new Map();
+    for (const n of (graph.nodes || [])) {
+      idx.set(n.id, [
+        ...(n.ips || []), ...(n.macs || []), ...(n.mac_vendors || []),
+        ...(n.hostnames || []), n.os_guess || '', n.id || '',
+        ...Object.values(n.metadata || {}),
+      ].filter(Boolean).join('\0').toLowerCase());
+    }
+    return idx;
+  }, [graph.nodes]);
+
+  const sessionIndex = useMemo(() => {
+    const idx = new Map();
+    const _SKIP = new Set([
+      'id', 'session_key', 'src_ip', 'dst_ip', 'src_port', 'dst_port',
+      'initiator_ip', 'responder_ip', 'initiator_port', 'responder_port',
+      'packet_count', 'total_bytes', 'duration', 'start_time', 'end_time',
+      'bytes_to_initiator', 'bytes_to_responder', 'packets_to_initiator',
+      'packets_to_responder', 'ip_version', 'transport',
+    ]);
+    for (const s of sessions) {
+      const parts = [];
+      for (const [k, v] of Object.entries(s)) {
+        if (_SKIP.has(k)) continue;
+        if (typeof v === 'string') parts.push(v);
+        else if (Array.isArray(v)) {
+          for (const item of v) {
+            if (typeof item === 'string') parts.push(item);
+            else if (item && typeof item === 'object') parts.push(...Object.values(item).filter(x => typeof x === 'string'));
+          }
+        }
+      }
+      idx.set(s.session_key || s.id, parts.join('\0').toLowerCase());
+    }
+    return idx;
+  }, [sessions]);
+
   // E9: client-side search
   useEffect(() => {
     if (!search) { setSearchResult(null); return; }
@@ -222,6 +299,8 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
     const edges = graph.edges || [];
 
     const matchNode = n => {
+      // Fast reject via pre-built index before scanning individual fields
+      if (!nodeIndex.get(n.id)?.includes(q)) return null;
       for (const ip of (n.ips || [])) { if (ip.toLowerCase().includes(q)) return 'ip'; }
       for (const mac of (n.macs || [])) { if (mac.toLowerCase().includes(q)) return 'mac'; }
       for (const v of (n.mac_vendors || [])) { if (v && v.toLowerCase().includes(q)) return 'vendor'; }
@@ -236,18 +315,9 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
 
     const _SKIP_EDGE_KEYS = new Set([
       'id', 'source', 'target', 'protocol', 'type', 'synthetic',
-      'total_bytes', 'packet_count', 'ports',
+      'total_bytes', 'packet_count', 'ports', 'has_tls', 'has_http', 'has_dns',
       'bytes_to_source', 'bytes_to_target', 'packets_to_source', 'packets_to_target',
     ]);
-    const _PROTO_HINTS = [
-      { keys: ['tls_snis', 'tls_versions', 'tls_ciphers', 'tls_selected_ciphers'], keyword: 'tls' },
-      { keys: ['tls_snis'], keyword: 'sni' },
-      { keys: ['tls_ciphers', 'tls_selected_ciphers'], keyword: 'cipher' },
-      { keys: ['http_hosts'], keyword: 'http' },
-      { keys: ['dns_queries'], keyword: 'dns' },
-      { keys: ['ja3_hashes'], keyword: 'ja3' },
-      { keys: ['ja4_hashes'], keyword: 'ja4' },
-    ];
     const matchEdge = e => {
       if (e.protocol && e.protocol.toLowerCase().includes(q)) return 'protocol';
       for (const [key, val] of Object.entries(e)) {
@@ -262,8 +332,9 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
       const src = e.source?.id || e.source || '';
       const tgt = e.target?.id || e.target || '';
       if (src.toLowerCase().includes(q) || tgt.toLowerCase().includes(q)) return 'endpoint';
-      for (const hint of _PROTO_HINTS) {
-        if (hint.keyword.includes(q) && hint.keys.some(k => e[k]?.length)) return `has ${hint.keyword}`;
+      // Boolean presence hints (has_tls / has_http / has_dns)
+      for (const hint of edgeFieldHints) {
+        if (hint.keyword.includes(q) && e[hint.flag]) return `has ${hint.keyword}`;
       }
       if (e.protocol_conflict && 'conflict'.includes(q)) return 'protocol conflict';
       return null;
@@ -277,15 +348,18 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
       'packets_to_responder', 'ip_version', 'transport',
     ]);
     const matchSession = sess => {
-      for (const [key, val] of Object.entries(sess)) {
-        if (_SKIP_SESSION_KEYS.has(key)) continue;
-        if (typeof val === 'string' && val.toLowerCase().includes(q)) return key;
+      // Fast reject via pre-built index
+      const key = sess.session_key || sess.id;
+      if (!sessionIndex.get(key)?.includes(q)) return null;
+      for (const [k, val] of Object.entries(sess)) {
+        if (_SKIP_SESSION_KEYS.has(k)) continue;
+        if (typeof val === 'string' && val.toLowerCase().includes(q)) return k;
         if (Array.isArray(val)) {
           for (const item of val) {
-            if (typeof item === 'string' && item.toLowerCase().includes(q)) return key;
+            if (typeof item === 'string' && item.toLowerCase().includes(q)) return k;
             if (item && typeof item === 'object') {
               for (const v of Object.values(item)) {
-                if (typeof v === 'string' && v.toLowerCase().includes(q)) return key;
+                if (typeof v === 'string' && v.toLowerCase().includes(q)) return k;
               }
             }
           }
@@ -342,7 +416,7 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
       totalNodes: directNodes.length,
       totalEdges: directEdges.length,
     });
-  }, [search, graph, sessions]);
+  }, [search, graph, sessions, nodeIndex, sessionIndex, edgeFieldHints]);
 
   // E11: clear stale pathfind results when graph data changes
   useEffect(() => {

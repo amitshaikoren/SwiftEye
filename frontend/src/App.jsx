@@ -3,7 +3,7 @@
  * All state/logic lives in useCapture(). This file only renders.
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useCapture } from './hooks/useCapture';
 import { fetchSessionDetail } from './api';
 import { useSettings } from './hooks/useSettings';
@@ -13,20 +13,22 @@ import FilterBar from './components/FilterBar';
 import LeftPanel from './components/LeftPanel';
 import GraphCanvas from './components/GraphCanvas';
 import TimelineStrip from './components/TimelineStrip';
-import ResearchPage from './components/ResearchPage';
 import TimelinePanel from './components/TimelinePanel';
-import AnalysisPage from './components/AnalysisPage';
 import AlertsPanel from './components/AlertsPanel';
 import InvestigationPage from './components/InvestigationPage';
 import VisualizePage from './components/VisualizePage';
 import ClusterLegend from './components/ClusterLegend';
-import AnimationPane from './components/AnimationPane';
 import SchemaDialog from './components/SchemaDialog';
 import TypePickerDialog from './components/TypePickerDialog';
 import SettingsPanel from './components/SettingsPanel';
 import EventFlagModal from './components/EventFlagModal';
 import AppUploadScreen from './components/AppUploadScreen';
 import AppRightPanel from './components/AppRightPanel';
+
+// Heavy panels: loaded on first activation only (code-split to reduce initial bundle)
+const ResearchPage  = lazy(() => import('./components/ResearchPage'));
+const AnalysisPage  = lazy(() => import('./components/AnalysisPage'));
+const AnimationPane = lazy(() => import('./components/AnimationPane'));
 
 export default function App() {
   const c = useCapture();
@@ -159,15 +161,17 @@ export default function App() {
 
         {c.rPanel === 'research' ? (
           /* RESEARCH PAGE — full width, replaces graph + right panel */
-          <ResearchPage
-            investigatedIp={c.investigatedIp}
-            seqAckSessionId={c.seqAckSessionId}
-            searchIp={/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(c.search.trim()) ? c.search.trim() : ''}
-            availableIps={c.availableIps}
-            timeline={c.timeline}
-            timeRange={c.timeRange} setTimeRange={c.setTimeRange}
-            bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
-          />
+          <Suspense fallback={<div style={{ padding: 24, color: 'var(--txD)', fontSize: 12 }}>Loading…</div>}>
+            <ResearchPage
+              investigatedIp={c.investigatedIp}
+              seqAckSessionId={c.seqAckSessionId}
+              searchIp={/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(c.search.trim()) ? c.search.trim() : ''}
+              availableIps={c.availableIps}
+              timeline={c.timeline}
+              timeRange={c.timeRange} setTimeRange={c.setTimeRange}
+              bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
+            />
+          </Suspense>
         ) : c.rPanel === 'timeline' ? (
           /* TIMELINE PAGE — full width, replaces graph + right panel */
           <TimelinePanel
@@ -178,13 +182,15 @@ export default function App() {
           />
         ) : c.rPanel === 'analysis' ? (
           /* ANALYSIS PAGE — full width, replaces graph + right panel */
-          <AnalysisPage
-            nodes={c.visibleNodes}
-            edges={c.visibleEdges}
-            sessions={c.sessions}
-            pColors={c.pColors}
-            onSelectNode={c.selectNodePanel}
-          />
+          <Suspense fallback={<div style={{ padding: 24, color: 'var(--txD)', fontSize: 12 }}>Loading…</div>}>
+            <AnalysisPage
+              nodes={c.visibleNodes}
+              edges={c.visibleEdges}
+              sessions={c.sessions}
+              pColors={c.pColors}
+              onSelectNode={c.selectNodePanel}
+            />
+          </Suspense>
         ) : c.rPanel === 'alerts' ? (
           /* ALERTS PAGE — full width, security pattern findings */
           <AlertsPanel
@@ -382,41 +388,43 @@ export default function App() {
                 )}
 
                 {c.animActive ? (
-                  <AnimationPane
-                    animNodes={c.animNodes}
-                    animEvents={c.animEvents}
-                    animNodeMeta={c.animNodeMeta}
-                    animFrame={c.animFrame}
-                    animPlaying={c.animPlaying}
-                    animSpeed={c.animSpeed}
-                    animOpts={c.animOpts}
-                    frameState={c.frameState}
-                    currentEvent={c.currentEvent}
-                    animTimeRange={c.animTimeRange}
-                    totalFrames={c.totalFrames}
-                    isIsolated={c.isIsolated}
-                    togglePlay={c.togglePlay}
-                    goToFrame={c.goToFrame}
-                    stepForward={c.stepForward}
-                    stepBackward={c.stepBackward}
-                    goToStart={c.goToStart}
-                    goToEnd={c.goToEnd}
-                    setAnimSpeed={c.setAnimSpeed}
-                    setAnimOpts={c.setAnimOpts}
-                    setIsIsolated={c.setIsIsolated}
-                    stopAnimation={c.stopAnimation}
-                    mainNodes={c.graph?.nodes || []}
-                    pColors={c.pColors}
-                    onSelectNode={id => id ? c.handleGSel('node', id, false) : c.clearSel()}
-                    onSelectSession={sid => {
-                      const sess = c.sessions.find(s => s.id === sid);
-                      if (sess) { c.selectSession(sess); return; }
-                      // Session not in local list (capped at 1000) — fetch from API
-                      fetchSessionDetail(sid, 0)
-                        .then(d => { if (d.session) c.selectSession(d.session); })
-                        .catch(() => {});
-                    }}
-                  />
+                  <Suspense fallback={<div style={{ padding: 24, color: 'var(--txD)', fontSize: 12 }}>Loading…</div>}>
+                    <AnimationPane
+                      animNodes={c.animNodes}
+                      animEvents={c.animEvents}
+                      animNodeMeta={c.animNodeMeta}
+                      animFrame={c.animFrame}
+                      animPlaying={c.animPlaying}
+                      animSpeed={c.animSpeed}
+                      animOpts={c.animOpts}
+                      frameState={c.frameState}
+                      currentEvent={c.currentEvent}
+                      animTimeRange={c.animTimeRange}
+                      totalFrames={c.totalFrames}
+                      isIsolated={c.isIsolated}
+                      togglePlay={c.togglePlay}
+                      goToFrame={c.goToFrame}
+                      stepForward={c.stepForward}
+                      stepBackward={c.stepBackward}
+                      goToStart={c.goToStart}
+                      goToEnd={c.goToEnd}
+                      setAnimSpeed={c.setAnimSpeed}
+                      setAnimOpts={c.setAnimOpts}
+                      setIsIsolated={c.setIsIsolated}
+                      stopAnimation={c.stopAnimation}
+                      mainNodes={c.graph?.nodes || []}
+                      pColors={c.pColors}
+                      onSelectNode={id => id ? c.handleGSel('node', id, false) : c.clearSel()}
+                      onSelectSession={sid => {
+                        const sess = c.sessions.find(s => s.id === sid);
+                        if (sess) { c.selectSession(sess); return; }
+                        // Session not in local list (capped at 1000) — fetch from API
+                        fetchSessionDetail(sid, 0)
+                          .then(d => { if (d.session) c.selectSession(d.session); })
+                          .catch(() => {});
+                      }}
+                    />
+                  </Suspense>
                 ) : (
                   <GraphCanvas
                     nodes={c.visibleNodes}
