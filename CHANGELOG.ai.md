@@ -13,6 +13,7 @@
 
 ## Log
 
+v0.26.2 | 2026-04-11 | docs | architecture | audit-05 Phase 2 — add Philosophy exceptions section to ARCHITECTURE.ai.md; documents 4 intentional trade-offs (edge caps, client-side centrality, localStorage chart configs, frontend search hint hardcoding) with why/when-to-revisit context.
 v0.26.1 | 2026-04-11 | perf | frontend | audit-03 Phase 2 — merge E4+E5 in useCaptureData.js into a single Promise.all effect; sessions + stats now batch-setState on time-range change (2 renders → 1). E7 (graph) kept separate — different dep set (protocol/subnet filters).
 v0.26.0 | 2026-04-11 | refactor | project | audit-14 Phase 1+2 — rename `tests/` → `captures/` (pcap data ≠ test code); update path refs in test_core.py + test_dpkt_parity.py; rewrite `.gitignore` with labeled sections (Python / Node / project state / private docs / captures / audits / IDE / runtime / legacy).
 v0.25.4 | 2026-04-11 | refactor | frontend | SessionDetail + App decomposition — SessionDetail (948→660 lines) extracts SeqAckChart.jsx (98), StreamView.jsx (149), useSessionPackets.js (40). App (941→680 lines) extracts AppUploadScreen.jsx (103, upload/spinner/standalone-visualize early returns), AppRightPanel.jsx (196, right-panel content assembly). Pure refactor — identical behavior, Phase 3 items #5 + #6 complete.
