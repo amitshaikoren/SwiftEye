@@ -18,6 +18,7 @@ import logging
 from typing import Any, Dict, List, Optional, Set
 
 import store as _store
+from plugins.analyses import get_analysis_results
 
 from .contracts import ChatRequest, ScopeSpec, SelectionState, ViewerState
 from .question_tags import (
@@ -149,7 +150,6 @@ def _build_overview(st, scope: ScopeSpec, vs: ViewerState) -> Dict[str, Any]:
         out["alert_summary"] = {"total": 0}
 
     # Analysis plugin summary (traffic characterisation etc.)
-    from services.capture import get_analysis_results
     analysis = get_analysis_results() or {}
     if analysis:
         # Pass concise summaries only — not raw data dumps
