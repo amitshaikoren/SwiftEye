@@ -1,6 +1,6 @@
 # HANDOFF — AI Reference
 
-**v0.26.5 | 2026-04-11** · Source of truth: `HANDOFF.md` (human, gitignored). Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.26.6 | 2026-04-11** · Source of truth: `HANDOFF.md` (human, gitignored). Mirrors main state only — branch-local work is not reflected until after merge.
 
 ---
 
@@ -142,6 +142,7 @@
 | **No business logic in `routes/`** | Routes orchestrate; logic lives in `services/` or domain modules |
 | `aggregator.py` no new hardcoded protocol field names | Use generic `extra` collection — see HANDOFF §8 coupling problem 1 |
 | Frontend changes → run `cd frontend && npm run build` | Don't leave it to user |
+| **`edge_fields.py` is single source of truth for edge-accumulated fields** (since v0.26.6) | Adding a new `pkt.extra` field to edges: edit `backend/data/edge_fields.py` only. Do NOT add accumulation code directly to `aggregator.py`. |
 
 ---
 
@@ -174,7 +175,7 @@
 
 | # | Coupling | Don't make worse |
 |---|---|---|
-| 1 | `aggregator.py` hardcodes protocol field names on edges | Use generic `extra` collection — don't add new hardcoded names |
+| 1 | ~~`aggregator.py` hardcodes protocol field names on edges~~ **Fixed v0.26.6** | `edge_fields.py` registry now drives all edge accumulation. To add a new edge-accumulated extra field, edit `backend/data/edge_fields.py` only. |
 | 2 | Frontend has dedicated session sections; fallback handles unknowns | Don't add protocol-specific UI bypassing auto-discovery |
 | 3 | `useCapture.js` is a god hook (~970 lines) | Don't add state without considering a sub-hook (decomp on roadmap as `usecapture-decomposition`) |
 | 4 | `server.py` was split into `routes/` modules in v0.15.5 | Don't add business logic back to `server.py` |

@@ -1,8 +1,8 @@
 # Session State
 
 **Last updated:** 2026-04-11 · **Current version:** v0.26.6
-**Current branch:** feat/audit-remaining (not yet merged)
-**Mirror sync state:** all mirrors current as of v0.26.5 — CHANGELOG.ai.md updated to v0.26.6, HANDOFF.ai.md bumped to v0.26.5, ROADMAP.ai.md bumped to v0.26.5, ARCHITECTURE.ai.md (v0.26.1, no content change since), DEVELOPERS.ai.md (v0.26.2, no content change since)
+**Current branch:** main
+**Mirror sync state:** all mirrors current as of v0.26.6 — CHANGELOG.ai.md current, HANDOFF.ai.md v0.26.6, ROADMAP.ai.md v0.26.6, DEVELOPERS.ai.md v0.26.6, ARCHITECTURE.ai.md (v0.26.1, no content change since)
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -44,9 +44,11 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 
 ---
 
-## Do next (roadmap — after audit queue is cleared)
+## Do next
 
-- `d3-force-tuning` — discuss slider vs constant tweak first
+**First (this was requested):** Review the Codex LLM plans in `audits/codex_audits/2026-04-09/` and generate a consolidated Claude plan. The plans are named `01_*` through `14_*` and have `claude/` sub-folder companion notes. Goal: one Claude-perspective plan that synthesises what's actionable, what's already done, what to defer, and what needs Opus.
+
+**After:** roadmap items — `d3-force-tuning` (discuss slider vs constant first), audit-04 P4 (memory monitoring), audit-03 P1 (centrality → backend)
 
 ---
 
