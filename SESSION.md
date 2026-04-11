@@ -1,8 +1,8 @@
 # Session State
 
-**Last updated:** 2026-04-11 · **Current version:** v0.25.2
-**Current branch:** main
-**Mirror sync state:** all mirrors current as of v0.25.2
+**Last updated:** 2026-04-11 · **Current version:** v0.25.3
+**Current branch:** refactor/animationpane-decomposition (not yet merged)
+**Mirror sync state:** all mirrors current as of v0.25.2; CHANGELOG.ai.md updated to v0.25.3
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -10,6 +10,8 @@
 ---
 
 ## Shipped this session
+
+- v0.25.3 — AnimationPane.jsx decomposition. Split 1334-line monolith into 5 modules: `animationUtils.js` (131, already drafted on branch), `useAnimationCanvas.js` (357, zoom + fit + flash + RAF render loop), `useAnimationInteraction.js` (259, hit-test + drag + keyboard + popover dismiss), `AnimationHistoryPanel.jsx` (96, history panel + auto-scroll), `AnimationControlsBar.jsx` (265, transport + scrubber + options + sub-components). Coordinator 460 lines. Pure refactor, identical props API. Phase 3 item #4 complete.
 
 - v0.25.2 — ResearchPage.jsx decomposition. Split 1443-line monolith into 4 modules: `customChartPersistence.js` (12), `CustomChartBuilder.jsx` (249), `PlacedCard.jsx` (611), `ResearchSlotBoard.jsx` (199). Coordinator ~384 lines. Pure refactor, identical props API. Phase 3 item #3 complete.
 
@@ -27,7 +29,7 @@ Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read co
 
 | # | Audit | Status | Notes |
 |---|---|---|---|
-| 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.1) | Backend fixes + frontend splits done. Remaining Phase 3 splits below. |
+| 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.2) | Backend fixes + frontend splits done. Remaining Phase 3 splits below. |
 | 03 | computational_efficiency | **plan created** | Plan: `docs/plans/active/audit-03-computational-efficiency.md`. Not implemented yet. |
 | 04 | storage_efficiency | **plan created** | Plan: `docs/plans/active/audit-04-storage-efficiency.md`. Not implemented yet. |
 | 05 | architecture_principles | **plan created** | Plan: `docs/plans/active/audit-05-architecture-principles.md`. Not implemented yet. |
@@ -47,14 +49,14 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 
 ### Audit 02 — remaining Phase 3 frontend splits (not yet started)
 
-These are the remaining large-file decompositions from audit 02 / second-pass hotspot 09. Items 1–2 are done; items 3–6 remain.
+These are the remaining large-file decompositions from audit 02 / second-pass hotspot 09. Items 1–3 are done; items 4–6 remain.
 
 | Priority | Target | Split into | Status |
 |---|---|---|---|
 | 1 | `useCapture.js` | 5 domain slices + coordinator | ✅ Done (v0.25.0) |
 | 2 | `GraphCanvas.jsx` | 4 hooks + 5 components + colorUtils | ✅ Done (v0.25.1) |
 | 3 | `ResearchPage.jsx` | `ResearchPage` · `ResearchSlotBoard` · `PlacedCard` · `CustomChartBuilder` · persistence helpers | ✅ Done (v0.25.2) |
-| 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | — |
+| 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | ✅ Done (v0.25.3) |
 | 5 | `SessionDetail.jsx` | packet loader hook · payload/stream viewers · charts panel | — |
 | 6 | `App.jsx` | Defer — stable mess, low urgency | — |
 
