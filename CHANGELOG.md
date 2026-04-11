@@ -1,5 +1,12 @@
 # SwiftEye — Changelog
 
+### v0.26.1 — April 2026
+- **Audit-03 Phase 2: fetch batching** — merged the independent `E4` (sessions) and `E5` (stats) effects in `useCaptureData.js` into a single `Promise.all` effect. Both fetches now fire together on time-range change and apply their results in one `setState` batch, reducing re-render cycles from two to one. `E7` (graph) kept separate because it has a wider dependency set (protocol/subnet filters) that differs from the time-range-only deps shared by sessions and stats.
+
+### v0.26.0 — April 2026
+- **Audit-14 Phase 1: `tests/` renamed to `captures/`** — the root-level `tests/` directory contained pcap files and capture datasets, not test code (`backend/tests/` has the actual tests). Renamed to `captures/` for clarity. Updated path references in `backend/tests/test_core.py` and `backend/tests/test_dpkt_parity.py`.
+- **Audit-14 Phase 2: `.gitignore` policy rewrite** — reorganized `.gitignore` from a flat reactive list into labeled sections: Python, Node/Frontend, local project state (`SESSION.md`, `CLAUDE.md`, `*.ai.md`), private docs, captures, audits, IDE, runtime/logs, and legacy files. Added `CLAUDE.md`, `docs/METHODOLOGY.md`, and `memory.zip` to the ignore list. Same effective rules, better organization.
+
 ### v0.25.4 — April 2026
 - **SessionDetail + App decomposition** — `SessionDetail.jsx` (948 → 660 lines) split into three focused modules: `SeqAckChart.jsx` (98 lines — sequence/ACK chart with its axis helpers), `StreamView.jsx` (149 lines — stream payload display with decode/copy/expand logic), and `useSessionPackets.js` (40 lines — hook that fetches and paginates per-session packet data). `App.jsx` (941 → 680 lines) split into `AppUploadScreen.jsx` (103 lines — upload dropzone, parse-progress spinner, and standalone-visualize early-return paths) and `AppRightPanel.jsx` (196 lines — right-panel content assembly: sessions, detail, animation, research, events, logs, alerts, help, settings). Coordinators retain only orchestration logic. Pure refactor — identical behavior, Phase 3 items #5 and #6 complete. All six audit-02 Phase 3 frontend splits are now done.
 

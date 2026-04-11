@@ -1,6 +1,6 @@
 # Roadmap — AI Reference
 
-**v0.25.4 | 2026-04-11** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.26.1 | 2026-04-11** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
 Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per item — read by anchor (`#item-id`) only when picking up that item.
 
 ---

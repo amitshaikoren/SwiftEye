@@ -1,8 +1,8 @@
 # Session State
 
-**Last updated:** 2026-04-11 · **Current version:** v0.25.4
-**Current branch:** main
-**Mirror sync state:** all mirrors current as of v0.25.4 (merged)
+**Last updated:** 2026-04-11 · **Current version:** v0.26.1
+**Current branch:** feat/audit-14-03-quick-wins (not yet merged)
+**Mirror sync state:** mirrors current as of v0.25.4; v0.26.0–v0.26.1 shipped on branch
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -27,17 +27,30 @@ Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read co
 | # | Audit | Status | Notes |
 |---|---|---|---|
 | 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.4) | All Phase 3 frontend splits complete. |
-| 03 | computational_efficiency | **in progress** | Plan: `docs/plans/active/audit-03-computational-efficiency.md`. Phase 2 started. |
-| 04 | storage_efficiency | **plan created** | Plan: `docs/plans/active/audit-04-storage-efficiency.md`. Not implemented yet. |
-| 05 | architecture_principles | **plan created** | Plan: `docs/plans/active/audit-05-architecture-principles.md`. Not implemented yet. |
-| 06 | ui_ux_accessibility | **plan created** | Plan: `docs/plans/active/audit-06-ui-ux-accessibility.md`. Not implemented yet. |
-| 14 | directory_refactor | **in progress** | Plan: `docs/plans/active/audit-14-directory-refactor.md`. Phase 1+2 started. |
+| 03 | computational_efficiency | **in progress** | Phase 2 done (v0.26.1). Remaining: P1 (centrality→backend), P3 (virtualize lists), P4 (search optim), P5 (lazy loading). |
+| 04 | storage_efficiency | **plan created** | Plan: `docs/plans/active/audit-04-storage-efficiency.md`. Not started. |
+| 05 | architecture_principles | **plan created** | Plan: `docs/plans/active/audit-05-architecture-principles.md`. Not started. |
+| 06 | ui_ux_accessibility | **plan created** | Plan: `docs/plans/active/audit-06-ui-ux-accessibility.md`. Not started. |
+| 14 | directory_refactor | **in progress** | Phase 1+2 done (v0.26.0). Remaining: P3 (component reorg plan), P4 (execute reorg). |
 
 Second-pass files (07–13) are companions to the above — read alongside relevant audit.
 
-**Execution order:** pick low-effort phases across audits first for quick wins. Audit 14 Phase 3 (component reorg) unblocked now that all Phase 3 splits are done.
-
 **No audit requires Opus.** All plans are scoped for Sonnet.
+
+### Next batch (priority order — pick low-effort + high-impact first)
+
+| Priority | Audit | Phase | What | Effort |
+|---|---|---|---|---|
+| 1 | 05 | P2 | Document philosophy exceptions in `ARCHITECTURE.ai.md` | ~20 min, docs only |
+| 2 | 05 | P3 | Discovery smoke tests (`backend/tests/test_discovery_smoke.py`) | ~1 hr |
+| 3 | 04 | P1 | State lifetime table in `docs/DEVELOPERS.md` | ~30 min, docs only |
+| 4 | 06 | P1 | Left panel navigation grouping (`LeftPanel.jsx`) | low risk, visual |
+| 5 | 06 | P2 | Minimum font size floor (fix 7–8px offenders) | low risk |
+| 6 | 03 | P1 | Centrality → backend endpoint (`/api/analysis/centrality`) | highest perf impact |
+| 7 | 03 | P3 | Virtualize session list + packet table (`react-window`) | low risk |
+| 8 | 04 | P2 | localStorage key constants + cleanup (`storageKeys.js`) | medium |
+| 9 | 14 | P3 | Component reorg plan (design doc only, no code moves) | low, unblocked |
+| 10 | 14 | P4 | Execute component reorg (import churn, do last) | high |
 
 ---
 
