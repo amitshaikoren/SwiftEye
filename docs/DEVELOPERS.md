@@ -23,6 +23,7 @@
 13. [Graph Algorithms](#13-graph-algorithms)
 14. [Analysis Graph & Query System](#14-analysis-graph--query-system)
 15. [Storage Backend](#15-storage-backend)
+16. [State Lifetime Reference](#16-state-lifetime-reference)
 
 ---
 
@@ -1738,3 +1739,30 @@ Out of scope (use Spark notebook): UDFs, joins, groupBy+agg, withColumn/explode/
 See HANDOFF.md §6 for the full PySpark→SQL translation table and scope boundary.
 
 See `query_system_design.html` for visual architecture diagram and UI mockups.
+
+---
+
+## 16. State Lifetime Reference
+
+What survives what event — the canonical answer to "why did my X disappear?"
+
+| State | Stored in | Survives page refresh | Survives re-upload | Survives server restart |
+|---|---|---|---|---|
+| Theme / layout settings | `localStorage` | Yes | Yes | Yes |
+| Custom research chart configs | `localStorage` | Yes | Yes | Yes |
+| Scope toggles (node scope, research scope) | `localStorage` | Yes | Yes | Yes |
+| Capture data (packets, sessions) | backend RAM | No | Replaced | No |
+| Analysis graph (nodes, edges, enrichment) | backend RAM | No | Replaced | No |
+| Annotations (node labels, edge notes) | backend RAM | No | No (cleared on load) | No |
+| Synthetic nodes / edges | backend RAM | No | No (cleared on load) | No |
+| Investigation state | backend RAM | No | No | No |
+| Alert triggers / results | backend RAM | No | Replaced | No |
+
+**Re-upload** means the user uploads a new capture file. `store.load()` clears annotations, synthetic nodes/edges, and metadata_map before loading the new data — see `services/capture.py`.
+
+**Why this matters for development:** if you add new persistent state, decide where it lives before writing code:
+- User preference (survives across sessions) → `localStorage`
+- Capture-derived data (scoped to one capture's lifetime) → backend `CaptureStore`
+- Must survive server restarts → requires Phase 2 storage (SQLite/Postgres) — not yet implemented
+
+**Roadmap:** `save-load-workspaces` will serialize annotations, synthetic nodes, and investigation state to a portable JSON bundle — the first step toward backend persistence for user-created data.
