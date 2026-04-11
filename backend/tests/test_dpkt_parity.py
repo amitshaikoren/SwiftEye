@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from parser.pcap_reader import read_pcap
 
 # Use the smallest available test pcap
-_TESTS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'tests')
+_TESTS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'captures')
 _PCAP_CANDIDATES = [
     os.path.join(_TESTS_DIR, 'dhcp-homenetwork.pcap'),
     os.path.join(_TESTS_DIR, '2025-06-13-traffic-analysis-exercise.pcap'),

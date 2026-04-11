@@ -1,13 +1,38 @@
-﻿frontend/node_modules/
+# ── Python ──
 __pycache__/
 *.pyc
-backend/swifteye.log
-.claude/
+*.pyo
+
+# ── Node / Frontend ──
+frontend/node_modules/
+
+# ── Local project state (not tracked) ──
+SESSION.md
+CLAUDE.md
+*.ai.md
 init_prompt.md
-/tests/
-audits/
-ROADMAP.md
+
+# ── Private docs (local only) ──
 HANDOFF.md
+ROADMAP.md
+docs/plans/
+docs/mockups/
+docs/METHODOLOGY.md
+
+# ── Captures & test data ──
+captures/
+
+# ── Audits (local) ──
+audits/
+
+# ── IDE / editor ──
+.claude/
+.vscode/
+
+# ── Runtime / logs ──
+backend/swifteye.log
+
+# ── Legacy / misc ──
 FOR_OPUS.md
 architecture_diagram.html
 query_system_design.html
@@ -22,8 +47,5 @@ alerts_panel_mockup.html
 animation_mode_mockup.html
 backend/routes/_demo_alerts.py
 backend/tests/fixtures/
-docs/plans/
-docs/mockups/
-*.ai.md
-SESSION.md
 COMPLETED.md
+memory.zip

@@ -13,7 +13,8 @@
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
-- v0.25.4 — SessionDetail + App decomposition. Merged to main. All 6 audit-02 Phase 3 splits done. Audit 14 + 03 work started on new branch.
+- v0.26.0 — Audit-14 Phase 1+2: rename `tests/` → `captures/`, .gitignore policy rewrite with labeled sections.
+- v0.25.4 — SessionDetail + App decomposition. Merged to main. All 6 audit-02 Phase 3 splits done.
 - v0.25.3 — AnimationPane.jsx decomposition. Split 1334-line monolith into 5 modules: `animationUtils.js` (131), `useAnimationCanvas.js` (357, zoom + fit + flash + RAF render loop), `useAnimationInteraction.js` (259, hit-test + drag + keyboard + popover dismiss), `AnimationHistoryPanel.jsx` (96), `AnimationControlsBar.jsx` (265, transport + scrubber + options + sub-components). Coordinator 460 lines. Phase 3 item #4 complete.
 
 ---

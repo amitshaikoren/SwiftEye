@@ -13,6 +13,7 @@
 
 ## Log
 
+v0.26.0 | 2026-04-11 | refactor | project | audit-14 Phase 1+2 — rename `tests/` → `captures/` (pcap data ≠ test code); update path refs in test_core.py + test_dpkt_parity.py; rewrite `.gitignore` with labeled sections (Python / Node / project state / private docs / captures / audits / IDE / runtime / legacy).
 v0.25.4 | 2026-04-11 | refactor | frontend | SessionDetail + App decomposition — SessionDetail (948→660 lines) extracts SeqAckChart.jsx (98), StreamView.jsx (149), useSessionPackets.js (40). App (941→680 lines) extracts AppUploadScreen.jsx (103, upload/spinner/standalone-visualize early returns), AppRightPanel.jsx (196, right-panel content assembly). Pure refactor — identical behavior, Phase 3 items #5 + #6 complete.
 v0.25.3 | 2026-04-11 | refactor | frontend | AnimationPane decomposition — split 1334-line monolith into 5 modules: `animationUtils.js` (131, constants + pure helpers), `useAnimationCanvas.js` (357, zoom setup + fit-view + flash tracking + RAF render loop), `useAnimationInteraction.js` (259, click/hover hit-test + drag + keyboard + popover dismiss), `AnimationHistoryPanel.jsx` (96, history side panel + auto-scroll), `AnimationControlsBar.jsx` (265, transport + scrubber + options popover + CtrlBtn/OptRow/OptPill sub-components). Coordinator `AnimationPane.jsx` 460 lines. Pure refactor — identical props API, no behavior change. Phase 3 item #4 complete.
 

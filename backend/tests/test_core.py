@@ -435,9 +435,9 @@ class TestSessionBoundary:
 
 
 class TestSessionBoundaryPcap:
-    """Boundary detection tests against real traffic (tests/test2.pcapng)."""
+    """Boundary detection tests against real traffic (captures/test2.pcapng)."""
 
-    PCAP_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'tests', 'test2.pcapng')
+    PCAP_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'captures', 'test2.pcapng')
 
     @pytest.fixture
     def pcap_data(self):
