@@ -41,7 +41,7 @@ function MemberRow({ member, pColors, onNavigate }) {
         </span>
         <span
           onClick={e => { e.stopPropagation(); setExpanded(!expanded); }}
-          style={{ fontSize: 8, color: 'var(--txD)', padding: '0 2px', cursor: 'pointer' }}
+          style={{ fontSize: 9, color: 'var(--txD)', padding: '0 2px', cursor: 'pointer' }}
         >{expanded ? '\u25BC' : '\u25B6'}</span>
       </div>
       {expanded && (
@@ -54,7 +54,7 @@ function MemberRow({ member, pColors, onNavigate }) {
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
               {m.protocols.map(p => (
                 <span key={p} style={{
-                  fontSize: 8, padding: '0 4px', borderRadius: 2,
+                  fontSize: 9, padding: '0 4px', borderRadius: 2,
                   background: (pColors?.[p] || '#64748b') + '20',
                   color: pColors?.[p] || '#64748b',
                   border: `1px solid ${(pColors?.[p] || '#64748b') + '40'}`,
@@ -283,7 +283,7 @@ export default function ClusterDetail({
             background: 'var(--bgH)', borderRadius: 4, padding: '6px 8px', textAlign: 'center',
           }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)' }}>{value}</div>
-            <div style={{ fontSize: 8, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+            <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
           </div>
         ))}
       </div>
@@ -319,7 +319,7 @@ export default function ClusterDetail({
           <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
             {['bytes', 'packets', 'name'].map(s => (
               <button key={s} onClick={() => setMemberSort(s)} style={{
-                fontSize: 8, padding: '1px 5px', cursor: 'pointer',
+                fontSize: 9, padding: '1px 5px', cursor: 'pointer',
                 background: memberSort === s ? 'var(--acB)' : 'transparent',
                 color: memberSort === s ? '#fff' : 'var(--txD)',
                 border: '1px solid var(--bd)', borderRadius: 3,
@@ -391,7 +391,7 @@ export default function ClusterDetail({
                   background: pColors?.[s.protocol] || '#64748b',
                 }} />
                 <span style={{ color: 'var(--txM)', fontSize: 9, flexShrink: 0 }}>{s.src_ip}</span>
-                <span style={{ color: 'var(--txD)', fontSize: 8 }}>{'\u2194'}</span>
+                <span style={{ color: 'var(--txD)', fontSize: 9 }}>{'\u2194'}</span>
                 <span style={{ color: 'var(--txM)', fontSize: 9, flexShrink: 0 }}>{s.dst_ip}</span>
                 <span style={{ flex: 1 }} />
                 <span style={{ color: 'var(--txD)', fontSize: 9 }}>{fB(s.total_bytes || 0)}</span>

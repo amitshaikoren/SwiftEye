@@ -219,7 +219,7 @@ export default function PathDetail({
                             <span
                               onClick={(e) => { e.stopPropagation(); toggleNode(nodeId); }}
                               style={{
-                                fontSize: 8, color: 'var(--txD)', cursor: 'pointer',
+                                fontSize: 9, color: 'var(--txD)', cursor: 'pointer',
                                 display: 'inline-block', width: 10, textAlign: 'center',
                                 transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)',
                                 transition: 'transform .15s',

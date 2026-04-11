@@ -52,7 +52,7 @@ export default function TopBar({
         <img src={logoIconData} alt="SwiftEye icon" style={{ height: 46, objectFit: 'contain' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <img src={logoWordmarkData} alt="SwiftEye" style={{ height: 24, objectFit: 'contain', objectPosition: 'left' }} />
-          <span style={{ fontSize: 8, color: 'var(--txD)', letterSpacing: '.06em', fontFamily: 'var(--fn)' }}>v{VERSION}</span>
+          <span style={{ fontSize: 9, color: 'var(--txD)', letterSpacing: '.06em', fontFamily: 'var(--fn)' }}>v{VERSION}</span>
         </div>
       </div>
       <div style={{ width: 1, height: 20, background: 'var(--bd)' }} />

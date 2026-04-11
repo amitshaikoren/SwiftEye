@@ -492,16 +492,16 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
                     const col = e.value >= 7.5 ? '#f85149' : e.value >= 6.5 ? '#d29922' : e.value >= 5.0 ? '#58a6ff' : e.value >= 3.5 ? '#3fb950' : '#8b949e';
                     return (
                       <span title={e.label + ' (' + e.byte_count + ' bytes)'} style={{
-                        fontSize: 8, padding: '0 5px', borderRadius: 6, lineHeight: '15px', flexShrink: 0,
+                        fontSize: 9, padding: '0 5px', borderRadius: 6, lineHeight: '15px', flexShrink: 0,
                         background: col + '18', color: col, border: '1px solid ' + col + '30',
                         fontFamily: 'var(--fn)',
                       }}>H={e.value} {e.label}</span>
                     );
                   })()}
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 3, flexShrink: 0 }}>
-                    <button className="btn" onClick={copyAscii} style={{ fontSize: 8, padding: '1px 5px' }} title="Copy ASCII text">ASCII</button>
-                    <button className="btn" onClick={copyHex}   style={{ fontSize: 8, padding: '1px 5px' }} title="Copy hex dump">Hex</button>
-                    <button className="btn" onClick={copyRaw}   style={{ fontSize: 8, padding: '1px 5px' }} title="Copy raw bytes as hex string">Raw</button>
+                    <button className="btn" onClick={copyAscii} style={{ fontSize: 9, padding: '1px 5px' }} title="Copy ASCII text">ASCII</button>
+                    <button className="btn" onClick={copyHex}   style={{ fontSize: 9, padding: '1px 5px' }} title="Copy hex dump">Hex</button>
+                    <button className="btn" onClick={copyRaw}   style={{ fontSize: 9, padding: '1px 5px' }} title="Copy raw bytes as hex string">Raw</button>
                   </div>
                 </div>
                 <div style={{ padding: '6px 10px', overflowX: 'auto' }}>

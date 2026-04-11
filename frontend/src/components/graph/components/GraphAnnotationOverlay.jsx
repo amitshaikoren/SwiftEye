@@ -66,8 +66,8 @@ export default function GraphAnnotationOverlay({
               display: 'flex', alignItems: 'center', gap: 5,
             }}
           >
-            {ann.node_id && <span style={{ fontSize: 8, opacity: 0.6 }}>&#x2B24; </span>}
-            {ann.edge_id && <span style={{ fontSize: 8, opacity: 0.6 }}>&mdash; </span>}
+            {ann.node_id && <span style={{ fontSize: 9, opacity: 0.6 }}>&#x2B24; </span>}
+            {ann.edge_id && <span style={{ fontSize: 9, opacity: 0.6 }}>&mdash; </span>}
             {ann.label}
             <span
               onClick={e => { e.stopPropagation(); onDeleteAnnotation?.(ann.id); }}

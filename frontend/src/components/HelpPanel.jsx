@@ -53,7 +53,7 @@ function Card({ name, nameColor = 'var(--ac)', badge, badgeColor, children }) {
         <span style={{ fontSize: 11, fontWeight: 600, color: nameColor }}>{name}</span>
         {badge && (
           <span style={{
-            fontSize: 8, padding: '1px 6px', borderRadius: 8, letterSpacing: '.04em',
+            fontSize: 9, padding: '1px 6px', borderRadius: 8, letterSpacing: '.04em',
             background: (badgeColor || 'var(--acP)') + '22',
             color: badgeColor || 'var(--acP)',
             border: `1px solid ${badgeColor || 'var(--acP)'}44`,

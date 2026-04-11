@@ -151,21 +151,21 @@ export default function TimelineStrip({
           <span style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Timeline</span>
           {[1, 5, 15, 30, 60].map(s => (
             <button key={s} className={'btn' + (bucketSec === s ? ' on' : '')}
-              onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 8 }}>{s}s</button>
+              onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 9 }}>{s}s</button>
           ))}
           {hasGaps && (
             <>
               {segments.map((seg, i) => (
                 <button key={i}
                   className={'btn' + (timeRange[0] === seg.globalStart && timeRange[1] === seg.globalEnd ? ' on' : '')}
-                  style={{ fontSize: 8, padding: '1px 7px' }}
+                  style={{ fontSize: 9, padding: '1px 7px' }}
                   onClick={() => setTimeRange([seg.globalStart, seg.globalEnd])}>
                   Burst {i + 1}
                 </button>
               ))}
               <button
                 className={'btn' + (timeRange[0] === 0 && timeRange[1] === N - 1 ? ' on' : '')}
-                style={{ fontSize: 8, padding: '1px 7px' }}
+                style={{ fontSize: 9, padding: '1px 7px' }}
                 onClick={() => setTimeRange([0, N - 1])}>
                 All
               </button>
@@ -200,7 +200,7 @@ export default function TimelineStrip({
                 </svg>
                 {/* Duration */}
                 <span style={{
-                  position: 'relative', fontSize: 8, color: 'var(--txD)',
+                  position: 'relative', fontSize: 9, color: 'var(--txD)',
                   background: 'var(--bgP)', padding: '0 2px', zIndex: 1,
                 }}>
                   {fmtDuration(part.gapSec)}

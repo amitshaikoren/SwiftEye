@@ -73,8 +73,8 @@ export default function GraphContextMenu({
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', gap: 4,
         }}>
-          {ctxMenu.isSynthetic && <span style={{ fontSize: 8, color: '#f0883e', border: '1px solid #f0883e', borderRadius: 3, padding: '0 3px' }}>synthetic</span>}
-          {ctxMenu.isCluster && <span style={{ fontSize: 8, color: '#bc8cff', border: '1px solid #bc8cff', borderRadius: 3, padding: '0 3px' }}>cluster</span>}
+          {ctxMenu.isSynthetic && <span style={{ fontSize: 9, color: '#f0883e', border: '1px solid #f0883e', borderRadius: 3, padding: '0 3px' }}>synthetic</span>}
+          {ctxMenu.isCluster && <span style={{ fontSize: 9, color: '#bc8cff', border: '1px solid #bc8cff', borderRadius: 3, padding: '0 3px' }}>cluster</span>}
           {ctxMenu.nodeLabel}
         </div>
 
@@ -161,7 +161,7 @@ export default function GraphContextMenu({
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', gap: 4,
         }}>
-          {ctxMenu.isSyntheticEdge && <span style={{ fontSize: 8, color: '#f0883e', border: '1px solid #f0883e', borderRadius: 3, padding: '0 3px' }}>synthetic</span>}
+          {ctxMenu.isSyntheticEdge && <span style={{ fontSize: 9, color: '#f0883e', border: '1px solid #f0883e', borderRadius: 3, padding: '0 3px' }}>synthetic</span>}
           Edge
         </div>
 

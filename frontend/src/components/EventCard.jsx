@@ -90,7 +90,7 @@ export default function EventCard({
       {isPlaced && (
         <div style={{
           position: 'absolute', top: 4, right: 26,
-          fontSize: 8, color: 'var(--txD)', fontStyle: 'italic',
+          fontSize: 9, color: 'var(--txD)', fontStyle: 'italic',
         }}>placed</div>
       )}
 

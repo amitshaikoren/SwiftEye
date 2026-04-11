@@ -221,13 +221,13 @@ export default function ResearchPage({
                 <span style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Global time scope</span>
                 {[5, 15, 30, 60].map(s => (
                   <button key={s} className={'btn' + (bucketSec === s ? ' on' : '')}
-                    onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 8 }}>{s}s</button>
+                    onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 9 }}>{s}s</button>
                 ))}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 9, color: isFullRange ? 'var(--txD)' : 'var(--ac)', fontFamily: 'var(--fn)' }}>{timeLabel}</span>
                 {!isFullRange && (
-                  <button className="btn" style={{ fontSize: 8, padding: '1px 6px' }}
+                  <button className="btn" style={{ fontSize: 9, padding: '1px 6px' }}
                     onClick={() => setTimeRange([0, timeline.length - 1])}>Reset</button>
                 )}
               </div>

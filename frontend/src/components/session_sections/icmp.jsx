@@ -28,7 +28,7 @@ function IcmpDirection({ label, types, identifiers, payloadSizes, payloadSamples
       {payloadSamples?.length > 0 && (
         <Collapse title={`Payload samples (${payloadSamples.length})`}>
           {payloadSamples.map((hex, i) => (
-            <div key={i} style={{ fontSize: 8, fontFamily: 'var(--fn)', color: 'var(--txD)', padding: '2px 0', wordBreak: 'break-all' }}>{hex}</div>
+            <div key={i} style={{ fontSize: 9, fontFamily: 'var(--fn)', color: 'var(--txD)', padding: '2px 0', wordBreak: 'break-all' }}>{hex}</div>
           ))}
         </Collapse>
       )}

@@ -250,7 +250,7 @@ function EvidenceBadge({ sig, text }) {
   const color = sig === 'fg' ? '#3fb950' : '#f0883e';
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '3px 0' }}>
-      <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 6, background: color + '22', color, border: `1px solid ${color}44`, flexShrink: 0, marginTop: 1 }}>
+      <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 6, background: color + '22', color, border: `1px solid ${color}44`, flexShrink: 0, marginTop: 1 }}>
         {sig === 'fg' ? '▲ fg' : '▼ bg'}
       </span>
       <span style={{ fontSize: 10, color: 'var(--txM)', lineHeight: 1.5 }}>{text}</span>
@@ -273,9 +273,9 @@ function TrafficRow({ s, pColors }) {
         style={{ borderBottom: open ? 'none' : '1px solid var(--bd)', cursor: 'pointer' }}>
         <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontSize: 8, color: 'var(--txD)', lineHeight: 1 }}>{open ? '▾' : '▸'}</span>
+            <span style={{ fontSize: 9, color: 'var(--txD)', lineHeight: 1 }}>{open ? '▾' : '▸'}</span>
             <span style={{
-              fontSize: 8, padding: '1px 6px', borderRadius: 8, fontWeight: 600,
+              fontSize: 9, padding: '1px 6px', borderRadius: 8, fontWeight: 600,
               background: LABEL_COLORS[lbl] + '22', color: LABEL_COLORS[lbl],
               border: `1px solid ${LABEL_COLORS[lbl]}55`, textTransform: 'capitalize',
             }} title={LABEL_TIPS[lbl]}>{lbl}</span>
@@ -419,13 +419,13 @@ function TrafficCharPanel({ sessions, pColors }) {
         </span>
         {!showAll && matchedTotal > limit && (
           <button className="btn" onClick={() => setShowAll(true)}
-            style={{ fontSize: 8, padding: '1px 7px' }}>
+            style={{ fontSize: 9, padding: '1px 7px' }}>
             Show all {matchedTotal}
           </button>
         )}
         {showAll && matchedTotal > 50 && (
           <button className="btn" onClick={() => setShowAll(false)}
-            style={{ fontSize: 8, padding: '1px 7px' }}>
+            style={{ fontSize: 9, padding: '1px 7px' }}>
             Collapse
           </button>
         )}
@@ -452,7 +452,7 @@ function AnalysisCard({ icon, title, badge, description, expanded, onToggle, chi
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>{title}</div>
           {badge && (
             <span style={{
-              fontSize: 8, padding: '1px 6px', borderRadius: 8, letterSpacing: '.05em',
+              fontSize: 9, padding: '1px 6px', borderRadius: 8, letterSpacing: '.05em',
               background: 'rgba(63,185,80,.1)', color: 'var(--acG)', border: '1px solid rgba(63,185,80,.3)',
             }}>{badge}</span>
           )}
@@ -565,7 +565,7 @@ export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelect
           <span style={{ fontSize: 18 }}>🤖</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>LLM Interpretation</div>
-            <span style={{ fontSize: 8, padding: '1px 7px', borderRadius: 8, letterSpacing: '.05em', background: 'rgba(188,140,255,.12)', color: 'var(--acP)', border: '1px solid rgba(188,140,255,.3)' }}>COMING SOON</span>
+            <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 8, letterSpacing: '.05em', background: 'rgba(188,140,255,.12)', color: 'var(--acP)', border: '1px solid rgba(188,140,255,.3)' }}>COMING SOON</span>
           </div>
         </div>
         <div style={{ fontSize: 11, color: 'var(--txM)', lineHeight: 1.65, marginBottom: 14 }}>

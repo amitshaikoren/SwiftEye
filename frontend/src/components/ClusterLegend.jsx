@@ -48,7 +48,7 @@ export default function ClusterLegend({ nodes, onSelect, clusterNames }) {
         <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--txM)', letterSpacing: 0.5, textTransform: 'uppercase' }}>
           Clusters ({clusters.length})
         </span>
-        <span style={{ fontSize: 8, color: 'var(--txD)', marginLeft: 8 }}>
+        <span style={{ fontSize: 9, color: 'var(--txD)', marginLeft: 8 }}>
           {collapsed ? '\u25B6' : '\u25BC'}
         </span>
       </div>

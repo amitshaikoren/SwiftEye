@@ -444,7 +444,7 @@ export default function NodeDetail({
                 <span>{ip}</span>
                 {addrType && (
                   <span style={{
-                    fontSize: 8, padding: '0px 5px', borderRadius: 8,
+                    fontSize: 9, padding: '0px 5px', borderRadius: 8,
                     background: addrType.bg, color: addrType.fg,
                     fontFamily: 'var(--fn)', letterSpacing: '.03em', lineHeight: '15px',
                     whiteSpace: 'nowrap', flexShrink: 0,

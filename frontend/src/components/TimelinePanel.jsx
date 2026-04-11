@@ -47,7 +47,7 @@ function GapSparkline({ parts, perSegW, GAP_W, timeRange, height }) {
                 <line key={i} x1={x} y1={height} x2={x + height} y2={0} stroke="rgba(160,160,160,0.5)" strokeWidth="2" />
               ))}
             </svg>
-            <span style={{ position: 'relative', fontSize: 8, color: 'var(--txD)', background: 'var(--bgP)', padding: '0 2px', zIndex: 1 }}>
+            <span style={{ position: 'relative', fontSize: 9, color: 'var(--txD)', background: 'var(--bgP)', padding: '0 2px', zIndex: 1 }}>
               {part.gapSec < 3600 ? `${Math.round(part.gapSec/60)}m` : part.gapSec < 86400 ? `${(part.gapSec/3600).toFixed(1)}h` : `${(part.gapSec/86400).toFixed(1)}d`}
             </span>
           </div>
@@ -205,7 +205,7 @@ export default function TimelinePanel({
                 <span style={{ fontSize: 10, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Time scope</span>
                 {[1, 5, 15, 30, 60].map(s => (
                   <button key={s} className={'btn' + (bucketSec === s ? ' on' : '')}
-                    onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 8 }}>{s}s</button>
+                    onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 9 }}>{s}s</button>
                 ))}
                 {hasGaps && (
                   <>
@@ -213,14 +213,14 @@ export default function TimelinePanel({
                     {segments.map((seg, si) => (
                       <button key={si}
                         className={'btn' + (timeRange[0] === seg.globalStart && timeRange[1] === seg.globalEnd ? ' on' : '')}
-                        style={{ fontSize: 8, padding: '1px 7px' }}
+                        style={{ fontSize: 9, padding: '1px 7px' }}
                         onClick={() => setTimeRange([seg.globalStart, seg.globalEnd])}>
                         Burst {si + 1}
                       </button>
                     ))}
                     <button
                       className={'btn' + (timeRange[0] === 0 && timeRange[1] === N - 1 ? ' on' : '')}
-                      style={{ fontSize: 8, padding: '1px 7px' }}
+                      style={{ fontSize: 9, padding: '1px 7px' }}
                       onClick={() => setTimeRange([0, N - 1])}>
                       All
                     </button>

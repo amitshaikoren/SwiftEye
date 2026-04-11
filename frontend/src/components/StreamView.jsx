@@ -94,11 +94,11 @@ export default function StreamView({ pkts, session: s, loading }) {
           {['ascii', 'hex', 'raw'].map(m => (
             <button key={m} className={'btn' + (showMode === m ? ' on' : '')}
               onClick={() => setShowMode(m)}
-              style={{ fontSize: 8, padding: '2px 6px', textTransform: 'uppercase' }}>
+              style={{ fontSize: 9, padding: '2px 6px', textTransform: 'uppercase' }}>
               {m}
             </button>
           ))}
-          <button className="btn" onClick={copyAll} style={{ fontSize: 8, padding: '2px 6px' }} title="Copy entire stream">
+          <button className="btn" onClick={copyAll} style={{ fontSize: 9, padding: '2px 6px' }} title="Copy entire stream">
             Copy
           </button>
         </div>

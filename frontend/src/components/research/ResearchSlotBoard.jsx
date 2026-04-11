@@ -165,8 +165,8 @@ export function PaletteCategory({ category, charts, onDragStart, onDragEnd }) {
         onClick={() => setCollapsed(v => !v)}
         style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '6px 0 4px 2px', cursor: 'pointer', userSelect: 'none' }}
       >
-        <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '.08em', color, flex: 1 }}>{label}</span>
-        <span style={{ fontSize: 8, color: 'var(--txD)' }}>{collapsed ? '▶' : '▼'}</span>
+        <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '.08em', color, flex: 1 }}>{label}</span>
+        <span style={{ fontSize: 9, color: 'var(--txD)' }}>{collapsed ? '▶' : '▼'}</span>
       </div>
       {!collapsed && (
         isAlerts ? (

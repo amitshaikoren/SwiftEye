@@ -380,7 +380,7 @@ export default function PlacedCard({
             <label style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', minWidth: 60 }}>Time</label>
             <button className={'btn' + (useCustomTime ? ' on' : '')}
               onClick={() => setUseCustomTime(v => !v)}
-              style={{ fontSize: 8, padding: '1px 6px' }}>
+              style={{ fontSize: 9, padding: '1px 6px' }}>
               {useCustomTime ? 'custom' : 'global'}
             </button>
             {timeLabel && <span style={{ fontSize: 9, color: useCustomTime ? 'var(--ac)' : 'var(--txD)', fontFamily: 'var(--fn)' }}>{timeLabel}</span>}

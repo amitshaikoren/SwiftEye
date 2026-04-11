@@ -112,9 +112,9 @@ export default function LeftPanel({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <div className="sh" style={{ marginBottom: 0 }}>Protocols</div>
         <div style={{ display: 'flex', gap: 2 }}>
-          <button className="btn" style={{ padding: '1px 6px', fontSize: 9 }}
+          <button className="btn" style={{ padding: '1px 6px', fontSize: 10 }}
             onClick={() => setEnabledP(new Set(allKeys))}>All</button>
-          <button className="btn" style={{ padding: '1px 6px', fontSize: 9 }}
+          <button className="btn" style={{ padding: '1px 6px', fontSize: 10 }}
             onClick={() => setEnabledP(new Set())}>None</button>
         </div>
       </div>
@@ -142,7 +142,7 @@ export default function LeftPanel({
                   border: '1.5px solid ' + col,
                 }} />
                 <span style={{ fontWeight: allTOn ? 500 : 400 }}>{tEntry.transport}</span>
-                <span style={{ marginLeft: 'auto', color: 'var(--txD)', fontSize: 8, fontFamily: 'var(--fn)' }}>{fN(tEntry.totalPackets)}</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--txD)', fontSize: 9, fontFamily: 'var(--fn)' }}>{fN(tEntry.totalPackets)}</span>
               </div>
             );
           });
@@ -154,11 +154,11 @@ export default function LeftPanel({
             {/* IP version header — collapse only */}
             <div onClick={() => toggle(ipGroup.ipVersion)}
               style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 0', cursor: 'pointer' }}>
-              <span style={{ fontSize: 8, color: 'var(--txD)', width: 10, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}>
+              <span style={{ fontSize: 9, color: 'var(--txD)', width: 10, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}>
                 {ipCollapsed ? '▸' : '▾'}
               </span>
               <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txM)', flex: 1 }}>{ipGroup.label}</span>
-              <span style={{ fontSize: 8, color: 'var(--txD)', fontFamily: 'var(--fn)' }}>{fN(ipGroup.totalPackets)}</span>
+              <span style={{ fontSize: 9, color: 'var(--txD)', fontFamily: 'var(--fn)' }}>{fN(ipGroup.totalPackets)}</span>
             </div>
 
             {!ipCollapsed && ipGroup.transports.map(tEntry => {
@@ -174,7 +174,7 @@ export default function LeftPanel({
                   {/* Transport row — with color swatch for click affordance */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0', cursor: 'pointer' }}>
                     {hasChildren ? (
-                      <span onClick={() => toggle(tKey)} style={{ fontSize: 8, color: 'var(--txD)', width: 10, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}>
+                      <span onClick={() => toggle(tKey)} style={{ fontSize: 9, color: 'var(--txD)', width: 10, textAlign: 'center', flexShrink: 0, userSelect: 'none' }}>
                         {tCollapsed ? '▸' : '▾'}
                       </span>
                     ) : (
@@ -196,7 +196,7 @@ export default function LeftPanel({
                         {tEntry.transport}
                       </span>
                     </span>
-                    <span style={{ fontSize: 8, color: 'var(--txD)', fontFamily: 'var(--fn)' }}>{fN(tEntry.totalPackets)}</span>
+                    <span style={{ fontSize: 9, color: 'var(--txD)', fontFamily: 'var(--fn)' }}>{fN(tEntry.totalPackets)}</span>
                   </div>
 
                   {/* Leaves — only show if transport has app-level protocols beneath it */}
@@ -218,7 +218,7 @@ export default function LeftPanel({
                           border: '1.5px solid ' + col,
                         }} />
                         <span style={{ fontWeight: on ? 500 : 400, fontStyle: isOther ? 'italic' : 'normal', color: isOther ? 'var(--txD)' : undefined }}>{leaf.displayName}</span>
-                        <span style={{ marginLeft: 'auto', color: 'var(--txD)', fontSize: 8, fontFamily: 'var(--fn)' }}>{fN(leaf.packets)}</span>
+                        <span style={{ marginLeft: 'auto', color: 'var(--txD)', fontSize: 9, fontFamily: 'var(--fn)' }}>{fN(leaf.packets)}</span>
                       </div>
                     );
                   })}
@@ -232,52 +232,65 @@ export default function LeftPanel({
       {/* Panel switcher */}
       <div style={{ borderTop: '1px solid var(--bd)', marginTop: 10, paddingTop: 10 }}>
         <div className="sh">Panel</div>
-        {[['stats', 'Overview'], ['sessions', 'Sessions'], ['timeline', 'Timeline'], ['query', 'Query'], ['research', 'Research'], ['analysis', 'Analysis ✦'], ['alerts', 'Alerts'], ['investigation', 'Investigation'], ['visualize', 'Visualize'], ['graph-options', 'Graph Options'], ['logs', 'Server Logs'], ['help', 'Help']].map(([k, l]) => {
-          const isActive = rPanel === k && !selNodes.length && !selEdge && !selSession;
-          const showBadge = k === 'sessions' && activeSearch && sessionTotal > 0 && sessionFiltered !== sessionTotal;
-          return (
-            <div key={k} onClick={() => switchPanel(k)} style={{
-              padding: '5px 6px', borderRadius: 'var(--rs)', cursor: 'pointer', fontSize: 11,
-              background: isActive ? 'rgba(88,166,255,.08)' : 'transparent',
-              color: isActive ? 'var(--ac)' : 'var(--txM)',
-              marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <span>{l}</span>
-              {showBadge && (
-                <span style={{
-                  fontSize: 8, fontFamily: 'var(--fn)',
-                  color: isActive ? 'var(--ac)' : 'var(--txD)',
-                  background: 'var(--bgC)', borderRadius: 8, padding: '1px 5px',
-                  border: '1px solid var(--bd)', flexShrink: 0,
-                }}>{sessionFiltered}/{sessionTotal}</span>
-              )}
-              {k === 'query' && queryActive && (
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: '#f0883e', flexShrink: 0,
-                }} />
-              )}
-              {k === 'alerts' && (() => {
-                const ac = (alertSummary.high || 0) + (alertSummary.medium || 0);
-                return ac > 0 ? (
-                  <span style={{
-                    fontSize: 8, fontFamily: 'var(--fn)', fontWeight: 700,
-                    color: '#f85149',
-                    background: 'rgba(248,81,73,.10)', borderRadius: 10, padding: '1px 6px',
-                    border: '1px solid rgba(248,81,73,.28)', flexShrink: 0,
-                  }}>{ac}</span>
-                ) : null;
-              })()}
-              {k === 'visualize' && (
-                <span style={{
-                  fontSize: 7, letterSpacing: '.05em', padding: '0px 4px', borderRadius: 6,
-                  background: 'rgba(251,191,36,.12)', color: '#fbbf24',
-                  border: '1px solid rgba(251,191,36,.3)', flexShrink: 0,
-                }}>BETA</span>
-              )}
-            </div>
-          );
-        })}
+        {[
+          { label: 'Data',      items: [['stats','Overview'],['sessions','Sessions'],['timeline','Timeline']] },
+          { label: 'Analysis',  items: [['query','Query'],['research','Research'],['analysis','Analysis ✦'],['alerts','Alerts']] },
+          { label: 'Workspace', items: [['investigation','Investigation'],['visualize','Visualize']] },
+          { label: 'Settings',  items: [['graph-options','Graph Options'],['logs','Server Logs'],['help','Help']] },
+        ].map(({ label, items }) => (
+          <div key={label} style={{ marginBottom: 4 }}>
+            <div style={{
+              fontSize: 9, color: 'var(--txD)', letterSpacing: '.06em',
+              textTransform: 'uppercase', padding: '4px 6px 2px', userSelect: 'none',
+            }}>{label}</div>
+            {items.map(([k, l]) => {
+              const isActive = rPanel === k && !selNodes.length && !selEdge && !selSession;
+              const showBadge = k === 'sessions' && activeSearch && sessionTotal > 0 && sessionFiltered !== sessionTotal;
+              return (
+                <div key={k} onClick={() => switchPanel(k)} style={{
+                  padding: '5px 6px', borderRadius: 'var(--rs)', cursor: 'pointer', fontSize: 11,
+                  background: isActive ? 'rgba(88,166,255,.08)' : 'transparent',
+                  color: isActive ? 'var(--ac)' : 'var(--txM)',
+                  marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <span>{l}</span>
+                  {showBadge && (
+                    <span style={{
+                      fontSize: 9, fontFamily: 'var(--fn)',
+                      color: isActive ? 'var(--ac)' : 'var(--txD)',
+                      background: 'var(--bgC)', borderRadius: 8, padding: '1px 5px',
+                      border: '1px solid var(--bd)', flexShrink: 0,
+                    }}>{sessionFiltered}/{sessionTotal}</span>
+                  )}
+                  {k === 'query' && queryActive && (
+                    <span style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: '#f0883e', flexShrink: 0,
+                    }} />
+                  )}
+                  {k === 'alerts' && (() => {
+                    const ac = (alertSummary.high || 0) + (alertSummary.medium || 0);
+                    return ac > 0 ? (
+                      <span style={{
+                        fontSize: 9, fontFamily: 'var(--fn)', fontWeight: 700,
+                        color: '#f85149',
+                        background: 'rgba(248,81,73,.10)', borderRadius: 10, padding: '1px 6px',
+                        border: '1px solid rgba(248,81,73,.28)', flexShrink: 0,
+                      }}>{ac}</span>
+                    ) : null;
+                  })()}
+                  {k === 'visualize' && (
+                    <span style={{
+                      fontSize: 9, letterSpacing: '.05em', padding: '0px 4px', borderRadius: 6,
+                      background: 'rgba(251,191,36,.12)', color: '#fbbf24',
+                      border: '1px solid rgba(251,191,36,.3)', flexShrink: 0,
+                    }}>BETA</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
     </div>

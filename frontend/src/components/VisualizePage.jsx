@@ -125,7 +125,7 @@ function MultiSelect({ label, values, onChange, columns }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, flex: 1 }}>
         {columns.map(c => (
           <button key={c} className={'btn' + (values.includes(c) ? ' on' : '')}
-            onClick={() => toggle(c)} style={{ fontSize: 8, padding: '1px 6px' }}>{c}</button>
+            onClick={() => toggle(c)} style={{ fontSize: 9, padding: '1px 6px' }}>{c}</button>
         ))}
       </div>
     </div>
@@ -506,13 +506,13 @@ export default function VisualizePage() {
               <div style={{ marginTop: 10, padding: '8px 0' }}>
                 <div style={{ fontSize: 9, color: 'var(--txD)', marginBottom: 4 }}>Time window</div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <span style={{ fontSize: 8, color: '#378ADD' }}>Start</span>
+                  <span style={{ fontSize: 9, color: '#378ADD' }}>Start</span>
                   <input type="range" min={0} max={1} step={0.01} value={timeRange[0]}
                     onChange={e => updateTimeRange([Math.min(+e.target.value, timeRange[1]), timeRange[1]])}
                     style={{ flex: 1 }} />
                 </div>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 2 }}>
-                  <span style={{ fontSize: 8, color: '#1D9E75' }}>End</span>
+                  <span style={{ fontSize: 9, color: '#1D9E75' }}>End</span>
                   <input type="range" min={0} max={1} step={0.01} value={timeRange[1]}
                     onChange={e => updateTimeRange([timeRange[0], Math.max(+e.target.value, timeRange[0])])}
                     style={{ flex: 1 }} />
