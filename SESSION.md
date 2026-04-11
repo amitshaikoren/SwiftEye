@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-11 · **Current version:** v0.26.3
 **Current branch:** main
-**Mirror sync state:** all mirrors current as of v0.26.3; ARCHITECTURE.ai.md, DEVELOPERS.ai.md, ROADMAP.ai.md all updated
+**Mirror sync state:** all mirrors current as of v0.26.3 — ARCHITECTURE.ai.md (v0.26.1→v0.26.1 header, Philosophy exceptions), DEVELOPERS.ai.md (v0.26.2 header, §16 pointer), ROADMAP.ai.md (graceful-optional-deps added), CHANGELOG.ai.md (compressed v0.25.1 and below)
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
