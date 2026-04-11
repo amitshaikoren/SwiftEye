@@ -13,6 +13,8 @@
 
 ## Log
 
+v0.25.2 | 2026-04-11 | refactor | frontend | ResearchPage decomposition — split 1443-line monolith into 4 modules: `customChartPersistence.js` (persistence helpers), `CustomChartBuilder.jsx` (wizard modal + FieldSelect), `PlacedCard.jsx` (PlacedCard + PlotlyChart + ChartErrorBoundary + IpParamInput + ExpandedOverlay + useScopeState), `ResearchSlotBoard.jsx` (SlotGrid + EmptySlot + ChartPicker + PaletteCategory + category constants/inferCategory). Coordinator ~384 lines. All files in `components/research/`. Pure refactor — identical props API, no behavior change. Phase 3 item #3 complete.
+
 v0.25.1 | 2026-04-11 | refactor | frontend | GraphCanvas decomposition — split 1665-line monolith into 4 hooks (`useGraphSim`, `useGraphViewSync`, `useGraphInteraction`, `useGraphResizePolling`) + 5 components (`GraphContextMenu`, `GraphAnnotationOverlay`, `GraphEventDots`, `SyntheticNodeForm`, `SyntheticEdgeForm`) + `graphColorUtils.js`. Coordinator is ~170 lines. Shared refs (`renRef`, `rafRef`, `hRef`, `tRef`) declared in coordinator, passed to hooks. Pure refactor — identical props API, no behavior change. Phase 3 item #2 complete.
 
 v0.25.0 | 2026-04-11 | refactor | frontend | useCapture decomposition — split 1143-line monolith into 5 domain slices (`useAnnotationsAndSynthetic`, `useSelectionAndNavigation`, `useCaptureFilters`, `useCaptureData`, `useCaptureLoad`) + coordinator. Cross-slice wiring via shared callback refs. Lifted `loaded` to coordinator, `visibleNodes`/`visibleEdges` computed at coordinator level. `handleCreateManualCluster` moved to coordinator (crosses 3 slices). Return object shape identical — pure refactor, zero API change.

@@ -1,8 +1,8 @@
 # Session State
 
-**Last updated:** 2026-04-11 · **Current version:** v0.25.1
+**Last updated:** 2026-04-11 · **Current version:** v0.25.2
 **Current branch:** main
-**Mirror sync state:** all mirrors current as of v0.25.1
+**Mirror sync state:** all mirrors current as of v0.25.2
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -10,6 +10,8 @@
 ---
 
 ## Shipped this session
+
+- v0.25.2 — ResearchPage.jsx decomposition. Split 1443-line monolith into 4 modules: `customChartPersistence.js` (12), `CustomChartBuilder.jsx` (249), `PlacedCard.jsx` (611), `ResearchSlotBoard.jsx` (199). Coordinator ~384 lines. Pure refactor, identical props API. Phase 3 item #3 complete.
 
 - v0.25.1 — GraphCanvas.jsx decomposition. Split 1665-line monolith into 4 hooks + 5 components + graphColorUtils. Coordinator ~170 lines. Shared refs declared in coordinator, passed to hooks. Pure refactor, identical props API. Phase 3 item #2 complete.
 
@@ -19,54 +21,42 @@
 
 ---
 
-## Audit plan: code_readability / maintainability (audit 02)
-
-Source: `audits/codex_audits/2026-04-09/02_code_readability_scalability_maintainability_audit.md`
-Second-pass: `09_second_pass_frontend_hotspots.md`, `10_second_pass_backend_hotspots.md`
-
-### Phase 1 — Backend bugs (safe, targeted) ✅ done this session
-- [x] Remove duplicate `IPv4Address` import in `backend/data/aggregator.py:23`
-- [x] Fix bucket cap comment drift: comment said 5000, constant is 15000 (`aggregator.py:67`)
-- [x] Fix sort field mismatch: `memory.py` sorted on `bytes_total`, sessions use `total_bytes`
-
-### Phase 2 — Backend architecture ✅ done this session (branch: fix/audit-02-backend-arch)
-- [x] Extract `_session_matches_edge` + helpers into `data/session_match.py`; removes storage import from data layer
-- [x] Consolidate `flag_filter` + `search_query` into `filter_packets`; removed duplicate handling in `build_graph`
-- [x] Add view-layer-limit comment on edge field caps
-
-### Phase 3 — Frontend splits (large, multiple sessions, Opus for useCapture — each on its own branch)
-
-**Recon pass complete (Sonnet, 2026-04-10):** Full dependency map written to `docs/plans/active/usecapture-decomposition.md`. Covers all state/ref/effect inventory, 12 cross-slice dependency points with resolutions, proposed 5-slice breakdown with coordinator, stale closure traps, and implementation order. Ready for Opus to execute from that doc.
-
-**GraphCanvas recon complete (Sonnet, 2026-04-11):** Full dependency map written to `docs/plans/active/graphcanvas-decomposition.md`. 1665 lines. Covers all 32 refs, 7 state vars, ~24 prop-sync effects + 3 major effects, 10 cross-slice wiring points, 7 issues found, proposed 4-hook + 5-component split, implementation order, and expected coordinator shape (~100 lines). Ready for Opus.
-
-| Priority | Target | Split into | Opus? |
-|---|---|---|---|
-| 1 | `useCapture.js` | `useCaptureLoad`, `useCaptureFilters`, `useCaptureData`, `useSelectionAndNavigation`, `useAnnotationsAndSynthetic` + coordinator | ✅ Done (Opus, v0.25.0) |
-| 2 | `GraphCanvas.jsx` | `useGraphSim` · `useGraphViewSync` · `useGraphInteraction` · `useGraphResizePolling` · `GraphContextMenu` · `GraphAnnotationOverlay` · `GraphEventDots` · `SyntheticNodeForm` · `SyntheticEdgeForm` · `graphColorUtils` | ✅ Done (Opus, v0.25.1) |
-| 3 | `ResearchPage.jsx` | `ResearchPage` · `ResearchSlotBoard` · `PlacedCard` · `CustomChartBuilder` · persistence helpers | — |
-| 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | — |
-| 5 | `SessionDetail.jsx` | packet loader hook · payload/stream viewers · charts panel | — |
-| 6 | `App.jsx` | Defer — stable mess, low urgency | — |
-
----
-
 ## Audit-driven work queue (priority over roadmap items)
 
 Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read companion from `claude/` subfolder first. After all audits are addressed, return to roadmap queue below.
 
-| # | Audit | Status | Session focus |
+| # | Audit | Status | Notes |
 |---|---|---|---|
-| 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.1) | backend fixes + frontend splits |
-| 03 | computational_efficiency | **next** | — |
-| 04 | storage_efficiency | pending | — |
-| 05 | architecture_principles | pending | — |
-| 06 | ui_ux_accessibility | pending | — |
-| 14 | directory_refactor | pending | — |
+| 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.1) | Backend fixes + frontend splits done. Remaining Phase 3 splits below. |
+| 03 | computational_efficiency | **plan created** | Plan: `docs/plans/active/audit-03-computational-efficiency.md`. Not implemented yet. |
+| 04 | storage_efficiency | **plan created** | Plan: `docs/plans/active/audit-04-storage-efficiency.md`. Not implemented yet. |
+| 05 | architecture_principles | **plan created** | Plan: `docs/plans/active/audit-05-architecture-principles.md`. Not implemented yet. |
+| 06 | ui_ux_accessibility | **plan created** | Plan: `docs/plans/active/audit-06-ui-ux-accessibility.md`. Not implemented yet. |
+| 14 | directory_refactor | **plan created** | Plan: `docs/plans/active/audit-14-directory-refactor.md`. Phase 4 blocked on audit-02 Phase 3 splits. |
 
 Second-pass files (07–13) are companions to the above — read alongside relevant audit.
 
+**Execution order for next sessions:**
+1. **Finish audit 02 first** — complete the remaining Phase 3 frontend splits. No recon pass needed for ResearchPage or SessionDetail — boundaries are obvious, Sonnet reads and splits in one session. For AnimationPane, read the file first and decide on the spot whether coupling warrants a recon doc or just split directly.
+2. **Then** work through audits 03–06 and 14 using the plans in `docs/plans/active/`. All are Sonnet-level. Pick low-effort phases across audits first for quick wins.
+3. **Audit 14 Phase 4** (component directory reorg) is blocked on step 1 — do it last.
+
+**No audit requires Opus.** All plans are scoped for Sonnet.
+
 **Rule for future sessions:** before picking up a roadmap item, check this table. If any audit row is "in progress" or "pending," continue it first. Mark "done" when changes are committed.
+
+### Audit 02 — remaining Phase 3 frontend splits (not yet started)
+
+These are the remaining large-file decompositions from audit 02 / second-pass hotspot 09. Items 1–2 are done; items 3–6 remain.
+
+| Priority | Target | Split into | Status |
+|---|---|---|---|
+| 1 | `useCapture.js` | 5 domain slices + coordinator | ✅ Done (v0.25.0) |
+| 2 | `GraphCanvas.jsx` | 4 hooks + 5 components + colorUtils | ✅ Done (v0.25.1) |
+| 3 | `ResearchPage.jsx` | `ResearchPage` · `ResearchSlotBoard` · `PlacedCard` · `CustomChartBuilder` · persistence helpers | ✅ Done (v0.25.2) |
+| 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | — |
+| 5 | `SessionDetail.jsx` | packet loader hook · payload/stream viewers · charts panel | — |
+| 6 | `App.jsx` | Defer — stable mess, low urgency | — |
 
 ---
 
