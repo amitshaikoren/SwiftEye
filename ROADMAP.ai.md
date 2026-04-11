@@ -1,6 +1,6 @@
 # Roadmap — AI Reference
 
-**v0.26.6 | 2026-04-11** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.26.7 | 2026-04-12** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
 Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per item — read by anchor (`#item-id`) only when picking up that item.
 
 ---
@@ -21,6 +21,7 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | ID | Status | Pri | Effort | Term | Opus? | Summary |
 |---|---|---|---|---|---|---|
 | `docs-audit` | pending | critical | low | short | — | Audit docs for gaps/outdated since v0.15 |
+| `docs-pass` | pending | high | low | short | — | Full pass over all project docs (HANDOFF.md, DEVELOPERS.md, ARCHITECTURE.md, README.md, ROADMAP.md, *.ai.md mirrors) — verify they match current code reality at v0.26.6; catch stale API tables, wrong line refs, removed/renamed modules, outdated architecture claims |
 | `edge-node-refactor-tests` | pending | critical | medium | short | — | Tests for v0.20.0 directional edges, cross-refs, Zeek has_handshake |
 | `codebase-health-audit` | pending | critical | medium | short | — | Audit last 6 minors for bottlenecks/coupling/violations |
 | `alerts-live-load-bug` | done | critical | low | short | — | Fixed v0.24.0 — re-fetch after first graph response. |
@@ -47,7 +48,7 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `schema-dialog-in-app` | done | high | low | short | — | Fixed v0.24.0 — SchemaDialog rendered in loaded app view. |
 | `manual-type-override` | done | high | low | short | — | Fixed v0.24.0 — TypePickerDialog + force_adapter backend param. |
 | `parquet-ingestion` | pending | high | medium | medium | — | Ingest .parquet (Splunk, AWS VPC, Databricks) |
-| `llm-interpretation-panel` | pending | high | medium | medium | — | Capture summary → LLM → plain explanation |
+| `llm-interpretation-panel` | done | high | medium | medium | — | Phase 1 shipped v0.26.7 — scope-aware Q&A, streaming NDJSON, Ollama+OpenAI, context packet. Phase 2: tool-use loop, payload inspection, lifted array caps. |
 | `post-parse-pipeline-opt` | pending | high | medium | medium | — | Profile build_sessions/build_graph/plugins (~20s for 440K). Plan: `docs/plans/active/post-parse-pipeline-opt.md` |
 | `graceful-optional-deps` | pending | medium | low | short | — | Optional deps (plotly, sqlglot) should degrade gracefully on import failure rather than aborting startup; research charts would be disabled not fatal |
 | `lazy-post-parse-audit` | pending | high | low | short | — | Decide what runs at load vs on-demand |
