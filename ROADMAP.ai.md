@@ -1,6 +1,6 @@
 # Roadmap — AI Reference
 
-**v0.25.0 | 2026-04-11** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.25.4 | 2026-04-11** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
 Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per item — read by anchor (`#item-id`) only when picking up that item.
 
 ---
@@ -60,6 +60,7 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `react-contexts` | pending | medium | medium | medium | — | Replace prop drilling with context |
 | `pcapng-battle-test` | pending | medium | medium | medium | — | Validate dpkt.pcapng on real-world captures |
 | `alerts-adapter-compat` | pending | medium | medium | short | — | Detector source_type awareness + AlertsPanel filtering |
+| `logo-home-button` | pending | medium | low | short | — | Logo/home button fails to navigate home from some panels (e.g. Research) |
 | `animation-back-button` | pending | medium | low | short | — | "Back to animation" affordance |
 | `session-detail-sticky-header` | pending | medium | low | short | — | Connection header stays anchored on scroll |
 | `graph-direction-viz` | pending | medium | medium | short | — | Show traffic direction (particles/arrowheads) |

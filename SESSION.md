@@ -1,8 +1,8 @@
 # Session State
 
 **Last updated:** 2026-04-11 · **Current version:** v0.25.4
-**Current branch:** refactor/sessiondetail-app-decomposition (not yet merged)
-**Mirror sync state:** all mirrors current as of v0.25.3 (branch not merged)
+**Current branch:** main
+**Mirror sync state:** all mirrors current as of v0.25.4 (merged)
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -13,7 +13,7 @@
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
-- v0.25.4 — SessionDetail + App decomposition. SessionDetail (948→660 lines) extracts `SeqAckChart.jsx` (98), `StreamView.jsx` (149), `useSessionPackets.js` (40). App (941→680 lines) extracts `AppUploadScreen.jsx` (103, upload/spinner/standalone-visualize early returns) and `AppRightPanel.jsx` (196, right-panel content assembly). Phase 3 items #5 + #6 complete. All 6 audit-02 Phase 3 splits done.
+- v0.25.4 — SessionDetail + App decomposition. Merged to main. All 6 audit-02 Phase 3 splits done. Audit 14 + 03 work started on new branch.
 - v0.25.3 — AnimationPane.jsx decomposition. Split 1334-line monolith into 5 modules: `animationUtils.js` (131), `useAnimationCanvas.js` (357, zoom + fit + flash + RAF render loop), `useAnimationInteraction.js` (259, hit-test + drag + keyboard + popover dismiss), `AnimationHistoryPanel.jsx` (96), `AnimationControlsBar.jsx` (265, transport + scrubber + options + sub-components). Coordinator 460 lines. Phase 3 item #4 complete.
 
 ---
@@ -25,35 +25,17 @@ Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read co
 | # | Audit | Status | Notes |
 |---|---|---|---|
 | 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.4) | All Phase 3 frontend splits complete. |
-| 03 | computational_efficiency | **plan created** | Plan: `docs/plans/active/audit-03-computational-efficiency.md`. Not implemented yet. |
+| 03 | computational_efficiency | **in progress** | Plan: `docs/plans/active/audit-03-computational-efficiency.md`. Phase 2 started. |
 | 04 | storage_efficiency | **plan created** | Plan: `docs/plans/active/audit-04-storage-efficiency.md`. Not implemented yet. |
 | 05 | architecture_principles | **plan created** | Plan: `docs/plans/active/audit-05-architecture-principles.md`. Not implemented yet. |
 | 06 | ui_ux_accessibility | **plan created** | Plan: `docs/plans/active/audit-06-ui-ux-accessibility.md`. Not implemented yet. |
-| 14 | directory_refactor | **plan created** | Plan: `docs/plans/active/audit-14-directory-refactor.md`. Phase 4 blocked on audit-02 Phase 3 splits. |
+| 14 | directory_refactor | **in progress** | Plan: `docs/plans/active/audit-14-directory-refactor.md`. Phase 1+2 started. |
 
 Second-pass files (07–13) are companions to the above — read alongside relevant audit.
 
-**Execution order for next sessions:**
-1. ~~Finish audit 02~~ — **done** (v0.25.4). All 6 Phase 3 splits complete.
-2. **Next:** merge this branch to main, then work through audits 03–06 and 14 using the plans in `docs/plans/active/`. All are Sonnet-level. Pick low-effort phases across audits first for quick wins.
-3. **Audit 14 Phase 4** (component directory reorg) — unblocked now. Do after merge.
+**Execution order:** pick low-effort phases across audits first for quick wins. Audit 14 Phase 3 (component reorg) unblocked now that all Phase 3 splits are done.
 
 **No audit requires Opus.** All plans are scoped for Sonnet.
-
-**Rule for future sessions:** before picking up a roadmap item, check this table. If any audit row is "in progress" or "pending," continue it first. Mark "done" when changes are committed.
-
-### Audit 02 — remaining Phase 3 frontend splits (not yet started)
-
-These are the remaining large-file decompositions from audit 02 / second-pass hotspot 09. Items 1–3 are done; items 4–6 remain.
-
-| Priority | Target | Split into | Status |
-|---|---|---|---|
-| 1 | `useCapture.js` | 5 domain slices + coordinator | ✅ Done (v0.25.0) |
-| 2 | `GraphCanvas.jsx` | 4 hooks + 5 components + colorUtils | ✅ Done (v0.25.1) |
-| 3 | `ResearchPage.jsx` | `ResearchPage` · `ResearchSlotBoard` · `PlacedCard` · `CustomChartBuilder` · persistence helpers | ✅ Done (v0.25.2) |
-| 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | ✅ Done (v0.25.3) |
-| 5 | `SessionDetail.jsx` | `SeqAckChart` · `StreamView` · `useSessionPackets` hook | ✅ Done (v0.25.4) |
-| 6 | `App.jsx` | `AppUploadScreen` · `AppRightPanel` · coordinator | ✅ Done (v0.25.4) |
 
 ---
 
@@ -87,22 +69,3 @@ These are the remaining large-file decompositions from audit 02 / second-pass ho
 
 ---
 
-## Pending ROADMAP.md flush
-
-- [ ] `ROADMAP.md` — append new item `timeline-graph-multi-select-features` to category "Investigation & Events":
-  <details>
-  <summary>Detail block to insert</summary>
-
-  ### timeline-graph-multi-select-features
-  Extend the shift-select multi-selection already present in the timeline graph (v0.22.7) with additional selection modes and actions. Planned features: (1) box-select by dragging on the canvas background; (2) select-all-edges-by-protocol (right-click a protocol badge → "Select all [DNS]"); (3) a selection count/edge badge shown while multiple edges are selected; (4) a "Filter graph to selection" bulk action that scopes the main graph view to only the selected node pair(s). Key files: `InvestigationPage.jsx` (TimelineGraph host), `TimelineGraph.jsx` or equivalent component in `frontend/src/components/`. Multi-select state currently lives in `useCapture.js` timeline edge state — extending it should follow the existing `selectedEdgePair` pattern.
-  `status: pending` · `priority: high` · `term: short` · `effort: medium` · `depends: timeline-graph-phase2`
-  </details>
-
-- [ ] `ROADMAP.md` — append new item `timeline-to-research-gantt` to category "Investigation & Events":
-  <details>
-  <summary>Detail block to insert</summary>
-
-  ### timeline-to-research-gantt
-  Remove the dedicated Timeline panel tab from the left-panel nav and move the session Gantt chart into the Research panel as a first-class chart entry (category: "session" or "capture"). The Timeline tab currently hosts `TimelinePanel.jsx` which renders the Gantt and the bucket-sec slider. At flush: (1) delete or repurpose `TimelinePanel.jsx` as a `ResearchChart` subclass in `backend/research/`; (2) remove the `timeline` nav entry from `LeftPanel.jsx` and `App.jsx`; (3) keep bucket-sec state in `useCapture.js` but only render the control inside the Research chart's filter bar. The `timeRange` / `setTimeRange` props used by other panels (sessions, stats, graph) must remain untouched — only the Gantt display moves. Confirm with user whether the timeline slider in the top bar should also be removed or kept.
-  `status: pending` · `priority: medium` · `term: short` · `effort: medium` · `depends: none`
-  </details>
