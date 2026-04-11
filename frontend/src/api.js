@@ -295,6 +295,58 @@ export async function fetchAlerts() {
   return api('/api/alerts').catch(() => ({ alerts: [], summary: {} }));
 }
 
+// ── LLM Interpretation ───────────────────────────────────────────────────────
+
+/**
+ * Stream a chat response from the LLM interpretation endpoint.
+ *
+ * @param {object} request  - Full ChatRequest body (messages, scope, viewer_state, selection, provider, options)
+ * @param {function} onEvent - Called with each parsed event object as it arrives
+ * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
+ * @returns {Promise<void>}
+ */
+export async function streamLlmChat(request, onEvent, signal) {
+  const resp = await fetch('/api/llm/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal,
+  });
+
+  if (!resp.ok) {
+    let msg = resp.statusText;
+    try { const e = await resp.json(); msg = e.detail || e.error || msg; } catch {}
+    throw new Error(msg);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const event = JSON.parse(trimmed);
+        onEvent(event);
+      } catch {
+        // Malformed line — skip silently
+      }
+    }
+  }
+
+  // Flush remaining buffer
+  if (buffer.trim()) {
+    try { onEvent(JSON.parse(buffer.trim())); } catch {}
+  }
+}
+
 export async function fetchNodeAnimation(nodeIds, protocols) {
   const p = new URLSearchParams();
   p.set('nodes', nodeIds.join(','));

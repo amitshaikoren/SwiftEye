@@ -189,6 +189,23 @@ export default function App() {
               sessions={c.sessions}
               pColors={c.pColors}
               onSelectNode={c.selectNodePanel}
+              filters={{
+                timeStart:      c.timeRange?.[0] ?? null,
+                timeEnd:        c.timeRange?.[1] ?? null,
+                protocols:      c.enabledP ? Array.from(c.enabledP) : null,
+                search:         c.search || '',
+                includeIPv6:    c.includeIPv6 !== false,
+                subnetGrouping: c.subnetGrouping || false,
+                subnetPrefix:   c.subnetPrefix   || 24,
+                mergeByMac:     c.mergeByMac     || false,
+              }}
+              selection={{
+                nodeIds:   c.selNodes ? Array.from(c.selNodes) : [],
+                edgeId:    c.selEdge    || null,
+                sessionId: c.selSession?.id || null,
+                alertId:   null,
+              }}
+              onOpenSettings={() => setShowSettings(true)}
             />
           </Suspense>
         ) : c.rPanel === 'alerts' ? (

@@ -3,6 +3,7 @@ import { VERSION } from '../version.js';
 import { useSettings } from '../hooks/useSettings';
 import { fetchAnalysisResults } from '../api';
 import { fB, fN } from '../utils';
+import LLMInterpretationPanel from './LLMInterpretationPanel';
 
 // ── Centrality computation (client-side, operates on currently-visible nodes/edges) ─
 // Runs on the filtered graph that App.jsx passes in — so time range, protocol filter,
@@ -475,11 +476,8 @@ function AnalysisCard({ icon, title, badge, description, expanded, onToggle, chi
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
-export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelectNode }) {
+export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelectNode, filters, selection, onOpenSettings }) {
   const { settings, setSetting } = useSettings();
-  const apiKey = settings.llmApiKey || '';
-  const model  = settings.llmModel  || 'gpt-4o-mini';
-  const [keyVisible, setKeyVisible] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const toggle = key => setExpanded(prev => prev === key ? null : key);
   const anyExpanded = expanded !== null;
@@ -560,39 +558,13 @@ export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelect
         </div>
       )}
 
-      <div style={{ background: 'var(--bgC)', border: '1px solid var(--bdL)', borderRadius: 10, padding: '20px 24px', maxWidth: 620, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <span style={{ fontSize: 18 }}>🤖</span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>LLM Interpretation</div>
-            <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 8, letterSpacing: '.05em', background: 'rgba(188,140,255,.12)', color: 'var(--acP)', border: '1px solid rgba(188,140,255,.3)' }}>COMING SOON</span>
-          </div>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--txM)', lineHeight: 1.65, marginBottom: 14 }}>
-          Send a structured summary of your capture to an LLM for a plain-language explanation.
-          Your API key goes directly from your browser to the LLM provider — SwiftEye never sees it.
-        </div>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-          <input type={keyVisible ? 'text' : 'password'} value={apiKey}
-            onChange={e => setSetting('llmApiKey', e.target.value)}
-            placeholder="sk-… or your provider key"
-            style={{ flex: 1, background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '6px 10px', fontSize: 11, color: 'var(--tx)', fontFamily: 'var(--fn)', outline: 'none' }} />
-          <button className="btn" onClick={() => setKeyVisible(v => !v)} style={{ fontSize: 10, padding: '4px 10px' }}>{keyVisible ? 'Hide' : 'Show'}</button>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <select value={model} onChange={e => setSetting('llmModel', e.target.value)}
-            style={{ background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '6px 10px', fontSize: 11, color: 'var(--tx)', outline: 'none', cursor: 'pointer' }}>
-            <option value="gpt-4o-mini">GPT-4o mini (OpenAI)</option>
-            <option value="gpt-4o">GPT-4o (OpenAI)</option>
-            <option value="claude-haiku-4-5">Claude Haiku 4.5 (Anthropic)</option>
-            <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (Anthropic)</option>
-            <option value="custom">Custom endpoint</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button disabled style={{ padding: '7px 18px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'rgba(188,140,255,.08)', color: 'var(--acP)', border: '1px solid rgba(188,140,255,.25)', cursor: 'not-allowed', opacity: 0.45 }}>Interpret capture</button>
-          <span style={{ fontSize: 10, color: 'var(--txD)' }}>Full implementation in a future release</span>
-        </div>
+      <div style={{ flex: 1, minWidth: 340, maxWidth: 620, minHeight: 420, display: 'flex', flexDirection: 'column' }}>
+        <LLMInterpretationPanel
+          filters={filters}
+          selection={selection}
+          settings={settings}
+          onOpenSettings={onOpenSettings}
+        />
       </div>
     </div>
   );
