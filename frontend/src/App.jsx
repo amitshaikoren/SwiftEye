@@ -8,36 +8,25 @@ import { useCapture } from './hooks/useCapture';
 import { fetchSessionDetail } from './api';
 import { useSettings } from './hooks/useSettings';
 import { FilterContext, toProtocolNames } from './FilterContext';
-import logoFullData from './logoFullData.js';
 import TopBar from './components/TopBar';
 import FilterBar from './components/FilterBar';
 import LeftPanel from './components/LeftPanel';
 import GraphCanvas from './components/GraphCanvas';
 import TimelineStrip from './components/TimelineStrip';
-import StatsPanel from './components/StatsPanel';
-import EdgeDetail from './components/EdgeDetail';
-import NodeDetail from './components/NodeDetail';
-import SessionsTable from './components/SessionsTable';
-import SessionDetail from './components/SessionDetail';
-import LogsPanel from './components/LogsPanel';
-import TimelinePanel from './components/TimelinePanel';
-import MultiSelectPanel from './components/MultiSelectPanel';
 import ResearchPage from './components/ResearchPage';
-import HelpPanel from './components/HelpPanel';
-import SettingsPanel from './components/SettingsPanel';
-import EventFlagModal from './components/EventFlagModal';
+import TimelinePanel from './components/TimelinePanel';
 import AnalysisPage from './components/AnalysisPage';
+import AlertsPanel from './components/AlertsPanel';
 import InvestigationPage from './components/InvestigationPage';
 import VisualizePage from './components/VisualizePage';
 import ClusterLegend from './components/ClusterLegend';
-import ClusterDetail from './components/ClusterDetail';
-import PathDetail from './components/PathDetail';
-import QueryBuilder from './components/QueryBuilder';
-import GraphOptionsPanel from './components/GraphOptionsPanel';
 import AnimationPane from './components/AnimationPane';
-import AlertsPanel from './components/AlertsPanel';
 import SchemaDialog from './components/SchemaDialog';
 import TypePickerDialog from './components/TypePickerDialog';
+import SettingsPanel from './components/SettingsPanel';
+import EventFlagModal from './components/EventFlagModal';
+import AppUploadScreen from './components/AppUploadScreen';
+import AppRightPanel from './components/AppRightPanel';
 
 export default function App() {
   const c = useCapture();
@@ -101,276 +90,23 @@ export default function App() {
   }, []);
 
   // ── Upload / loading screen ──────────────────────────────────────
-  if (!c.loaded && c.rPanel !== 'visualize') {
+  if (!c.loaded) {
     return (
-      <div style={{ width: '100%', height: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {c.loading ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 40, height: 40, border: '3px solid var(--bd)', borderTopColor: 'var(--ac)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
-            <div style={{ color: 'var(--txM)', fontSize: 13 }}>{c.loadMsg}</div>
-          </div>
-        ) : (
-          <div
-            onDrop={c.handleDrop} onDragOver={e => e.preventDefault()}
-            onClick={() => document.getElementById('pcap-up').click()}
-            style={{
-              textAlign: 'center', padding: '64px 80px',
-              border: '1.5px dashed rgba(88,166,255,.3)', borderRadius: 20,
-              cursor: 'pointer', minWidth: 460,
-              background: 'rgba(88,166,255,.02)',
-            }}
-          >
-            <img src={logoFullData} alt="SwiftEye" style={{ height: 120, marginBottom: 40, opacity: 0.95 }} />
-            <div style={{
-              width: 64, height: 64, margin: '0 auto 24px', borderRadius: 16,
-              background: 'rgba(88,166,255,.08)', border: '1px solid rgba(88,166,255,.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="1.5">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-              </svg>
-            </div>
-            <div style={{ fontSize: 16, color: 'var(--txM)', marginBottom: 10 }}>
-              Drop <span style={{ color: 'var(--ac)' }}>capture files</span> here <span style={{ fontSize: 10, color: 'var(--txD)' }}>(pcap, Zeek logs, tshark CSV)</span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--txD)' }}>or click to browse · multiple files merge by timestamp · max 500MB each</div>
-            {c.error && <div style={{ marginTop: 20, color: 'var(--acR)', fontSize: 13 }}>{c.error}</div>}
-            <input id="pcap-up" type="file" accept=".pcap,.pcapng,.cap,.log,.csv" multiple onChange={c.handleFileInput} style={{ display: 'none' }} />
-          </div>
-        )}
-        <div style={{ position: 'absolute', bottom: 24, display: 'flex', gap: 12 }}>
-          <button className="btn" onClick={e => { e.stopPropagation(); c.switchPanel('visualize'); }}
-            style={{ fontSize: 11, padding: '6px 16px', opacity: 0.7 }}>
-            📂 Visualize custom data
-          </button>
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        {/* Schema negotiation dialog — renders on top of the upload screen */}
-        {c.schemaNegotiation && (
-          <SchemaDialog
-            report={c.schemaNegotiation.report}
-            stagingToken={c.schemaNegotiation.stagingToken}
-            fileName={c.schemaNegotiation.fileName}
-            onConfirm={c.handleSchemaConfirm}
-            onCancel={c.handleSchemaCancel}
-            loading={c.schemaConfirming}
-          />
-        )}
-        {/* Type picker — renders on top of the upload screen when detection fails */}
-        {c.typePicker && (
-          <TypePickerDialog
-            fileName={c.typePicker.files[0]?.name || 'file'}
-            availableAdapters={c.typePicker.availableAdapters}
-            onConfirm={c.handleTypePickerConfirm}
-            onCancel={c.handleTypePickerCancel}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // ── Standalone Visualize (no capture needed) ─────────────────────
-  if (!c.loaded && c.rPanel === 'visualize') {
-    return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <button className="btn" onClick={() => c.switchPanel('stats')}
-            style={{ fontSize: 10, padding: '3px 10px' }}>← Back to upload</button>
-          <span style={{ fontSize: 12, color: 'var(--txD)' }}>No capture loaded — Visualize mode only</span>
-        </div>
-        <VisualizePage />
-      </div>
-    );
-  }
-
-  // ── Right panel content (non-full-width panels) ──────────────────
-  // Back-to-path link shown on detail views when pathfindResult is active
-  const pathBackLink = c.pathfindResult?.path_count > 0 ? (
-    <div
-      onClick={c.clearSel}
-      style={{
-        fontSize: 10, color: 'var(--ac)', cursor: 'pointer', padding: '6px 14px',
-        borderBottom: '1px solid var(--bd)', fontFamily: 'var(--fn)',
-        display: 'flex', alignItems: 'center', gap: 5,
-      }}
-    >
-      <span style={{ fontSize: 9 }}>←</span> Back to Path Analysis
-    </div>
-  ) : null;
-
-  let rightContent;
-  if (c.selSession) {
-    rightContent = (
-      <SessionDetail
-        session={c.selSession}
-        collapseStates={c.collapseStatesRef}
-        siblings={c.selSessionSiblings}
-        onNavigate={c.selectSessionWithContext}
-        onOpenSeqAck={id => { c.setSeqAckSessionId(id); c.switchPanel('research'); }}
-        onBack={c.clearSel}
-        pColors={c.pColors}
-        annotations={c.annotations}
-        onSaveNote={c.handleSaveNote}
-        onFlagEvent={() => c.openFlagModal('session', c.selSession)}
-        onTabChange={tab => {
-          if (tab === 'charts' && c.panelWidth < 500) c.setPanelWidth(500);
-        }}
-      />
-    );
-  } else if (c.selEdge) {
-    rightContent = (
-      <>
-        {pathBackLink}
-        <EdgeDetail
-          edge={c.selEdge} pColors={c.pColors}
-          onClear={c.clearSel}
-          nodes={c.visibleNodes}
-          onSelectSession={c.selectSessionWithContext}
-          annotations={c.annotations}
-          onSaveNote={c.handleSaveNote}
-          clusterNames={c.clusterNames}
-          onFlagEvent={() => c.openFlagModal('edge', c.selEdge)}
-        />
-      </>
-    );
-  } else if (c.selNodes.length === 1) {
-    // Check if the selected node is a cluster or subnet (both use ClusterDetail)
-    const selNodeObj = (c.graph.nodes || []).find(n => n.id === c.selNodes[0]);
-    if (selNodeObj?.is_cluster || selNodeObj?.is_subnet) {
-      rightContent = (
-        <ClusterDetail
-          nodeId={c.selNodes[0]} nodes={c.graph.nodes || []} edges={c.graph.edges || []}
-          sessions={c.sessions} pColors={c.pColors}
-          onClear={c.clearSel}
-          onSelectNode={c.selectNodePanel}
-          onSelectEdge={e => c.handleGSel('edge', e, false)}
-          onSelectSession={c.selectSession}
-          clusterNames={c.clusterNames} onRenameCluster={c.renameCluster}
-          rawGraph={c.rawGraph}
-          annotations={c.annotations} onSaveNote={c.handleSaveNote}
-        />
-      );
-    } else {
-      // In clustered view, member nodes only exist in rawGraph — merge so NodeDetail can find them
-      const detailNodes = c.clusterAlgo && c.rawGraph?.nodes
-        ? [...(c.graph.nodes || []), ...c.rawGraph.nodes.filter(rn => !(c.graph.nodes || []).some(gn => gn.id === rn.id))]
-        : (c.graph.nodes || []);
-      const detailEdges = c.clusterAlgo && c.rawGraph?.edges
-        ? [...(c.graph.edges || []), ...c.rawGraph.edges.filter(re => !(c.graph.edges || []).some(ge => ge.id === re.id))]
-        : (c.graph.edges || []);
-      rightContent = (
-        <>
-          {pathBackLink}
-          <NodeDetail
-            nodeId={c.selNodes[0]} nodes={detailNodes} edges={detailEdges}
-            sessions={c.sessions} pColors={c.pColors}
-            fullSessions={c.fullSessions}
-            fullGraph={c.fullGraphRef}
-            onClear={c.clearSel}
-            onSelectNode={id => c.handleGSel('node', id, false)}
-            onSelectEdge={e => c.handleGSel('edge', e, false)}
-            onSelectSession={c.selectSession}
-            pluginResults={c.pluginResults} uiSlots={c.pluginSlots}
-            annotations={c.annotations}
-            onSaveNote={c.handleSaveNote}
-            onUpdateSynthetic={c.handleUpdateSyntheticNode}
-            onAnimate={(nodeIds) => {
-                  const protos = toProtocolNames(c.enabledP, c.allProtocolKeysCountRef.current);
-                  c.startAnimation(nodeIds, protos || undefined);
-                }}
-            onFlagEvent={() => {
-              const nObj = detailNodes.find(n => n.id === c.selNodes[0]);
-              if (nObj) c.openFlagModal('node', nObj);
-            }}
-          />
-        </>
-      );
-    }
-  } else if (c.selNodes.length > 1) {
-    rightContent = (
-      <MultiSelectPanel
-        selectedNodes={c.selNodes} nodes={c.graph.nodes || []} edges={c.graph.edges || []}
-        sessions={c.sessions} pColors={c.pColors} onClear={c.clearSel}
-        onSelectNode={c.selectNodePanel}
-        onSelectEdge={e => c.handleGSel('edge', e, false)}
-        onSelectSession={c.selectSession}
-        onAnimate={(nodeIds) => {
-                  const protos = toProtocolNames(c.enabledP, c.allProtocolKeysCountRef.current);
-                  c.startAnimation(nodeIds, protos || undefined);
-                }}
-      />
-    );
-  } else if (c.pathfindResult) {
-    rightContent = (
-      <PathDetail
-        pathResult={c.pathfindResult}
-        onClear={c.exitInvestigation}
-        onSelectNode={c.selectNodePanel}
-        onSelectEdge={e => c.handleGSel('edge', e, false)}
-        onRunPathfind={c.runPathfindFromPanel}
-        pColors={c.pColors}
-        allNodes={c.graph.nodes || []}
-        allEdges={c.graph.edges || []}
-      />
-    );
-  } else if (c.rPanel === 'sessions') {
-    rightContent = <SessionsTable sessions={c.sessions} pColors={c.pColors} onSelect={c.selectSession} />;
-  } else if (c.rPanel === 'logs') {
-    rightContent = <LogsPanel />;
-  } else if (c.rPanel === 'help') {
-    rightContent = <HelpPanel />;
-  } else if (c.rPanel === 'query') {
-    rightContent = (
-      <QueryBuilder
-        loaded={c.loaded}
-        onQueryResult={res => {
-          const nodes = new Set((res.matched_nodes || []).map(m => m.id));
-          const edges = new Set((res.matched_edges || []).map(m => m.id));
-          setQueryHighlight(nodes.size || edges.size ? { nodes, edges } : null);
-        }}
-        onClearQuery={() => setQueryHighlight(null)}
-        onSelectNode={id => c.handleGSel('node', id, false)}
-        onSelectEdge={edgeId => {
-          const e = (c.graph.edges || []).find(e => {
-            if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
-            // D3 replaces source/target strings with node objects — extract .id
-            const s = typeof e.source === 'object' ? e.source.id : e.source;
-            const t = typeof e.target === 'object' ? e.target.id : e.target;
-            return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
-          });
-          if (e) c.handleGSel('edge', e, false);
-        }}
-      />
-    );
-  } else if (c.rPanel === 'graph-options') {
-    rightContent = (
-      <GraphOptionsPanel
-        onClose={() => c.switchPanel('stats')}
-        nodeColorMode={c.nodeColorMode} setNodeColorMode={c.setNodeColorMode}
-        nodeColorRules={c.nodeColorRules} setNodeColorRules={c.setNodeColorRules}
-        graphWeightMode={c.graphWeightMode} setGraphWeightMode={c.setGraphWeightMode}
-        labelThreshold={c.labelThreshold} setLabelThreshold={c.setLabelThreshold}
-        edgeColorMode={c.edgeColorMode} setEdgeColorMode={c.setEdgeColorMode}
-        edgeColorRules={c.edgeColorRules} setEdgeColorRules={c.setEdgeColorRules}
-        edgeSizeMode={c.edgeSizeMode} setEdgeSizeMode={c.setEdgeSizeMode}
-        subnetG={c.subnetG} setSubnetG={c.setSubnetG} toggleSubnetG={c.toggleSubnetG}
-        subnetPrefix={c.subnetPrefix} setSubnetPrefix={c.setSubnetPrefix}
-        mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}
-        includeIPv6={c.includeIPv6} setIncludeIPv6={c.setIncludeIPv6}
-        showHostnames={c.showHostnames} setShowHostnames={c.setShowHostnames}
-        excludeBroadcasts={c.excludeBroadcasts} setExcludeBroadcasts={c.setExcludeBroadcasts}
-        clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
-        clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
-        visibleNodes={c.visibleNodes}
-      />
-    );
-  } else {
-    rightContent = (
-      <StatsPanel
-        stats={c.stats} pColors={c.pColors}
-        onSelectNode={c.selectNodePanel}
-        pluginResults={c.pluginResults} uiSlots={c.pluginSlots}
-        subgraphInfo={subgraphInfo}
+      <AppUploadScreen
+        visualize={c.rPanel === 'visualize'}
+        loading={c.loading}
+        loadMsg={c.loadMsg}
+        handleDrop={c.handleDrop}
+        handleFileInput={c.handleFileInput}
+        error={c.error}
+        switchPanel={c.switchPanel}
+        schemaNegotiation={c.schemaNegotiation}
+        handleSchemaConfirm={c.handleSchemaConfirm}
+        handleSchemaCancel={c.handleSchemaCancel}
+        schemaConfirming={c.schemaConfirming}
+        typePicker={c.typePicker}
+        handleTypePickerConfirm={c.handleTypePickerConfirm}
+        handleTypePickerCancel={c.handleTypePickerCancel}
       />
     );
   }
@@ -724,9 +460,9 @@ export default function App() {
                     onPathfindTarget={c.executePathfind}
                     onCancelPathfind={c.cancelPathfind}
                     onAnimate={(nodeIds) => {
-                  const protos = toProtocolNames(c.enabledP, c.allProtocolKeysCountRef.current);
-                  c.startAnimation(nodeIds, protos || undefined);
-                }}
+                      const protos = toProtocolNames(c.enabledP, c.allProtocolKeysCountRef.current);
+                      c.startAnimation(nodeIds, protos || undefined);
+                    }}
                     labelThreshold={c.labelThreshold}
                     graphWeightMode={c.graphWeightMode}
                     edgeSizeMode={c.edgeSizeMode}
@@ -854,7 +590,12 @@ export default function App() {
                   </div>
                 )}
                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                  {rightContent}
+                  <AppRightPanel
+                    c={c}
+                    subgraphInfo={subgraphInfo}
+                    queryHighlight={queryHighlight}
+                    setQueryHighlight={setQueryHighlight}
+                  />
                 </div>
               </div>
             </div>

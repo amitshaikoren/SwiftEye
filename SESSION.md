@@ -1,8 +1,8 @@
 # Session State
 
-**Last updated:** 2026-04-11 · **Current version:** v0.25.3
-**Current branch:** refactor/animationpane-decomposition (not yet merged)
-**Mirror sync state:** all mirrors current as of v0.25.2; CHANGELOG.ai.md updated to v0.25.3
+**Last updated:** 2026-04-11 · **Current version:** v0.25.4
+**Current branch:** refactor/sessiondetail-app-decomposition (not yet merged)
+**Mirror sync state:** all mirrors current as of v0.25.3 (branch not merged)
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -11,15 +11,10 @@
 
 ## Shipped this session
 
-- v0.25.3 — AnimationPane.jsx decomposition. Split 1334-line monolith into 5 modules: `animationUtils.js` (131, already drafted on branch), `useAnimationCanvas.js` (357, zoom + fit + flash + RAF render loop), `useAnimationInteraction.js` (259, hit-test + drag + keyboard + popover dismiss), `AnimationHistoryPanel.jsx` (96, history panel + auto-scroll), `AnimationControlsBar.jsx` (265, transport + scrubber + options + sub-components). Coordinator 460 lines. Pure refactor, identical props API. Phase 3 item #4 complete.
+> Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
-- v0.25.2 — ResearchPage.jsx decomposition. Split 1443-line monolith into 4 modules: `customChartPersistence.js` (12), `CustomChartBuilder.jsx` (249), `PlacedCard.jsx` (611), `ResearchSlotBoard.jsx` (199). Coordinator ~384 lines. Pure refactor, identical props API. Phase 3 item #3 complete.
-
-- v0.25.1 — GraphCanvas.jsx decomposition. Split 1665-line monolith into 4 hooks + 5 components + graphColorUtils. Coordinator ~170 lines. Shared refs declared in coordinator, passed to hooks. Pure refactor, identical props API. Phase 3 item #2 complete.
-
-- v0.25.0 — useCapture.js decomposition. 5 domain slices + coordinator. Phase 3 item #1.
-
-> Older entries (v0.24.x and below) trimmed — see `CHANGELOG.ai.md` for full history.
+- v0.25.4 — SessionDetail + App decomposition. SessionDetail (948→660 lines) extracts `SeqAckChart.jsx` (98), `StreamView.jsx` (149), `useSessionPackets.js` (40). App (941→680 lines) extracts `AppUploadScreen.jsx` (103, upload/spinner/standalone-visualize early returns) and `AppRightPanel.jsx` (196, right-panel content assembly). Phase 3 items #5 + #6 complete. All 6 audit-02 Phase 3 splits done.
+- v0.25.3 — AnimationPane.jsx decomposition. Split 1334-line monolith into 5 modules: `animationUtils.js` (131), `useAnimationCanvas.js` (357, zoom + fit + flash + RAF render loop), `useAnimationInteraction.js` (259, hit-test + drag + keyboard + popover dismiss), `AnimationHistoryPanel.jsx` (96), `AnimationControlsBar.jsx` (265, transport + scrubber + options + sub-components). Coordinator 460 lines. Phase 3 item #4 complete.
 
 ---
 
@@ -29,7 +24,7 @@ Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read co
 
 | # | Audit | Status | Notes |
 |---|---|---|---|
-| 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.2) | Backend fixes + frontend splits done. Remaining Phase 3 splits below. |
+| 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.4) | All Phase 3 frontend splits complete. |
 | 03 | computational_efficiency | **plan created** | Plan: `docs/plans/active/audit-03-computational-efficiency.md`. Not implemented yet. |
 | 04 | storage_efficiency | **plan created** | Plan: `docs/plans/active/audit-04-storage-efficiency.md`. Not implemented yet. |
 | 05 | architecture_principles | **plan created** | Plan: `docs/plans/active/audit-05-architecture-principles.md`. Not implemented yet. |
@@ -39,9 +34,9 @@ Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read co
 Second-pass files (07–13) are companions to the above — read alongside relevant audit.
 
 **Execution order for next sessions:**
-1. **Finish audit 02 first** — complete the remaining Phase 3 frontend splits. No recon pass needed for ResearchPage or SessionDetail — boundaries are obvious, Sonnet reads and splits in one session. For AnimationPane, read the file first and decide on the spot whether coupling warrants a recon doc or just split directly.
-2. **Then** work through audits 03–06 and 14 using the plans in `docs/plans/active/`. All are Sonnet-level. Pick low-effort phases across audits first for quick wins.
-3. **Audit 14 Phase 4** (component directory reorg) is blocked on step 1 — do it last.
+1. ~~Finish audit 02~~ — **done** (v0.25.4). All 6 Phase 3 splits complete.
+2. **Next:** merge this branch to main, then work through audits 03–06 and 14 using the plans in `docs/plans/active/`. All are Sonnet-level. Pick low-effort phases across audits first for quick wins.
+3. **Audit 14 Phase 4** (component directory reorg) — unblocked now. Do after merge.
 
 **No audit requires Opus.** All plans are scoped for Sonnet.
 
@@ -57,8 +52,8 @@ These are the remaining large-file decompositions from audit 02 / second-pass ho
 | 2 | `GraphCanvas.jsx` | 4 hooks + 5 components + colorUtils | ✅ Done (v0.25.1) |
 | 3 | `ResearchPage.jsx` | `ResearchPage` · `ResearchSlotBoard` · `PlacedCard` · `CustomChartBuilder` · persistence helpers | ✅ Done (v0.25.2) |
 | 4 | `AnimationPane.jsx` | renderer · interaction · history/options · state adapters | ✅ Done (v0.25.3) |
-| 5 | `SessionDetail.jsx` | packet loader hook · payload/stream viewers · charts panel | — |
-| 6 | `App.jsx` | Defer — stable mess, low urgency | — |
+| 5 | `SessionDetail.jsx` | `SeqAckChart` · `StreamView` · `useSessionPackets` hook | ✅ Done (v0.25.4) |
+| 6 | `App.jsx` | `AppUploadScreen` · `AppRightPanel` · coordinator | ✅ Done (v0.25.4) |
 
 ---
 

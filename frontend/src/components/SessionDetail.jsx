@@ -1,288 +1,38 @@
+/**
+ * SessionDetail — coordinator for the session detail panel.
+ *
+ * Modules:
+ *   SeqAckChart.jsx       — inline Seq/Ack Timeline chart
+ *   StreamView.jsx        — Wireshark-style TCP stream view
+ *   useSessionPackets.js  — on-demand packet loading + display state
+ */
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Tag from './Tag';
 import FlagBadge from './FlagBadge';
 import Collapse, { CollapseContext } from './Collapse';
 import Row from './Row';
 import { fN, fB, fD, sessionRefHash } from '../utils';
-import { fetchSessionDetail, runResearchChart } from '../api';
+import SeqAckChart from './SeqAckChart';
+import StreamView from './StreamView';
+import { useSessionPackets } from './useSessionPackets';
 import { sections as _allSections, getUnclaimedPrefixes, FallbackSection } from './session_sections';
-
-
-// Inline Seq/Ack Timeline chart — calls the research endpoint directly
-function SeqAckChart({ sessionId, session }) {
-  const [figure, setFigure] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [mode, setMode] = useState('time');  // 'time' | 'seqack'
-  const plotRef = useRef(null);
-
-  useEffect(() => {
-    if (!figure || !plotRef.current || !window.Plotly) return;
-    window.Plotly.react(plotRef.current, figure.data, figure.layout, {
-      responsive: true, displayModeBar: false,
-    });
-  }, [figure]);
-
-  async function handleRun() {
-    setLoading(true); setError(''); setFigure(null);
-    try {
-      const res = await runResearchChart('seq_ack_timeline', { session_id: sessionId, mode });
-      setFigure(res.figure);
-    } catch (e) {
-      setError(e.message || 'Chart failed');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const isnInit = session?.seq_isn_init;
-  const isnResp = session?.seq_isn_resp;
-
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 10, color: 'var(--txD)', flex: 1 }}>
-          {mode === 'time'
-            ? 'Bytes sent over time. Slope = throughput, flat = stall, step back = retransmit.'
-            : 'SEQ vs ACK (both normalized). Diagonal = healthy flow, flat = one side stopped.'}
-        </div>
-        <div style={{ display: 'flex', gap: 2 }}>
-          <button className={'btn' + (mode === 'time' ? ' on' : '')}
-            onClick={() => { setMode('time'); setFigure(null); }}
-            style={{ fontSize: 9 }}>Bytes/time</button>
-          <button className={'btn' + (mode === 'seqack' ? ' on' : '')}
-            onClick={() => { setMode('seqack'); setFigure(null); }}
-            style={{ fontSize: 9 }}>SEQ/ACK</button>
-        </div>
-        <button className="btn" onClick={handleRun} disabled={loading}
-          style={{ fontSize: 10, padding: '3px 12px', background: loading ? undefined : 'rgba(88,166,255,.1)', borderColor: 'var(--ac)', color: 'var(--ac)' }}>
-          {loading ? '…' : 'Run'}
-        </button>
-      </div>
-      {error && (
-        <div style={{ fontSize: 10, color: 'var(--acR)', padding: '8px 0' }}>{error}</div>
-      )}
-      {!figure && !loading && !error && (
-        <div style={{ fontSize: 10, color: 'var(--txD)', textAlign: 'center', padding: '32px 0' }}>
-          Click Run to compute the chart
-        </div>
-      )}
-      {loading && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 260, color: 'var(--txD)', fontSize: 11 }}>
-          Computing…
-        </div>
-      )}
-      {figure && !loading && (
-        <div ref={plotRef} style={{ width: '100%', height: 260 }} />
-      )}
-      {/* ISN reference — shown once chart is loaded or always if we have session data */}
-      {(isnInit > 0 || isnResp > 0) && (
-        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>Initial sequence numbers (ISN)</div>
-          {isnInit > 0 && (
-            <div style={{ fontSize: 9, fontFamily: 'var(--fn)', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3fb950', flexShrink: 0, display: 'inline-block' }} />
-              <span style={{ color: 'var(--txD)' }}>Init</span>
-              <span style={{ color: 'var(--txM)' }}>{isnInit.toLocaleString()}</span>
-            </div>
-          )}
-          {isnResp > 0 && (
-            <div style={{ fontSize: 9, fontFamily: 'var(--fn)', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#58a6ff', flexShrink: 0, display: 'inline-block' }} />
-              <span style={{ color: 'var(--txD)' }}>Resp</span>
-              <span style={{ color: 'var(--txM)' }}>{isnResp.toLocaleString()}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-    </div>
-  );
-}
-/**
- * StreamView — Wireshark-style "Follow TCP Stream" conversation view.
- *
- * Merges consecutive same-direction payloads into turns, color-coded:
- *   Client (initiator) → green text
- *   Server (responder) → blue text
- * Shows ASCII by default with hex toggle. Supports copy.
- */
-function StreamView({ pkts, session: s, loading }) {
-  const [showMode, setShowMode] = useState('ascii'); // 'ascii' | 'hex' | 'raw'
-
-  if (loading) return <div style={{ color: 'var(--txD)', fontSize: 11, padding: 10 }}>Loading…</div>;
-
-  // Filter to packets with payload, sorted by time
-  const withPayload = pkts
-    .filter(p => p.payload_bytes || p.payload_hex)
-    .sort((a, b) => a.timestamp - b.timestamp);
-
-  if (withPayload.length === 0) {
-    return (
-      <div style={{ fontSize: 10, color: 'var(--txD)', padding: '20px 0', textAlign: 'center' }}>
-        No payload data — packets may be headers-only or encrypted.
-      </div>
-    );
-  }
-
-  // Determine initiator: first packet's src is the client
-  const initiatorIp = withPayload[0].src_ip;
-  const initiatorPort = withPayload[0].src_port;
-
-  // Build conversation turns: merge consecutive same-direction payloads
-  const turns = [];
-  let currentTurn = null;
-
-  for (const p of withPayload) {
-    const isClient = p.src_ip === initiatorIp && p.src_port === initiatorPort;
-    const dir = isClient ? 'client' : 'server';
-
-    // Decode payload
-    let ascii = '';
-    let hex = '';
-    let raw = '';
-    if (p.payload_bytes) {
-      raw = p.payload_bytes;
-      // Convert hex string to ASCII
-      const bytes = [];
-      for (let i = 0; i < raw.length; i += 2) {
-        bytes.push(parseInt(raw.substr(i, 2), 16));
-      }
-      ascii = bytes.map(b => (b >= 32 && b < 127) ? String.fromCharCode(b) : '.').join('');
-      // Format hex in groups of 2 with spaces
-      hex = raw.match(/.{1,2}/g)?.join(' ') || '';
-    }
-
-    if (currentTurn && currentTurn.dir === dir) {
-      // Same direction — merge
-      currentTurn.ascii += ascii;
-      currentTurn.hex += (currentTurn.hex ? ' ' : '') + hex;
-      currentTurn.raw += raw;
-      currentTurn.bytes += p.payload_len || 0;
-      currentTurn.packets++;
-    } else {
-      // New turn
-      currentTurn = {
-        dir,
-        srcIp: p.src_ip,
-        srcPort: p.src_port,
-        dstIp: p.dst_ip,
-        dstPort: p.dst_port,
-        ascii,
-        hex,
-        raw,
-        bytes: p.payload_len || 0,
-        packets: 1,
-        timestamp: p.timestamp,
-      };
-      turns.push(currentTurn);
-    }
-  }
-
-  const totalClient = turns.filter(t => t.dir === 'client').reduce((a, t) => a + t.bytes, 0);
-  const totalServer = turns.filter(t => t.dir === 'server').reduce((a, t) => a + t.bytes, 0);
-
-  const copyAll = () => {
-    const text = turns.map(t => {
-      const label = t.dir === 'client' ? `>>> ${t.srcIp}:${t.srcPort}` : `<<< ${t.srcIp}:${t.srcPort}`;
-      return `${label}\n${showMode === 'hex' ? t.hex : t.ascii}\n`;
-    }).join('\n');
-    navigator.clipboard?.writeText(text);
-  };
-
-  return (
-    <div>
-      {/* Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 10, color: 'var(--txD)' }}>
-          {turns.length} turns · {withPayload.length} packets
-        </span>
-        <span style={{ fontSize: 9 }}>
-          <span style={{ color: '#7ee787' }}>{fN(totalClient)}B</span>
-          <span style={{ color: 'var(--txD)' }}> client, </span>
-          <span style={{ color: '#79c0ff' }}>{fN(totalServer)}B</span>
-          <span style={{ color: 'var(--txD)' }}> server</span>
-        </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
-          {['ascii', 'hex', 'raw'].map(m => (
-            <button key={m} className={'btn' + (showMode === m ? ' on' : '')}
-              onClick={() => setShowMode(m)}
-              style={{ fontSize: 8, padding: '2px 6px', textTransform: 'uppercase' }}>
-              {m}
-            </button>
-          ))}
-          <button className="btn" onClick={copyAll} style={{ fontSize: 8, padding: '2px 6px' }} title="Copy entire stream">
-            Copy
-          </button>
-        </div>
-      </div>
-
-      {/* Stream conversation */}
-      <div style={{
-        background: '#0d1117', border: '1px solid var(--bd)', borderRadius: 8,
-        maxHeight: 500, overflowY: 'auto', padding: 0,
-        fontFamily: "'Cascadia Code', 'Fira Code', 'Consolas', monospace",
-        fontSize: 11, lineHeight: 1.5,
-      }}>
-        {turns.map((turn, i) => {
-          const isClient = turn.dir === 'client';
-          const color = isClient ? '#7ee787' : '#79c0ff';
-          const bgColor = isClient ? 'rgba(63,185,80,.04)' : 'rgba(88,166,255,.04)';
-          const arrow = isClient ? '>>>' : '<<<';
-          const content = showMode === 'hex' ? turn.hex
-            : showMode === 'raw' ? turn.raw
-            : turn.ascii;
-
-          return (
-            <div key={i} style={{ borderBottom: i < turns.length - 1 ? '1px solid rgba(255,255,255,.06)' : 'none' }}>
-              {/* Turn header */}
-              <div style={{
-                padding: '4px 10px', fontSize: 9,
-                background: isClient ? 'rgba(63,185,80,.08)' : 'rgba(88,166,255,.08)',
-                color: 'var(--txD)', display: 'flex', gap: 8, alignItems: 'center',
-              }}>
-                <span style={{ color, fontWeight: 600 }}>{arrow}</span>
-                <span>{turn.srcIp}:{turn.srcPort} → {turn.dstIp}:{turn.dstPort}</span>
-                <span style={{ marginLeft: 'auto' }}>{fN(turn.bytes)}B · {turn.packets} pkt{turn.packets > 1 ? 's' : ''}</span>
-              </div>
-              {/* Payload */}
-              <pre style={{
-                margin: 0, padding: '6px 10px', color, background: bgColor,
-                whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 300, overflowY: 'auto',
-              }}>
-                {content || '(empty)'}
-              </pre>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 6 }}>
-        Showing first 128 bytes per packet. Full stream reassembly available with database backend.
-      </div>
-    </div>
-  );
-}
 
 export default function SessionDetail({ session: s, onBack, pColors, onTabChange, siblings = [], onNavigate, annotations = [], onSaveNote, collapseStates, onFlagEvent }) {
   const [tab, setTab] = useState('overview');
-  const [pkts, setPkts] = useState([]);
-  const [ld, setLd] = useState(false);
-  const [showHex, setShowHex] = useState(false);
-  const [expandedPkts, setExpandedPkts] = useState(new Set());
   const [noteText, setNoteText] = useState('');
   const [noteSaved, setNoteSaved] = useState(false);
 
-  // Collapse state persistence: reads/writes to collapseStatesRef keyed by session ID
-  // Each entry is a Map<title, boolean> tracking explicitly toggled sections.
-  // Sections not in the map fall back to their component `open` prop default.
+  // Packet state via hook
+  const { pkts, ld, showHex, setShowHex, expandedPkts, setExpandedPkts, loadP } = useSessionPackets(s.id);
+
+  // Collapse state persistence
   const csRef = collapseStates;
   const lastSessionIdRef = useRef(null);
   const collapseCtx = useMemo(() => {
     if (!csRef?.current) return null;
     const map = csRef.current;
     if (!map.has(s.id)) {
-      // New session: clone collapse state from the previous session so all sections keep their state
       const prev = lastSessionIdRef.current && map.has(lastSessionIdRef.current)
         ? new Map(map.get(lastSessionIdRef.current))
         : new Map();
@@ -294,25 +44,23 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
       state,
       toggle: (title, open) => {
         state.set(title, open);
-        // Force re-render — we mutate the Map so React doesn't see a change
         setCollapseRender(c => c + 1);
       },
     };
   }, [s.id, csRef]);
   const [, setCollapseRender] = useState(0);
 
-  // Protocol sections (auto-discovered from session_sections/), split by layer
+  // Protocol sections
   const _l2Sections     = useMemo(() => _allSections.filter(sec => sec.hasData(s) && sec.layer === 'Link (L2)'), [s]);
   const _l3Sections     = useMemo(() => _allSections.filter(sec => sec.hasData(s) && sec.layer === 'Network (L3)'), [s]);
   const _activeSections = useMemo(() => _allSections.filter(sec => sec.hasData(s) && !sec.layer), [s]);
   const _unclaimedEntries = useMemo(() => [...getUnclaimedPrefixes(s, _allSections).entries()], [s]);
 
-  // Load note for this session
+  // Load note
   const existingNote = annotations.find(a => a.annotation_type === 'note' && a.session_id === s.id);
   useEffect(() => {
     setNoteText(existingNote?.text || '');
     setNoteSaved(false);
-    // Auto-open Notes collapse if there's existing text
     if (existingNote?.text && csRef?.current) {
       const map = csRef.current;
       if (!map.has(s.id)) map.set(s.id, new Map());
@@ -327,38 +75,23 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
     }
   }, [s.id, noteText, existingNote, onSaveNote]);
 
-  // Sibling navigation — index within siblings sorted by start_time
+  // Reset tab when navigating to a different session
+  useEffect(() => {
+    setTab('overview');
+  }, [s.id]);
+
+  // Sibling navigation
   const sibIdx = siblings.findIndex(x => x.id === s.id);
   const hasSibs = siblings.length > 1;
   const goPrev = () => { if (sibIdx > 0) onNavigate?.(siblings[sibIdx - 1], siblings); };
   const goNext = () => { if (sibIdx < siblings.length - 1) onNavigate?.(siblings[sibIdx + 1], siblings); };
-
-  // Reset tab + packet data when navigating to a different session
-  useEffect(() => {
-    setTab('overview');
-    setPkts([]);
-    setLd(false);
-    setShowHex(false);
-    setExpandedPkts(new Set());
-  }, [s.id]);
 
   function switchTab(t) {
     setTab(t);
     onTabChange?.(t);
   }
 
-  const loadP = useCallback(async () => {
-    if (ld || pkts.length) return;
-    setLd(true);
-    try {
-      const d = await fetchSessionDetail(s.id);
-      setPkts(d.packets || []);
-    } catch (e) {
-      console.error('Session detail error:', e);
-    }
-    setLd(false);
-  }, [s.id, ld, pkts.length]);
-
+  // Auto-load packets when entering packet-view tabs
   useEffect(() => {
     if (tab === 'packets' || tab === 'payload' || tab === 'stream') loadP();
   }, [tab, loadP]);
@@ -620,7 +353,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
             </Collapse>
           )}
 
-          {/* UDP — show ports under transport header */}
+          {/* UDP ports */}
           {s.transport === 'UDP' && (s.initiator_ports?.length > 0 || s.responder_ports?.length > 0) && (
             <Collapse title="Transport (L4)" level="layer">
               <Collapse title="Ports">
@@ -709,7 +442,6 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
             </div>
           )}
           {pkts.filter(p => p.payload_hex).slice(0, 20).map((p, i) => {
-            // Parse the dump rows into { offset, hex, ascii } once
             const rows = (p.payload_hex || '').split('\n').filter(Boolean).map(row => {
               const sp1 = row.indexOf('  ');
               if (sp1 < 0) return { offset: row, hex: '', ascii: '' };
@@ -727,14 +459,12 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
 
             return (
               <div key={i} style={{ marginBottom: 8, background: 'var(--bgC)', border: '1px solid var(--bd)', borderRadius: 6, overflow: 'hidden' }}>
-                {/* Header row */}
                 <div style={{ padding: '5px 10px', borderBottom: '1px solid var(--bd)', display: 'flex', gap: 6, alignItems: 'center', fontSize: 10, flexWrap: 'wrap' }}>
                   <span style={{ color: 'var(--txD)', flexShrink: 0 }}>#{i + 1}</span>
                   <span style={{ color: 'var(--acG)', flexShrink: 0 }}>{p.src_ip}:{p.src_port}</span>
                   <span style={{ color: 'var(--txD)' }}>→</span>
                   <span style={{ color: 'var(--txM)', flexShrink: 0 }}>{p.dst_ip}:{p.dst_port}</span>
                   <span style={{ color: 'var(--txD)', flexShrink: 0 }}>{p.payload_len}B</span>
-                  {/* IP header quick-view */}
                   {p.ip_version === 4 && (
                     <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>
                       TTL:{p.ttl}
@@ -757,7 +487,6 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
                       cksum:0x{p.tcp_checksum.toString(16).padStart(4, '0')}
                     </span>
                   )}
-                  {/* Entropy badge */}
                   {p.payload_entropy?.value != null && (() => {
                     const e = p.payload_entropy;
                     const col = e.value >= 7.5 ? '#f85149' : e.value >= 6.5 ? '#d29922' : e.value >= 5.0 ? '#58a6ff' : e.value >= 3.5 ? '#3fb950' : '#8b949e';
@@ -769,14 +498,12 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
                       }}>H={e.value} {e.label}</span>
                     );
                   })()}
-                  {/* Copy buttons */}
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 3, flexShrink: 0 }}>
                     <button className="btn" onClick={copyAscii} style={{ fontSize: 8, padding: '1px 5px' }} title="Copy ASCII text">ASCII</button>
                     <button className="btn" onClick={copyHex}   style={{ fontSize: 8, padding: '1px 5px' }} title="Copy hex dump">Hex</button>
                     <button className="btn" onClick={copyRaw}   style={{ fontSize: 8, padding: '1px 5px' }} title="Copy raw bytes as hex string">Raw</button>
                   </div>
                 </div>
-                {/* Dump — offset + ascii (default) or offset + hex + ascii (when Hex is on) */}
                 <div style={{ padding: '6px 10px', overflowX: 'auto' }}>
                   <pre style={{ margin: 0, fontFamily: 'var(--fn)', fontSize: 9, lineHeight: 1.8, whiteSpace: 'pre', color: 'var(--txM)' }}>
                     {rows.map((row, ri) => (
@@ -824,7 +551,6 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
               next.has(i) ? next.delete(i) : next.add(i);
               return next;
             });
-            // IP header fields
             const isV6 = p.ip_version === 6;
             const ipFields = [];
             if (!isV6) {
@@ -839,12 +565,10 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
               ipFields.push(['Ver', 6]);
               if (p.ip6_flow_label > 0)   ipFields.push(['Flow', '0x' + p.ip6_flow_label.toString(16).padStart(5, '0')]);
             }
-            // TCP extra fields (seq/ack/win/flags shown in summary, skip here)
             const tcpFields = [];
             if (p.tcp_data_offset > 0)  tcpFields.push(['DataOff', p.tcp_data_offset]);
             if (p.urg_ptr > 0)          tcpFields.push(['Urg', p.urg_ptr]);
             if (p.tcp_options?.length)  tcpFields.push(['Options', p.tcp_options.map(o => o.kind ?? o).join(', ')]);
-            // ICMP
             const icmpFields = [];
             if (p.icmp_type >= 0)       icmpFields.push(['Type', p.icmp_type]);
             if (p.icmp_code >= 0)       icmpFields.push(['Code', p.icmp_code]);
@@ -878,9 +602,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
                   <div style={{ padding: '4px 10px 6px 22px', fontSize: 9, background: 'var(--bgH)', borderTop: '1px solid var(--bd)' }}>
                     {ipFields.length > 0 && (
                       <div style={{ marginBottom: 3 }}>
-                        <span style={{ color: 'var(--txD)', marginRight: 6, fontWeight: 600 }}>
-                          {isV6 ? 'IPv6' : 'IPv4'}
-                        </span>
+                        <span style={{ color: 'var(--txD)', marginRight: 6, fontWeight: 600 }}>{isV6 ? 'IPv6' : 'IPv4'}</span>
                         {ipFields.map(([k, v]) => (
                           <span key={k} style={{ marginRight: 8 }}>
                             <span style={{ color: 'var(--txD)' }}>{k}:</span>
