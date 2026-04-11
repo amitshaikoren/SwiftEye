@@ -4,6 +4,7 @@ import { fTtime } from '../../utils';
 import Sparkline from '../Sparkline';
 import ScopePill from '../ScopePill';
 import { useFilterContext, toProtocolNames } from '../../FilterContext';
+import { STORAGE_KEYS } from '../../storageKeys';
 
 export const DEFAULT_CARD_HEIGHT = 380;
 
@@ -146,7 +147,7 @@ export default function PlacedCard({
   slotId,
 }) {
   const filterCtx = useFilterContext();
-  const [scope, setScope] = useScopeState(`swifteye_scope_slot_${slotId || 'default'}`);
+  const [scope, setScope] = useScopeState(STORAGE_KEYS.scopeSlot(slotId));
   function handleResizeStart(e) {
     e.preventDefault();
     const startY = e.clientY;

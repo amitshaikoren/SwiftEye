@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { FixedSizeList } from 'react-window';
 import Tag from './Tag';
 import { fN, fB, fD } from '../utils';
 import { fetchSessions } from '../api';
@@ -49,6 +50,44 @@ export default function SessionsTable({ sessions: globalSessions, pColors, onSel
     ? `${fN(localSessions.length)}/${fN(localTotal)}`
     : fN(sessions.length);
 
+  // Virtual list height — tracks the flex-1 container via ResizeObserver
+  const listContainerRef = useRef(null);
+  const [listHeight, setListHeight] = useState(400);
+  useEffect(() => {
+    const el = listContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setListHeight(entry.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const renderRow = useCallback(({ index, style }) => {
+    const s = sorted[index];
+    return (
+      <div style={{ ...style, paddingLeft: 16, paddingRight: 16 }}>
+        <div className="hr" onClick={() => onSelect(s)}
+          style={{ padding: '8px 6px', borderBottom: '1px solid var(--bd)', cursor: 'pointer', borderRadius: 3, transition: 'background .15s' }}>
+          <div style={{ fontSize: 11 }}>
+            {s.initiator_ip ? (
+              <><span style={{ color: 'var(--acG)' }}>{s.initiator_ip}:{s.initiator_port}</span> → {s.responder_ip}:{s.responder_port}</>
+            ) : (
+              <>{s.src_ip}:{s.src_port} ↔ {s.dst_ip}:{s.dst_port}</>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Tag color={pColors[s.protocol] || '#64748b'} small>{s.protocol}</Tag>
+            <span style={{ fontSize: 10, color: 'var(--txM)' }}>{fN(s.packet_count)} pkts</span>
+            <span style={{ fontSize: 10, color: 'var(--txM)' }}>{fB(s.total_bytes)}</span>
+            <span style={{ fontSize: 10, color: 'var(--txD)' }}>{fD(s.duration)}</span>
+            {s.has_handshake && <Tag color="#3fb950" small tip="TCP Handshake completed (SYN→SYN+ACK→ACK)">HS</Tag>}
+            {s.has_reset && <Tag color="#f85149" small tip="Connection reset (abrupt termination)">RST</Tag>}
+            {s.has_fin && <Tag color="#d29922" small tip="Connection finished (graceful close)">FIN</Tag>}
+          </div>
+        </div>
+      </div>
+    );
+  }, [sorted, pColors, onSelect]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Fixed header */}
@@ -82,33 +121,17 @@ export default function SessionsTable({ sessions: globalSessions, pColors, onSel
           )}
         </div>
       </div>
-      {/* Scrollable list */}
-      <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px 16px' }}>
-
-      {sorted.map((s, i) => (
-        <div key={i} className="hr" onClick={() => onSelect(s)}
-          style={{
-            padding: '8px 6px', borderBottom: '1px solid var(--bd)',
-            cursor: 'pointer', borderRadius: 3, transition: 'background .15s',
-          }}>
-          <div style={{ fontSize: 11 }}>
-            {s.initiator_ip ? (
-              <><span style={{ color: 'var(--acG)' }}>{s.initiator_ip}:{s.initiator_port}</span> → {s.responder_ip}:{s.responder_port}</>
-            ) : (
-              <>{s.src_ip}:{s.src_port} ↔ {s.dst_ip}:{s.dst_port}</>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Tag color={pColors[s.protocol] || '#64748b'} small>{s.protocol}</Tag>
-            <span style={{ fontSize: 10, color: 'var(--txM)' }}>{fN(s.packet_count)} pkts</span>
-            <span style={{ fontSize: 10, color: 'var(--txM)' }}>{fB(s.total_bytes)}</span>
-            <span style={{ fontSize: 10, color: 'var(--txD)' }}>{fD(s.duration)}</span>
-            {s.has_handshake && <Tag color="#3fb950" small tip="TCP Handshake completed (SYN→SYN+ACK→ACK)">HS</Tag>}
-            {s.has_reset && <Tag color="#f85149" small tip="Connection reset (abrupt termination)">RST</Tag>}
-            {s.has_fin && <Tag color="#d29922" small tip="Connection finished (graceful close)">FIN</Tag>}
-          </div>
-        </div>
-      ))}
+      {/* Virtualized list — only renders visible rows (react-window) */}
+      <div ref={listContainerRef} style={{ flex: 1, minHeight: 0 }}>
+        <FixedSizeList
+          height={listHeight}
+          width="100%"
+          itemCount={sorted.length}
+          itemSize={65}
+          style={{ overflowX: 'hidden' }}
+        >
+          {renderRow}
+        </FixedSizeList>
       </div>
     </div>
   );

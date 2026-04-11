@@ -1,5 +1,6 @@
 // ── Custom chart localStorage persistence ─────────────────────────────────────
-const CUSTOM_CHARTS_KEY = 'swifteye_custom_charts';
+import { STORAGE_KEYS } from '../../storageKeys';
+const CUSTOM_CHARTS_KEY = STORAGE_KEYS.CUSTOM_CHARTS;
 
 export function loadSavedCustomCharts() {
   try {

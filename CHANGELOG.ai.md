@@ -16,6 +16,8 @@
 
 ## Log
 
+v0.26.5 | 2026-04-11 | perf | frontend | audit-03 P3: session list virtualized with react-window FixedSizeList + ResizeObserver height tracking; audit-04 P2: storageKeys.js created — all localStorage keys centralized, 5 files updated (useSettings, customChartPersistence, NodeDetail, useCaptureLoad, PlacedCard); audit-14 P3: 50-file component reorg target mapping written; centrality backend plan at docs/plans/active/centrality-backend.md; audit-06 P3–P5 deferred to qa-test-suite.
+v0.26.4 | 2026-04-11 | feat | frontend | audit-06 P1+P2 — left panel nav grouped into 4 sections (Data/Analysis/Workspace/Settings); project-wide font size floor: fontSize 7/8 → 9 minimum across ~20 component files; interactive buttons (LeftPanel All/None) lifted to 10px; BETA badge lifted to 9px.
 v0.26.3 | 2026-04-11 | chore | backend | batch: audit-05 P3 discovery smoke tests (33 tests/33 pass across protocol_fields, adapters, research charts, alert detectors, insight/analysis plugins, frontend session_sections); requirements.txt — plotly promoted to required, sqlglot + pytest added; audit-04 P1 state lifetime §16 in docs/DEVELOPERS.md; graceful-optional-deps added to roadmap.
 v0.26.2 | 2026-04-11 | docs | architecture | audit-05 Phase 2 — add Philosophy exceptions section to ARCHITECTURE.ai.md; documents 4 intentional trade-offs (edge caps, client-side centrality, localStorage chart configs, frontend search hint hardcoding) with why/when-to-revisit context.
 v0.26.1 | 2026-04-11 | perf | frontend | audit-03 Phase 2 — merge E4+E5 in useCaptureData.js into a single Promise.all effect; sessions + stats now batch-setState on time-range change (2 renders → 1). E7 (graph) kept separate — different dep set (protocol/subnet filters).

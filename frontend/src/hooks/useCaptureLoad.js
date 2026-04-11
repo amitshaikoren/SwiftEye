@@ -19,6 +19,7 @@ import {
   fetchAnnotations, fetchSynthetic, fetchAlerts,
   uploadPcap, uploadMetadata, confirmSchemaMapping,
 } from '../api';
+import { STORAGE_KEYS } from '../storageKeys';
 
 export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph }) {
 
@@ -53,10 +54,10 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
   const loadAll = useCallback(async () => {
     // Reset scope pills to SCOPED on every fresh capture load
     try {
-      localStorage.removeItem('swifteye_scope_node');
-      localStorage.removeItem('swifteye_scope_edge');
+      localStorage.removeItem(STORAGE_KEYS.SCOPE_NODE);
+      localStorage.removeItem(STORAGE_KEYS.SCOPE_EDGE);
       Object.keys(localStorage)
-        .filter(k => k.startsWith('swifteye_scope_slot_'))
+        .filter(k => k.startsWith(STORAGE_KEYS.SCOPE_SLOT_PREFIX))
         .forEach(k => localStorage.removeItem(k));
     } catch {}
 

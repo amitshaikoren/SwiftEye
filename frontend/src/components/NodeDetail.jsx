@@ -7,6 +7,7 @@ import { PluginSections, GenericDisplay } from './PluginSection';
 import { fN, fB, fD } from '../utils';
 import { useFilterContext, applyDisplayFilter } from '../FilterContext';
 import { matchSessionToEdge } from '../sessionMatch';
+import { STORAGE_KEYS } from '../storageKeys';
 
 /**
  * Classify an IP address into its address type.
@@ -263,7 +264,7 @@ export default function NodeDetail({
   fullSessions, fullGraph, onAnimate, onFlagEvent,
 }) {
   const filterCtx = useFilterContext();
-  const [scope, setScope] = useScopeState('swifteye_scope_node');
+  const [scope, setScope] = useScopeState(STORAGE_KEYS.SCOPE_NODE);
   const node = (scope === 'all' && fullGraph?.current)
     ? (fullGraph.current.nodes.find(n => n.id === nodeId) || nodes.find(n => n.id === nodeId))
     : nodes.find(n => n.id === nodeId);

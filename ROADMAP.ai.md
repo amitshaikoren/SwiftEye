@@ -24,7 +24,7 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `edge-node-refactor-tests` | pending | critical | medium | short | — | Tests for v0.20.0 directional edges, cross-refs, Zeek has_handshake |
 | `codebase-health-audit` | pending | critical | medium | short | — | Audit last 6 minors for bottlenecks/coupling/violations |
 | `alerts-live-load-bug` | done | critical | low | short | — | Fixed v0.24.0 — re-fetch after first graph response. |
-| `qa-test-suite` | pending | high | medium | short | — | Comprehensive pytests + human QA checklists |
+| `qa-test-suite` | pending | high | medium | short | — | Comprehensive pytests + human QA checklists. Human UI scenarios in `audits/codex_audits/2026-04-09/13_human_ui_qa_checklist.md` (10 scenarios: graph discoverability, animation comprehension, right-panel reading, research workflow, alerts-to-graph flow, keyboard nav, small-screen sanity, loading/error states, overall polish). Run after any significant UI change. Key items from audit-06: interaction hints for undiscoverable gestures (right-click, lasso, double-click); filter-system labeling (which filter is active?); keyboard panel switching; font/touch target sizes. |
 | `event-type-system` | done | high | high | long | **yes** | Phase 1 shipped v0.21.0 + v0.21.1 on main. Phase 2 tracked as `event-suggested-edges-pluggable`. |
 | `timeline-graph-phase2` | done | high | medium | medium | — | All 8 items shipped v0.22.0–v0.22.7 on main. |
 | `investigation-panel-redesign` | blocked | high | high | medium | — | Depends on event-type-system |
@@ -55,7 +55,7 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `spark-connector` | pending | high | high | long | **yes** | Spark/Databricks SQL connector (enterprise mode) |
 | `graph-db-backend` | pending | high | high | long | **yes** | Neo4j / LadybugDB / Postgres+AGE persistent graph |
 | `notebook-integration` | pending | high | medium | long | — | swifteye-sdk Python package |
-| `centrality-backend-migration` | blocked | medium | medium | long | — | Depends on graph-db-backend |
+| `centrality-backend-migration` | pending | medium | medium | short | — | Move client-side Brandes (AnalysisPage.jsx:12-59) to `GET /api/analysis/centrality`; reuses existing `node_centrality.py` plugin. Plan: `docs/plans/active/centrality-backend.md`. Does NOT require graph-db-backend. |
 | `analysis-traffic-characterisation` | pending | low | medium | short | — | Foreground/background classification |
 | `graphcanvas-extraction` | pending | medium | medium | medium | — | Extract render helpers from 1300-line GraphCanvas |
 | `react-contexts` | pending | medium | medium | medium | — | Replace prop drilling with context |

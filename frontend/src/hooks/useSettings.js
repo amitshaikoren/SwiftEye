@@ -9,8 +9,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { STORAGE_KEYS } from '../storageKeys';
 
-const STORAGE_KEY = 'swifteye_settings';
+const STORAGE_KEY = STORAGE_KEYS.SETTINGS;
 
 export const DEFAULTS = {
   theme:    'dark',  // see THEMES below
