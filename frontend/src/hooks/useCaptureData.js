@@ -133,24 +133,20 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
     }).catch(() => {});
   }, [bucketSec, loaded, resetTimeRange]);
 
-  // E4: re-fetch sessions when time range changes (debounced)
+  // E4+E5: re-fetch sessions + stats together on time-range change (batched via Promise.all → single render)
   useEffect(() => {
     if (!loaded || !timeline.length) return;
     const ts = timeline[debouncedTR[0]]?.start_time;
     const te = timeline[debouncedTR[1]]?.end_time;
-    fetchSessions(SESSIONS_FETCH_LIMIT, '', ts != null && te != null ? { timeStart: ts, timeEnd: te } : {})
-      .then(d => { setSessions(d.sessions || []); setSessionTotal(d.total ?? d.sessions?.length ?? 0); })
-      .catch(() => {});
-  }, [loaded, debouncedTR, timeline]);
-
-  // E5: re-fetch stats when time range changes (debounced)
-  useEffect(() => {
-    if (!loaded || !timeline.length) return;
-    const ts = timeline[debouncedTR[0]]?.start_time;
-    const te = timeline[debouncedTR[1]]?.end_time;
-    fetchStats(ts != null && te != null ? { timeStart: ts, timeEnd: te } : {})
-      .then(d => setStats(d.stats || {}))
-      .catch(() => {});
+    const trParams = ts != null && te != null ? { timeStart: ts, timeEnd: te } : {};
+    Promise.all([
+      fetchSessions(SESSIONS_FETCH_LIMIT, '', trParams),
+      fetchStats(trParams),
+    ]).then(([sessionData, statsData]) => {
+      setSessions(sessionData.sessions || []);
+      setSessionTotal(sessionData.total ?? sessionData.sessions?.length ?? 0);
+      setStats(statsData.stats || {});
+    }).catch(() => {});
   }, [loaded, debouncedTR, timeline]);
 
   // E6: recompute allProtocolKeysCountRef when stats/protocols change
