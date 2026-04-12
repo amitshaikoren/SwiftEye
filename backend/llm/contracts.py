@@ -58,6 +58,7 @@ class ChatOptions:
     intent: str = "qa"                     # "qa" | "explain"
     allow_context_expansion: bool = True
     debug_return_context: bool = False
+    is_simple_question: bool = False       # True when sent via a starter chip (suppresses Next Steps)
 
 
 @dataclass

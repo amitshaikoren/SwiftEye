@@ -146,6 +146,33 @@ class TestBackgroundAndMixed:
         assert TAG_MIXED in tags or TAG_BACKGROUND in tags
 
 
+class TestSelfReferentialCapture:
+    """Self-referential questions ("my IP", "my computer") are capture-grounded,
+    not background knowledge — they should NOT produce TAG_BACKGROUND."""
+
+    def test_what_is_my_ip(self):
+        tags = _tag("if i recorded this from my computer, what is most likely my IP")
+        assert TAG_BACKGROUND not in tags
+        assert TAG_BROAD_OVERVIEW in tags
+
+    def test_my_ip_phrasing(self):
+        tags = _tag("what is my ip in this capture?")
+        assert TAG_BACKGROUND not in tags
+
+    def test_my_traffic(self):
+        tags = _tag("what is my traffic pattern here?")
+        assert TAG_BACKGROUND not in tags
+
+    def test_my_device(self):
+        tags = _tag("which node is my device?")
+        assert TAG_BACKGROUND not in tags
+
+    def test_pure_background_unaffected(self):
+        # Unrelated "what is" without self-ref markers still gets background
+        tags = _tag("what is ARP?")
+        assert TAG_BACKGROUND in tags or TAG_MIXED in tags
+
+
 class TestDefaultFallback:
     def test_empty_question_gives_broad_overview(self):
         tags = _tag("What is going on?")

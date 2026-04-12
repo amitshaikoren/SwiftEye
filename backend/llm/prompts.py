@@ -10,6 +10,7 @@ Produces a structured system prompt that:
 
 from __future__ import annotations
 import json
+import re
 from typing import Any, Dict, List
 
 from .question_tags import (
@@ -68,6 +69,20 @@ Output format (use this for questions that mix background knowledge with capture
 - [Concrete next action]
 """
 
+_OUTPUT_FORMAT_SIMPLE = """
+Output format (use this structure for simple questions):
+
+## Answer
+[Direct answer to the question, grounded in the context]
+
+## Evidence
+- [Specific evidence item: entity ID, value, source]
+- [...]
+
+## Uncertainty
+[What cannot be determined from the current scope, and why]
+"""
+
 _OUTPUT_FORMAT_BACKGROUND = """
 Output format (use this for general background knowledge questions):
 Answer the question as background knowledge. Begin with a clear statement:
@@ -79,6 +94,31 @@ _OUTPUT_FORMAT_UNRELATED = """
 This question is not related to network traffic analysis.
 Respond with a single short sentence declining and redirecting the researcher to ask a capture-related question.
 """
+
+# ── Small-model compact mode ──────────────────────────────────────────────────
+
+# Matches common small-model size suffixes in Ollama/HuggingFace model names.
+# Examples: qwen2.5:3b, llama3.2:1b, phi3:mini, gemma:2b, mistral:7b
+_SMALL_MODEL_RE = re.compile(
+    r'(?:^|[-_:./])(?:0\.5|1|1\.5|2|3|4|7)b(?:$|[-_:./])'
+    r'|mini|tiny|small|phi-?2\b',
+    re.IGNORECASE,
+)
+
+_COMPACT_MODE_OVERRIDE = """COMPACT MODE — STRICT OUTPUT CONTRACT:
+You are running on a small model. You MUST follow these rules:
+- Follow the output format below exactly. Use the section headers verbatim.
+- No preamble, no apologies, no "Certainly!", no "Great question!".
+- No hedging sentences before the answer ("As an AI...", "I should note...").
+- If you are uncertain, say so in one sentence inside the Uncertainty section only.
+- Total response must be under 300 words. Prefer bullet points over prose.
+"""
+
+
+def is_small_model(model_name: str) -> bool:
+    """Return True if model_name looks like a sub-8B parameter model."""
+    return bool(_SMALL_MODEL_RE.search(model_name))
+
 
 _UNCERTAINTY_BOOST = """
 IMPORTANT — UNCERTAINTY POLICY FOR THIS QUESTION:
@@ -95,24 +135,36 @@ Expected answer style:
 """
 
 
-def build_system_prompt(tags: List[str], context_packet: Dict[str, Any]) -> str:
+def build_system_prompt(
+    tags: List[str],
+    context_packet: Dict[str, Any],
+    model_name: str = "",
+    is_simple_question: bool = False,
+) -> str:
     """
     Build the full system prompt for a chat request.
 
     Parameters
     ----------
-    tags           : resolved question tags (from question_tags.py)
-    context_packet : built context packet (from context_builder.py)
+    tags               : resolved question tags (from question_tags.py)
+    context_packet     : built context packet (from context_builder.py)
+    model_name         : provider model string; used to detect small models
+    is_simple_question : when True (starter chip clicked), omit ## Next Steps
     """
     parts = [_BASE_INSTRUCTIONS.strip()]
+
+    if is_small_model(model_name):
+        parts.append(_COMPACT_MODE_OVERRIDE.strip())
 
     # Output format contract based on question class
     if TAG_UNRELATED in tags:
         parts.append(_OUTPUT_FORMAT_UNRELATED.strip())
     elif TAG_MIXED in tags:
-        parts.append(_OUTPUT_FORMAT_MIXED.strip())
+        parts.append(_OUTPUT_FORMAT_MIXED.strip() if not is_simple_question else _OUTPUT_FORMAT_SIMPLE.strip())
     elif TAG_BACKGROUND in tags:
         parts.append(_OUTPUT_FORMAT_BACKGROUND.strip())
+    elif is_simple_question:
+        parts.append(_OUTPUT_FORMAT_SIMPLE.strip())
     else:
         parts.append(_OUTPUT_FORMAT_STANDARD.strip())
 

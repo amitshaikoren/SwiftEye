@@ -1,5 +1,29 @@
 # SwiftEye — Changelog
 
+### v0.27.0 — April 2026
+- **Version bump to 0.27.** Marks the start of the server-side API key store, LLM developer documentation, and left-panel cleanup work planned for the next session.
+
+### v0.26.9 — April 2026
+- **Node role visible to LLM** — `translate_node()` now includes `os_guess` and `network_role` (gateway / lan / external) in the context packet. The LLM can now reason about routers and gateways that the graph renders as diamonds, not just endpoint nodes.
+- **Starter prompt chips** — the LLM panel empty state now shows a row of 4 context-aware question chips ("What protocols are in this capture?", "Who are the top talkers?", "Are there any alerts?", "What DNS queries were made?" — different set for selected-entity scope). Clicking a chip sends with `is_simple_question: true`, which suppresses the `## Next Steps` section for cleaner one-shot answers.
+- **`is_simple_question` flag** — new `ChatOptions.is_simple_question: bool` field. When true, the backend uses `_OUTPUT_FORMAT_SIMPLE` (no Next Steps section) instead of the standard format.
+
+### v0.26.8 — April 2026
+- **LLM question tagger fixes** — self-referential questions ("what is my IP?", "what is my computer doing?") now correctly set `has_capture_ref=True`, preventing mis-tagging as pure background. New `_CAPTURE_CONTEXT_MARKERS` covers open-ended capture-state questions ("what's going on?", "what's happening?"). The step-6 proto-only gate now also applies to mixed tags so "what is DNS tunneling?" resolves to `mixed` not just `dns`.
+- **Small-model compact mode** — `is_small_model()` detects sub-8B models by regex. When detected, `_COMPACT_MODE_OVERRIDE` is injected into the system prompt: no preamble, answers ≤ 300 words. Helps models like `qwen2.5:3b` avoid verbose padding.
+- **Model name propagation** — `service.py` now passes `request.provider.model` into `build_system_prompt()` so compact mode activates automatically based on the configured model.
+
+### v0.26.7 — April 2026
+- **LLM Interpretation Panel (Phase 1)** — Analysis tab now has a live Q&A panel. Load a capture, ask a question in plain English, get a streamed markdown answer grounded in the actual capture data — not a hallucinated summary. Three scope modes: **Full capture** (broad overview), **Current view** (respects active time/protocol/search filters), **Selected entity** (select a node, edge, or session first, then ask about it).
+- **Scope-aware context building** — the backend resolves scope, classifies the question into one of 12 deterministic tags (entity_node, entity_edge, http, tls, dns, alert_evidence, attribution_risk, broad_overview, etc.), then builds a targeted context packet from existing structured evidence (node records, edge fields, session metadata, alerts, analysis plugin results). No inference engine — what the parser captured is what the LLM sees.
+- **Streaming NDJSON protocol** — `POST /api/llm/chat` streams newline-delimited JSON events: `meta` → `context` → `delta*` → `final` (or `error`). Frontend renders incrementally with a lightweight inline markdown renderer (no external deps).
+- **Ollama + OpenAI-compatible providers** — configure in Settings → LLM Provider. Ollama: set model (e.g. `qwen2.5:14b-instruct`), leave base URL blank for localhost. OpenAI-compatible: enter base URL + API key. Provider config is per-request; no server-side key storage.
+- **Uncertainty-first policy** — attribution-style questions ("where is the attacker?", "is this malware?") trigger strengthened uncertainty instructions. The panel will not make confident attacker-identity claims from packet data alone.
+- **"Explain this" quick action** — one-click button adapts to context: "Explain selected [node/edge/session]" when an entity is selected, "Explain current view" otherwise.
+- **Debug seam** — `POST /api/llm/context-preview` returns the built context packet without calling a provider. Useful for prompt iteration and verifying retrieved evidence.
+- **4 new backend test files** — `test_llm_question_tags.py`, `test_llm_context_builder.py`, `test_llm_translators.py`, `test_llm_route.py`. All pass.
+- **Bug fix** — `context_builder.py` imported `get_analysis_results` from `services.capture` (wrong module); corrected to `plugins.analyses` and hoisted to module level.
+
 ### v0.26.6 — April 2026
 - **Edge field registry (`edge_fields.py`)** — new `backend/data/edge_fields.py` is the single source of truth for all `pkt.extra` fields that get accumulated onto graph edges (TLS SNIs, HTTP hosts, DNS queries, JA3/JA4 hashes, ciphers, user agents). The 9-field hardcoded accumulation block in `aggregator.py` is replaced by a loop over the registry. Adding a new edge-accumulated field now requires editing only `edge_fields.py`.
 - **Lazy edge detail loading** — the `/api/graph` response no longer includes TLS/HTTP/DNS field values on edges; instead each edge carries boolean hints `has_tls`, `has_http`, `has_dns`. Full values are fetched on demand via `GET /api/edge/{id}/detail` (accepts the same filter params as `/api/graph`). `EdgeDetail.jsx` fetches detail when an edge is clicked and shows a loading indicator while in flight. This reduces the graph payload for large captures where most edges are never inspected.

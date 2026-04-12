@@ -1,6 +1,6 @@
 # Roadmap — AI Reference
 
-**v0.26.7 | 2026-04-12** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.27.0 | 2026-04-12** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
 Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per item — read by anchor (`#item-id`) only when picking up that item.
 
 ---
@@ -48,7 +48,7 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `schema-dialog-in-app` | done | high | low | short | — | Fixed v0.24.0 — SchemaDialog rendered in loaded app view. |
 | `manual-type-override` | done | high | low | short | — | Fixed v0.24.0 — TypePickerDialog + force_adapter backend param. |
 | `parquet-ingestion` | pending | high | medium | medium | — | Ingest .parquet (Splunk, AWS VPC, Databricks) |
-| `llm-interpretation-panel` | done | high | medium | medium | — | Phase 1 shipped v0.26.7 — scope-aware Q&A, streaming NDJSON, Ollama+OpenAI, context packet. Phase 2: tool-use loop, payload inspection, lifted array caps. |
+| `llm-interpretation-panel` | done | high | medium | medium | — | Phase 1 shipped v0.26.7. Known fixes: mis-tag on self-referential questions, small-model verbosity. Phase 2: source-type awareness, tool-use loop, payload inspection, lifted array caps. |
 | `post-parse-pipeline-opt` | pending | high | medium | medium | — | Profile build_sessions/build_graph/plugins (~20s for 440K). Plan: `docs/plans/active/post-parse-pipeline-opt.md` |
 | `graceful-optional-deps` | pending | medium | low | short | — | Optional deps (plotly, sqlglot) should degrade gracefully on import failure rather than aborting startup; research charts would be disabled not fatal |
 | `lazy-post-parse-audit` | pending | high | low | short | — | Decide what runs at load vs on-demand |

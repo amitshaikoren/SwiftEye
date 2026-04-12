@@ -57,6 +57,26 @@ _BACKGROUND_MARKERS = {
     "describe ", "tell me about ", "what does ", " mean?", " work?",
 }
 
+# ── Self-referential capture markers ─────────────────────────────────────────
+# Questions about the user's own data in the capture — NOT background knowledge.
+# If any of these appear the question is capture-grounded even without an IP literal.
+
+_SELF_REF_CAPTURE = {
+    "my ip", "my i.p", "my address", "my computer", "my machine",
+    "my device", "my traffic", "my mac", "my host", "my network",
+    "which ip is mine", "which ip am i", "am i the",
+}
+
+# ── Capture-context directional markers ───────────────────────────────────────
+# General "situation" phrases that indicate the question is about the current
+# capture rather than abstract background knowledge.
+
+_CAPTURE_CONTEXT_MARKERS = {
+    "going on", "happening", "stand out", "stands out", "unusual",
+    "this capture", "this pcap", "this traffic", "this file",
+    "in here", "in this", "this session", "this network",
+}
+
 # ── Explicit off-topic patterns ───────────────────────────────────────────────
 
 _UNRELATED_EXACT = {
@@ -163,7 +183,12 @@ def tag_question(
         tags.append(TAG_ATTRIBUTION_RISK)
 
     # ── 6. Background / unrelated ────────────────────────────────────────────
-    if not tags or tags == [TAG_ATTRIBUTION_RISK]:
+    # Also fires when tags contains only protocol keywords — a background question
+    # like "What is DNS tunneling?" legitimately carries a protocol tag but still
+    # needs to be classified as background/mixed, not just DNS.
+    _PROTO_TAGS = {TAG_DNS, TAG_TLS, TAG_HTTP, TAG_CREDENTIALS}
+    proto_only = bool(tags) and all(t in _PROTO_TAGS for t in tags)
+    if not tags or tags == [TAG_ATTRIBUTION_RISK] or proto_only:
         # Check unrelated first (harder gate)
         if _is_unrelated(q):
             return [TAG_UNRELATED]
@@ -173,6 +198,8 @@ def tag_question(
             selection_node_ids or selection_edge_id or selection_session_id or selection_alert_id
             or _IP_RE.search(question)
             or (known_node_ids and any(nid in q for nid in known_node_ids))
+            or any(marker in q for marker in _SELF_REF_CAPTURE)
+            or any(marker in q for marker in _CAPTURE_CONTEXT_MARKERS)
         )
         is_background_phrasing = any(q.startswith(marker) or marker in q for marker in _BACKGROUND_MARKERS)
 

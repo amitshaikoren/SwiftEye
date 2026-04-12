@@ -233,6 +233,27 @@ export default function LLMInterpretationPanel({
     }
   }, [handleSend]);
 
+  const handleChip = useCallback((chipText) => {
+    if (streaming) return;
+    const req = buildRequest();
+    req.options = { ...req.options, is_simple_question: true };
+    send(chipText, req);
+  }, [streaming, send, buildRequest]);
+
+  const starterChips = scopeMode === 'selected_entity' && hasSelection
+    ? [
+        'What is this entity doing?',
+        'What protocols does it use?',
+        'Who does it talk to most?',
+        'Are there any alerts for it?',
+      ]
+    : [
+        'What protocols are in this capture?',
+        'Who are the top talkers?',
+        'Are there any alerts?',
+        'What DNS queries were made?',
+      ];
+
   const providerLabel = settings?.llmProvider === 'openai' ? 'OpenAI-compatible' : 'Ollama';
   const modelLabel    = settings?.llmModel || '—';
 
@@ -300,8 +321,19 @@ export default function LLMInterpretationPanel({
         flex: 1, overflowY: 'auto', padding: '10px 14px', minHeight: 0,
       }}>
         {turns.length === 0 && (
-          <div style={{ fontSize: 11, color: 'var(--txD)', lineHeight: 1.65, textAlign: 'center', paddingTop: 24 }}>
-            Ask a question about the capture, or use the quick action below.
+          <div style={{ paddingTop: 20, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: 'var(--txD)', lineHeight: 1.65, marginBottom: 14 }}>
+              Ask a question about the capture, or try a starter:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+              {starterChips.map(chip => (
+                <button key={chip} className="btn" onClick={() => handleChip(chip)}
+                  disabled={streaming}
+                  style={{ fontSize: 10, padding: '4px 10px', opacity: streaming ? 0.4 : 0.85 }}>
+                  {chip}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
