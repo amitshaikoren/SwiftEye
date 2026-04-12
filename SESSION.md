@@ -1,6 +1,6 @@
 # Session State
 
-**Last updated:** 2026-04-12 · **Current version:** v0.26.8
+**Last updated:** 2026-04-12 · **Current version:** v0.26.9
 **Current branch:** feat/llm-phase2
 **Mirror sync state:** All mirrors current at v0.26.7. Human docs flushed (CHANGELOG.md, HANDOFF.md, ROADMAP.md).
 
@@ -13,6 +13,7 @@
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
+- v0.26.9 — node role fix + starter prompts: translate_node() now includes os_guess and network_role; is_simple_question flag in ChatOptions; _OUTPUT_FORMAT_SIMPLE (no Next Steps) wired through prompts.py+service.py; starter chip row in LLMInterpretationPanel (empty-state, context-aware). 69/69 unit tests pass.
 - v0.26.8 — Phase 1 bug fixes: self-ref capture markers + capture-context markers + proto-only step-6 gate in question_tags.py; is_small_model() + compact-mode prompt override in prompts.py; model_name wired through service.py. 31/31 tests pass.
 - v0.26.7 — LLM interpretation panel Phase 1: POST /api/llm/chat (streaming NDJSON), context-preview debug endpoint, backend/llm/ package (question_tags, translators, context_builder, prompts, service, Ollama+OpenAI providers), LLMInterpretationPanel.jsx (scope selector, streaming transcript, tag badges), useLlmChat.js, settings extended, AnalysisPage placeholder replaced, 4 test files.
 - v0.26.6 — Audit-05 P1+P2+P3 done; Audit-04 P3 done; Audit-03 P4+P5 done. Edge field registry (`edge_fields.py`), lazy edge detail (`/api/edge/{id}/detail`), pre-indexed search, React.lazy panels, boolean edge hints (has_tls/has_http/has_dns).
@@ -47,11 +48,12 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 ## Do next
 
 1. ~~**Fix Phase 1 bugs — done (v0.26.8)**~~
+2. ~~**Node role fix + starter prompts — done (v0.26.9)**~~
 
-2. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
+3. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
    Order: 2.2 (conversation history) → 2.3 (protocol translators) → 2.4 (source-type awareness) → 2.5 (adaptive budgeting).
 
-3. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.
+5. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.
    - 3.1 tool-use loop → **Opus** (architectural change to service loop + provider layer)
    - 3.2 report mode + 3.3 payload inspection → Sonnet once 3.1 is stable
 

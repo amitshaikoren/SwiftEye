@@ -38,6 +38,16 @@ def translate_node(node: Dict[str, Any]) -> Dict[str, Any]:
     out["top_neighbors_by_bytes"] = node.get("top_neighbors", [])[:_MAX_ARRAY]
     out["top_protocols_by_bytes"] = node.get("top_protocols", [])[:_MAX_ARRAY]
 
+    if node.get("os_guess"):
+        out["os_guess"] = node["os_guess"]
+
+    role_data = node.get("plugin_data", {}).get("network_role", {})
+    if isinstance(role_data, dict) and role_data.get("role"):
+        out["network_role"] = role_data.get("role")
+        evidence = role_data.get("evidence", [])
+        if evidence:
+            out["network_role_evidence"] = evidence[:3]
+
     if node.get("metadata"):
         out["researcher_metadata"] = node["metadata"]
 

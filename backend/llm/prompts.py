@@ -69,6 +69,20 @@ Output format (use this for questions that mix background knowledge with capture
 - [Concrete next action]
 """
 
+_OUTPUT_FORMAT_SIMPLE = """
+Output format (use this structure for simple questions):
+
+## Answer
+[Direct answer to the question, grounded in the context]
+
+## Evidence
+- [Specific evidence item: entity ID, value, source]
+- [...]
+
+## Uncertainty
+[What cannot be determined from the current scope, and why]
+"""
+
 _OUTPUT_FORMAT_BACKGROUND = """
 Output format (use this for general background knowledge questions):
 Answer the question as background knowledge. Begin with a clear statement:
@@ -125,15 +139,17 @@ def build_system_prompt(
     tags: List[str],
     context_packet: Dict[str, Any],
     model_name: str = "",
+    is_simple_question: bool = False,
 ) -> str:
     """
     Build the full system prompt for a chat request.
 
     Parameters
     ----------
-    tags           : resolved question tags (from question_tags.py)
-    context_packet : built context packet (from context_builder.py)
-    model_name     : provider model string; used to detect small models
+    tags               : resolved question tags (from question_tags.py)
+    context_packet     : built context packet (from context_builder.py)
+    model_name         : provider model string; used to detect small models
+    is_simple_question : when True (starter chip clicked), omit ## Next Steps
     """
     parts = [_BASE_INSTRUCTIONS.strip()]
 
@@ -144,9 +160,11 @@ def build_system_prompt(
     if TAG_UNRELATED in tags:
         parts.append(_OUTPUT_FORMAT_UNRELATED.strip())
     elif TAG_MIXED in tags:
-        parts.append(_OUTPUT_FORMAT_MIXED.strip())
+        parts.append(_OUTPUT_FORMAT_MIXED.strip() if not is_simple_question else _OUTPUT_FORMAT_SIMPLE.strip())
     elif TAG_BACKGROUND in tags:
         parts.append(_OUTPUT_FORMAT_BACKGROUND.strip())
+    elif is_simple_question:
+        parts.append(_OUTPUT_FORMAT_SIMPLE.strip())
     else:
         parts.append(_OUTPUT_FORMAT_STANDARD.strip())
 
