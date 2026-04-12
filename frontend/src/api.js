@@ -305,6 +305,18 @@ export async function fetchAlerts() {
  * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
  * @returns {Promise<void>}
  */
+export async function fetchLlmKeys() {
+  return api('/api/llm/keys');
+}
+
+export async function saveLlmKeys(config) {
+  return api('/api/llm/keys', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+}
+
 export async function streamLlmChat(request, onEvent, signal) {
   const resp = await fetch('/api/llm/chat', {
     method: 'POST',

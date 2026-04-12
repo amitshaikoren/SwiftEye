@@ -114,14 +114,14 @@ export default function SettingsPanel({ settings, setSetting, onClose }) {
           {/* Privacy note */}
           <div style={{ fontSize: 9, color: 'var(--txD)', lineHeight: 1.55, marginTop: 6 }}>
             {settings.llmProvider === 'openai'
-              ? 'Your API key is stored only in this browser. Capture-derived context is sent to the external provider when you ask a question.'
+              ? 'Your API key is stored on the SwiftEye server (llm_keys.json), not in browser storage. Capture-derived context is sent to the external provider when you ask a question.'
               : 'Ollama runs locally. No data leaves your machine.'}
           </div>
         </div>
 
         {/* Footer */}
         <div style={{ fontSize: 9, color: 'var(--txD)', borderTop: '1px solid var(--bd)', paddingTop: 12 }}>
-          Settings are saved automatically in your browser.
+          Theme saved in browser. LLM settings saved on the server.
         </div>
       </div>
     </div>

@@ -23,6 +23,7 @@ from llm.contracts import (
     ChatRequest, ScopeSpec, ViewerState, SelectionState,
     ProviderConfig, ChatOptions, Message,
 )
+import llm.key_store as _key_store
 
 router = APIRouter()
 logger = logging.getLogger("swifteye.routes.llm")
@@ -74,6 +75,16 @@ class ChatOptionsIn(BaseModel):
     intent: str = "qa"
     allow_context_expansion: bool = True
     debug_return_context: bool = False
+    is_simple_question: bool = False
+
+
+class LlmKeysIn(BaseModel):
+    provider:    str   = "ollama"
+    model:       str   = ""
+    base_url:    str   = ""
+    api_key:     str   = ""
+    temperature: float = 0.2
+    max_tokens:  int   = 1400
 
 
 class ChatRequestIn(BaseModel):
@@ -126,6 +137,7 @@ def _to_domain(req_in: ChatRequestIn) -> ChatRequest:
             intent=req_in.options.intent,
             allow_context_expansion=req_in.options.allow_context_expansion,
             debug_return_context=req_in.options.debug_return_context,
+            is_simple_question=req_in.options.is_simple_question,
         ),
     )
 
@@ -142,11 +154,26 @@ def _event_stream(request: ChatRequest):
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+@router.get("/api/llm/keys")
+async def get_llm_keys():
+    """Return stored LLM provider configuration."""
+    return _key_store.load()
+
+
+@router.post("/api/llm/keys")
+async def set_llm_keys(body: LlmKeysIn):
+    """Persist LLM provider configuration server-side."""
+    _key_store.save(body.model_dump())
+    return _key_store.load()
+
+
 @router.post("/api/llm/chat")
 async def llm_chat(body: ChatRequestIn):
     """
     Stream an LLM answer for a researcher question about the current capture.
     Response: application/x-ndjson — one JSON event per line.
+
+    If provider.api_key is empty, the server injects the stored key (if any).
     """
     if not body.messages:
         raise HTTPException(400, "messages must contain at least one user message")
@@ -154,6 +181,12 @@ async def llm_chat(body: ChatRequestIn):
     user_msgs = [m for m in body.messages if m.role == "user"]
     if not user_msgs:
         raise HTTPException(400, "messages must contain at least one user message")
+
+    # Inject stored api_key if the request omits it
+    if not body.provider.api_key:
+        stored = _key_store.load()
+        if stored.get("api_key"):
+            body.provider.api_key = stored["api_key"]
 
     request = _to_domain(body)
 

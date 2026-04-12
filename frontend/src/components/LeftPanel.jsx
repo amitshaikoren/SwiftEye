@@ -233,64 +233,64 @@ export default function LeftPanel({
       <div style={{ borderTop: '1px solid var(--bd)', marginTop: 10, paddingTop: 10 }}>
         <div className="sh">Panel</div>
         {[
-          { label: 'Data',      items: [['stats','Overview'],['sessions','Sessions'],['timeline','Timeline']] },
-          { label: 'Analysis',  items: [['query','Query'],['research','Research'],['analysis','Analysis ✦'],['alerts','Alerts']] },
-          { label: 'Workspace', items: [['investigation','Investigation'],['visualize','Visualize']] },
-          { label: 'Settings',  items: [['graph-options','Graph Options'],['logs','Server Logs'],['help','Help']] },
-        ].map(({ label, items }) => (
-          <div key={label} style={{ marginBottom: 4 }}>
-            <div style={{
-              fontSize: 9, color: 'var(--txD)', letterSpacing: '.06em',
-              textTransform: 'uppercase', padding: '4px 6px 2px', userSelect: 'none',
-            }}>{label}</div>
-            {items.map(([k, l]) => {
-              const isActive = rPanel === k && !selNodes.length && !selEdge && !selSession;
-              const showBadge = k === 'sessions' && activeSearch && sessionTotal > 0 && sessionFiltered !== sessionTotal;
-              return (
-                <div key={k} onClick={() => switchPanel(k)} style={{
-                  padding: '5px 6px', borderRadius: 'var(--rs)', cursor: 'pointer', fontSize: 11,
-                  background: isActive ? 'rgba(88,166,255,.08)' : 'transparent',
-                  color: isActive ? 'var(--ac)' : 'var(--txM)',
-                  marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                }}>
-                  <span>{l}</span>
-                  {showBadge && (
-                    <span style={{
-                      fontSize: 9, fontFamily: 'var(--fn)',
-                      color: isActive ? 'var(--ac)' : 'var(--txD)',
-                      background: 'var(--bgC)', borderRadius: 8, padding: '1px 5px',
-                      border: '1px solid var(--bd)', flexShrink: 0,
-                    }}>{sessionFiltered}/{sessionTotal}</span>
-                  )}
-                  {k === 'query' && queryActive && (
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: '#f0883e', flexShrink: 0,
-                    }} />
-                  )}
-                  {k === 'alerts' && (() => {
-                    const ac = (alertSummary.high || 0) + (alertSummary.medium || 0);
-                    return ac > 0 ? (
-                      <span style={{
-                        fontSize: 9, fontFamily: 'var(--fn)', fontWeight: 700,
-                        color: '#f85149',
-                        background: 'rgba(248,81,73,.10)', borderRadius: 10, padding: '1px 6px',
-                        border: '1px solid rgba(248,81,73,.28)', flexShrink: 0,
-                      }}>{ac}</span>
-                    ) : null;
-                  })()}
-                  {k === 'visualize' && (
-                    <span style={{
-                      fontSize: 9, letterSpacing: '.05em', padding: '0px 4px', borderRadius: 6,
-                      background: 'rgba(251,191,36,.12)', color: '#fbbf24',
-                      border: '1px solid rgba(251,191,36,.3)', flexShrink: 0,
-                    }}>BETA</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+          ['stats','Overview'],
+          ['sessions','Sessions'],
+          ['timeline','Timeline'],
+          ['query','Query'],
+          ['research','Research'],
+          ['analysis','Analysis ✦'],
+          ['alerts','Alerts'],
+          ['investigation','Investigation'],
+          ['visualize','Visualize'],
+          ['graph-options','Graph Options'],
+          ['logs','Server Logs'],
+          ['help','Help'],
+        ].map(([k, l]) => {
+          const isActive = rPanel === k && !selNodes.length && !selEdge && !selSession;
+          const showBadge = k === 'sessions' && activeSearch && sessionTotal > 0 && sessionFiltered !== sessionTotal;
+          return (
+            <div key={k} onClick={() => switchPanel(k)} style={{
+              padding: '5px 6px', borderRadius: 'var(--rs)', cursor: 'pointer', fontSize: 11,
+              background: isActive ? 'rgba(88,166,255,.08)' : 'transparent',
+              color: isActive ? 'var(--ac)' : 'var(--txM)',
+              marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span>{l}</span>
+              {showBadge && (
+                <span style={{
+                  fontSize: 9, fontFamily: 'var(--fn)',
+                  color: isActive ? 'var(--ac)' : 'var(--txD)',
+                  background: 'var(--bgC)', borderRadius: 8, padding: '1px 5px',
+                  border: '1px solid var(--bd)', flexShrink: 0,
+                }}>{sessionFiltered}/{sessionTotal}</span>
+              )}
+              {k === 'query' && queryActive && (
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: '#f0883e', flexShrink: 0,
+                }} />
+              )}
+              {k === 'alerts' && (() => {
+                const ac = (alertSummary.high || 0) + (alertSummary.medium || 0);
+                return ac > 0 ? (
+                  <span style={{
+                    fontSize: 9, fontFamily: 'var(--fn)', fontWeight: 700,
+                    color: '#f85149',
+                    background: 'rgba(248,81,73,.10)', borderRadius: 10, padding: '1px 6px',
+                    border: '1px solid rgba(248,81,73,.28)', flexShrink: 0,
+                  }}>{ac}</span>
+                ) : null;
+              })()}
+              {k === 'visualize' && (
+                <span style={{
+                  fontSize: 9, letterSpacing: '.05em', padding: '0px 4px', borderRadius: 6,
+                  background: 'rgba(251,191,36,.12)', color: '#fbbf24',
+                  border: '1px solid rgba(251,191,36,.3)', flexShrink: 0,
+                }}>BETA</span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
     </div>

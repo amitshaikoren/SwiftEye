@@ -8,10 +8,38 @@
  *  3. Add a control to SettingsPanel.jsx
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { STORAGE_KEYS } from '../storageKeys';
+import { fetchLlmKeys, saveLlmKeys } from '../api';
 
 const STORAGE_KEY = STORAGE_KEYS.SETTINGS;
+
+// LLM fields are persisted server-side, not in localStorage
+const LLM_FIELDS = ['llmProvider', 'llmBaseUrl', 'llmApiKey', 'llmModel', 'llmTemperature', 'llmMaxTokens'];
+
+// Map server response (snake_case) to settings state keys
+function serverToSettings(data) {
+  return {
+    llmProvider:     data.provider    ?? 'ollama',
+    llmBaseUrl:      data.base_url    ?? '',
+    llmApiKey:       data.api_key     ?? '',
+    llmModel:        data.model       ?? 'qwen2.5:14b-instruct',
+    llmTemperature:  data.temperature ?? 0.2,
+    llmMaxTokens:    data.max_tokens  ?? 1400,
+  };
+}
+
+// Map settings state to server request body (snake_case)
+function settingsToServer(s) {
+  return {
+    provider:    s.llmProvider    ?? 'ollama',
+    base_url:    s.llmBaseUrl     ?? '',
+    api_key:     s.llmApiKey      ?? '',
+    model:       s.llmModel       ?? 'qwen2.5:14b-instruct',
+    temperature: s.llmTemperature ?? 0.2,
+    max_tokens:  s.llmMaxTokens   ?? 1400,
+  };
+}
 
 export const DEFAULTS = {
   theme:       'dark',  // see THEMES below
@@ -44,7 +72,11 @@ function load() {
 }
 
 function save(settings) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch {}
+  // LLM fields are persisted server-side only — strip them from localStorage
+  const local = Object.fromEntries(
+    Object.entries(settings).filter(([k]) => !LLM_FIELDS.includes(k))
+  );
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(local)); } catch {}
 }
 
 // Remove all theme classes then add the active one
@@ -61,11 +93,35 @@ function applySettings(settings) {
 
 export function useSettings() {
   const [settings, setSettings] = useState(load);
+  const serverLoaded = useRef(false);
+  const saveTimer    = useRef(null);
 
-  // Apply on mount + whenever settings change
+  // Apply theme on mount + whenever settings change
   useEffect(() => {
     applySettings(settings);
   }, [settings]);
+
+  // Load LLM keys from server on mount
+  useEffect(() => {
+    fetchLlmKeys()
+      .then(data => {
+        setSettings(prev => ({ ...prev, ...serverToSettings(data) }));
+      })
+      .catch(() => { /* server unavailable — keep defaults */ })
+      .finally(() => { serverLoaded.current = true; });
+  }, []);
+
+  // Save LLM keys to server whenever they change (debounced 500 ms)
+  // Guard: skip the initial state set triggered by the server load above
+  useEffect(() => {
+    if (!serverLoaded.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveLlmKeys(settingsToServer(settings)).catch(() => {});
+    }, 500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.llmProvider, settings.llmBaseUrl, settings.llmApiKey,
+      settings.llmModel, settings.llmTemperature, settings.llmMaxTokens]);
 
   const setSetting = useCallback((key, value) => {
     setSettings(prev => {

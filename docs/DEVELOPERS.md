@@ -1749,6 +1749,7 @@ What survives what event — the canonical answer to "why did my X disappear?"
 | State | Stored in | Survives page refresh | Survives re-upload | Survives server restart |
 |---|---|---|---|---|
 | Theme / layout settings | `localStorage` | Yes | Yes | Yes |
+| LLM provider config + API keys | `backend/llm_keys.json` | Yes | Yes | Yes |
 | Custom research chart configs | `localStorage` | Yes | Yes | Yes |
 | Scope toggles (node scope, research scope) | `localStorage` | Yes | Yes | Yes |
 | Capture data (packets, sessions) | backend RAM | No | Replaced | No |
@@ -1766,3 +1767,154 @@ What survives what event — the canonical answer to "why did my X disappear?"
 - Must survive server restarts → requires Phase 2 storage (SQLite/Postgres) — not yet implemented
 
 **Roadmap:** `save-load-workspaces` will serialize annotations, synthetic nodes, and investigation state to a portable JSON bundle — the first step toward backend persistence for user-created data.
+
+---
+
+## 17. LLM Interpretation Panel
+
+### Overview
+
+The LLM panel (`AnalysisPage.jsx` → `LLMInterpretationPanel.jsx`) lets researchers ask natural-language questions about the loaded capture. The backend builds a structured context packet from live capture state and streams a markdown answer from a configured provider (Ollama or any OpenAI-compatible API).
+
+**Entry points:**
+- `POST /api/llm/chat` — streams NDJSON events (see Wire format below)
+- `POST /api/llm/context-preview` — dev/debug, returns the context packet without calling a provider
+- `GET /api/llm/keys` — returns stored provider config
+- `POST /api/llm/keys` — saves provider config to `backend/llm_keys.json`
+
+---
+
+### Backend package: `backend/llm/`
+
+| File | Role |
+|---|---|
+| `contracts.py` | Dataclasses for the request/response wire types. `ChatRequest`, `ProviderConfig`, `ChatOptions`, stream event types (`MetaEvent`, `ContextEvent`, `DeltaEvent`, `FinalEvent`, `ErrorEvent`). Stable — don't change shapes without bumping the wire format. |
+| `question_tags.py` | Deterministic rule-based tagger. Reads the question text + frontend selection + scope mode, returns a list of tag strings (e.g. `entity_node`, `dns`, `broad_overview`). No ML. Runs in microseconds. |
+| `translators.py` | Field-renaming and capitalisation helpers. Converts raw backend dict keys into human-readable labels before injecting into the context packet (e.g. `bytes_total` → `Total bytes`). |
+| `context_builder.py` | Scope-aware context retrieval. Given the request and tags, pulls the right data surfaces from `store` (graph nodes/edges, sessions, alerts, capture metadata). Returns a structured `context_packet` dict. |
+| `prompts.py` | Prompt assembly. `build_system_prompt(tags, context_packet, model_name, is_simple_question)` returns a structured markdown system prompt. `build_user_content(messages)` formats the conversation history. Small models (sub-8B by regex on model name) receive a compact-mode override that suppresses preamble and caps output at 300 words. |
+| `service.py` | Orchestration. `stream_chat(request)` runs the full pipeline (tag → context → prompt → provider → stream) and yields serialisable event dicts. `build_context_only(request)` runs steps 1–3 only (used by `/context-preview`). |
+| `key_store.py` | Reads/writes `backend/llm_keys.json`. Provider config (including API keys) is stored server-side, not in browser localStorage. |
+| `providers/` | Provider adapters (see below). |
+
+---
+
+### Question tags
+
+Tags are strings returned by `tag_question()` in `question_tags.py`. They drive two things: which data surfaces `context_builder` retrieves, and which prompt variant `prompts.py` uses.
+
+| Tag | Meaning |
+|---|---|
+| `broad_overview` | No specific entity or protocol — include full capture summary |
+| `entity_node` | Question is about a specific node (IP) |
+| `entity_edge` | Question is about a specific edge (IP pair) |
+| `entity_session` | Question is about a specific session |
+| `alert_evidence` | Question is about a specific alert |
+| `dns` | DNS-specific question |
+| `tls` | TLS/certificate question |
+| `http` | HTTP question |
+| `credentials` | Credential-exposure question |
+| `attribution_risk` | Attacker attribution / threat-actor question |
+| `capture_adjacent_background_question` | General knowledge question that touches capture context |
+| `mixed_question` | Multiple tags apply |
+| `unrelated_question` | Off-topic — context building is skipped |
+
+**Precedence order** (higher = checked first): explicit selection → scope mode → entity resolution → protocol keywords → attribution risk → background markers → default `broad_overview`.
+
+**Adding a new tag:**
+1. Add a constant in `question_tags.py` (`TAG_MYNEWTAG = "my_new_tag"`)
+2. Add detection logic in `tag_question()` — insert before the `return` at the precedence level that makes sense
+3. Add a context-retrieval branch in `context_builder.py` if the tag needs its own surfaces
+4. Add a prompt variant in `prompts.py` if the tag needs special instructions
+
+---
+
+### Providers
+
+All providers implement `ProviderAdapter` (`providers/base.py`):
+
+```python
+class ProviderAdapter(ABC):
+    def stream_chat(self, system_prompt: str, user_content: str, config: ProviderConfig) -> Iterator[str]:
+        ...  # yield text delta strings
+    def supports_tools(self) -> bool: return False
+    def supports_json_mode(self) -> bool: return False
+```
+
+| Kind string | Class | Notes |
+|---|---|---|
+| `ollama` | `OllamaAdapter` | Calls `{base_url}/api/chat`. No API key. Default base URL: `http://localhost:11434`. |
+| `openai` | `OpenAICompatibleAdapter` | OpenAI chat completions (`/v1/chat/completions`). Requires API key. |
+| `openai_compatible` | `OpenAICompatibleAdapter` | Same adapter, different kind string — for self-hosted endpoints (LM Studio, vLLM, Together, etc.). |
+
+**Adding a new provider:**
+1. Create `backend/llm/providers/my_provider.py`, subclass `ProviderAdapter`, implement `stream_chat`
+2. Register in `providers/__init__.py`: `"my_kind": MyAdapter`
+3. Add `"my_kind"` as an option in `SettingsPanel.jsx`
+
+---
+
+### Streaming NDJSON wire format
+
+`POST /api/llm/chat` streams `application/x-ndjson` — one JSON object per line. Events arrive in this order:
+
+```
+meta       → { type: "meta",    request_id, provider, model }
+context    → { type: "context", scope_mode, snapshot_id, surfaces: [...], tags: [...] }
+warning?   → { type: "warning", message }          (0 or more — one per context limitation)
+delta*     → { type: "delta",   text }              (one per token chunk)
+final      → { type: "final",   snapshot_id, answer_markdown, usage: {input_tokens, output_tokens} }
+```
+
+On error at any point, the stream ends with:
+```
+error      → { type: "error",   message }
+```
+
+The frontend hook `useLlmChat.js` reads these events via `streamLlmChat()` in `api.js` and accumulates deltas into a single `transcript` string rendered as markdown.
+
+---
+
+### Request body (`POST /api/llm/chat`)
+
+```json
+{
+  "messages":     [{ "role": "user", "content": "..." }],
+  "scope":        { "mode": "full_capture|current_view|selected_entity", "entity_type": null, "entity_id": null },
+  "viewer_state": { "time_start": null, "time_end": null, "protocols": null, "search": "", "include_ipv6": true, ... },
+  "selection":    { "node_ids": [], "edge_id": null, "session_id": null, "alert_id": null },
+  "provider":     { "kind": "ollama", "model": "qwen2.5:14b-instruct", "base_url": "", "api_key": "", "temperature": 0.2, "max_tokens": 1400 },
+  "options":      { "intent": "qa", "allow_context_expansion": true, "debug_return_context": false, "is_simple_question": false }
+}
+```
+
+If `provider.api_key` is empty and a key is stored server-side (`llm_keys.json`), the server injects it automatically.
+
+If `options.debug_return_context` is `true`, the stream returns a single `final` event whose `answer_markdown` is the raw context packet as JSON — useful for prompt iteration.
+
+If `options.is_simple_question` is `true` (set by starter chips), the `## Next Steps` section is suppressed from the prompt.
+
+---
+
+### Testing locally with Ollama
+
+```bash
+# 1. Pull a model
+ollama pull qwen2.5:14b-instruct
+
+# 2. Start SwiftEye (loads a pcap first via the UI)
+py backend/server.py
+
+# 3. Hit the context-preview endpoint to inspect what the LLM will see
+curl -s -X POST http://localhost:8642/api/llm/context-preview \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"What nodes are in this capture?"}],"scope":{"mode":"full_capture"},"viewer_state":{},"selection":{},"provider":{"kind":"ollama","model":"qwen2.5:14b-instruct"}}' \
+  | python -m json.tool
+
+# 4. Stream a real answer
+curl -s -N -X POST http://localhost:8642/api/llm/chat \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"What nodes are in this capture?"}],"scope":{"mode":"full_capture"},"viewer_state":{},"selection":{},"provider":{"kind":"ollama","model":"qwen2.5:14b-instruct"}}'
+```
+
+**Backend unit tests** live in `backend/tests/test_question_tags.py`, `test_context_builder.py`, `test_prompts.py`, `test_translators.py`. Run with `py -m pytest backend/tests/ -v`.

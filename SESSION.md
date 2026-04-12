@@ -1,6 +1,6 @@
 # Session State
 
-**Last updated:** 2026-04-12 · **Current version:** v0.27.0
+**Last updated:** 2026-04-12 · **Current version:** v0.27.1
 **Current branch:** main (feat/llm-phase2 merged)
 **Mirror sync state:** All mirrors current at v0.27.0. Human docs flushed (CHANGELOG.md updated, HANDOFF.ai.md + ROADMAP.ai.md bumped to v0.27.0).
 
@@ -13,7 +13,8 @@
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
-- v0.27.0 — version bump to minor (next session: server API keys, LLM docs, left-panel cleanup, quick-wins list)
+- v0.27.1 — server-side LLM key store (GET/POST /api/llm/keys, llm_keys.json, key injection in chat handler); LLM section in DEVELOPERS.md (§17: packages, tags, providers, wire format, testing); left-panel category labels removed (flat list); quick-wins roadmap table in SESSION.md.
+- v0.27.0 — version bump to minor
 - v0.26.9 — node role fix + starter prompts: translate_node() now includes os_guess and network_role; is_simple_question flag in ChatOptions; _OUTPUT_FORMAT_SIMPLE (no Next Steps) wired through prompts.py+service.py; starter chip row in LLMInterpretationPanel (empty-state, context-aware). 69/69 unit tests pass.
 - v0.26.8 — Phase 1 bug fixes: self-ref capture markers + capture-context markers + proto-only step-6 gate in question_tags.py; is_small_model() + compact-mode prompt override in prompts.py; model_name wired through service.py. 31/31 tests pass.
 - v0.26.7 — LLM interpretation panel Phase 1: POST /api/llm/chat (streaming NDJSON), context-preview debug endpoint, backend/llm/ package (question_tags, translators, context_builder, prompts, service, Ollama+OpenAI providers), LLMInterpretationPanel.jsx (scope selector, streaming transcript, tag badges), useLlmChat.js, settings extended, AnalysisPage placeholder replaced, 4 test files.
@@ -50,16 +51,10 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 
 1. ~~**Fix Phase 1 bugs — done (v0.26.8)**~~
 2. ~~**Node role fix + starter prompts — done (v0.26.9)**~~
-
-> **START OF NEXT SESSION — work these in order before LLM Phase 2:**
-
-3. **Wire API keys from server.** Settings panel currently only stores keys client-side (localStorage). Need server-side key store: backend endpoint to set/get/delete keys per provider (Ollama base_url, OpenAI key, etc.) so keys are not exposed in browser storage. Design: `GET/POST /api/llm/keys` persisted in a local config file (not in the pcap dir). Frontend settings reads from server on load, saves to server on change.
-
-4. **Document LLM section in docs/DEVELOPERS.md.** Write the LLM architecture section: providers, contracts, context_builder, question_tags, translators, prompts, service — what each file does, extension points (adding a provider, adding a tag), the streaming NDJSON wire format, and how to test locally with Ollama. Flush directly to `docs/DEVELOPERS.md` (this is a merge-flush-style doc write, user has approved). Read `DEVELOPERS.ai.md` first for existing doc structure.
-
-5. **Remove mini-categories from left-hand panel.** User dislikes the category labels/groupings in the left sidebar. Find the component rendering them and remove. Quick UI change — grep for the category label render, delete the grouping wrapper, keep the items flat.
-
-6. **Quick-wins list from roadmap (5–10 items).** Read `ROADMAP.ai.md`, identify 5–10 smallest-effort/highest-value items that aren't blocked by LLM Phase 2/3. Write the list here in SESSION.md as a ranked table so next session can pick from it without re-reading the roadmap.
+3. ~~**Wire API keys from server — done (v0.27.1)**~~
+4. ~~**Document LLM section in DEVELOPERS.md — done (v0.27.1)**~~
+5. ~~**Remove left-panel mini-categories — done (v0.27.1)**~~
+6. ~~**Quick-wins list from roadmap — done (v0.27.1, see table below)**~~
 
 7. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
    Order: 2.2 (conversation history) → 2.3 (protocol translators) → 2.4 (source-type awareness) → 2.5 (adaptive budgeting).
@@ -67,6 +62,23 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 8. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.
    - 3.1 tool-use loop → **Opus** (architectural change to service loop + provider layer)
    - 3.2 report mode + 3.3 payload inspection → Sonnet once 3.1 is stable
+
+### Quick-wins from roadmap (pick any, no LLM Phase 2/3 dependency)
+
+Ranked by priority × effort. All are `low` effort, `short` term, not Opus.
+
+| # | ID | Pri | What | Notes |
+|---|---|---|---|---|
+| 1 | `animation-pane-timeline-sync` | high | Timeline strip shows capture-relative position of current animation frame | Pure frontend |
+| 2 | `d3-force-tuning` | high | Review charge/distanceMax in GraphCanvas force sim; possibly add a slider | Quick config tweak |
+| 3 | `subnet-node-visual-redesign` | high | Subnets don't look distinct from regular nodes | CSS / render change |
+| 4 | `animation-node-persistence-stability` | high | Persist dragged node positions across panel switches | useRef or localStorage |
+| 5 | `lazy-post-parse-audit` | high | Decide what runs at load vs on-demand; document the decision | Audit + maybe small refactor |
+| 6 | `graceful-optional-deps` | medium | plotly/sqlglot import failures → disable charts, not abort startup | try/except at import |
+| 7 | `session-detail-sticky-header` | medium | Connection header stays anchored on scroll | CSS `position: sticky` |
+| 8 | `animation-back-button` | medium | "Back to animation" affordance after navigating away | Small nav button |
+| 9 | `logo-home-button` | medium | Logo/home button fails to navigate home from Research panel | Routing fix |
+| 10 | `edge-port-pairs` | medium | Restructure edge ports as paired (src_port, dst_port) data in hover | Data display change |
 
 ---
 
