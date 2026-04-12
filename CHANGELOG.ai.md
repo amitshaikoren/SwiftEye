@@ -11,6 +11,7 @@
 
 <!-- POLICY: Keep ~7 full-detail entries here. When adding a new entry, compress the
      oldest full entry down into the "Compressed history" section below as a one-liner. -->
+v0.27.0 | 2026-04-12 | chore | version | minor bump to 0.27.0; next session targets server-side API key store, LLM developer docs, left-panel category removal, roadmap quick-wins list.
 v0.26.9 | 2026-04-12 | feat | backend/llm+frontend | node role + starter prompts: translate_node() adds os_guess and network_role fields so LLM can see routers/gateways; is_simple_question: bool added to ChatOptions; _OUTPUT_FORMAT_SIMPLE (no ## Next Steps) added to prompts.py; build_system_prompt gains is_simple_question param; service.py passes it through; LLMInterpretationPanel.jsx adds context-aware starter chip row (empty-state, 4 chips per scope mode), handleChip sends is_simple_question=true; 69/69 unit tests pass.
 
 ---
