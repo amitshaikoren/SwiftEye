@@ -1,7 +1,7 @@
 # Session State
 
-**Last updated:** 2026-04-12 · **Current version:** v0.26.7
-**Current branch:** main
+**Last updated:** 2026-04-12 · **Current version:** v0.26.8
+**Current branch:** feat/llm-phase2
 **Mirror sync state:** All mirrors current at v0.26.7. Human docs flushed (CHANGELOG.md, HANDOFF.md, ROADMAP.md).
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
@@ -9,32 +9,32 @@
 
 ---
 
-## Shipped this session (branch feat/llm-interpretation)
+## Shipped this session (branch feat/llm-phase2)
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
+- v0.26.8 — Phase 1 bug fixes: self-ref capture markers + capture-context markers + proto-only step-6 gate in question_tags.py; is_small_model() + compact-mode prompt override in prompts.py; model_name wired through service.py. 31/31 tests pass.
 - v0.26.7 — LLM interpretation panel Phase 1: POST /api/llm/chat (streaming NDJSON), context-preview debug endpoint, backend/llm/ package (question_tags, translators, context_builder, prompts, service, Ollama+OpenAI providers), LLMInterpretationPanel.jsx (scope selector, streaming transcript, tag badges), useLlmChat.js, settings extended, AnalysisPage placeholder replaced, 4 test files.
 - v0.26.6 — Audit-05 P1+P2+P3 done; Audit-04 P3 done; Audit-03 P4+P5 done. Edge field registry (`edge_fields.py`), lazy edge detail (`/api/edge/{id}/detail`), pre-indexed search, React.lazy panels, boolean edge hints (has_tls/has_http/has_dns).
-- v0.26.5 — Audit-03 P3: session list virtualized with react-window. Audit-04 P2: storageKeys.js — all localStorage keys centralized. Audit-14 P3: component reorg mapping written.
 
 ---
 
-## Audit-driven work queue (priority over roadmap items)
+## Audit-driven work queue (deprioritised — deferred until after LLM phases)
 
 Batch: `audits/codex_audits/2026-04-09/`. Each session covers one audit. Read companion from `claude/` subfolder first.
 
 | # | Audit | Status | Notes |
 |---|---|---|---|
 | 02 | code_readability / maintainability | **done** (v0.24.1–v0.25.4) | All Phase 3 frontend splits complete. |
-| 03 | computational_efficiency | **in progress** | P1 deferred (centrality, plan: `docs/plans/active/centrality-backend.md`). P2–P5 done (v0.26.5/v0.26.6). |
-| 04 | storage_efficiency | **in progress** | P1–P3 done. Remaining: P4 (memory monitoring). Plan: `docs/plans/active/audit-04-storage-efficiency.md`. |
+| 03 | computational_efficiency | **deferred** | P1 deferred (centrality, plan: `docs/plans/active/centrality-backend.md`). P2–P5 done (v0.26.5/v0.26.6). |
+| 04 | storage_efficiency | **deferred** | P1–P3 done. Remaining: P4 (memory monitoring). Plan: `docs/plans/active/audit-04-storage-efficiency.md`. |
 | 05 | architecture_principles | **done** (v0.26.3/v0.26.6) | P1+P2+P3 all done. `edge_fields.py` registry ships. |
-| 06 | ui_ux_accessibility | **P1+P2 done, P3–P5 deferred** | P3–P5 added to `qa-test-suite` checklist. Plan: `docs/plans/active/audit-06-ui-ux-accessibility.md`. |
-| 14 | directory_refactor | **P1–P3 done, P4 deferred** | P4 (execute reorg) high churn — do last. |
+| 06 | ui_ux_accessibility | **deferred** | P3–P5 added to `qa-test-suite` checklist. Plan: `docs/plans/active/audit-06-ui-ux-accessibility.md`. |
+| 14 | directory_refactor | **deferred** | P4 (execute reorg) high churn — do last, after LLM work settles. |
 
 Second-pass files (07–13) are companions to the above — read alongside relevant audit.
 
-### Remaining audit items (next session)
+### Deferred audit items (resume after LLM Phase 2 + 3)
 
 | Priority | Audit | Phase | What | Effort |
 |---|---|---|---|---|
@@ -46,7 +46,20 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 
 ## Do next
 
-**Next up:** roadmap items — `docs-pass` (full doc reality check, see ROADMAP.ai.md), audit-04 P4 (memory monitoring `/api/status/memory` + status bar indicator), audit-03 P1 (centrality → backend), `d3-force-tuning`
+1. ~~**Fix Phase 1 bugs — done (v0.26.8)**~~
+
+2. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
+   Order: 2.2 (conversation history) → 2.3 (protocol translators) → 2.4 (source-type awareness) → 2.5 (adaptive budgeting).
+
+3. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.
+   - 3.1 tool-use loop → **Opus** (architectural change to service loop + provider layer)
+   - 3.2 report mode + 3.3 payload inspection → Sonnet once 3.1 is stable
+
+---
+
+## LLM panel — observed issues
+
+- **Both answers could be one line** — context packet probably has enough info; issue is prompt verbosity instructions + small model compliance. Compact-mode override added (v0.26.8) — retest with qwen2.5:3b after merge.
 
 ---
 

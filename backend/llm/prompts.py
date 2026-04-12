@@ -10,6 +10,7 @@ Produces a structured system prompt that:
 
 from __future__ import annotations
 import json
+import re
 from typing import Any, Dict, List
 
 from .question_tags import (
@@ -80,6 +81,31 @@ This question is not related to network traffic analysis.
 Respond with a single short sentence declining and redirecting the researcher to ask a capture-related question.
 """
 
+# ── Small-model compact mode ──────────────────────────────────────────────────
+
+# Matches common small-model size suffixes in Ollama/HuggingFace model names.
+# Examples: qwen2.5:3b, llama3.2:1b, phi3:mini, gemma:2b, mistral:7b
+_SMALL_MODEL_RE = re.compile(
+    r'(?:^|[-_:./])(?:0\.5|1|1\.5|2|3|4|7)b(?:$|[-_:./])'
+    r'|mini|tiny|small|phi-?2\b',
+    re.IGNORECASE,
+)
+
+_COMPACT_MODE_OVERRIDE = """COMPACT MODE — STRICT OUTPUT CONTRACT:
+You are running on a small model. You MUST follow these rules:
+- Follow the output format below exactly. Use the section headers verbatim.
+- No preamble, no apologies, no "Certainly!", no "Great question!".
+- No hedging sentences before the answer ("As an AI...", "I should note...").
+- If you are uncertain, say so in one sentence inside the Uncertainty section only.
+- Total response must be under 300 words. Prefer bullet points over prose.
+"""
+
+
+def is_small_model(model_name: str) -> bool:
+    """Return True if model_name looks like a sub-8B parameter model."""
+    return bool(_SMALL_MODEL_RE.search(model_name))
+
+
 _UNCERTAINTY_BOOST = """
 IMPORTANT — UNCERTAINTY POLICY FOR THIS QUESTION:
 This question asks about attacker identity, compromise certainty, process attribution, or similar high-stakes inference.
@@ -95,7 +121,11 @@ Expected answer style:
 """
 
 
-def build_system_prompt(tags: List[str], context_packet: Dict[str, Any]) -> str:
+def build_system_prompt(
+    tags: List[str],
+    context_packet: Dict[str, Any],
+    model_name: str = "",
+) -> str:
     """
     Build the full system prompt for a chat request.
 
@@ -103,8 +133,12 @@ def build_system_prompt(tags: List[str], context_packet: Dict[str, Any]) -> str:
     ----------
     tags           : resolved question tags (from question_tags.py)
     context_packet : built context packet (from context_builder.py)
+    model_name     : provider model string; used to detect small models
     """
     parts = [_BASE_INSTRUCTIONS.strip()]
+
+    if is_small_model(model_name):
+        parts.append(_COMPACT_MODE_OVERRIDE.strip())
 
     # Output format contract based on question class
     if TAG_UNRELATED in tags:

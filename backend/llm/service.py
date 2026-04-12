@@ -116,7 +116,7 @@ def stream_chat(request: ChatRequest) -> Iterator[Dict[str, Any]]:
         return
 
     # ── 5. Assemble prompt ────────────────────────────────────────────────────
-    system_prompt = build_system_prompt(tags, context_packet)
+    system_prompt = build_system_prompt(tags, context_packet, model_name=request.provider.model)
     user_content  = build_user_content(request.messages)
 
     # ── 6. Call provider ──────────────────────────────────────────────────────
