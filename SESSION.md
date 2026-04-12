@@ -1,8 +1,8 @@
 # Session State
 
 **Last updated:** 2026-04-12 · **Current version:** v0.27.0
-**Current branch:** feat/llm-phase2
-**Mirror sync state:** All mirrors current at v0.26.7. Human docs flushed (CHANGELOG.md, HANDOFF.md, ROADMAP.md).
+**Current branch:** main (feat/llm-phase2 merged)
+**Mirror sync state:** All mirrors current at v0.27.0. Human docs flushed (CHANGELOG.md updated, HANDOFF.ai.md + ROADMAP.ai.md bumped to v0.27.0).
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
