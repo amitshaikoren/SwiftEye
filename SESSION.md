@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-12 · **Current version:** v0.27.1
 **Current branch:** main (feat/llm-phase2 merged)
-**Mirror sync state:** All mirrors current at v0.27.0. Human docs flushed (CHANGELOG.md updated, HANDOFF.ai.md + ROADMAP.ai.md bumped to v0.27.0).
+**Mirror sync state:** All mirrors current at v0.27.1. Human docs flushed (CHANGELOG.md, HANDOFF.md, HANDOFF.ai.md, DEVELOPERS.ai.md all at v0.27.1).
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -77,7 +77,7 @@ Ranked by priority × effort. All are `low` effort, `short` term, not Opus.
 | 6 | `graceful-optional-deps` | medium | plotly/sqlglot import failures → disable charts, not abort startup | try/except at import |
 | 7 | `session-detail-sticky-header` | medium | Connection header stays anchored on scroll | CSS `position: sticky` |
 | 8 | `animation-back-button` | medium | "Back to animation" affordance after navigating away | Small nav button |
-| 9 | `logo-home-button` | medium | Logo/home button fails to navigate home from Research panel | Routing fix |
+| 9 | `logo-home-button` | medium | Logo/home button fails to navigate home from different panels | Routing fix |
 | 10 | `edge-port-pairs` | medium | Restructure edge ports as paired (src_port, dst_port) data in hover | Data display change |
 
 ---

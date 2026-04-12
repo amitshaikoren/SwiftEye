@@ -1,5 +1,10 @@
 # SwiftEye — Changelog
 
+### v0.27.1 — April 2026
+- **Server-side LLM key storage** — provider configuration (including API keys) is now stored in `backend/llm_keys.json` on the server, not in browser localStorage. New `GET/POST /api/llm/keys` endpoints persist the config. The frontend loads from the server on startup and saves on every change (500 ms debounce). The chat handler silently injects the stored key if a request arrives with an empty `api_key` field. The Settings panel footer and privacy note reflect the new storage location.
+- **LLM architecture documentation** — `docs/DEVELOPERS.md §17` covers the full `backend/llm/` package: module-by-module reference table, question tags (all 12 + how to add a new one), providers (Ollama, OpenAI-compatible + how to add a new adapter), NDJSON streaming wire format with event sequence, complete request body schema, and `curl` test examples for the context-preview and chat endpoints.
+- **Flat left-panel switcher** — the "Data / Analysis / Workspace / Settings" category headers in the left sidebar have been removed. Panel items are now a flat list, which reduces visual noise and makes the sidebar more compact.
+
 ### v0.27.0 — April 2026
 - **Version bump to 0.27.** Marks the start of the server-side API key store, LLM developer documentation, and left-panel cleanup work planned for the next session.
 

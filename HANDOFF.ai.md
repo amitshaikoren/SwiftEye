@@ -1,6 +1,6 @@
 # HANDOFF — AI Reference
 
-**v0.27.0 | 2026-04-12** · Source of truth: `HANDOFF.md` (human, gitignored). Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.27.1 | 2026-04-12** · Source of truth: `HANDOFF.md` (human, gitignored). Mirrors main state only — branch-local work is not reflected until after merge.
 
 ---
 
