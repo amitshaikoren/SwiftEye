@@ -36,6 +36,7 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
     </div>
   ) : null;
 
+
   if (c.selSession) {
     return (
       <SessionDetail

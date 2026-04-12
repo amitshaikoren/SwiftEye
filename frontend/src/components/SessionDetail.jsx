@@ -98,7 +98,9 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
 
   return (
     <CollapseContext.Provider value={collapseCtx}>
-    <div className="fi" style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
+    <div className="fi" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ── Sticky header ─────────────────────────────────────────── */}
+      <div style={{ flexShrink: 0, padding: '16px 16px 0 16px', background: 'var(--bgS)', borderBottom: '1px solid var(--bd)', zIndex: 5 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div className="sh" style={{ marginBottom: 0 }}>Session Detail</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -146,12 +148,16 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, marginBottom: 12, borderBottom: '1px solid var(--bd)', paddingBottom: 6 }}>
+      <div style={{ display: 'flex', gap: 2, paddingBottom: 6 }}>
         {(['overview', ...(s.source_type ? [] : ['packets', 'payload', 'stream', 'charts'])]).map(t => (
           <button key={t} className={'btn' + (tab === t ? ' on' : '')}
             onClick={() => switchTab(t)} style={{ textTransform: 'uppercase', letterSpacing: '.05em', fontSize: 9 }}>{t}</button>
         ))}
       </div>
+      </div>{/* end sticky header */}
+
+      {/* ── Scrollable content ─────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 16px 16px' }}>
 
       {tab === 'overview' && (
         <div>
@@ -664,6 +670,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
           {noteSaved ? '✓ Saved' : 'Save note'}
         </button>
       </Collapse>
+      </div>{/* end scrollable content */}
     </div>
     </CollapseContext.Provider>
   );

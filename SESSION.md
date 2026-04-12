@@ -1,21 +1,21 @@
 # Session State
 
-**Last updated:** 2026-04-12 · **Current version:** v0.27.1
-**Current branch:** main (feat/llm-phase2 merged)
-**Mirror sync state:** All mirrors current at v0.27.1. Human docs flushed (CHANGELOG.md, HANDOFF.md, HANDOFF.ai.md, DEVELOPERS.ai.md all at v0.27.1).
+**Last updated:** 2026-04-12 · **Current version:** v0.27.2
+**Current branch:** feat/quick-wins-batch1 (not yet merged)
+**Mirror sync state:** All mirrors current at v0.27.1. Branch work in progress — mirrors not yet updated.
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
 
 ---
 
-## Shipped this session (branch feat/llm-phase2)
+## Shipped this session (branch feat/quick-wins-batch1)
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
+- v0.27.2 — quick-wins batch: logo home button fix (switchPanel not clearAll); graceful plotly/sqlglot fallback; SessionDetail sticky header; EdgeDetail port pairs display; d3 force sim tuning (charge -280→-180, alphaDecay 0.025, link distance 160→130); animation back-button breadcrumb in right panel; timeline strip animation frame cursor; animation node position persistence across panel switches.
 - v0.27.1 — server-side LLM key store (GET/POST /api/llm/keys, llm_keys.json, key injection in chat handler); LLM section in DEVELOPERS.md (§17: packages, tags, providers, wire format, testing); left-panel category labels removed (flat list); quick-wins roadmap table in SESSION.md.
 - v0.27.0 — version bump to minor
-- v0.26.9 — node role fix + starter prompts: translate_node() now includes os_guess and network_role; is_simple_question flag in ChatOptions; _OUTPUT_FORMAT_SIMPLE (no Next Steps) wired through prompts.py+service.py; starter chip row in LLMInterpretationPanel (empty-state, context-aware). 69/69 unit tests pass.
 - v0.26.8 — Phase 1 bug fixes: self-ref capture markers + capture-context markers + proto-only step-6 gate in question_tags.py; is_small_model() + compact-mode prompt override in prompts.py; model_name wired through service.py. 31/31 tests pass.
 - v0.26.7 — LLM interpretation panel Phase 1: POST /api/llm/chat (streaming NDJSON), context-preview debug endpoint, backend/llm/ package (question_tags, translators, context_builder, prompts, service, Ollama+OpenAI providers), LLMInterpretationPanel.jsx (scope selector, streaming transcript, tag badges), useLlmChat.js, settings extended, AnalysisPage placeholder replaced, 4 test files.
 - v0.26.6 — Audit-05 P1+P2+P3 done; Audit-04 P3 done; Audit-03 P4+P5 done. Edge field registry (`edge_fields.py`), lazy edge detail (`/api/edge/{id}/detail`), pre-indexed search, React.lazy panels, boolean edge hints (has_tls/has_http/has_dns).

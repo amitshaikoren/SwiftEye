@@ -72,10 +72,18 @@ import logging
 from abc import ABC
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
-import plotly.graph_objects as go
 from constants import PROTOCOL_COLORS, SWIFTEYE_LAYOUT
 
+try:
+    import plotly.graph_objects as go
+    _PLOTLY_AVAILABLE = True
+except ImportError:
+    go = None  # type: ignore[assignment]
+    _PLOTLY_AVAILABLE = False
+
 logger = logging.getLogger("swifteye.research")
+if not _PLOTLY_AVAILABLE:
+    logger.warning("plotly not installed — research charts will be disabled at runtime. pip install plotly")
 
 
 # ── Per-chart filter helpers ─────────────────────────────────────────
@@ -357,6 +365,9 @@ def run_chart(name: str, ctx: AnalysisContext, params: dict,
         if p.required and not params.get(p.name, "").strip():
             raise ValueError(f"Required param '{p.name}' ({p.label}) is missing")
 
+    if not _PLOTLY_AVAILABLE:
+        raise RuntimeError("plotly is not installed — research charts unavailable. pip install plotly")
+
     try:
         # ── New path: build_data + build_figure ───────────────────────
         entries = chart.build_data(ctx, params)
@@ -365,7 +376,7 @@ def run_chart(name: str, ctx: AnalysisContext, params: dict,
             schema = _enrich_list_options(schema, entries)
             filtered = _apply_filters(entries, filter_params or {}, schema)
             fig = chart.build_figure(filtered, params)
-            if isinstance(fig, go.Figure):
+            if go is not None and isinstance(fig, go.Figure):
                 fig.update_layout(SWIFTEYE_LAYOUT)
                 return {"figure": fig.to_dict(), "filter_schema": schema}
             # build_figure returned a raw dict (allowed for edge cases)
@@ -373,7 +384,7 @@ def run_chart(name: str, ctx: AnalysisContext, params: dict,
 
         # ── Legacy path: compute() ────────────────────────────────────
         result = chart.compute(ctx, params)
-        if isinstance(result, go.Figure):
+        if go is not None and isinstance(result, go.Figure):
             result.update_layout(SWIFTEYE_LAYOUT)
             return {"figure": result.to_dict(), "filter_schema": {}}
         return {"figure": result, "filter_schema": {}}

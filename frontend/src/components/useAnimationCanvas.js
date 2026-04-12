@@ -38,6 +38,8 @@ export function useAnimationCanvas({
   frameState,
   hiddenNodes,
   animEvents,
+  // persisted positions (survives panel switches)
+  savedPositionsRef,
 }) {
   // ── Compute positions when animation starts ───────────────────────
   useEffect(() => {
@@ -45,7 +47,10 @@ export function useAnimationCanvas({
     if (!wrap || Object.keys(animNodeMeta).length === 0) return;
     const w = wrap.clientWidth || 800;
     const h = wrap.clientHeight || 600;
-    positionsRef.current = computePositions(animNodeMeta, mainNodes, w, h);
+    const fresh = computePositions(animNodeMeta, mainNodes, w, h);
+    // Restore any positions the user dragged before a panel switch
+    const saved = savedPositionsRef?.current || {};
+    positionsRef.current = { ...fresh, ...saved };
   }, [animNodeMeta, mainNodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Flash tracking ────────────────────────────────────────────────

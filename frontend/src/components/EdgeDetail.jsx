@@ -139,8 +139,24 @@ export default function EdgeDetail({ edge: e, pColors, onClear, nodes = [], onSe
         <Row l="Packets" v={fN(e.packet_count)} />
         <Row l="Traffic volume" v={fB(e.total_bytes)} />
         {e.first_seen && <Row l="Time range" v={fT(e.first_seen) + ' — ' + fT(e.last_seen)} />}
-        {e.dst_ports?.length > 0 && <Row l="Dst ports" v={e.dst_ports.slice(0, 10).join(', ') + (e.dst_ports.length > 10 ? '…' : '')} />}
-        {e.src_ports?.length > 0 && <Row l="Src ports" v={e.src_ports.slice(0, 10).join(', ') + (e.src_ports.length > 10 ? '…' : '')} />}
+        {(e.src_ports?.length > 0 || e.dst_ports?.length > 0) && (
+          <div style={{ display: 'flex', gap: 4, alignItems: 'baseline', padding: '2px 0', fontSize: 11 }}>
+            <span style={{ color: 'var(--txD)', minWidth: 90, flexShrink: 0 }}>Ports</span>
+            <span style={{ color: 'var(--txM)', fontFamily: 'var(--fn)', fontSize: 10 }}>
+              <span style={{ color: 'var(--acG)' }}>
+                {e.src_ports?.length > 0
+                  ? ':' + e.src_ports.slice(0, 8).join(', :') + (e.src_ports.length > 8 ? '…' : '')
+                  : '*'}
+              </span>
+              <span style={{ color: 'var(--txD)', margin: '0 4px' }}>→</span>
+              <span style={{ color: 'var(--txM)' }}>
+                {e.dst_ports?.length > 0
+                  ? ':' + e.dst_ports.slice(0, 8).join(', :') + (e.dst_ports.length > 8 ? '…' : '')
+                  : '*'}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
 
       {detailLoading && (e.has_tls || e.has_http || e.has_dns) && (
