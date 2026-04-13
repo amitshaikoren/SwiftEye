@@ -448,8 +448,8 @@ resize();draw();
             const ux = dx / len;
             const uy = dy / len;
             // Fixed screen-space size: 8px tip, 5px half-width, independent of edge weight
-            const tip = 8 / tk;
-            const hw  = 5 / tk;
+            const tip = 8 / t.k;
+            const hw  = 5 / t.k;
             ctx.beginPath();
             ctx.moveTo(mx + ux * tip,          my + uy * tip);
             ctx.lineTo(mx - ux * tip - uy * hw, my - uy * tip + ux * hw);
