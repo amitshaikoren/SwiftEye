@@ -1,7 +1,7 @@
 # Session State
 
-**Last updated:** 2026-04-14 · **Current version:** v0.27.6
-**Current branch:** main
+**Last updated:** 2026-04-14 · **Current version:** v0.27.7
+**Current branch:** feat/docs-audit (not yet merged)
 **Mirror sync state:** All mirrors current at v0.27.6. Merged and flushed.
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
@@ -9,10 +9,11 @@
 
 ---
 
-## Shipped this session (branch feat/graph-viz-batch)
+## Shipped this session (branch feat/docs-audit)
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
+- v0.27.7 — docs audit: DEVELOPERS.md §9 API table (investigation, query, edge-sessions, paths, animation, confirm-schema, edge-fields, GET metadata sections added); `analysis/` → `data/` path fixes throughout DEVELOPERS.md; HANDOFF.md §2 directory tree fully updated (routes/, llm/, storage/, services/, data/ subdirs; duplicate network_map fixed; all new frontend components and decomposed hooks); HANDOFF.md API table complete (57 routes); README Features (alerts, LLM panel, animation, query translation bullets added).
 - v0.27.6 — graph direction viz (arrowhead toggle in Graph Options, default off, drawn at edge midpoint src→dst); graph legend overlay (GraphLegend.jsx, bottom-left canvas overlay, syncs with active nodeColorMode + edgeColorMode, shared legend data extracted to graphLegendData.js); export HTML enriched hover (node: sessions + top protocols; edge: sessions + protocol list, edge hit detection via point-to-segment distance).
 - v0.27.5 — 6 bug fixes: investigation timeline nodes now show immediately after drag-drop; timeline nodes/edges fully editable (label, color via swatch picker, annotation, node severity); edge hover tooltips; session detail flag button icon-only; EventFlagModal resolves d3-mutated source/target to IDs; session title shows {ip}--proto→{ip}; Timeline panel removed from nav, session_gantt re-enabled in Research.
 - v0.27.3 — rebuild fix: sticky header CSS (flex chain, no height:100%); LLM settings moved into LLM panel inline (⚙ toggle); dist now includes all v0.27.2 changes.
@@ -51,7 +52,7 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 
 ## Do next
 
-1. **Docs audit** (`docs-audit`) — focus on `docs/DEVELOPERS.md` first (API tables, LLM section, route list). Then HANDOFF.md §2 (directory tree), README feature list.
+1. **Docs audit** — ✅ done (v0.27.7). Branch: feat/docs-audit. Ready to merge.
 2. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
    Order: 2.2 (conversation history) → 2.3 (protocol translators) → 2.4 (source-type awareness) → 2.5 (adaptive budgeting).
 3. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.

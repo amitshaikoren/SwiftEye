@@ -53,11 +53,15 @@ Node.js is not required to run SwiftEye. The frontend is pre-built.
 - **Passive OS fingerprinting** — inferred from SYN/SYN-ACK characteristics (TTL, window size, MSS, TCP options). No active probing.
 - **Louvain community detection** — automatic graph clustering with expandable hex mega-nodes. Also supports k-core, hub-spoke, and shared-neighbor algorithms.
 - **Betweenness centrality** — Brandes algorithm ranking of nodes by structural importance, alongside degree and traffic-weighted scores.
+- **Alert detection** — security-relevant pattern detection: ARP spoofing, suspicious user-agents, malicious JA3 fingerprints, port scanning. Expandable evidence cards with severity filtering and one-click graph navigation.
+- **LLM interpretation panel** — natural-language Q&A about the loaded capture. Scope to full capture, current view, or a selected entity. Supports Ollama, OpenAI, and any OpenAI-compatible endpoint (LM Studio, vLLM, Together AI).
+- **Investigation notebook** — markdown editor with image embedding and PDF export. Annotate nodes and edges, build hypothesis graphs on the investigation timeline canvas.
+- **Temporal animation** — play back captured traffic as an animated timeline. Select spotlight nodes and watch their sessions unfold in temporal order.
 - **PDF report export** — export the investigation notebook as a formatted PDF directly from the browser.
 - **Synthetic graph elements** — add hypothesis nodes and edges to the live graph. Rendered distinctly, persisted to backend.
 - **DNS hostname resolution** — hostnames extracted from captured DNS responses become node labels automatically. No external lookups.
 - **MAC-based node merging** — dual-stack hosts (IPv4 + IPv6 sharing a MAC) collapse into a single node with unified traffic stats.
-- **Structured query engine** — filter and query graph data with a typed expression language: IP, port, protocol, bytes, TLS SNI, HTTP host, DNS, OS, CIDR ranges, and more.
+- **Structured query engine** — filter and query graph data with a typed expression language: IP, port, protocol, bytes, TLS SNI, HTTP host, DNS, OS, CIDR ranges, and more. Results translate to SQL, Cypher, and PySpark.
 
 ---
 
