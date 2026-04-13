@@ -25,6 +25,7 @@ import GraphAnnotationOverlay from './graph/components/GraphAnnotationOverlay';
 import GraphEventDots from './graph/components/GraphEventDots';
 import SyntheticNodeForm from './graph/components/SyntheticNodeForm';
 import SyntheticEdgeForm from './graph/components/SyntheticEdgeForm';
+import GraphLegend from './graph/GraphLegend';
 
 export default function GraphCanvas({
   nodes, edges, onSelect, onInvestigate, onInvestigateNeighbours, onHideNode, investigationNodes,
@@ -45,6 +46,7 @@ export default function GraphCanvas({
   edgeColorMode = 'protocol',
   nodeColorRules = [],
   edgeColorRules = [],
+  showEdgeDirection = false,
   queryHighlight = null,
   onClearQueryHighlight,
 }) {
@@ -78,7 +80,7 @@ export default function GraphCanvas({
     onSelect, onInvestigate, onInvestigateNeighbours, onClearQueryHighlight,
     pathfindSource, onPathfindTarget,
     labelThreshold, edgeSizeMode, nodeColorMode, edgeColorMode,
-    nodeColorRules, edgeColorRules,
+    nodeColorRules, edgeColorRules, showEdgeDirection,
     investigationNodes, displayFilterNodes, displayFilterEdges,
     queryHighlight, theme,
   });
@@ -90,7 +92,7 @@ export default function GraphCanvas({
       renRef, rafRef, hRef,
       selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
       labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
-      nodeColorRulesRef, edgeColorRulesRef,
+      nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
     });
 
   // Hook 3: Resize polling
@@ -138,6 +140,9 @@ export default function GraphCanvas({
         </svg>
         Relayout
       </button>
+
+      {/* Color legend overlay */}
+      <GraphLegend nodeColorMode={nodeColorMode} edgeColorMode={edgeColorMode} />
 
       {/* Lasso selection overlay */}
       {lasso && lasso.points?.length >= 2 && (

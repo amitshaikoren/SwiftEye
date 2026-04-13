@@ -200,6 +200,7 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
         edgeColorMode={c.edgeColorMode} setEdgeColorMode={c.setEdgeColorMode}
         edgeColorRules={c.edgeColorRules} setEdgeColorRules={c.setEdgeColorRules}
         edgeSizeMode={c.edgeSizeMode} setEdgeSizeMode={c.setEdgeSizeMode}
+        showEdgeDirection={c.showEdgeDirection} setShowEdgeDirection={c.setShowEdgeDirection}
         subnetG={c.subnetG} setSubnetG={c.setSubnetG} toggleSubnetG={c.toggleSubnetG}
         subnetPrefix={c.subnetPrefix} setSubnetPrefix={c.setSubnetPrefix}
         mergeByMac={c.mergeByMac} setMergeByMac={c.setMergeByMac}

@@ -82,6 +82,7 @@ export function useCaptureFilters({ selCallbacksRef }) {
   const [edgeColorMode, setEdgeColorMode]     = useState('protocol');
   const [nodeColorRules, setNodeColorRules]   = useState([]);
   const [edgeColorRules, setEdgeColorRules]   = useState([]);
+  const [showEdgeDirection, setShowEdgeDirection] = useState(false);
 
   // ── Merge / IPv6 / hostname / broadcast toggles ──────────────────
 
@@ -161,6 +162,7 @@ export function useCaptureFilters({ selCallbacksRef }) {
     edgeColorMode, setEdgeColorMode,
     nodeColorRules, setNodeColorRules,
     edgeColorRules, setEdgeColorRules,
+    showEdgeDirection, setShowEdgeDirection,
     // Merge/IPv6/hostname/broadcast
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,

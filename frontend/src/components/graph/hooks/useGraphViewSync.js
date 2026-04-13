@@ -6,7 +6,7 @@ export default function useGraphViewSync({
   onSelect, onInvestigate, onInvestigateNeighbours, onClearQueryHighlight,
   pathfindSource, onPathfindTarget,
   labelThreshold, edgeSizeMode, nodeColorMode, edgeColorMode,
-  nodeColorRules, edgeColorRules,
+  nodeColorRules, edgeColorRules, showEdgeDirection,
   investigationNodes, displayFilterNodes, displayFilterEdges,
   queryHighlight, theme,
 }) {
@@ -23,6 +23,7 @@ export default function useGraphViewSync({
   const edgeColorModeRef = useRef(edgeColorMode);
   const nodeColorRulesRef = useRef(nodeColorRules);
   const edgeColorRulesRef = useRef(edgeColorRules);
+  const showEdgeDirectionRef = useRef(showEdgeDirection);
   const invNodesRef = useRef(investigationNodes);
   const dfNodesRef = useRef(displayFilterNodes);
   const dfEdgesRef = useRef(displayFilterEdges);
@@ -52,11 +53,12 @@ export default function useGraphViewSync({
   useEffect(() => { onPathfindTargetRef.current = onPathfindTarget; }, [onPathfindTarget]);
 
   // Prop-to-ref syncs with render trigger
-  useEffect(() => { edgeSizeModeRef.current   = edgeSizeMode;   triggerRender(); }, [edgeSizeMode]);
-  useEffect(() => { nodeColorModeRef.current  = nodeColorMode;  triggerRender(); }, [nodeColorMode]);
-  useEffect(() => { edgeColorModeRef.current  = edgeColorMode;  triggerRender(); }, [edgeColorMode]);
-  useEffect(() => { nodeColorRulesRef.current = nodeColorRules; triggerRender(); }, [nodeColorRules]);
-  useEffect(() => { edgeColorRulesRef.current = edgeColorRules; triggerRender(); }, [edgeColorRules]);
+  useEffect(() => { edgeSizeModeRef.current      = edgeSizeMode;      triggerRender(); }, [edgeSizeMode]);
+  useEffect(() => { nodeColorModeRef.current     = nodeColorMode;     triggerRender(); }, [nodeColorMode]);
+  useEffect(() => { edgeColorModeRef.current     = edgeColorMode;     triggerRender(); }, [edgeColorMode]);
+  useEffect(() => { nodeColorRulesRef.current    = nodeColorRules;    triggerRender(); }, [nodeColorRules]);
+  useEffect(() => { edgeColorRulesRef.current    = edgeColorRules;    triggerRender(); }, [edgeColorRules]);
+  useEffect(() => { showEdgeDirectionRef.current = showEdgeDirection; triggerRender(); }, [showEdgeDirection]);
 
   useEffect(() => {
     invNodesRef.current = investigationNodes;
@@ -91,7 +93,7 @@ export default function useGraphViewSync({
     selNRef, selERef, pcRef,
     onSelRef, onInvRef, onInvNbRef, onClearQHRef,
     labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
-    nodeColorRulesRef, edgeColorRulesRef,
+    nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
     annotationsRef, pathfindSourceRef, onPathfindTargetRef,
   };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { fB } from '../utils';
+import { NODE_LEGENDS, EDGE_LEGENDS } from './graph/graphLegendData';
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────
 function Toggle({ checked, onChange, title }) {
@@ -96,55 +97,6 @@ const EDGE_MODES = [
   { id: 'sessions', icon: '🔗', name: 'Sessions', hint: 'Session count' },
   { id: 'custom',   icon: '🎨', name: 'Custom',   hint: 'Your own rules' },
 ];
-
-const NODE_LEGENDS = {
-  address: [
-    { dot: true,  fill: 'var(--node-private)',  stroke: 'var(--node-private-s)',  label: 'Private (RFC1918)' },
-    { dot: true,  fill: 'var(--node-external)', stroke: 'var(--node-external-s)', label: 'External' },
-    { dot: true,  fill: 'var(--node-gateway)',  stroke: 'var(--node-gateway-s)',  label: 'Gateway' },
-    { dot: true,  fill: 'var(--node-subnet)',   stroke: 'var(--node-subnet-s)',   label: 'Subnet node' },
-  ],
-  os: [
-    { dot: true, fill: '#0d2137', stroke: '#388bfd', label: 'Windows' },
-    { dot: true, fill: '#0d2a1a', stroke: '#3fb950', label: 'Linux / Unix' },
-    { dot: true, fill: '#1c1c1c', stroke: '#8b949e', label: 'macOS' },
-    { dot: true, fill: '#2a1a10', stroke: '#d29922', label: 'Network device' },
-    { dot: true, fill: '#1c1122', stroke: '#bc8cff', label: 'Unknown' },
-  ],
-  protocol: [
-    { dot: true, fill: '#0d1f3a', stroke: '#1f6feb', label: 'TCP dominant' },
-    { dot: true, fill: '#061520', stroke: '#388bfd', label: 'TLS dominant' },
-    { dot: true, fill: '#0d2a1a', stroke: '#3fb950', label: 'DNS dominant' },
-    { dot: true, fill: '#2a1e0d', stroke: '#d29922', label: 'HTTP dominant' },
-  ],
-  volume: [
-    { dot: true, fill: '#0d2a1a', stroke: '#3fb950', label: 'Low  (< 100 KB)' },
-    { dot: true, fill: '#2a2010', stroke: '#d29922', label: 'Medium  (< 1 MB)' },
-    { dot: true, fill: '#2a1a10', stroke: '#f0883e', label: 'High  (< 10 MB)' },
-    { dot: true, fill: '#2a1010', stroke: '#f85149', label: 'Very high  (≥ 10 MB)' },
-  ],
-};
-
-const EDGE_LEGENDS = {
-  protocol: [
-    { dot: false, fill: '#1f6feb', label: 'TCP' },
-    { dot: false, fill: '#388bfd', label: 'TLS' },
-    { dot: false, fill: '#3fb950', label: 'DNS' },
-    { dot: false, fill: '#d29922', label: 'HTTP' },
-  ],
-  volume: [
-    { dot: false, fill: '#3fb950', label: 'Low  (< 100 KB)' },
-    { dot: false, fill: '#d29922', label: 'Medium  (< 1 MB)' },
-    { dot: false, fill: '#f0883e', label: 'High  (< 10 MB)' },
-    { dot: false, fill: '#f85149', label: 'Very high  (≥ 10 MB)' },
-  ],
-  sessions: [
-    { dot: false, fill: '#388bfd', label: '1–5 sessions' },
-    { dot: false, fill: '#3fb950', label: '6–20 sessions' },
-    { dot: false, fill: '#d29922', label: '21–100 sessions' },
-    { dot: false, fill: '#f85149', label: '100+ sessions' },
-  ],
-};
 
 const LBL_STEPS = [0, 1024, 10240, 102400, 1048576, 10485760];
 const LBL_HINTS = [
@@ -305,6 +257,7 @@ export default function GraphOptionsPanel({
   edgeColorMode, setEdgeColorMode,
   edgeColorRules, setEdgeColorRules,
   edgeSizeMode, setEdgeSizeMode,
+  showEdgeDirection, setShowEdgeDirection,
   // Data
   subnetG, setSubnetG, toggleSubnetG,
   subnetPrefix, setSubnetPrefix,
@@ -469,6 +422,23 @@ export default function GraphOptionsPanel({
                   placeholder="Protocol name or keyword…"
                   hasOsData={true}
                 />
+
+                {/* Edge direction */}
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, color: 'var(--tx)' }}>Show direction</span>
+                  <button
+                    onClick={() => setShowEdgeDirection(v => !v)}
+                    style={{
+                      background: showEdgeDirection ? 'var(--ac)' : 'var(--bgH)',
+                      border: '1px solid var(--bdL)',
+                      borderRadius: 4, padding: '2px 10px', fontSize: 11,
+                      color: showEdgeDirection ? '#fff' : 'var(--txM)', cursor: 'pointer',
+                    }}
+                  >{showEdgeDirection ? 'On' : 'Off'}</button>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--txD)', fontFamily: 'var(--fn)', marginTop: 3 }}>
+                  Draw arrowheads on edges (src → dst).
+                </div>
               </>
             )}
           </Section>
