@@ -1,8 +1,8 @@
 # Session State
 
 **Last updated:** 2026-04-13 · **Current version:** v0.27.3
-**Current branch:** feat/quick-wins-batch1 (not yet merged)
-**Mirror sync state:** All mirrors current at v0.27.1. Branch work in progress — mirrors not yet updated.
+**Current branch:** main
+**Mirror sync state:** All mirrors current at v0.27.3. Merged and flushed.
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.

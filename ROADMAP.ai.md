@@ -1,6 +1,6 @@
 # Roadmap — AI Reference
 
-**v0.27.0 | 2026-04-12** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.27.3 | 2026-04-13** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
 Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per item — read by anchor (`#item-id`) only when picking up that item.
 
 ---
@@ -35,13 +35,13 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `alerts-edge-detectors` | pending | high | medium | short | — | Refactor detectors to use edge/node graph data + triage |
 | `animation-pane-timeline-sync` | pending | high | low | short | — | Timeline strip shows capture-relative position of frame |
 | `animation-direction-mismatch` | done | high | low | short | — | Fixed v0.24.0 — uses initiator_ip/responder_ip. |
-| `animation-node-persistence-stability` | pending | high | low | short | — | Persist dragged positions across panel switches |
+| `animation-node-persistence-stability` | done | high | low | short | — | Done v0.27.2 — savedPositionsRef lifted to App.jsx, merged on remount, written on drag. |
 | `detail-panel-polish` | done | high | low | short | — | Fixed v0.24.0 — Flag text removed, icon only. |
 | `timeline-graph-phase3` | done | high | low | short | — | Both items fixed in v0.24.0. Moved to COMPLETED.md. |
 | `timeline-graph-multi-select-features` | pending | high | medium | short | — | Extend timeline-graph multi-selection: box-select, select-by-protocol, edge count badge, bulk graph-filter action |
 | `timeline-to-research-gantt` | pending | medium | medium | short | — | Remove Timeline panel tab; move session Gantt into Research as a first-class chart |
-| `d3-force-tuning` | pending | high | low | short | — | GraphCanvas force sim too strong; review charge/distanceMax, discuss whether to add a slider |
-| `subnet-node-visual-redesign` | pending | high | low | short | — | Subnets don't look distinct from regular nodes |
+| `d3-force-tuning` | done | high | low | short | — | Done v0.27.2 — charge -280→-180, link 160→130, alphaDecay 0.02→0.025. |
+| `subnet-node-visual-redesign` | done | high | low | short | — | Removed from roadmap — user decided not needed. |
 | `query-topology-phase2` | pending | high | medium | medium | — | Topology operators: connects_to, degree, same_neighbors_as |
 | `ui-capabilities-system` | pending | high | medium | medium | — | Hide UI sections when source doesn't provide that data |
 | `adapter-schema-negotiation` | done | high | medium | medium | — | Shipped v0.23.0 — two-phase upload, schema/ package, SchemaDialog.jsx. Moved to COMPLETED.md. |
@@ -50,8 +50,8 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `parquet-ingestion` | pending | high | medium | medium | — | Ingest .parquet (Splunk, AWS VPC, Databricks) |
 | `llm-interpretation-panel` | done | high | medium | medium | — | Phase 1 shipped v0.26.7. Known fixes: mis-tag on self-referential questions, small-model verbosity. Phase 2: source-type awareness, tool-use loop, payload inspection, lifted array caps. |
 | `post-parse-pipeline-opt` | pending | high | medium | medium | — | Profile build_sessions/build_graph/plugins (~20s for 440K). Plan: `docs/plans/active/post-parse-pipeline-opt.md` |
-| `graceful-optional-deps` | pending | medium | low | short | — | Optional deps (plotly, sqlglot) should degrade gracefully on import failure rather than aborting startup; research charts would be disabled not fatal |
-| `lazy-post-parse-audit` | pending | high | low | short | — | Decide what runs at load vs on-demand |
+| `graceful-optional-deps` | done | medium | low | short | — | Done v0.27.2 — try/except at import, _PLOTLY_AVAILABLE flag, RuntimeError on use. |
+| `lazy-post-parse-audit` | done | high | low | short | — | Done — already resolved prior to v0.27 per user. |
 | `large-pcap-support` | pending | high | high | medium | **yes** | Streaming parse, background load, indexed store |
 | `spark-connector` | pending | high | high | long | **yes** | Spark/Databricks SQL connector (enterprise mode) |
 | `graph-db-backend` | pending | high | high | long | **yes** | Neo4j / LadybugDB / Postgres+AGE persistent graph |
@@ -62,12 +62,12 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `react-contexts` | pending | medium | medium | medium | — | Replace prop drilling with context |
 | `pcapng-battle-test` | pending | medium | medium | medium | — | Validate dpkt.pcapng on real-world captures |
 | `alerts-adapter-compat` | pending | medium | medium | short | — | Detector source_type awareness + AlertsPanel filtering |
-| `logo-home-button` | pending | medium | low | short | — | Logo/home button fails to navigate home from some panels (e.g. Research) |
-| `animation-back-button` | pending | medium | low | short | — | "Back to animation" affordance |
-| `session-detail-sticky-header` | pending | medium | low | short | — | Connection header stays anchored on scroll |
+| `logo-home-button` | done | medium | low | short | — | Done v0.27.2 — switchPanel('stats') replaces clearAll(). |
+| `animation-back-button` | done | medium | low | short | — | Done v0.27.2 — breadcrumb in right panel when animActive + detail open. |
+| `session-detail-sticky-header` | done | medium | low | short | — | Done v0.27.3 — flex chain fix (wrapper flex-col, SessionDetail flex:1 minHeight:0). |
 | `graph-direction-viz` | pending | medium | medium | short | — | Show traffic direction (particles/arrowheads) |
 | `edge-custom-hover-fields` | pending | medium | medium | medium | — | Researcher-configurable edge hover fields |
-| `edge-port-pairs` | pending | medium | low | short | — | Restructure edge ports as paired data |
+| `edge-port-pairs` | done | medium | low | short | — | Done v0.27.2 — src → dst paired row in EdgeDetail. |
 | `timeline-playback` | pending | medium | low | short | — | Play button auto-advances time window |
 | `credential-viewing` | pending | medium | medium | medium | — | HTTP Basic, FTP, Telnet, SMTP AUTH credentials |
 | `zeek-files-log` | pending | medium | low | medium | — | Surface Zeek files.log (hashes, MIME types) |
