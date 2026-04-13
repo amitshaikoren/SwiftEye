@@ -13,6 +13,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useLlmChat } from '../hooks/useLlmChat';
+import { useSettings } from '../hooks/useSettings';
 
 // ── Minimal markdown renderer (no dependencies) ───────────────────────────────
 // Handles: ## headings, **bold**, `code`, - bullet lists, blank lines.
@@ -131,14 +132,13 @@ export default function LLMInterpretationPanel({
   // Viewer state (passed from App → AnalysisPage → here)
   filters,          // { timeStart, timeEnd, protocols, search, includeIPv6, subnetGrouping, subnetPrefix, mergeByMac }
   selection,        // { nodeIds, edgeId, sessionId, alertId }
-  // Settings
-  settings,
-  onOpenSettings,
 }) {
   const { turns, streaming, error, send, cancel, clear } = useLlmChat();
+  const { settings, setSetting } = useSettings();
 
   const [scopeMode, setScopeMode] = useState('full_capture');
   const [input, setInput] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
   const transcriptRef = useRef(null);
 
   const hasSelection = !!(
@@ -280,11 +280,68 @@ export default function LLMInterpretationPanel({
           style={{ fontSize: 10, padding: '3px 8px', opacity: turns.length ? 1 : 0.4 }}>
           Clear
         </button>
-        <button className="btn" onClick={onOpenSettings} title="LLM settings"
-          style={{ fontSize: 10, padding: '3px 8px' }}>
-          Settings
+        <button className="btn" onClick={() => setShowSettings(v => !v)} title="LLM settings"
+          style={{ fontSize: 10, padding: '3px 8px', ...(showSettings ? { borderColor: 'var(--ac)', color: 'var(--ac)' } : {}) }}>
+          ⚙
         </button>
       </div>
+
+      {/* ── Inline settings ── */}
+      {showSettings && (
+        <div style={{
+          padding: '12px 14px', borderBottom: '1px solid var(--bd)',
+          background: 'var(--bgC)', flexShrink: 0,
+        }}>
+          <div style={{ fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 10 }}>LLM Provider</div>
+
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 4 }}>Provider</div>
+            <select value={settings.llmProvider || 'ollama'}
+              onChange={e => setSetting('llmProvider', e.target.value)}
+              style={{ width: '100%', background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '5px 8px', fontSize: 11, color: 'var(--tx)', outline: 'none', cursor: 'pointer' }}>
+              <option value="ollama">Ollama (local, no key required)</option>
+              <option value="openai">OpenAI-compatible</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 4 }}>
+              Base URL <span style={{ color: 'var(--txD)' }}>(blank = provider default)</span>
+            </div>
+            <input type="text"
+              value={settings.llmBaseUrl || ''}
+              onChange={e => setSetting('llmBaseUrl', e.target.value)}
+              placeholder={settings.llmProvider === 'ollama' ? 'http://localhost:11434' : 'https://api.openai.com/v1'}
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '5px 8px', fontSize: 11, color: 'var(--tx)', fontFamily: 'var(--fn)', outline: 'none' }} />
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 4 }}>Model</div>
+            <input type="text"
+              value={settings.llmModel || ''}
+              onChange={e => setSetting('llmModel', e.target.value)}
+              placeholder={settings.llmProvider === 'ollama' ? 'qwen2.5:14b-instruct' : 'gpt-4o-mini'}
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '5px 8px', fontSize: 11, color: 'var(--tx)', fontFamily: 'var(--fn)', outline: 'none' }} />
+          </div>
+
+          {settings.llmProvider === 'openai' && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 4 }}>API Key</div>
+              <input type="password"
+                value={settings.llmApiKey || ''}
+                onChange={e => setSetting('llmApiKey', e.target.value)}
+                placeholder="sk-…"
+                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '5px 8px', fontSize: 11, color: 'var(--tx)', fontFamily: 'var(--fn)', outline: 'none' }} />
+            </div>
+          )}
+
+          <div style={{ fontSize: 9, color: 'var(--txD)', lineHeight: 1.55, marginTop: 4 }}>
+            {settings.llmProvider === 'openai'
+              ? 'Key stored on the SwiftEye server (llm_keys.json). Capture data is sent to the external provider when you ask a question.'
+              : 'Ollama runs locally — no data leaves your machine.'}
+          </div>
+        </div>
+      )}
 
       {/* ── Scope selector ── */}
       <div style={{

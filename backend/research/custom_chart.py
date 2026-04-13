@@ -51,7 +51,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
-import plotly.graph_objects as go
+try:
+    import plotly.graph_objects as go
+    _PLOTLY_AVAILABLE = True
+except ImportError:
+    go = None  # type: ignore[assignment]
+    _PLOTLY_AVAILABLE = False
 
 
 logger = logging.getLogger("swifteye.research.custom")
@@ -494,7 +499,9 @@ def _split_traces_by_color(rows, x_field, y_field, color_field, hover, chart_typ
     return traces
 
 
-def build_figure(payload: Dict[str, Any], packets, sessions) -> go.Figure:
+def build_figure(payload: Dict[str, Any], packets, sessions):
+    if not _PLOTLY_AVAILABLE:
+        raise RuntimeError("plotly is not installed — custom charts unavailable. pip install plotly")
     source       = payload.get("source", "packets")
     chart_type   = payload.get("chart_type", "scatter")
     x_field      = payload.get("x_field", "")

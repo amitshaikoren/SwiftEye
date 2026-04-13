@@ -78,6 +78,12 @@ export default function App() {
   // Note: allProtocolKeysCount is from a ref — updated by a separate effect in useCapture.
   // It's stable once the capture is loaded so it doesn't need to be a dep here.
 
+  // ── Animation node positions — persists across panel switches ──────
+  // AnimationPane is unmounted when switching to full-width panels (Research,
+  // Timeline, etc.). Keeping positions here means dragged positions survive
+  // those navigation detours.
+  const animSavedPositionsRef = useRef({});
+
   // ── Graph container size (for Sparkline width) ───────────────────
   const graphContainerRef = useRef(null);
   const [gSize, setGS] = useState({ width: 800, height: 600 });
@@ -128,7 +134,7 @@ export default function App() {
         onNewFile={() => document.getElementById('pcap-re').click()}
         onMetadataFile={() => document.getElementById('meta-up').click()}
         onSettings={() => setShowSettings(true)}
-        onLogoClick={() => { c.clearAll(); if (c.animActive) c.stopAnimation(); }}
+        onLogoClick={() => { c.switchPanel('stats'); c.setSearch(''); if (c.animActive) c.stopAnimation(); }}
       />
       <FilterBar
         value={c.dfExpr}
@@ -205,7 +211,6 @@ export default function App() {
                 sessionId: c.selSession?.id || null,
                 alertId:   null,
               }}
-              onOpenSettings={() => setShowSettings(true)}
             />
           </Suspense>
         ) : c.rPanel === 'alerts' ? (
@@ -431,6 +436,7 @@ export default function App() {
                       stopAnimation={c.stopAnimation}
                       mainNodes={c.graph?.nodes || []}
                       pColors={c.pColors}
+                      savedPositionsRef={animSavedPositionsRef}
                       onSelectNode={id => id ? c.handleGSel('node', id, false) : c.clearSel()}
                       onSelectSession={sid => {
                         const sess = c.sessions.find(s => s.id === sid);
@@ -581,6 +587,7 @@ export default function App() {
                   bucketSec={c.bucketSec}
                   setBucketSec={c.setBucketSec}
                   width={gSize.width - 32}
+                  animCursorTime={c.animActive ? c.currentEvent?.time : undefined}
                 />
               )}
             </div>
@@ -600,6 +607,21 @@ export default function App() {
                 title="Drag to resize panel"
               />
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {/* Back to animation breadcrumb (when detail is open during animation) */}
+                {c.animActive && (c.selSession || c.selEdge || c.selNodes?.length > 0) && (
+                  <div
+                    onClick={c.clearSel}
+                    style={{
+                      fontSize: 10, color: '#58a6ff', cursor: 'pointer',
+                      padding: '5px 14px', borderBottom: '1px solid var(--bd)',
+                      fontFamily: 'var(--fn)', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      background: 'rgba(88,166,255,0.06)',
+                    }}
+                  >
+                    <span style={{ fontSize: 11 }}>←</span> Back to animation
+                  </div>
+                )}
                 {/* Back / Forward navigation */}
                 {(c.canGoBack || c.canGoForward) && (
                   <div style={{
@@ -614,7 +636,7 @@ export default function App() {
                       style={{ fontSize: 11, padding: '1px 8px', opacity: c.canGoForward ? 1 : 0.3 }}>→</button>
                   </div>
                 )}
-                <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <AppRightPanel
                     c={c}
                     subgraphInfo={subgraphInfo}

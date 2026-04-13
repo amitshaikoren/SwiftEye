@@ -33,6 +33,8 @@ export default function AnimationPane({
   setAnimSpeed, setAnimOpts, stopAnimation, setIsIsolated,
   // External data for positioning
   mainNodes, pColors,
+  // Persisted positions — survives full-width panel switches (Research, Timeline…)
+  savedPositionsRef,
   // Click handlers for detail panels
   onSelectNode, onSelectSession,
 }) {
@@ -89,6 +91,7 @@ export default function AnimationPane({
     canvasRef, wrapRef, positionsRef, transformRef, zoomRef, flashRef,
     animNodeMeta, mainNodes, currentEvent, animNodes, animOpts, pColors,
     visibleEdges, frameState, hiddenNodes, animEvents,
+    savedPositionsRef,
   });
 
   // ── Interaction hook ──────────────────────────────────────────────
@@ -104,6 +107,7 @@ export default function AnimationPane({
     setShowOptions, setContextMenu, setHovered,
     onSelectNode, onSelectSession,
     togglePlay, stepForward, stepBackward, goToStart, goToEnd, stopAnimation,
+    savedPositionsRef,
   });
 
   // ── Computed display values ───────────────────────────────────────

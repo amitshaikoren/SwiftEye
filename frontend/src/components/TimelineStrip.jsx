@@ -122,9 +122,37 @@ function SegmentCanvas({ buckets, activeRange, globalStart, width, height }) {
   return <canvas ref={ref} style={{ width, height, display: 'block' }} />;
 }
 
+// Compute the pixel x-position of a timestamp within the gap-split layout.
+// Returns null if the time is outside the capture range.
+function cursorX(time, timeline, parts, perSegW, totalWidth) {
+  if (!time || !timeline.length) return null;
+  let pixelOffset = 0;
+  for (const part of parts) {
+    if (part.type === 'gap') {
+      pixelOffset += GAP_W;
+      continue;
+    }
+    const { buckets, globalStart } = part;
+    const segW = perSegW;
+    // Check if time falls within this segment
+    const firstBucket = buckets[0];
+    const lastBucket  = buckets[buckets.length - 1];
+    if (!firstBucket || !lastBucket) { pixelOffset += segW; continue; }
+    const segStart = firstBucket.start_time;
+    const segEnd   = lastBucket.end_time || lastBucket.start_time;
+    if (time >= segStart && time <= segEnd) {
+      const frac = (segEnd > segStart) ? (time - segStart) / (segEnd - segStart) : 0;
+      return pixelOffset + frac * segW;
+    }
+    pixelOffset += segW;
+  }
+  return null;
+}
+
 export default function TimelineStrip({
   timeline, timeRange, setTimeRange,
   bucketSec, setBucketSec, width,
+  animCursorTime,
 }) {
   const N = timeline.length;
   const parts = useMemo(() => splitTimeline(timeline), [timeline]);
@@ -181,7 +209,24 @@ export default function TimelineStrip({
       </div>
 
       {/* Row 2: gap-split sparkline */}
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, height: 30 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, height: 30, position: 'relative' }}>
+        {/* Animation frame cursor */}
+        {animCursorTime != null && (() => {
+          const cx = cursorX(animCursorTime, timeline, parts, perSegW, width);
+          if (cx == null) return null;
+          return (
+            <div style={{
+              position: 'absolute', top: 0, bottom: 0, width: 1.5,
+              background: '#f0a040', opacity: 0.85, pointerEvents: 'none', zIndex: 2,
+              left: cx,
+            }}>
+              <div style={{
+                position: 'absolute', top: 0, left: -3, width: 7, height: 7,
+                background: '#f0a040', clipPath: 'polygon(50% 100%, 0 0, 100% 0)',
+              }} />
+            </div>
+          );
+        })()}
         {parts.map((part, pi) => {
           if (part.type === 'gap') {
             // Gap marker: //// hatch with duration label

@@ -51,12 +51,12 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
     const nn = nRef.current;
     const nodeCount = nn.length;
     const hasAnyClusters = nn.some(n => n.is_cluster);
-    const chargeDistMax = hasAnyClusters ? 500
-      : nodeCount > 200 ? 200
-      : nodeCount > 50  ? 350
-      : 500;
+    const chargeDistMax = hasAnyClusters ? 450
+      : nodeCount > 200 ? 180
+      : nodeCount > 50  ? 300
+      : 400;
     simRef.current.force('charge')
-      .strength(d => d.is_cluster ? -400 - (d.member_count || 0) * 20 : -280)
+      .strength(d => d.is_cluster ? -350 - (d.member_count || 0) * 18 : -180)
       .distanceMax(chargeDistMax);
     simRef.current.alpha(0.9).alphaTarget(0).restart();
   }
@@ -247,33 +247,33 @@ resize();draw();
 
     const hasAnyClusters = nn.some(n => n.is_cluster);
     const nodeCount = nn.length;
-    const chargeDistMax = hasAnyClusters ? 500
-      : nodeCount > 200 ? 200
-      : nodeCount > 50  ? 350
-      : 500;
+    const chargeDistMax = hasAnyClusters ? 450
+      : nodeCount > 200 ? 180
+      : nodeCount > 50  ? 300
+      : 400;
     const sim = d3.forceSimulation(nn)
       .force('charge', d3.forceManyBody()
-        .strength(d => d.is_cluster ? -400 - (d.member_count || 0) * 20 : -280)
+        .strength(d => d.is_cluster ? -350 - (d.member_count || 0) * 18 : -180)
         .distanceMax(chargeDistMax))
       .force('link', d3.forceLink(ne).id(d => d.id)
         .distance(d => {
           const s = typeof d.source === 'object' ? d.source : null;
           const t = typeof d.target === 'object' ? d.target : null;
-          if (s?.is_cluster || t?.is_cluster) return 220;
-          return 160;
+          if (s?.is_cluster || t?.is_cluster) return 200;
+          return 130;
         })
-        .strength(0.4))
-      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.04))
+        .strength(0.5))
+      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.05))
       .force('collision', d3.forceCollide().radius(d =>
         d.is_cluster ? gRRef.current(d) * 1.8 + 15 : gRRef.current(d) + 8))
       .force('x', d3.forceX(width / 2).strength(0.02))
       .force('y', d3.forceY(height / 2).strength(0.02))
-      .alphaDecay(0.02)
+      .alphaDecay(0.025)
       .on('tick', render)
       .on('end', () => {
         if (simRef.current) {
           simRef.current.force('charge').strength(
-            d => d.is_cluster ? -80 - (d.member_count || 0) * 5 : -60
+            d => d.is_cluster ? -70 - (d.member_count || 0) * 4 : -45
           );
         }
       });

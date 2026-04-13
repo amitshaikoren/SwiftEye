@@ -37,6 +37,7 @@ export function useAnimationInteraction({
   goToStart,
   goToEnd,
   stopAnimation,
+  savedPositionsRef,
 }) {
   // ── Click / hover hit-testing ─────────────────────────────────────
   const handleCanvasEvent = useCallback((e) => {
@@ -178,10 +179,10 @@ export function useAnimationInteraction({
     const mx = (e.clientX - rect.left - t.x) / t.k;
     const my = (e.clientY - rect.top - t.y) / t.k;
     const { ip, offsetX, offsetY } = dragRef.current;
-    positionsRef.current = {
-      ...positionsRef.current,
-      [ip]: { x: mx - offsetX, y: my - offsetY },
-    };
+    const newPos = { x: mx - offsetX, y: my - offsetY };
+    positionsRef.current = { ...positionsRef.current, [ip]: newPos };
+    // Persist so the position survives full-width panel switches
+    if (savedPositionsRef) savedPositionsRef.current = { ...savedPositionsRef.current, [ip]: newPos };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDragEnd = useCallback((e) => {
