@@ -7,6 +7,24 @@
 
 ## Shipped
 
+### graph-direction-viz
+Filled arrowhead at 70% along each edge pointing initiator → responder. Fixed screen-space size (8×10 px), zoom-invariant. "Show direction" toggle in Graph Options → Edge tab, default off. For bidirectional pairs the arrows sit at 70%/30%, visually separated.
+`status: done` · `shipped: v0.27.6`
+
+---
+
+### export-html-enriched-hover
+Node hover: +session count, +top-3 protocols. Edge hover: new — edges are now hittable (point-to-segment distance, 6 px screen tolerance); tooltip shows session count + full protocol list. Hover highlights edge in white.
+`status: done` · `shipped: v0.27.6`
+
+---
+
+### graph-legend-sync
+Legend data extracted to shared `graphLegendData.js`; the Graph Options sidebar legend reflects the active node/edge color mode. (Canvas overlay attempted but removed as redundant — sidebar legend already did the job.)
+`status: done` · `shipped: v0.27.6`
+
+---
+
 | ID | Shipped | Notes |
 |----|---------|-------|
 | `timeline-graph-phase2` | v0.22.0–v0.22.7 (2026-04-10) | All 8 items done. See detail block below. |

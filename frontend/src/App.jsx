@@ -492,6 +492,7 @@ export default function App() {
                     edgeColorMode={c.edgeColorMode}
                     nodeColorRules={c.nodeColorRules}
                     edgeColorRules={c.edgeColorRules}
+                    showEdgeDirection={c.showEdgeDirection}
                     queryHighlight={queryHighlight}
                     onClearQueryHighlight={() => setQueryHighlight(null)}
                     nodeEventSeverity={c.nodeEventSeverity}

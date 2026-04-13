@@ -1,21 +1,21 @@
 # Session State
 
-**Last updated:** 2026-04-13 · **Current version:** v0.27.5
+**Last updated:** 2026-04-14 · **Current version:** v0.27.6
 **Current branch:** main
-**Mirror sync state:** All mirrors current at v0.27.5. Merged and flushed.
+**Mirror sync state:** All mirrors current at v0.27.6. Merged and flushed.
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
 
 ---
 
-## Shipped this session (branch feat/quick-wins-batch1)
+## Shipped this session (branch feat/graph-viz-batch)
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
+- v0.27.6 — graph direction viz (arrowhead toggle in Graph Options, default off, drawn at edge midpoint src→dst); graph legend overlay (GraphLegend.jsx, bottom-left canvas overlay, syncs with active nodeColorMode + edgeColorMode, shared legend data extracted to graphLegendData.js); export HTML enriched hover (node: sessions + top protocols; edge: sessions + protocol list, edge hit detection via point-to-segment distance).
 - v0.27.5 — 6 bug fixes: investigation timeline nodes now show immediately after drag-drop; timeline nodes/edges fully editable (label, color via swatch picker, annotation, node severity); edge hover tooltips; session detail flag button icon-only; EventFlagModal resolves d3-mutated source/target to IDs; session title shows {ip}--proto→{ip}; Timeline panel removed from nav, session_gantt re-enabled in Research.
 - v0.27.3 — rebuild fix: sticky header CSS (flex chain, no height:100%); LLM settings moved into LLM panel inline (⚙ toggle); dist now includes all v0.27.2 changes.
-- v0.27.2 — quick-wins batch: logo home button fix (switchPanel not clearAll); graceful plotly/sqlglot fallback; SessionDetail sticky header; EdgeDetail port pairs display; d3 force sim tuning (charge -280→-180, alphaDecay 0.025, link distance 160→130); animation back-button breadcrumb in right panel; timeline strip animation frame cursor; animation node position persistence across panel switches.
 - v0.27.1 — server-side LLM key store (GET/POST /api/llm/keys, llm_keys.json, key injection in chat handler); LLM section in DEVELOPERS.md (§17: packages, tags, providers, wire format, testing); left-panel category labels removed (flat list); quick-wins roadmap table in SESSION.md.
 - v0.27.0 — version bump to minor
 - v0.26.8 — Phase 1 bug fixes: self-ref capture markers + capture-context markers + proto-only step-6 gate in question_tags.py; is_small_model() + compact-mode prompt override in prompts.py; model_name wired through service.py. 31/31 tests pass.
@@ -51,13 +51,10 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 
 ## Do next
 
-1. **Graph direction viz** (`graph-direction-viz`) — show traffic direction on edges (particles / arrowheads / color-coding). **Toggleable, default OFF, wired into Graph Options panel.**
-2. **Graph legend sync** (`graph-legend-sync`) — canvas legend updates to reflect active color mode (node color by OS/role, edge color by protocol etc.).
-3. **Export HTML enriched hover** (`export-html-enriched-hover`) — richer hover tooltips in exported HTML (bytes in/out, packet count, session count, top protocols on nodes; session count, protocol list, duration on edges).
-4. **Docs audit** (`docs-audit`) — focus on `docs/DEVELOPERS.md` first (API tables, LLM section, route list). Then HANDOFF.md §2 (directory tree), README feature list.
-5. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
+1. **Docs audit** (`docs-audit`) — focus on `docs/DEVELOPERS.md` first (API tables, LLM section, route list). Then HANDOFF.md §2 (directory tree), README feature list.
+2. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
    Order: 2.2 (conversation history) → 2.3 (protocol translators) → 2.4 (source-type awareness) → 2.5 (adaptive budgeting).
-6. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.
+3. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.
    - 3.1 tool-use loop → **Opus** (architectural change to service loop + provider layer)
    - 3.2 report mode + 3.3 payload inspection → Sonnet once 3.1 is stable
 

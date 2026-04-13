@@ -163,6 +163,7 @@ export function useCapture() {
     edgeColorMode: filters.edgeColorMode, setEdgeColorMode: filters.setEdgeColorMode,
     nodeColorRules: filters.nodeColorRules, setNodeColorRules: filters.setNodeColorRules,
     edgeColorRules: filters.edgeColorRules, setEdgeColorRules: filters.setEdgeColorRules,
+    showEdgeDirection: filters.showEdgeDirection, setShowEdgeDirection: filters.setShowEdgeDirection,
     subnetPrefix: filters.subnetPrefix, setSubnetPrefix: filters.setSubnetPrefix,
     mergeByMac: filters.mergeByMac, setMergeByMac: filters.setMergeByMac,
     includeIPv6: filters.includeIPv6, setIncludeIPv6: filters.setIncludeIPv6,

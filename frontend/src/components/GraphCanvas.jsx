@@ -45,6 +45,7 @@ export default function GraphCanvas({
   edgeColorMode = 'protocol',
   nodeColorRules = [],
   edgeColorRules = [],
+  showEdgeDirection = false,
   queryHighlight = null,
   onClearQueryHighlight,
 }) {
@@ -69,7 +70,7 @@ export default function GraphCanvas({
     selNRef, selERef, pcRef,
     onSelRef, onInvRef, onInvNbRef, onClearQHRef,
     labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
-    nodeColorRulesRef, edgeColorRulesRef,
+    nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
     annotationsRef, pathfindSourceRef, onPathfindTargetRef,
   } = useGraphViewSync({
@@ -78,7 +79,7 @@ export default function GraphCanvas({
     onSelect, onInvestigate, onInvestigateNeighbours, onClearQueryHighlight,
     pathfindSource, onPathfindTarget,
     labelThreshold, edgeSizeMode, nodeColorMode, edgeColorMode,
-    nodeColorRules, edgeColorRules,
+    nodeColorRules, edgeColorRules, showEdgeDirection,
     investigationNodes, displayFilterNodes, displayFilterEdges,
     queryHighlight, theme,
   });
@@ -90,7 +91,7 @@ export default function GraphCanvas({
       renRef, rafRef, hRef,
       selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
       labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
-      nodeColorRulesRef, edgeColorRulesRef,
+      nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
     });
 
   // Hook 3: Resize polling

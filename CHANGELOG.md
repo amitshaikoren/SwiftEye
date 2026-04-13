@@ -1,5 +1,11 @@
 # SwiftEye — Changelog
 
+### v0.27.6 — April 2026
+- **Graph direction visualization** — new "Show direction" toggle in Graph Options → Edge tab (default off). When on, a filled arrowhead is drawn at the 70% mark along each edge pointing initiator → responder. Fixed screen-space size (8×10 px) regardless of edge weight or zoom. For bidirectional traffic the two arrows land at different positions (70% and 30% from A), keeping both directions readable without overlap.
+- **Legend data extraction** — `NODE_LEGENDS` / `EDGE_LEGENDS` extracted to a shared `graphLegendData.js` module; the Graph Options sidebar legend already synced with the active color mode and continues to do so.
+- **Export HTML enriched hover** — node tooltips now show session count and top 3 protocols by volume. Edges are now hoverable (point-to-segment hit detection, 6 px screen tolerance): tooltip shows session count and full protocol list. Hovered edges highlight in white.
+- **Export HTML node dragging** — exported graphs are now fully interactive: individual nodes can be dragged and connected edges follow in real time. Empty-space drag still pans the view; cursor changes to reflect state.
+
 ### v0.27.5 — April 2026
 - **Investigation timeline nodes render immediately** — dragging a node into the investigation timeline now shows it at the drop position immediately, without requiring a zoom or pan event to trigger a re-render.
 - **Timeline node/edge editing** — investigation timeline nodes and edges are now fully editable: label, color (via swatch picker), annotation text, and node severity can all be changed inline.
