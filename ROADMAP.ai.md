@@ -1,6 +1,6 @@
 # Roadmap — AI Reference
 
-**v0.27.5 | 2026-04-13** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.27.6 | 2026-04-14** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
 Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per item — read by anchor (`#item-id`) only when picking up that item.
 
 ---
@@ -65,7 +65,7 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `logo-home-button` | done | medium | low | short | — | Done v0.27.2 — switchPanel('stats') replaces clearAll(). |
 | `animation-back-button` | done | medium | low | short | — | Done v0.27.2 — breadcrumb in right panel when animActive + detail open. |
 | `session-detail-sticky-header` | done | medium | low | short | — | Done v0.27.3 — flex chain fix (wrapper flex-col, SessionDetail flex:1 minHeight:0). |
-| `graph-direction-viz` | pending | medium | medium | short | — | Show traffic direction (particles/arrowheads) |
+| `graph-direction-viz` | done | medium | medium | short | — | Done v0.27.6 — arrowhead at 70% toward target, toggle in Graph Options, default off. |
 | `edge-custom-hover-fields` | pending | medium | medium | medium | — | Researcher-configurable edge hover fields |
 | `edge-port-pairs` | done | medium | low | short | — | Done v0.27.2 — src → dst paired row in EdgeDetail. |
 | `timeline-playback` | pending | medium | low | short | — | Play button auto-advances time window |
@@ -83,12 +83,12 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `node-agnostic-algorithm-contract` | pending | medium | medium | medium | — | Algorithms work on any node type |
 | `aggregator-plugin-tier` | pending | medium | medium | medium | — | Pre-aggregation plugins returning IP→canonical |
 | `graph-by-field-mode` | pending | medium | medium | medium | — | Graph by port/protocol as node identity |
-| `export-html-enriched-hover` | pending | medium | low | short | — | Richer hover in exported HTML |
+| `export-html-enriched-hover` | done | medium | low | short | — | Done v0.27.6 — edge hover + sessions/protocols on nodes+edges + node drag. |
 | `capture-schema-viewer` | pending | medium | medium | medium | — | Post-ingestion schema panel |
 | `multi-capture-comparison` | pending | medium | high | long | — | Side-by-side / overlay of two captures |
 | `suricata-ingestion` | pending | low | high | medium | — | Ingest Suricata eve.json |
 | `graph-layout-modes` | pending | low | high | medium | — | Hierarchical/radial/geographic layouts |
-| `graph-legend-sync` | pending | low | low | short | — | Canvas legend reflects active color mode |
+| `graph-legend-sync` | done | low | low | short | — | Done v0.27.6 — sidebar legend syncs; legend data extracted to graphLegendData.js. |
 | `analysis-hostname-cert-grouping` | pending | low | medium | medium | — | Cluster external IPs by cert/TLD/hostname |
 | `l2-protocol-support` | pending | medium | high | long | — | LLDP, 802.1Q VLAN, CDP, STP — currently dropped |
 | `graph-algorithm-plugin-registry` | pending | low | low | long | — | Auto-discovery for graph algorithm modules |
