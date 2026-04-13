@@ -140,7 +140,9 @@ const D=${data};
 const canvas=document.getElementById('c');
 const ctx=canvas.getContext('2d');
 const tip=document.getElementById('tip');
-let tx=D.tx,ty=D.ty,tk=D.tk,drag=false,lx=0,ly=0,hover=null,hoverE=null;
+// Build node lookup so dragging updates connected edges automatically
+const NM={};for(const n of D.nodes)NM[n.id]=n;
+let tx=D.tx,ty=D.ty,tk=D.tk,panDrag=false,nodeDrag=null,lx=0,ly=0,hover=null,hoverE=null;
 function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
 function fB(b){if(b>=1e9)return(b/1e9).toFixed(1)+'GB';if(b>=1e6)return(b/1e6).toFixed(1)+'MB';if(b>=1e3)return(b/1e3).toFixed(1)+'KB';return b+'B';}
 function fN(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n);}
@@ -149,13 +151,15 @@ function draw(){
   ctx.fillStyle=D.bg||'#08090d';ctx.fillRect(0,0,w,h);
   ctx.save();ctx.translate(tx,ty);ctx.scale(tk,tk);
   for(const e of D.edges){
+    const s=NM[e.srcId],t=NM[e.tgtId];
+    if(!s||!t)continue;
     const isHe=hoverE===e;
-    ctx.beginPath();ctx.moveTo(e.sx,e.sy);ctx.lineTo(e.tx,e.ty);
+    ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(t.x,t.y);
     ctx.strokeStyle=isHe?'#fff':e.color;ctx.lineWidth=(isHe?e.width+2:e.width)/tk;ctx.globalAlpha=isHe?1:0.7;ctx.stroke();
     ctx.globalAlpha=1;
   }
   for(const n of D.nodes){
-    const isH=hover===n;
+    const isH=hover===n||nodeDrag===n;
     ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
     ctx.fillStyle=n.fill;ctx.fill();
     ctx.strokeStyle=isH?'#fff':n.stroke;ctx.lineWidth=(isH?2.5:1.5)/tk;ctx.stroke();
@@ -180,18 +184,21 @@ function ptSegDist2(px,py,ax,ay,bx,by){
 function hitNode(cx,cy){
   const wx=(cx-tx)/tk,wy=(cy-ty)/tk;
   for(let i=D.nodes.length-1;i>=0;i--){
-    const n=D.nodes[i];const dx=wx-n.x,dy=wy-n.y;
-    if(dx*dx+dy*dy<=n.r*n.r)return n;
+    const n=D.nodes[i];const ddx=wx-n.x,ddy=wy-n.y;
+    if(ddx*ddx+ddy*ddy<=n.r*n.r)return n;
   }return null;
 }
 function hitEdge(cx,cy){
   const wx=(cx-tx)/tk,wy=(cy-ty)/tk;
   const thresh=(6/tk)**2;
   for(let i=D.edges.length-1;i>=0;i--){
-    const e=D.edges[i];
-    if(ptSegDist2(wx,wy,e.sx,e.sy,e.tx,e.ty)<=thresh)return e;
+    const e=D.edges[i];const s=NM[e.srcId],t=NM[e.tgtId];
+    if(!s||!t)continue;
+    if(ptSegDist2(wx,wy,s.x,s.y,t.x,t.y)<=thresh)return e;
   }return null;
 }
+function nodeTip(n){return\`<b>\${n.id}</b><div class="tl">Traffic</div>\${fB(n.bytes)} · \${fN(n.packets)} pkts\${n.sessions?' · '+fN(n.sessions)+' sess':''}\${n.topProtos?'<div class="tl">Top protocols</div>'+n.topProtos:''}\`;}
+function edgeTip(e){return\`<b>\${e.srcId} → \${e.tgtId}</b><div class="tl">Traffic</div>\${fB(e.bytes)} · \${fN(e.packets)} pkts · \${fN(e.sessions)} sess\${e.protocols?'<div class="tl">Protocols</div>'+e.protocols:''}\`;}
 function showTip(x,y,html){tip.style.display='block';tip.style.left=(x+14)+'px';tip.style.top=(y-8)+'px';tip.innerHTML=html;}
 window.addEventListener('resize',()=>{resize();draw();});
 canvas.addEventListener('wheel',e=>{
@@ -199,24 +206,29 @@ canvas.addEventListener('wheel',e=>{
   const ox=e.clientX,oy=e.clientY;
   tx=ox+(tx-ox)*f;ty=oy+(ty-oy)*f;tk*=f;draw();
 },{passive:false});
-canvas.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+canvas.addEventListener('mousedown',e=>{
+  const n=hitNode(e.clientX,e.clientY);
+  if(n){nodeDrag=n;hover=n;canvas.style.cursor='grabbing';draw();}
+  else{panDrag=true;lx=e.clientX;ly=e.clientY;canvas.style.cursor='grabbing';}
+});
 canvas.addEventListener('mousemove',e=>{
-  if(drag){tx+=e.clientX-lx;ty+=e.clientY-ly;lx=e.clientX;ly=e.clientY;draw();}
+  if(nodeDrag){
+    nodeDrag.x=(e.clientX-tx)/tk;nodeDrag.y=(e.clientY-ty)/tk;
+    draw();showTip(e.clientX,e.clientY,nodeTip(nodeDrag));return;
+  }
+  if(panDrag){tx+=e.clientX-lx;ty+=e.clientY-ly;lx=e.clientX;ly=e.clientY;draw();return;}
   const n=hitNode(e.clientX,e.clientY);
   const ed=n?null:hitEdge(e.clientX,e.clientY);
   const changed=n!==hover||ed!==hoverE;
   hover=n;hoverE=ed;
+  canvas.style.cursor=n?'pointer':'default';
   if(changed)draw();
-  if(n){
-    const rows=\`<b>\${n.id}</b><div class="tl">Traffic</div>\${fB(n.bytes)} · \${fN(n.packets)} pkts\${n.sessions?' · '+fN(n.sessions)+' sess':''}\${n.topProtos?'<div class="tl">Top protocols</div>'+n.topProtos:''}\`;
-    showTip(e.clientX,e.clientY,rows);
-  } else if(ed){
-    const rows=\`<b>\${ed.srcId} → \${ed.tgtId}</b><div class="tl">Traffic</div>\${fB(ed.bytes)} · \${fN(ed.packets)} pkts · \${fN(ed.sessions)} sess\${ed.protocols?'<div class="tl">Protocols</div>'+ed.protocols:''}\`;
-    showTip(e.clientX,e.clientY,rows);
-  } else {tip.style.display='none';}
+  if(n){showTip(e.clientX,e.clientY,nodeTip(n));}
+  else if(ed){showTip(e.clientX,e.clientY,edgeTip(ed));}
+  else{tip.style.display='none';}
 });
-canvas.addEventListener('mouseup',()=>{drag=false;});
-canvas.addEventListener('mouseleave',()=>{drag=false;tip.style.display='none';hover=null;hoverE=null;draw();});
+canvas.addEventListener('mouseup',()=>{panDrag=false;nodeDrag=null;canvas.style.cursor=hover?'pointer':'default';});
+canvas.addEventListener('mouseleave',()=>{panDrag=false;nodeDrag=null;tip.style.display='none';hover=null;hoverE=null;canvas.style.cursor='default';draw();});
 resize();draw();
 </script></body></html>`;
 
@@ -435,11 +447,13 @@ resize();draw();
           if (len > 0) {
             const ux = dx / len;
             const uy = dy / len;
-            const arrowSize = Math.max(5, Math.min(12, edgeW * 2.5)) / tk;
+            // Fixed screen-space size: 8px tip, 5px half-width, independent of edge weight
+            const tip = 8 / tk;
+            const hw  = 5 / tk;
             ctx.beginPath();
-            ctx.moveTo(mx + ux * arrowSize, my + uy * arrowSize);
-            ctx.lineTo(mx - ux * arrowSize - uy * arrowSize * 0.55, my - uy * arrowSize + ux * arrowSize * 0.55);
-            ctx.lineTo(mx - ux * arrowSize + uy * arrowSize * 0.55, my - uy * arrowSize - ux * arrowSize * 0.55);
+            ctx.moveTo(mx + ux * tip,          my + uy * tip);
+            ctx.lineTo(mx - ux * tip - uy * hw, my - uy * tip + ux * hw);
+            ctx.lineTo(mx - ux * tip + uy * hw, my - uy * tip - ux * hw);
             ctx.closePath();
             ctx.fillStyle = isSel ? '#fff' : eqh ? '#f0883e' : edgeColor;
             ctx.fill();

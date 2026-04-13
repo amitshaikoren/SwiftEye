@@ -25,7 +25,6 @@ import GraphAnnotationOverlay from './graph/components/GraphAnnotationOverlay';
 import GraphEventDots from './graph/components/GraphEventDots';
 import SyntheticNodeForm from './graph/components/SyntheticNodeForm';
 import SyntheticEdgeForm from './graph/components/SyntheticEdgeForm';
-import GraphLegend from './graph/GraphLegend';
 
 export default function GraphCanvas({
   nodes, edges, onSelect, onInvestigate, onInvestigateNeighbours, onHideNode, investigationNodes,
@@ -140,9 +139,6 @@ export default function GraphCanvas({
         </svg>
         Relayout
       </button>
-
-      {/* Color legend overlay */}
-      <GraphLegend nodeColorMode={nodeColorMode} edgeColorMode={edgeColorMode} />
 
       {/* Lasso selection overlay */}
       {lasso && lasso.points?.length >= 2 && (
