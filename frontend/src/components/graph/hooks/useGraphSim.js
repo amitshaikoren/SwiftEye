@@ -437,10 +437,10 @@ resize();draw();
           ctx.stroke();
         }
 
-        // Arrowhead at midpoint when direction mode is on
+        // Arrowhead at 70% toward target when direction mode is on
         if (showEdgeDirectionRef?.current) {
-          const mx = (src.x + tgt.x) / 2;
-          const my = (src.y + tgt.y) / 2;
+          const mx = src.x + (tgt.x - src.x) * 0.7;
+          const my = src.y + (tgt.y - src.y) * 0.7;
           const dx = tgt.x - src.x;
           const dy = tgt.y - src.y;
           const len = Math.sqrt(dx * dx + dy * dy);
