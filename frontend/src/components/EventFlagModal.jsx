@@ -20,11 +20,28 @@ const SEVERITIES = [
   { value: 'critical', label: 'Critical', color: '#f85149' },
 ];
 
+// d3 force simulation replaces string source/target with node objects.
+// This helper extracts the plain ID regardless of which form we have.
+function resolveId(ref) {
+  if (ref == null) return '';
+  if (typeof ref === 'string') return ref;
+  return ref.id ?? String(ref);
+}
+
 function defaultTitle(entity_type, entity) {
   if (!entity) return '';
-  if (entity_type === 'node')    return entity.id || 'Node';
-  if (entity_type === 'edge')    return `${entity.source} → ${entity.target}`;
-  if (entity_type === 'session') return `Session ${(entity.id || '').slice(0, 8)}`;
+  if (entity_type === 'node') return entity.id || 'Node';
+  if (entity_type === 'edge') {
+    const src = resolveId(entity.source);
+    const tgt = resolveId(entity.target);
+    return `${src} → ${tgt}`;
+  }
+  if (entity_type === 'session') {
+    const src = entity.src_ip || entity.initiator_ip || '';
+    const tgt = entity.dst_ip || entity.responder_ip || '';
+    const proto = entity.protocol || (entity.protocols || []).join('/');
+    return proto ? `${src} --${proto}→ ${tgt}` : `${src} → ${tgt}`;
+  }
   return '';
 }
 
@@ -53,9 +70,19 @@ export default function EventFlagModal({
 
   const targetSummary = useMemo(() => {
     if (!entity) return '';
-    if (entity_type === 'node')    return `Node · ${entity.id}`;
-    if (entity_type === 'edge')    return `Edge · ${entity.source} → ${entity.target} · ${entity.protocol || ''}`;
-    if (entity_type === 'session') return `Session · ${(entity.id || '').slice(0, 8)}`;
+    if (entity_type === 'node') return `Node · ${entity.id}`;
+    if (entity_type === 'edge') {
+      const src = resolveId(entity.source);
+      const tgt = resolveId(entity.target);
+      const proto = entity.protocol || (entity.protocols || []).join(', ');
+      return `Edge · ${src} → ${tgt}${proto ? ' · ' + proto : ''}`;
+    }
+    if (entity_type === 'session') {
+      const src = entity.src_ip || entity.initiator_ip || '';
+      const tgt = entity.dst_ip || entity.responder_ip || '';
+      const proto = entity.protocol || (entity.protocols || []).join('/');
+      return `Session · ${src}${proto ? ' --' + proto + '→' : ' →'} ${tgt}`;
+    }
     return '';
   }, [entity, entity_type]);
 

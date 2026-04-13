@@ -1,6 +1,6 @@
 # Session State
 
-**Last updated:** 2026-04-13 · **Current version:** v0.27.3
+**Last updated:** 2026-04-13 · **Current version:** v0.27.5
 **Current branch:** main
 **Mirror sync state:** All mirrors current at v0.27.3. Merged and flushed.
 
@@ -13,6 +13,7 @@
 
 > Keep max 3 entries. Drop the oldest when adding a new one. Full history in `CHANGELOG.ai.md`.
 
+- v0.27.5 — 6 bug fixes: investigation timeline nodes now show immediately after drag-drop; timeline nodes/edges fully editable (label, color via swatch picker, annotation, node severity); edge hover tooltips; session detail flag button icon-only; EventFlagModal resolves d3-mutated source/target to IDs; session title shows {ip}--proto→{ip}; Timeline panel removed from nav, session_gantt re-enabled in Research.
 - v0.27.3 — rebuild fix: sticky header CSS (flex chain, no height:100%); LLM settings moved into LLM panel inline (⚙ toggle); dist now includes all v0.27.2 changes.
 - v0.27.2 — quick-wins batch: logo home button fix (switchPanel not clearAll); graceful plotly/sqlglot fallback; SessionDetail sticky header; EdgeDetail port pairs display; d3 force sim tuning (charge -280→-180, alphaDecay 0.025, link distance 160→130); animation back-button breadcrumb in right panel; timeline strip animation frame cursor; animation node position persistence across panel switches.
 - v0.27.1 — server-side LLM key store (GET/POST /api/llm/keys, llm_keys.json, key injection in chat handler); LLM section in DEVELOPERS.md (§17: packages, tags, providers, wire format, testing); left-panel category labels removed (flat list); quick-wins roadmap table in SESSION.md.

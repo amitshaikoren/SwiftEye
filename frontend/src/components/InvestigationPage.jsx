@@ -166,6 +166,7 @@ export default function InvestigationPage({
   timelineEdges = [],
   suggestedEdges = [],
   addTimelineEdge,
+  updateTimelineEdge,
   removeTimelineEdge,
   acceptSuggestion,
   rejectSuggestion,
@@ -461,7 +462,9 @@ export default function InvestigationPage({
               timelineEdges={timelineEdges}
               suggestedEdges={suggestedEdges}
               addTimelineEdge={addTimelineEdge}
+              updateTimelineEdge={updateTimelineEdge}
               removeTimelineEdge={removeTimelineEdge}
+              updateEvent={updateEvent}
               acceptSuggestion={acceptSuggestion}
               rejectSuggestion={rejectSuggestion}
               rulerOn={rulerOn}

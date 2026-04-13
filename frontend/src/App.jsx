@@ -13,7 +13,6 @@ import FilterBar from './components/FilterBar';
 import LeftPanel from './components/LeftPanel';
 import GraphCanvas from './components/GraphCanvas';
 import TimelineStrip from './components/TimelineStrip';
-import TimelinePanel from './components/TimelinePanel';
 import AlertsPanel from './components/AlertsPanel';
 import InvestigationPage from './components/InvestigationPage';
 import VisualizePage from './components/VisualizePage';
@@ -178,14 +177,6 @@ export default function App() {
               bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
             />
           </Suspense>
-        ) : c.rPanel === 'timeline' ? (
-          /* TIMELINE PAGE — full width, replaces graph + right panel */
-          <TimelinePanel
-            sessions={c.sessions}
-            timeline={c.timeline}
-            timeRange={c.timeRange} setTimeRange={c.setTimeRange}
-            bucketSec={c.bucketSec} setBucketSec={c.setBucketSec}
-          />
         ) : c.rPanel === 'analysis' ? (
           /* ANALYSIS PAGE — full width, replaces graph + right panel */
           <Suspense fallback={<div style={{ padding: 24, color: 'var(--txD)', fontSize: 12 }}>Loading…</div>}>

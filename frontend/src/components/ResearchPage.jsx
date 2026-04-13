@@ -55,7 +55,6 @@ export default function ResearchPage({
     fetchResearchCharts()
       .then(d => {
         const charts = (d.charts || [])
-          .filter(c => c.name !== 'session_gantt')
           .map(c => ({ ...c, _category: inferCategory(c) }));
         setAllCharts(charts);
 

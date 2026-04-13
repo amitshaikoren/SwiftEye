@@ -94,7 +94,9 @@ export default function TimelineGraph({
   timelineEdges = [],
   suggestedEdges = [],
   addTimelineEdge,
+  updateTimelineEdge,
   removeTimelineEdge,
+  updateEvent,
   acceptSuggestion,
   rejectSuggestion,
   rulerOn = false,
@@ -131,6 +133,7 @@ export default function TimelineGraph({
   const [edgeLabelPrompt, setEdgeLabelPrompt] = useState(null); // { from, to } awaiting label
   const [ctxMenu, setCtxMenu] = useState(null); // { x, y, eventId }
   const [hoveredEdgeId, setHoveredEdgeId] = useState(null);
+  const [edgeTooltip, setEdgeTooltip] = useState(null); // { x, y, lines[] }
 
   // ── Resize observer ──────────────────────────────────────────────────────
 
@@ -249,6 +252,9 @@ export default function TimelineGraph({
       }
     }
     prevRulerRef.current = rulerOn;
+    // Force a re-render so newly added nodes are visible immediately.
+    // When ruler is off the sim is stopped (alpha=0) so ticks won't fire.
+    setTick(t => t + 1);
   }, [placedEvents, rulerOn, size.w, size.h, placeEvent]);
 
   // ── Zoom + pan ───────────────────────────────────────────────────────────
@@ -606,8 +612,19 @@ export default function TimelineGraph({
           const isHovered = hoveredEdgeId === id;
           return (
             <g key={'sugg:' + id} data-pan-skip="true" style={{ cursor: 'pointer' }}
-              onMouseEnter={() => setHoveredEdgeId(id)}
-              onMouseLeave={() => setHoveredEdgeId(null)}
+              onMouseEnter={e => {
+                setHoveredEdgeId(id);
+                const svg = svgRef.current;
+                const rect = svg?.getBoundingClientRect();
+                const lines = ['Suggested connection', ...s.reasons.map(r => r.label || r.reason || String(r))];
+                setEdgeTooltip({ x: e.clientX - (rect?.left || 0), y: e.clientY - (rect?.top || 0), lines });
+              }}
+              onMouseMove={e => {
+                const svg = svgRef.current;
+                const rect = svg?.getBoundingClientRect();
+                setEdgeTooltip(prev => prev ? { ...prev, x: e.clientX - (rect?.left || 0), y: e.clientY - (rect?.top || 0) } : null);
+              }}
+              onMouseLeave={() => { setHoveredEdgeId(null); setEdgeTooltip(null); }}
               onClick={e => onSuggestedClick(e, s)}>
               <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
                 stroke={s.primary_color} strokeWidth={isHovered ? 2.5 : 1.5}
@@ -640,7 +657,24 @@ export default function TimelineGraph({
           const { d, midX, midY } = arcPath(a.x, a.y, b.x, b.y, offset);
           return (
             <g key={'te:' + te.id} data-pan-skip="true" style={{ cursor: 'pointer' }}
+              onMouseEnter={e => {
+                const svg = svgRef.current;
+                const rect = svg?.getBoundingClientRect();
+                const lines = [];
+                if (te.label) lines.push(te.label);
+                if (te.annotation) lines.push(te.annotation);
+                if (!lines.length) lines.push(te.type === 'manual' ? 'Manual edge' : 'Accepted suggestion');
+                setEdgeTooltip({ x: e.clientX - (rect?.left || 0), y: e.clientY - (rect?.top || 0), lines });
+              }}
+              onMouseMove={e => {
+                const svg = svgRef.current;
+                const rect = svg?.getBoundingClientRect();
+                setEdgeTooltip(prev => prev ? { ...prev, x: e.clientX - (rect?.left || 0), y: e.clientY - (rect?.top || 0) } : null);
+              }}
+              onMouseLeave={() => setEdgeTooltip(null)}
               onClick={e => onManualEdgeClick(e, te)}>
+              {/* Wide invisible stroke for easier hover hit detection */}
+              <path d={d} fill="none" stroke="transparent" strokeWidth={10} />
               <path d={d} fill="none"
                 stroke={te.color || MANUAL_EDGE_COLOR}
                 strokeWidth={isSelected ? 3 : 2}
@@ -861,31 +895,60 @@ export default function TimelineGraph({
         <div style={{
           position: 'absolute', right: 12, bottom: 12, zIndex: 50,
           background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 6,
-          padding: 12, width: 240, maxWidth: '40%',
+          padding: 12, width: 260, maxWidth: '40%',
           boxShadow: '0 6px 18px rgba(0,0,0,.4)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <span style={{
-              width: 8, height: 8, borderRadius: '50%',
+              width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
               background: SEVERITY_COLOR[selectedNodeObj.severity] || '#8b949e',
             }} />
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tx)', flex: 1 }}>{selectedNodeObj.title}</div>
+            <input
+              value={selectedNodeObj.title || ''}
+              onChange={e => updateEvent?.(selectedNodeObj.id, { title: e.target.value })}
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                fontSize: 12, fontWeight: 700, color: 'var(--tx)', fontFamily: 'var(--fn)',
+              }}
+            />
             <button className="btn" onClick={() => setSelectedNode(null)} style={{ fontSize: 9, padding: '0 6px' }}>✕</button>
           </div>
           <div style={{ fontSize: 10, color: 'var(--txD)', fontFamily: 'var(--fn)', marginBottom: 6 }}>
             {selectedNodeObj.entity_type} · {selectedNodeObj.node_id || selectedNodeObj.edge_id || (selectedNodeObj.session_id || '').slice(0, 8)}
           </div>
-          {selectedNodeObj.description && (
-            <div style={{ fontSize: 11, color: 'var(--txM)', lineHeight: 1.5, marginBottom: 8 }}>
-              {selectedNodeObj.description}
+          {/* Color / severity picker */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 48 }}>Severity</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {Object.entries(SEVERITY_COLOR).map(([sev, col]) => (
+                <div key={sev} title={sev}
+                  onClick={() => updateEvent?.(selectedNodeObj.id, { severity: sev })}
+                  style={{
+                    width: 14, height: 14, borderRadius: '50%', background: col,
+                    cursor: 'pointer', border: selectedNodeObj.severity === sev ? '2px solid var(--tx)' : '2px solid transparent',
+                    boxSizing: 'border-box',
+                  }} />
+              ))}
             </div>
-          )}
+          </div>
+          <textarea
+            value={selectedNodeObj.description || ''}
+            onChange={e => updateEvent?.(selectedNodeObj.id, { description: e.target.value })}
+            placeholder="Add a description…"
+            rows={2}
+            style={{
+              width: '100%', background: 'var(--bg)', border: '1px solid var(--bd)',
+              borderRadius: 4, padding: '5px 7px', fontSize: 10,
+              color: 'var(--txM)', fontFamily: 'var(--fn)', resize: 'vertical', outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
           {selectedNodeObj.capture_time && (
-            <div style={{ fontSize: 9, color: 'var(--txD)', marginBottom: 8 }}>
+            <div style={{ fontSize: 9, color: 'var(--txD)', marginTop: 4 }}>
               {new Date(selectedNodeObj.capture_time * 1000).toLocaleString()}
             </div>
           )}
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
             <button className="btn" style={{ fontSize: 9, padding: '3px 8px' }}
               onClick={() => {
                 if (selectedNodeObj.entity_type === 'node') onSelectEntity?.('node', selectedNodeObj.node_id);
@@ -903,37 +966,77 @@ export default function TimelineGraph({
         <div style={{
           position: 'absolute', right: 12, bottom: 12, zIndex: 50,
           background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 6,
-          padding: 12, width: 240, maxWidth: '40%',
+          padding: 12, width: 260, maxWidth: '40%',
           boxShadow: '0 6px 18px rgba(0,0,0,.4)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--tx)', flex: 1 }}>
-              {selectedEdgeObj.label || 'Connection'}
-            </div>
+            <div style={{ width: 12, height: 3, borderRadius: 2, background: selectedEdgeObj.color || MANUAL_EDGE_COLOR, flexShrink: 0 }} />
+            <input
+              value={selectedEdgeObj.label || ''}
+              onChange={e => updateTimelineEdge?.(selectedEdgeObj.id, { label: e.target.value })}
+              placeholder="Label…"
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                fontSize: 12, fontWeight: 700, color: 'var(--tx)', fontFamily: 'var(--fn)',
+              }}
+            />
             <button className="btn" onClick={() => setSelectedEdge(null)} style={{ fontSize: 9, padding: '0 6px' }}>✕</button>
           </div>
-          <div style={{ fontSize: 10, color: 'var(--txD)', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: 'var(--txD)', marginBottom: 8 }}>
             {selectedEdgeObj.type === 'manual' ? 'Manual edge' : 'Accepted suggestion'}
+          </div>
+          {/* Color picker row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <span style={{ fontSize: 9, color: 'var(--txD)', minWidth: 38 }}>Color</span>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {['#c9d1d9','#58a6ff','#3fb950','#f85149','#f0883e','#d29922','#a371f7','#22d3ee'].map(col => (
+                <div key={col}
+                  onClick={() => updateTimelineEdge?.(selectedEdgeObj.id, { color: col })}
+                  style={{
+                    width: 14, height: 14, borderRadius: '50%', background: col,
+                    cursor: 'pointer',
+                    border: (selectedEdgeObj.color || MANUAL_EDGE_COLOR) === col ? '2px solid var(--tx)' : '2px solid transparent',
+                    boxSizing: 'border-box',
+                  }} />
+              ))}
+            </div>
           </div>
           <textarea
             value={selectedEdgeObj.annotation || ''}
-            onChange={e => {
-              // We don't have updateTimelineEdge plumbed; settle for label-only edits
-              // (annotation field is data-model only in Phase 1).
-            }}
-            placeholder="Annotation (read-only in Phase 1)"
+            onChange={e => updateTimelineEdge?.(selectedEdgeObj.id, { annotation: e.target.value })}
+            placeholder="Add a note…"
             rows={3}
-            readOnly
             style={{
               width: '100%', background: 'var(--bg)', border: '1px solid var(--bd)',
               borderRadius: 4, padding: '5px 7px', fontSize: 10,
               color: 'var(--txM)', fontFamily: 'var(--fn)', resize: 'vertical', outline: 'none',
+              boxSizing: 'border-box',
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
             <button className="btn" style={{ fontSize: 9, padding: '3px 10px', color: '#f85149', borderColor: '#f85149' }}
               onClick={() => { removeTimelineEdge?.(selectedEdgeObj.id); setSelectedEdge(null); }}>Remove</button>
           </div>
+        </div>
+      )}
+
+      {/* Edge hover tooltip */}
+      {edgeTooltip && (
+        <div style={{
+          position: 'absolute',
+          left: edgeTooltip.x + 12,
+          top: edgeTooltip.y - 8,
+          zIndex: 300,
+          background: 'var(--bgP)', border: '1px solid var(--bd)',
+          borderRadius: 4, padding: '5px 8px',
+          boxShadow: '0 3px 10px rgba(0,0,0,.4)',
+          pointerEvents: 'none', maxWidth: 260,
+        }}>
+          {edgeTooltip.lines.map((l, i) => (
+            <div key={i} style={{ fontSize: i === 0 ? 10 : 9, color: i === 0 ? 'var(--tx)' : 'var(--txM)', fontWeight: i === 0 ? 600 : 400, marginTop: i > 0 ? 2 : 0 }}>
+              {l}
+            </div>
+          ))}
         </div>
       )}
     </div>

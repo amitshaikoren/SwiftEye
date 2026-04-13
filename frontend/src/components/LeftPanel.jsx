@@ -235,7 +235,6 @@ export default function LeftPanel({
         {[
           ['stats','Overview'],
           ['sessions','Sessions'],
-          ['timeline','Timeline'],
           ['query','Query'],
           ['research','Research'],
           ['analysis','Analysis ✦'],
