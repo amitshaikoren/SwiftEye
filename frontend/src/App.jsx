@@ -211,7 +211,6 @@ export default function App() {
                 sessionId: c.selSession?.id || null,
                 alertId:   null,
               }}
-              onOpenSettings={() => setShowSettings(true)}
             />
           </Suspense>
         ) : c.rPanel === 'alerts' ? (
@@ -637,7 +636,7 @@ export default function App() {
                       style={{ fontSize: 11, padding: '1px 8px', opacity: c.canGoForward ? 1 : 0.3 }}>→</button>
                   </div>
                 )}
-                <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <AppRightPanel
                     c={c}
                     subgraphInfo={subgraphInfo}

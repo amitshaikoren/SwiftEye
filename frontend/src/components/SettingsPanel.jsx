@@ -59,69 +59,9 @@ export default function SettingsPanel({ settings, setSetting, onClose }) {
           </div>
         </div>
 
-        {/* LLM Provider */}
-        <div style={{ marginBottom: 24 }}>
-          <div style={{
-            fontSize: 9, color: 'var(--txD)', textTransform: 'uppercase',
-            letterSpacing: '.08em', marginBottom: 10,
-          }}>LLM Provider</div>
-
-          {/* Provider selector */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 4 }}>Provider</div>
-            <select value={settings.llmProvider || 'ollama'}
-              onChange={e => setSetting('llmProvider', e.target.value)}
-              style={{ width: '100%', background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--tx)', outline: 'none', cursor: 'pointer' }}>
-              <option value="ollama">Ollama (local, no key required)</option>
-              <option value="openai">OpenAI-compatible</option>
-            </select>
-          </div>
-
-          {/* Base URL */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 4 }}>
-              Base URL <span style={{ color: 'var(--txD)' }}>(blank = provider default)</span>
-            </div>
-            <input type="text"
-              value={settings.llmBaseUrl || ''}
-              onChange={e => setSetting('llmBaseUrl', e.target.value)}
-              placeholder={settings.llmProvider === 'ollama' ? 'http://localhost:11434' : 'https://api.openai.com/v1'}
-              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--tx)', fontFamily: 'var(--fn)', outline: 'none' }} />
-          </div>
-
-          {/* Model */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 4 }}>Model</div>
-            <input type="text"
-              value={settings.llmModel || ''}
-              onChange={e => setSetting('llmModel', e.target.value)}
-              placeholder={settings.llmProvider === 'ollama' ? 'qwen2.5:14b-instruct' : 'gpt-4o-mini'}
-              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--tx)', fontFamily: 'var(--fn)', outline: 'none' }} />
-          </div>
-
-          {/* API Key (only shown for openai) */}
-          {settings.llmProvider === 'openai' && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, color: 'var(--txM)', marginBottom: 4 }}>API Key</div>
-              <input type="password"
-                value={settings.llmApiKey || ''}
-                onChange={e => setSetting('llmApiKey', e.target.value)}
-                placeholder="sk-…"
-                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bgH)', border: '1px solid var(--bd)', borderRadius: 5, padding: '6px 8px', fontSize: 11, color: 'var(--tx)', fontFamily: 'var(--fn)', outline: 'none' }} />
-            </div>
-          )}
-
-          {/* Privacy note */}
-          <div style={{ fontSize: 9, color: 'var(--txD)', lineHeight: 1.55, marginTop: 6 }}>
-            {settings.llmProvider === 'openai'
-              ? 'Your API key is stored on the SwiftEye server (llm_keys.json), not in browser storage. Capture-derived context is sent to the external provider when you ask a question.'
-              : 'Ollama runs locally. No data leaves your machine.'}
-          </div>
-        </div>
-
         {/* Footer */}
         <div style={{ fontSize: 9, color: 'var(--txD)', borderTop: '1px solid var(--bd)', paddingTop: 12 }}>
-          Theme saved in browser. LLM settings saved on the server.
+          Theme saved in browser. LLM provider settings are in the Analysis panel (⚙ button).
         </div>
       </div>
     </div>

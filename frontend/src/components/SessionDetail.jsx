@@ -98,7 +98,7 @@ export default function SessionDetail({ session: s, onBack, pColors, onTabChange
 
   return (
     <CollapseContext.Provider value={collapseCtx}>
-    <div className="fi" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="fi" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ── Sticky header ─────────────────────────────────────────── */}
       <div style={{ flexShrink: 0, padding: '16px 16px 0 16px', background: 'var(--bgS)', borderBottom: '1px solid var(--bd)', zIndex: 5 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>

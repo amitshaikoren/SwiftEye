@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { VERSION } from '../version.js';
-import { useSettings } from '../hooks/useSettings';
 import { fetchAnalysisResults } from '../api';
 import { fB, fN } from '../utils';
 import LLMInterpretationPanel from './LLMInterpretationPanel';
@@ -476,8 +475,7 @@ function AnalysisCard({ icon, title, badge, description, expanded, onToggle, chi
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
-export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelectNode, filters, selection, onOpenSettings }) {
-  const { settings, setSetting } = useSettings();
+export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelectNode, filters, selection }) {
   const [expanded, setExpanded] = useState(null);
   const toggle = key => setExpanded(prev => prev === key ? null : key);
   const anyExpanded = expanded !== null;
@@ -562,8 +560,6 @@ export default function AnalysisPage({ nodes, edges, sessions, pColors, onSelect
         <LLMInterpretationPanel
           filters={filters}
           selection={selection}
-          settings={settings}
-          onOpenSettings={onOpenSettings}
         />
       </div>
     </div>
