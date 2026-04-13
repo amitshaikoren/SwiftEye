@@ -1,6 +1,6 @@
 # Roadmap — AI Reference
 
-**v0.27.3 | 2026-04-13** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
+**v0.27.5 | 2026-04-13** · Source of truth: `ROADMAP.md`. Mirrors main state only — branch-local work is not reflected until after merge.
 Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per item — read by anchor (`#item-id`) only when picking up that item.
 
 ---
@@ -33,13 +33,13 @@ Detail blocks (design notes, files-touched, depends) live in `ROADMAP.md` per it
 | `save-load-workspaces` | pending | high | medium | short | — | Serialize annotations/synthetics/positions to JSON |
 | `usecapture-decomposition` | pending | high | high | medium | **yes** | Split 970-line god hook into domain slices |
 | `alerts-edge-detectors` | pending | high | medium | short | — | Refactor detectors to use edge/node graph data + triage |
-| `animation-pane-timeline-sync` | pending | high | low | short | — | Timeline strip shows capture-relative position of frame |
+| `animation-pane-timeline-sync` | done | high | low | short | — | Done v0.27.2 — orange tick cursor on TimelineStrip tracks current frame position. |
 | `animation-direction-mismatch` | done | high | low | short | — | Fixed v0.24.0 — uses initiator_ip/responder_ip. |
 | `animation-node-persistence-stability` | done | high | low | short | — | Done v0.27.2 — savedPositionsRef lifted to App.jsx, merged on remount, written on drag. |
 | `detail-panel-polish` | done | high | low | short | — | Fixed v0.24.0 — Flag text removed, icon only. |
 | `timeline-graph-phase3` | done | high | low | short | — | Both items fixed in v0.24.0. Moved to COMPLETED.md. |
 | `timeline-graph-multi-select-features` | pending | high | medium | short | — | Extend timeline-graph multi-selection: box-select, select-by-protocol, edge count badge, bulk graph-filter action |
-| `timeline-to-research-gantt` | pending | medium | medium | short | — | Remove Timeline panel tab; move session Gantt into Research as a first-class chart |
+| `timeline-to-research-gantt` | done | medium | medium | short | — | Done v0.27.5 — Timeline panel removed from nav; session Gantt moved to Research panel. |
 | `d3-force-tuning` | done | high | low | short | — | Done v0.27.2 — charge -280→-180, link 160→130, alphaDecay 0.02→0.025. |
 | `subnet-node-visual-redesign` | done | high | low | short | — | Removed from roadmap — user decided not needed. |
 | `query-topology-phase2` | pending | high | medium | medium | — | Topology operators: connects_to, degree, same_neighbors_as |

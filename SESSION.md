@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-13 · **Current version:** v0.27.5
 **Current branch:** main
-**Mirror sync state:** All mirrors current at v0.27.3. Merged and flushed.
+**Mirror sync state:** All mirrors current at v0.27.5. Merged and flushed.
 
 > Live, per-session cache. Read first after `CLAUDE.md`.
 > Write here during the session. Flush to human docs only at merge — not mid-session.
@@ -51,36 +51,15 @@ Second-pass files (07–13) are companions to the above — read alongside relev
 
 ## Do next
 
-1. ~~**Fix Phase 1 bugs — done (v0.26.8)**~~
-2. ~~**Node role fix + starter prompts — done (v0.26.9)**~~
-3. ~~**Wire API keys from server — done (v0.27.1)**~~
-4. ~~**Document LLM section in DEVELOPERS.md — done (v0.27.1)**~~
-5. ~~**Remove left-panel mini-categories — done (v0.27.1)**~~
-6. ~~**Quick-wins list from roadmap — done (v0.27.1, see table below)**~~
-
-7. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
+1. **Graph direction viz** (`graph-direction-viz`) — show traffic direction on edges (particles / arrowheads / color-coding). **Toggleable, default OFF, wired into Graph Options panel.**
+2. **Graph legend sync** (`graph-legend-sync`) — canvas legend updates to reflect active color mode (node color by OS/role, edge color by protocol etc.).
+3. **Export HTML enriched hover** (`export-html-enriched-hover`) — richer hover tooltips in exported HTML (bytes in/out, packet count, session count, top protocols on nodes; session count, protocol list, duration on edges).
+4. **Docs audit** (`docs-audit`) — focus on `docs/DEVELOPERS.md` first (API tables, LLM section, route list). Then HANDOFF.md §2 (directory tree), README feature list.
+5. **LLM Phase 2 — Sonnet.** Branch: `feat/llm-phase2`. Plan: `docs/plans/active/llm-interpretation-phase2-3.md § Phase 2`.
    Order: 2.2 (conversation history) → 2.3 (protocol translators) → 2.4 (source-type awareness) → 2.5 (adaptive budgeting).
-
-8. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.
+6. **LLM Phase 3 — mixed.** New branch: `feat/llm-phase3`. Plan § Phase 3.
    - 3.1 tool-use loop → **Opus** (architectural change to service loop + provider layer)
    - 3.2 report mode + 3.3 payload inspection → Sonnet once 3.1 is stable
-
-### Quick-wins from roadmap (pick any, no LLM Phase 2/3 dependency)
-
-Ranked by priority × effort. All are `low` effort, `short` term, not Opus.
-
-| # | ID | Pri | What | Notes |
-|---|---|---|---|---|
-| 1 | `animation-pane-timeline-sync` | high | Timeline strip shows capture-relative position of current animation frame | Pure frontend |
-| 2 | `d3-force-tuning` | high | Review charge/distanceMax in GraphCanvas force sim; possibly add a slider | Quick config tweak |
-| 3 | `subnet-node-visual-redesign` | high | Subnets don't look distinct from regular nodes | CSS / render change |
-| 4 | `animation-node-persistence-stability` | high | Persist dragged node positions across panel switches | useRef or localStorage |
-| 5 | `lazy-post-parse-audit` | high | Decide what runs at load vs on-demand; document the decision | Audit + maybe small refactor |
-| 6 | `graceful-optional-deps` | medium | plotly/sqlglot import failures → disable charts, not abort startup | try/except at import |
-| 7 | `session-detail-sticky-header` | medium | Connection header stays anchored on scroll | CSS `position: sticky` |
-| 8 | `animation-back-button` | medium | "Back to animation" affordance after navigating away | Small nav button |
-| 9 | `logo-home-button` | medium | Logo/home button fails to navigate home from different panels | Routing fix |
-| 10 | `edge-port-pairs` | medium | Restructure edge ports as paired (src_port, dst_port) data in hover | Data display change |
 
 ---
 

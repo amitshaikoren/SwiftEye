@@ -1,5 +1,17 @@
 # SwiftEye — Changelog
 
+### v0.27.5 — April 2026
+- **Investigation timeline nodes render immediately** — dragging a node into the investigation timeline now shows it at the drop position immediately, without requiring a zoom or pan event to trigger a re-render.
+- **Timeline node/edge editing** — investigation timeline nodes and edges are now fully editable: label, color (via swatch picker), annotation text, and node severity can all be changed inline.
+- **Edge hover tooltips** — hovering a graph edge now shows a tooltip with key connection details.
+- **Session flag button icon-only** — the flag button in the session detail header is now icon-only, consistent with node and edge detail panels.
+- **EventFlagModal source/target fix** — the flag modal was incorrectly storing d3-mutated source/target objects instead of IDs. Fixed by resolving `source.id` / `target.id` before saving.
+- **Session title format** — session detail title bar now shows `{ip}--proto→{ip}` (e.g. `10.0.0.1--TCP→10.0.0.2`) for clearer at-a-glance identification.
+- **Timeline panel moved to Research** — the standalone Timeline left-nav panel has been removed. The session Gantt chart is now a first-class chart in the Research panel.
+
+### v0.27.4 — April 2026
+- **CONTRACTS.md** — added comprehensive extension contract reference covering all 12 SwiftEye extension points: adapters, protocol fields, edge fields, plugins, detectors, analyses, research charts, LLM providers, query contract, wire types, session sections, and source capabilities. Intended as the definitive reference for anyone building extensions.
+
 ### v0.27.3 — April 2026
 - **Sticky header fix (SessionDetail)** — the connection header, tags, and tabs now stay anchored while the session body scrolls. Root cause was a broken height chain: the right-panel wrapper used `flex: 1` (flex-layout sizing) which isn't inherited by `height: 100%` descendants. Fixed by making the entire chain explicit flexbox — wrapper is now `display: flex; flex-direction: column` and SessionDetail uses `flex: 1; min-height: 0` instead of `height: 100%`.
 - **LLM settings moved into the Analysis panel** — provider, base URL, model name, and API key are now configured directly inside the LLM Interpretation panel (click the ⚙ button in the panel header). Removed from the global Settings panel. The LLM panel manages its own settings via `useSettings` internally; `onOpenSettings` prop removed from `LLMInterpretationPanel` and `AnalysisPage`.
