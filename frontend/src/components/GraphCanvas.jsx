@@ -71,7 +71,7 @@ export default function GraphCanvas({
     selNRef, selERef, pcRef,
     onSelRef, onInvRef, onInvNbRef, onClearQHRef,
     labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
-    nodeColorRulesRef, edgeColorRulesRef,
+    nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
     annotationsRef, pathfindSourceRef, onPathfindTargetRef,
   } = useGraphViewSync({
