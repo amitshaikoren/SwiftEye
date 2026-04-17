@@ -19,7 +19,7 @@ import logging
 import uuid
 from typing import Any, Dict, Generator, Iterator, List, Optional
 
-import store as _store
+import workspaces.network.store as _store
 
 from .contracts import (
     ChatRequest, ScopeSpec, SelectionState,

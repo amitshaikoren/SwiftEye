@@ -11,10 +11,10 @@ from collections import defaultdict
 
 from storage.backend import StorageBackend
 from storage.serializers import serialize_packet
-from data.session_match import _ip_matches_endpoint, _protocol_matches, _session_matches_edge
+from workspaces.network.analysis.session_match import _ip_matches_endpoint, _protocol_matches, _session_matches_edge
 
 if TYPE_CHECKING:
-    from parser.packet import PacketRecord
+    from workspaces.network.parser.packet import PacketRecord
 
 logger = logging.getLogger("swifteye.storage.memory")
 

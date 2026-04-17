@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from data.aggregator import build_node_session_events, build_node_animation_response
+from workspaces.network.analysis.aggregator import build_node_session_events, build_node_animation_response
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

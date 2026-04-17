@@ -1,5 +1,5 @@
 """
-Context builder — assembles a question-specific context packet from store data.
+Context builder — assembles a question-specific context packet from workspaces.network.store data.
 
 The context packet has these sections:
   scope              — normalised scope mode + active filters
@@ -17,8 +17,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, Set
 
-import store as _store
-from plugins.analyses import get_analysis_results
+import workspaces.network.store as _store
+from workspaces.network.plugins.analyses import get_analysis_results
 
 from .contracts import ChatRequest, ScopeSpec, SelectionState, ViewerState
 from .question_tags import (

@@ -10,7 +10,7 @@ import tempfile
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 
-from store import store, _require_capture
+from workspaces.network.store import store, _require_capture
 
 logger = logging.getLogger("swifteye.routes.investigation")
 router = APIRouter()

@@ -7,17 +7,17 @@ from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
 
-from store import store, _require_capture
-from data import build_time_buckets, build_graph, filter_packets, compute_global_stats, get_subnets
-from data.aggregator import get_edge_detail
+from workspaces.network.store import store, _require_capture
+from workspaces.network.analysis import build_time_buckets, build_graph, filter_packets, compute_global_stats, get_subnets
+from workspaces.network.analysis.aggregator import get_edge_detail
 from data.algorithms import compute_clusters, find_paths
-from plugins import get_global_results
-from plugins.insights.node_merger import build_entity_map
-from plugins.analyses import get_analysis_results, clear_analysis_results
-from parser import read_pcap, PacketRecord, MAX_FILE_SIZE
-from parser.adapters import detect_adapter, find_adapter_by_name, ADAPTERS
-from parser.schema import inspect_schema, stage_file
-from constants import PROTOCOL_COLORS
+from workspaces.network.plugins import get_global_results
+from workspaces.network.plugins.insights.node_merger import build_entity_map
+from workspaces.network.plugins.analyses import get_analysis_results, clear_analysis_results
+from workspaces.network.parser import read_pcap, PacketRecord, MAX_FILE_SIZE
+from workspaces.network.parser.adapters import detect_adapter, find_adapter_by_name, ADAPTERS
+from workspaces.network.parser.schema import inspect_schema, stage_file
+from workspaces.network.constants import PROTOCOL_COLORS
 from models import (
     UploadResponse, StatsResponse, TimelineResponse, GraphResponse,
     SessionsResponse, SessionDetailResponse, ProtocolsResponse, SubnetsResponse,

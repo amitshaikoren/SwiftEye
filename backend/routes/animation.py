@@ -10,9 +10,9 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from store import store, _require_capture
-from data import build_node_animation_response
-from plugins import get_global_results
+from workspaces.network.store import store, _require_capture
+from workspaces.network.analysis import build_node_animation_response
+from workspaces.network.plugins import get_global_results
 from models import NodeAnimationResponse
 
 logger = logging.getLogger("swifteye.routes.animation")

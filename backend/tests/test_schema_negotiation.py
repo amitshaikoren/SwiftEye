@@ -28,17 +28,17 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def get_zeek_conn_adapter():
-    from parser.adapters.zeek.conn import ZeekConnAdapter
+    from workspaces.network.parser.adapters.zeek.conn import ZeekConnAdapter
     return ZeekConnAdapter()
 
 
 def get_zeek_dns_adapter():
-    from parser.adapters.zeek.dns import ZeekDnsAdapter
+    from workspaces.network.parser.adapters.zeek.dns import ZeekDnsAdapter
     return ZeekDnsAdapter()
 
 
 def get_tshark_metadata_adapter():
-    from parser.adapters.tshark.metadata import TsharkMetadataAdapter
+    from workspaces.network.parser.adapters.tshark.metadata import TsharkMetadataAdapter
     return TsharkMetadataAdapter()
 
 
@@ -46,14 +46,14 @@ def get_tshark_metadata_adapter():
 
 class TestInspectSchemaClean:
     def test_zeek_conn_clean_is_clean(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_zeek_conn_adapter()
         report = inspect_schema(adapter, FIXTURES / "zeek_conn_clean.log")
         assert report.is_clean is True
         assert report.missing_required == []
 
     def test_zeek_conn_clean_detects_all_required(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_zeek_conn_adapter()
         report = inspect_schema(adapter, FIXTURES / "zeek_conn_clean.log")
         required = [f.name for f in adapter.declared_fields if f.required]
@@ -61,13 +61,13 @@ class TestInspectSchemaClean:
             assert field in report.detected_columns, f"Required field '{field}' not detected"
 
     def test_zeek_dns_clean_is_clean(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_zeek_dns_adapter()
         report = inspect_schema(adapter, FIXTURES / "zeek_dns_clean.log")
         assert report.is_clean is True
 
     def test_tshark_metadata_clean_is_clean(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_tshark_metadata_adapter()
         report = inspect_schema(adapter, FIXTURES / "tshark_metadata_clean.csv")
         assert report.is_clean is True
@@ -78,13 +78,13 @@ class TestInspectSchemaClean:
 
 class TestInspectSchemaMismatch:
     def test_zeek_conn_renamed_not_clean(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_zeek_conn_adapter()
         report = inspect_schema(adapter, FIXTURES / "zeek_conn_renamed.log")
         assert report.is_clean is False
 
     def test_zeek_conn_renamed_missing_required(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_zeek_conn_adapter()
         report = inspect_schema(adapter, FIXTURES / "zeek_conn_renamed.log")
         # The renamed file uses src_ip/dst_ip instead of id.orig_h/id.resp_h
@@ -92,27 +92,27 @@ class TestInspectSchemaMismatch:
         assert "id.resp_h" in report.missing_required
 
     def test_zeek_conn_renamed_detects_unknown_columns(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_zeek_conn_adapter()
         report = inspect_schema(adapter, FIXTURES / "zeek_conn_renamed.log")
         # New column names like src_ip, dst_ip are not in declared_fields
         assert "src_ip" in report.unknown_columns or "dst_ip" in report.unknown_columns
 
     def test_tshark_metadata_renamed_not_clean(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_tshark_metadata_adapter()
         report = inspect_schema(adapter, FIXTURES / "tshark_metadata_renamed.csv")
         assert report.is_clean is False
 
     def test_tshark_metadata_renamed_missing_required(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_tshark_metadata_adapter()
         report = inspect_schema(adapter, FIXTURES / "tshark_metadata_renamed.csv")
         # Renamed file uses src_ip/dst_ip instead of sourceIp/destIp
         assert "sourceIp" in report.missing_required or "destIp" in report.missing_required
 
     def test_suggested_mappings_for_zeek_conn_renamed(self):
-        from parser.schema import inspect_schema
+        from workspaces.network.parser.schema import inspect_schema
         adapter = get_zeek_conn_adapter()
         report = inspect_schema(adapter, FIXTURES / "zeek_conn_renamed.log")
         # Inspector should suggest: src_ip → id.orig_h or similar
@@ -245,7 +245,7 @@ class TestParseWithMapping:
 
     def test_parse_with_mapping_no_declared_fields_falls_back(self):
         """An adapter with no declared_fields falls back to plain parse()."""
-        from parser.adapters.pcap_adapter import PcapAdapter
+        from workspaces.network.parser.adapters.pcap_adapter import PcapAdapter
         adapter = PcapAdapter()
         assert adapter.declared_fields == []
         # PcapAdapter.parse() raises on a non-pcap file — that's expected.
@@ -259,7 +259,7 @@ class TestParseWithMapping:
 
 class TestStaging:
     def test_stage_and_retrieve(self, tmp_path):
-        from parser.schema import stage_file, get_staged, clear_staged
+        from workspaces.network.parser.schema import stage_file, get_staged, clear_staged
         test_file = tmp_path / "test_conn.log"
         test_file.write_text("dummy content")
 
@@ -277,10 +277,10 @@ class TestStaging:
         assert not Path(staged.staged_path).exists()
 
     def test_unknown_token_returns_none(self):
-        from parser.schema import get_staged
+        from workspaces.network.parser.schema import get_staged
         assert get_staged("nonexistent-token-xyz") is None
 
     def test_clear_nonexistent_token_safe(self):
-        from parser.schema import clear_staged
+        from workspaces.network.parser.schema import clear_staged
         # Should not raise
         clear_staged("nonexistent-token-abc")

@@ -2,7 +2,7 @@
 Packet serialization helpers for the storage layer.
 
 These functions convert PacketRecord fields into API-friendly dicts.
-Extracted from store.py to be shared by all StorageBackend implementations.
+Extracted from workspaces.network.store.py to be shared by all StorageBackend implementations.
 """
 
 import math
@@ -10,7 +10,7 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from parser.packet import PacketRecord
+    from workspaces.network.parser.packet import PacketRecord
 
 
 def _payload_hexdump(data: bytes) -> str:

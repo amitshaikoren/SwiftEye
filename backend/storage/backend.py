@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from parser.packet import PacketRecord
+    from workspaces.network.parser.packet import PacketRecord
 
 
 class StorageBackend(ABC):

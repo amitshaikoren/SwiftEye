@@ -8,11 +8,11 @@ Removing all plugins leaves CaptureStore fully functional.
 import time
 import logging
 
-from data import build_graph
-from plugins import AnalysisContext, run_global_analysis, get_global_results
-from plugins.analyses import run_all_analyses
-from plugins.alerts import run_all_detectors
-from store import store
+from workspaces.network.analysis import build_graph
+from workspaces.network.plugins import AnalysisContext, run_global_analysis, get_global_results
+from workspaces.network.plugins.analyses import run_all_analyses
+from workspaces.network.plugins.alerts import run_all_detectors
+from workspaces.network.store import store
 
 logger = logging.getLogger("swifteye.services")
 
