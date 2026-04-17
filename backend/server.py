@@ -29,10 +29,10 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from plugins import register_plugin
-from plugins.analyses import register_analysis
-from plugins.alerts import register_detector
-from research import register_chart
+from workspaces.network.plugins import register_plugin
+from workspaces.network.plugins.analyses import register_analysis
+from workspaces.network.plugins.alerts import register_detector
+from workspaces.network.research import register_chart
 
 from routes.data import router as data_router
 from routes.query import router as query_router
@@ -97,33 +97,33 @@ def _dynamic_register(specs, register_fn, label="component"):
 # ── Register plugins, analyses, charts ───────────────────────────────────────
 
 _dynamic_register([
-    ("plugins.insights.os_fingerprint", "OSFingerprintPlugin"),
-    ("plugins.insights.network_map",    "NetworkMapPlugin"),
-    ("plugins.insights.tcp_flags",      "TCPFlagsPlugin"),
-    ("plugins.insights.dns_resolver",   "DNSResolverPlugin"),
+    ("workspaces.network.plugins.insights.os_fingerprint", "OSFingerprintPlugin"),
+    ("workspaces.network.plugins.insights.network_map",    "NetworkMapPlugin"),
+    ("workspaces.network.plugins.insights.tcp_flags",      "TCPFlagsPlugin"),
+    ("workspaces.network.plugins.insights.dns_resolver",   "DNSResolverPlugin"),
 ], register_plugin, "insight plugin")
 
 _dynamic_register([
-    ("plugins.analyses.node_centrality",           "NodeCentralityAnalysis"),
-    ("plugins.analyses.traffic_characterisation",   "TrafficCharacterisationAnalysis"),
+    ("workspaces.network.plugins.analyses.node_centrality",           "NodeCentralityAnalysis"),
+    ("workspaces.network.plugins.analyses.traffic_characterisation",   "TrafficCharacterisationAnalysis"),
 ], register_analysis, "analysis plugin")
 
 _dynamic_register([
-    ("research.conversation_timeline", "ConversationTimeline"),
-    ("research.ttl_over_time",         "TTLOverTime"),
-    ("research.session_gantt",         "SessionGantt"),
-    ("research.seq_ack_timeline",      "SeqAckTimelineChart"),
-    ("research.dns_timeline",          "DNSTimeline"),
-    ("research.ja3_timeline",          "JA3Timeline"),
-    ("research.ja4_timeline",          "JA4Timeline"),
-    ("research.http_ua_timeline",       "HTTPUserAgentTimeline"),
+    ("workspaces.network.research.conversation_timeline", "ConversationTimeline"),
+    ("workspaces.network.research.ttl_over_time",         "TTLOverTime"),
+    ("workspaces.network.research.session_gantt",         "SessionGantt"),
+    ("workspaces.network.research.seq_ack_timeline",      "SeqAckTimelineChart"),
+    ("workspaces.network.research.dns_timeline",          "DNSTimeline"),
+    ("workspaces.network.research.ja3_timeline",          "JA3Timeline"),
+    ("workspaces.network.research.ja4_timeline",          "JA4Timeline"),
+    ("workspaces.network.research.http_ua_timeline",       "HTTPUserAgentTimeline"),
 ], register_chart, "research chart")
 
 _dynamic_register([
-    ("plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
-    ("plugins.alerts.suspicious_ua", "SuspiciousUADetector"),
-    ("plugins.alerts.malicious_ja3", "MaliciousJA3Detector"),
-    ("plugins.alerts.port_scan",     "PortScanDetector"),
+    ("workspaces.network.plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
+    ("workspaces.network.plugins.alerts.suspicious_ua", "SuspiciousUADetector"),
+    ("workspaces.network.plugins.alerts.malicious_ja3", "MaliciousJA3Detector"),
+    ("workspaces.network.plugins.alerts.port_scan",     "PortScanDetector"),
 ], register_detector, "alert detector")
 
 

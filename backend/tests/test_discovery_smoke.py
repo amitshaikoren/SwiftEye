@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 def test_protocol_fields_registry_populated():
     """pkgutil discovery found at least one protocol module on import."""
-    from data import protocol_fields
+    from workspaces.network.analysis import protocol_fields
     assert len(protocol_fields._REGISTRY) > 0, (
         "protocol_fields._REGISTRY is empty — pkgutil discovery in __init__.py "
         "may have broken; check data/protocol_fields/__init__.py:_discover()"
@@ -40,7 +40,7 @@ def test_protocol_fields_registry_populated():
 
 def test_protocol_fields_callables():
     """all_accumulate / all_serialize / any_boundary are callable after discovery."""
-    from data.protocol_fields import all_accumulate, all_serialize, any_boundary
+    from workspaces.network.analysis.protocol_fields import all_accumulate, all_serialize, any_boundary
     assert callable(all_accumulate)
     assert callable(all_serialize)
     assert callable(any_boundary)
@@ -49,7 +49,7 @@ def test_protocol_fields_callables():
 @pytest.mark.parametrize("modname", ["dns", "tls", "http", "ssh", "kerberos", "smb"])
 def test_protocol_fields_known_modules_importable(modname):
     """Known protocol modules import cleanly and expose the three required functions."""
-    mod = importlib.import_module(f"data.protocol_fields.{modname}")
+    mod = importlib.import_module(f"workspaces.network.analysis.protocol_fields.{modname}")
     assert callable(getattr(mod, "init", None)),       f"{modname}: missing init()"
     assert callable(getattr(mod, "accumulate", None)), f"{modname}: missing accumulate()"
     assert callable(getattr(mod, "serialize", None)),  f"{modname}: missing serialize()"
@@ -59,16 +59,16 @@ def test_protocol_fields_known_modules_importable(modname):
 
 def test_adapters_registry_populated():
     """@register_adapter populated ADAPTERS on import."""
-    from parser.adapters import ADAPTERS
+    from workspaces.network.parser.adapters import ADAPTERS
     assert len(ADAPTERS) > 0, (
-        "parser.adapters.ADAPTERS is empty — adapter imports at the bottom of "
+        "workspaces.network.parser.adapters.ADAPTERS is empty — adapter imports at the bottom of "
         "parser/adapters/__init__.py may have broken"
     )
 
 
 def test_adapters_pcap_present():
     """pcap/pcapng adapter is registered."""
-    from parser.adapters import ADAPTERS
+    from workspaces.network.parser.adapters import ADAPTERS
     names = [cls.name for cls in ADAPTERS]
     assert any("pcap" in n.lower() for n in names), (
         f"No pcap adapter found in ADAPTERS. Registered: {names}"
@@ -77,7 +77,7 @@ def test_adapters_pcap_present():
 
 def test_adapters_zeek_present():
     """At least one Zeek adapter is registered."""
-    from parser.adapters import ADAPTERS
+    from workspaces.network.parser.adapters import ADAPTERS
     names = [cls.name for cls in ADAPTERS]
     assert any("zeek" in n.lower() for n in names), (
         f"No Zeek adapter found in ADAPTERS. Registered: {names}"
@@ -86,7 +86,7 @@ def test_adapters_zeek_present():
 
 def test_adapters_tshark_present():
     """At least one tshark adapter is registered."""
-    from parser.adapters import ADAPTERS
+    from workspaces.network.parser.adapters import ADAPTERS
     names = [cls.name for cls in ADAPTERS]
     assert any("tshark" in n.lower() for n in names), (
         f"No tshark adapter found in ADAPTERS. Registered: {names}"
@@ -96,14 +96,14 @@ def test_adapters_tshark_present():
 # ── research charts ───────────────────────────────────────────────────────────
 
 _CHART_MODULES = [
-    ("research.conversation_timeline", "ConversationTimeline"),
-    ("research.ttl_over_time",         "TTLOverTime"),
-    ("research.session_gantt",         "SessionGantt"),
-    ("research.seq_ack_timeline",      "SeqAckTimelineChart"),
-    ("research.dns_timeline",          "DNSTimeline"),
-    ("research.ja3_timeline",          "JA3Timeline"),
-    ("research.ja4_timeline",          "JA4Timeline"),
-    ("research.http_ua_timeline",      "HTTPUserAgentTimeline"),
+    ("workspaces.network.research.conversation_timeline", "ConversationTimeline"),
+    ("workspaces.network.research.ttl_over_time",         "TTLOverTime"),
+    ("workspaces.network.research.session_gantt",         "SessionGantt"),
+    ("workspaces.network.research.seq_ack_timeline",      "SeqAckTimelineChart"),
+    ("workspaces.network.research.dns_timeline",          "DNSTimeline"),
+    ("workspaces.network.research.ja3_timeline",          "JA3Timeline"),
+    ("workspaces.network.research.ja4_timeline",          "JA4Timeline"),
+    ("workspaces.network.research.http_ua_timeline",      "HTTPUserAgentTimeline"),
 ]
 
 
@@ -119,7 +119,7 @@ def test_research_chart_importable(modpath, classname):
 
 def test_research_charts_register_and_retrieve():
     """register_chart + get_charts round-trip succeeds for all known charts."""
-    from research import register_chart, get_charts
+    from workspaces.network.research import register_chart, get_charts
     for modpath, classname in _CHART_MODULES:
         mod = importlib.import_module(modpath)
         cls = getattr(mod, classname)
@@ -133,10 +133,10 @@ def test_research_charts_register_and_retrieve():
 # ── alert detectors ───────────────────────────────────────────────────────────
 
 _DETECTOR_MODULES = [
-    ("plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
-    ("plugins.alerts.suspicious_ua", "SuspiciousUADetector"),
-    ("plugins.alerts.malicious_ja3", "MaliciousJA3Detector"),
-    ("plugins.alerts.port_scan",     "PortScanDetector"),
+    ("workspaces.network.plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
+    ("workspaces.network.plugins.alerts.suspicious_ua", "SuspiciousUADetector"),
+    ("workspaces.network.plugins.alerts.malicious_ja3", "MaliciousJA3Detector"),
+    ("workspaces.network.plugins.alerts.port_scan",     "PortScanDetector"),
 ]
 
 
@@ -151,7 +151,7 @@ def test_alert_detector_importable(modpath, classname):
 
 def test_alert_detectors_register_and_retrieve():
     """register_detector + get_detectors round-trip succeeds for all known detectors."""
-    from plugins.alerts import register_detector, get_detectors
+    from workspaces.network.plugins.alerts import register_detector, get_detectors
     for modpath, classname in _DETECTOR_MODULES:
         mod = importlib.import_module(modpath)
         cls = getattr(mod, classname)
@@ -165,10 +165,10 @@ def test_alert_detectors_register_and_retrieve():
 # ── insight plugins ───────────────────────────────────────────────────────────
 
 _INSIGHT_MODULES = [
-    ("plugins.insights.os_fingerprint", "OSFingerprintPlugin"),
-    ("plugins.insights.network_map",    "NetworkMapPlugin"),
-    ("plugins.insights.tcp_flags",      "TCPFlagsPlugin"),
-    ("plugins.insights.dns_resolver",   "DNSResolverPlugin"),
+    ("workspaces.network.plugins.insights.os_fingerprint", "OSFingerprintPlugin"),
+    ("workspaces.network.plugins.insights.network_map",    "NetworkMapPlugin"),
+    ("workspaces.network.plugins.insights.tcp_flags",      "TCPFlagsPlugin"),
+    ("workspaces.network.plugins.insights.dns_resolver",   "DNSResolverPlugin"),
 ]
 
 
@@ -184,8 +184,8 @@ def test_insight_plugin_importable(modpath, classname):
 # ── analysis plugins ──────────────────────────────────────────────────────────
 
 _ANALYSIS_MODULES = [
-    ("plugins.analyses.node_centrality",          "NodeCentralityAnalysis"),
-    ("plugins.analyses.traffic_characterisation",  "TrafficCharacterisationAnalysis"),
+    ("workspaces.network.plugins.analyses.node_centrality",          "NodeCentralityAnalysis"),
+    ("workspaces.network.plugins.analyses.traffic_characterisation",  "TrafficCharacterisationAnalysis"),
 ]
 
 

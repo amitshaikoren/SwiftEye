@@ -17,11 +17,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import pytest
 from unittest.mock import patch, MagicMock
 
-from llm.contracts import (
+from core.llm.contracts import (
     ChatRequest, Message, ScopeSpec, ViewerState, SelectionState,
     ProviderConfig, ChatOptions,
 )
-from llm.question_tags import (
+from core.llm.question_tags import (
     TAG_BROAD_OVERVIEW, TAG_ENTITY_NODE, TAG_ENTITY_EDGE,
     TAG_ALERT_EVIDENCE, TAG_ATTRIBUTION_RISK, TAG_UNRELATED,
 )
@@ -95,7 +95,7 @@ class TestContextPacketShape:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
 
@@ -109,7 +109,7 @@ class TestContextPacketShape:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store(loaded=False)
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
 
@@ -122,7 +122,7 @@ class TestScopeSection:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request(scope_mode="current_view")
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
 
@@ -133,7 +133,7 @@ class TestScopeSection:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, tags)
 
@@ -150,7 +150,7 @@ class TestSelectionContext:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store(nodes=nodes)
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request(sel_nodes=["10.0.0.5"])
                 packet = build_context_packet(req, [TAG_ENTITY_NODE])
 
@@ -166,7 +166,7 @@ class TestSelectionContext:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store(alerts=alerts)
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request(sel_alert="alert_001")
                 packet = build_context_packet(req, [TAG_ALERT_EVIDENCE])
 
@@ -177,7 +177,7 @@ class TestSelectionContext:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
 
@@ -189,7 +189,7 @@ class TestLimitationsSection:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request(question="Where is the attacker?")
                 packet = build_context_packet(req, [TAG_ATTRIBUTION_RISK])
 
@@ -200,7 +200,7 @@ class TestLimitationsSection:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
 
@@ -213,7 +213,7 @@ class TestRetrievalManifest:
         with patch('llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
             with patch('llm.context_builder.get_analysis_results', return_value={}):
-                from llm.context_builder import build_context_packet
+                from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
 

@@ -18,12 +18,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from llm.service import stream_chat, build_context_only
-from llm.contracts import (
+from core.llm.service import stream_chat, build_context_only
+from core.llm.contracts import (
     ChatRequest, ScopeSpec, ViewerState, SelectionState,
     ProviderConfig, ChatOptions, Message,
 )
-import llm.key_store as _key_store
+import core.llm.key_store as _key_store
 
 router = APIRouter()
 logger = logging.getLogger("swifteye.routes.llm")
