@@ -2,7 +2,7 @@
  * useCapture — coordinator that wires the 5 domain slices and returns
  * the merged state object consumed by App.jsx.
  *
- * Decomposed in v0.25.0. See docs/plans/active/usecapture-decomposition.md
+ * Decomposed in v0.25.0. See llm_docs/plans/active/usecapture-decomposition.md
  * for the full dependency map and wiring rationale.
  *
  * Slice creation order (dependency-driven):
