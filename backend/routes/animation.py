@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 from workspaces.network.store import store, _require_capture
 from workspaces.network.analysis import build_node_animation_response
 from workspaces.network.plugins import get_global_results
-from models import NodeAnimationResponse
+from core.models import NodeAnimationResponse
 
 logger = logging.getLogger("swifteye.routes.animation")
 router = APIRouter()

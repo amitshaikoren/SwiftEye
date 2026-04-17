@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
-from llm.question_tags import (
+from core.llm.question_tags import (
     tag_question,
     TAG_BROAD_OVERVIEW, TAG_ENTITY_NODE, TAG_ENTITY_EDGE, TAG_ENTITY_SESSION,
     TAG_ALERT_EVIDENCE, TAG_DNS, TAG_TLS, TAG_HTTP, TAG_CREDENTIALS,

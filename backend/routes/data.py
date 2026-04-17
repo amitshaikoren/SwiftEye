@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
 from workspaces.network.store import store, _require_capture
 from workspaces.network.analysis import build_time_buckets, build_graph, filter_packets, compute_global_stats, get_subnets
 from workspaces.network.analysis.aggregator import get_edge_detail
-from data.algorithms import compute_clusters, find_paths
+from core.data.algorithms import compute_clusters, find_paths
 from workspaces.network.plugins import get_global_results
 from workspaces.network.plugins.insights.node_merger import build_entity_map
 from workspaces.network.plugins.analyses import get_analysis_results, clear_analysis_results
@@ -18,11 +18,11 @@ from workspaces.network.parser import read_pcap, PacketRecord, MAX_FILE_SIZE
 from workspaces.network.parser.adapters import detect_adapter, find_adapter_by_name, ADAPTERS
 from workspaces.network.parser.schema import inspect_schema, stage_file
 from workspaces.network.constants import PROTOCOL_COLORS
-from models import (
+from core.models import (
     UploadResponse, StatsResponse, TimelineResponse, GraphResponse,
     SessionsResponse, SessionDetailResponse, ProtocolsResponse, SubnetsResponse,
 )
-from services.capture import run_plugins, build_analysis_graph_and_run, enrich_nodes_with_plugins, _looks_like_ip_keyed
+from core.services.capture import run_plugins, build_analysis_graph_and_run, enrich_nodes_with_plugins, _looks_like_ip_keyed
 
 logger = logging.getLogger("swifteye.routes.data")
 router = APIRouter()

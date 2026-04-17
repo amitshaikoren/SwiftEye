@@ -14,7 +14,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
-from llm.translators import (
+from core.llm.translators import (
     translate_node, translate_edge, translate_session, translate_alert,
     translate_stats_overview, cap_list, _MAX_ARRAY,
 )

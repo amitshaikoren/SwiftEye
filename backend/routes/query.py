@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from workspaces.network.store import store, _require_capture
-from data.query import resolve_query, parse_query_text, get_graph_schema
+from core.data.query import resolve_query, parse_query_text, get_graph_schema
 
 router = APIRouter()
 

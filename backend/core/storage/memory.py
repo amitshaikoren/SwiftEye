@@ -9,8 +9,8 @@ import logging
 from typing import List, Dict, Optional, Tuple, Set, TYPE_CHECKING
 from collections import defaultdict
 
-from storage.backend import StorageBackend
-from storage.serializers import serialize_packet
+from core.storage.backend import StorageBackend
+from core.storage.serializers import serialize_packet
 from workspaces.network.analysis.session_match import _ip_matches_endpoint, _protocol_matches, _session_matches_edge
 
 if TYPE_CHECKING:

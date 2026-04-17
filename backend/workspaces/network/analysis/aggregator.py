@@ -787,7 +787,7 @@ def build_analysis_graph(
                 ed["ja3s"].add(ex["ja3"])
 
     # ── Attach session IDs to edges ──
-    # Uses canonical _session_matches_edge from storage.memory which handles
+    # Uses canonical _session_matches_edge from core.storage.memory which handles
     # subnet CIDRs, MAC-split node IDs, and protocol/transport matching.
     # Pre-index sessions by sorted IP pair for fast lookup, then refine
     # with the canonical matcher for protocol and subnet correctness.

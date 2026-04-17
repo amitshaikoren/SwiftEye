@@ -6,8 +6,8 @@ Phase 2: SQLiteBackend — embedded DB, zero-config, persistent workspace.
 Phase 3: PostgresBackend — multi-user, TimescaleDB, Neo4j secondary.
 """
 
-from storage.backend import StorageBackend
-from storage.memory import MemoryBackend
-from storage.event_record import EventRecord
+from core.storage.backend import StorageBackend
+from core.storage.memory import MemoryBackend
+from core.storage.event_record import EventRecord
 
 __all__ = ["StorageBackend", "MemoryBackend", "EventRecord"]

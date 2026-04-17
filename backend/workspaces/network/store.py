@@ -17,8 +17,8 @@ from workspaces.network.analysis import (
     build_time_buckets, build_graph, build_analysis_graph,
     filter_packets, build_sessions, compute_global_stats, get_subnets,
 )
-from storage.memory import MemoryBackend
-from storage.serializers import _payload_hexdump, _payload_hex, _payload_ascii, _payload_entropy
+from core.storage.memory import MemoryBackend
+from core.storage.serializers import _payload_hexdump, _payload_hex, _payload_ascii, _payload_entropy
 
 logger = logging.getLogger("swifteye.store")
 
