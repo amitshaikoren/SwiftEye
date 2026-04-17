@@ -10,7 +10,7 @@
  */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { runQuery, fetchQuerySchema, parseQueryText } from '../api';
-import { EXAMPLES } from '../query/queryExamples';
+import { EXAMPLES } from '../workspaces/network/queryExamples';
 
 // ── Operator sets per field type ────────────────────────────────────────
 

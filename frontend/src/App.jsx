@@ -16,7 +16,7 @@ import TimelineStrip from './components/TimelineStrip';
 import AlertsPanel from './components/AlertsPanel';
 import InvestigationPage from './components/InvestigationPage';
 import VisualizePage from './components/VisualizePage';
-import ClusterLegend from './components/ClusterLegend';
+import ClusterLegend from './workspaces/network/ClusterLegend';
 import SchemaDialog from './components/SchemaDialog';
 import TypePickerDialog from './components/TypePickerDialog';
 import SettingsPanel from './components/SettingsPanel';

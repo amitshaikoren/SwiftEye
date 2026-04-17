@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { fetchResearchCharts } from '../api';
 import { fTtime } from '../utils';
 import Sparkline from './Sparkline';
-import { loadSavedCustomCharts, saveCustomCharts } from './research/customChartPersistence';
-import CustomChartBuilder from './research/CustomChartBuilder';
-import { ExpandedOverlay } from './research/PlacedCard';
-import { inferCategory, CAT_ORDER, SlotGrid, ChartPicker, PaletteCategory } from './research/ResearchSlotBoard';
+import { loadSavedCustomCharts, saveCustomCharts } from '../workspaces/network/research/customChartPersistence';
+import CustomChartBuilder from '../workspaces/network/research/CustomChartBuilder';
+import { ExpandedOverlay } from '../workspaces/network/research/PlacedCard';
+import { inferCategory, CAT_ORDER, SlotGrid, ChartPicker, PaletteCategory } from '../workspaces/network/research/ResearchSlotBoard';
 
 // ── ResearchPage ──────────────────────────────────────────────────────────────
 export default function ResearchPage({
