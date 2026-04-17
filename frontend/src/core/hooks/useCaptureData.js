@@ -20,7 +20,7 @@ import {
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
 import { applyClusterView } from '../clusterView';
-import { matchSessionToEdge } from '../workspaces/network/sessionMatch';
+import { matchSessionToEdge } from '../../workspaces/network/sessionMatch';
 
 const SESSIONS_FETCH_LIMIT = 1000;
 

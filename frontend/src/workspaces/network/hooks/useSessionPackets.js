@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { fetchSessionDetail } from '../../../api';
+import { fetchSessionDetail } from '../../../core/api';
 
 export function useSessionPackets(sessionId) {
   const [pkts, setPkts] = useState([]);

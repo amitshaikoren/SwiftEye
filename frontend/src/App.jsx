@@ -4,30 +4,30 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { useCapture } from './hooks/useCapture';
-import { fetchSessionDetail } from './api';
-import { useSettings } from './hooks/useSettings';
-import { FilterContext, toProtocolNames } from './FilterContext';
-import TopBar from './components/TopBar';
-import FilterBar from './components/FilterBar';
-import LeftPanel from './components/LeftPanel';
-import GraphCanvas from './components/GraphCanvas';
-import TimelineStrip from './components/TimelineStrip';
-import AlertsPanel from './components/AlertsPanel';
-import InvestigationPage from './components/InvestigationPage';
-import VisualizePage from './components/VisualizePage';
+import { useCapture } from './core/hooks/useCapture';
+import { fetchSessionDetail } from './core/api';
+import { useSettings } from './core/hooks/useSettings';
+import { FilterContext, toProtocolNames } from './core/FilterContext';
+import TopBar from './core/components/TopBar';
+import FilterBar from './core/components/FilterBar';
+import LeftPanel from './core/components/LeftPanel';
+import GraphCanvas from './core/components/GraphCanvas';
+import TimelineStrip from './core/components/TimelineStrip';
+import AlertsPanel from './core/components/AlertsPanel';
+import InvestigationPage from './core/components/InvestigationPage';
+import VisualizePage from './core/components/VisualizePage';
 import ClusterLegend from './workspaces/network/ClusterLegend';
-import SchemaDialog from './components/SchemaDialog';
-import TypePickerDialog from './components/TypePickerDialog';
-import SettingsPanel from './components/SettingsPanel';
-import EventFlagModal from './components/EventFlagModal';
-import AppUploadScreen from './components/AppUploadScreen';
-import AppRightPanel from './components/AppRightPanel';
+import SchemaDialog from './core/components/SchemaDialog';
+import TypePickerDialog from './core/components/TypePickerDialog';
+import SettingsPanel from './core/components/SettingsPanel';
+import EventFlagModal from './core/components/EventFlagModal';
+import AppUploadScreen from './core/components/AppUploadScreen';
+import AppRightPanel from './core/components/AppRightPanel';
 
 // Heavy panels: loaded on first activation only (code-split to reduce initial bundle)
-const ResearchPage  = lazy(() => import('./components/ResearchPage'));
-const AnalysisPage  = lazy(() => import('./components/AnalysisPage'));
-const AnimationPane = lazy(() => import('./components/AnimationPane'));
+const ResearchPage  = lazy(() => import('./core/components/ResearchPage'));
+const AnalysisPage  = lazy(() => import('./core/components/AnalysisPage'));
+const AnimationPane = lazy(() => import('./core/components/AnimationPane'));
 
 export default function App() {
   const c = useCapture();

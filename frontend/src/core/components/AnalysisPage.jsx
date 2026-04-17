@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { VERSION } from '../version.js';
+import { VERSION } from '../../version.js';
 import { fetchAnalysisResults } from '../api';
 import { fB, fN } from '../utils';
 import LLMInterpretationPanel from './LLMInterpretationPanel';

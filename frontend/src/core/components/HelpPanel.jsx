@@ -4,7 +4,7 @@
  */
 import React, { useState } from 'react';
 import Collapse from './Collapse';
-import { VERSION } from '../version.js';
+import { VERSION } from '../../version.js';
 
 // ── Shared primitives ────────────────────────────────────────────────
 

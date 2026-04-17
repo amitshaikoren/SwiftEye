@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Tag from '../../components/Tag';
-import Collapse from '../../components/Collapse';
-import Row from '../../components/Row';
-import { fN, fB, fD, fT } from '../../utils';
-import { fetchEdgeSessions, fetchEdgeDetail } from '../../api';
+import Tag from '../../core/components/Tag';
+import Collapse from '../../core/components/Collapse';
+import Row from '../../core/components/Row';
+import { fN, fB, fD, fT } from '../../core/utils';
+import { fetchEdgeSessions, fetchEdgeDetail } from '../../core/api';
 
 // Renders a JA3 hash with inline app name when known
 function JA3Badge({ hash, apps = [] }) {

@@ -9,17 +9,17 @@
 
 import React from 'react';
 import { toProtocolNames } from '../FilterContext';
-import SessionDetail from '../workspaces/network/SessionDetail';
-import EdgeDetail from '../workspaces/network/EdgeDetail';
-import NodeDetail from '../workspaces/network/NodeDetail';
-import SessionsTable from '../workspaces/network/SessionsTable';
+import SessionDetail from '../../workspaces/network/SessionDetail';
+import EdgeDetail from '../../workspaces/network/EdgeDetail';
+import NodeDetail from '../../workspaces/network/NodeDetail';
+import SessionsTable from '../../workspaces/network/SessionsTable';
 import LogsPanel from './LogsPanel';
 import HelpPanel from './HelpPanel';
 import QueryBuilder from './QueryBuilder';
 import GraphOptionsPanel from './GraphOptionsPanel';
 import StatsPanel from './StatsPanel';
-import ClusterDetail from '../workspaces/network/ClusterDetail';
-import PathDetail from '../workspaces/network/PathDetail';
+import ClusterDetail from '../../workspaces/network/ClusterDetail';
+import PathDetail from '../../workspaces/network/PathDetail';
 import MultiSelectPanel from './MultiSelectPanel';
 
 export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight }) {

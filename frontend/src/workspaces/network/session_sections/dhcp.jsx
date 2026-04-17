@@ -1,4 +1,4 @@
-import Row from '../../../components/Row';
+import Row from '../../../core/components/Row';
 
 export const order = 50;
 export const prefix = 'dhcp_';

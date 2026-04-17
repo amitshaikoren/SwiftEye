@@ -1,5 +1,5 @@
 // ── Custom chart localStorage persistence ─────────────────────────────────────
-import { STORAGE_KEYS } from '../../../storageKeys';
+import { STORAGE_KEYS } from '../../../core/storageKeys';
 const CUSTOM_CHARTS_KEY = STORAGE_KEYS.CUSTOM_CHARTS;
 
 export function loadSavedCustomCharts() {

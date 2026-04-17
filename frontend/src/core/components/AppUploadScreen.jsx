@@ -11,7 +11,7 @@
  */
 
 import React from 'react';
-import logoFullData from '../logoFullData';
+import logoFullData from '../../logoFullData';
 import VisualizePage from './VisualizePage';
 import SchemaDialog from './SchemaDialog';
 import TypePickerDialog from './TypePickerDialog';

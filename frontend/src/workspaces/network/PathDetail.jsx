@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import Tag from '../../components/Tag';
-import { fB } from '../../utils';
+import Tag from '../../core/components/Tag';
+import { fB } from '../../core/utils';
 
 /**
  * PathDetail — right-panel view for pathfinding results.

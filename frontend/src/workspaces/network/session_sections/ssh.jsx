@@ -1,5 +1,5 @@
-import Collapse from '../../../components/Collapse';
-import Row from '../../../components/Row';
+import Collapse from '../../../core/components/Collapse';
+import Row from '../../../core/components/Row';
 
 export const order = 30;
 export const prefix = 'ssh_';

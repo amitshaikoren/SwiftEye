@@ -1,6 +1,6 @@
-import Collapse from '../../../components/Collapse';
-import Row from '../../../components/Row';
-import Tag from '../../../components/Tag';
+import Collapse from '../../../core/components/Collapse';
+import Row from '../../../core/components/Row';
+import Tag from '../../../core/components/Tag';
 
 export const order = 10;
 export const prefix = ['tls_', 'ja3_', 'ja4_'];

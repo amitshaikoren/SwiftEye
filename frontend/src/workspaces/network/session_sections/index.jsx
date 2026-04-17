@@ -12,8 +12,8 @@
  * The section appears automatically in SessionDetail under Application (L5+).
  */
 import React from 'react';
-import Collapse from '../../../components/Collapse';
-import Row from '../../../components/Row';
+import Collapse from '../../../core/components/Collapse';
+import Row from '../../../core/components/Row';
 
 // ── Auto-discover all .jsx siblings ────────────────────────────────
 const modules = import.meta.glob('./*.jsx', { eager: true });

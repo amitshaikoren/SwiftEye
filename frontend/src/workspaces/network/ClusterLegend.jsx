@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { CLUSTER_COLORS } from '../../clusterView';
+import { CLUSTER_COLORS } from '../../core/clusterView';
 
 function HexSwatch({ color, size = 12 }) {
   const r = size / 2;

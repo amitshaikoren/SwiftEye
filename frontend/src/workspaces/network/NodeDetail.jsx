@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import ScopePill from '../../components/ScopePill';
-import Tag from '../../components/Tag';
-import Collapse from '../../components/Collapse';
-import Row from '../../components/Row';
-import { PluginSections, GenericDisplay } from '../../components/PluginSection';
-import { fN, fB, fD } from '../../utils';
-import { useFilterContext, applyDisplayFilter } from '../../FilterContext';
+import ScopePill from '../../core/components/ScopePill';
+import Tag from '../../core/components/Tag';
+import Collapse from '../../core/components/Collapse';
+import Row from '../../core/components/Row';
+import { PluginSections, GenericDisplay } from '../../core/components/PluginSection';
+import { fN, fB, fD } from '../../core/utils';
+import { useFilterContext, applyDisplayFilter } from '../../core/FilterContext';
 import { matchSessionToEdge } from './sessionMatch';
-import { STORAGE_KEYS } from '../../storageKeys';
+import { STORAGE_KEYS } from '../../core/storageKeys';
 
 /**
  * Classify an IP address into its address type.

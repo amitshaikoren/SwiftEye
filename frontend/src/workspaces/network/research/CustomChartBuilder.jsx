@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCustomChartSchema } from '../../../api';
+import { fetchCustomChartSchema } from '../../../core/api';
 
 // ── FieldSelect — labelled <select> for field mapping ─────────────────────────
 function FieldSelect({ label, value, onChange, fields, optional }) {

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { runResearchChart, runCustomChart } from '../../../api';
-import { fTtime } from '../../../utils';
-import Sparkline from '../../../components/Sparkline';
-import ScopePill from '../../../components/ScopePill';
-import { useFilterContext, toProtocolNames } from '../../../FilterContext';
-import { STORAGE_KEYS } from '../../../storageKeys';
+import { runResearchChart, runCustomChart } from '../../../core/api';
+import { fTtime } from '../../../core/utils';
+import Sparkline from '../../../core/components/Sparkline';
+import ScopePill from '../../../core/components/ScopePill';
+import { useFilterContext, toProtocolNames } from '../../../core/FilterContext';
+import { STORAGE_KEYS } from '../../../core/storageKeys';
 
 export const DEFAULT_CARD_HEIGHT = 380;
 

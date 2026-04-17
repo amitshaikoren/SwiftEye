@@ -1,4 +1,4 @@
-import Row from '../../../components/Row';
+import Row from '../../../core/components/Row';
 
 export const order = 40;
 export const prefix = 'ftp_';

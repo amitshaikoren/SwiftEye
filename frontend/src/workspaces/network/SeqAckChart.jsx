@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { runResearchChart } from '../../api';
+import { runResearchChart } from '../../core/api';
 
 export default function SeqAckChart({ sessionId, session }) {
   const [figure, setFigure] = useState(null);

@@ -8,11 +8,11 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import Tag from '../../components/Tag';
+import Tag from '../../core/components/Tag';
 import FlagBadge from './FlagBadge';
-import Collapse, { CollapseContext } from '../../components/Collapse';
-import Row from '../../components/Row';
-import { fN, fB, fD, sessionRefHash } from '../../utils';
+import Collapse, { CollapseContext } from '../../core/components/Collapse';
+import Row from '../../core/components/Row';
+import { fN, fB, fD, sessionRefHash } from '../../core/utils';
 import SeqAckChart from './SeqAckChart';
 import StreamView from './StreamView';
 import { useSessionPackets } from './hooks/useSessionPackets';

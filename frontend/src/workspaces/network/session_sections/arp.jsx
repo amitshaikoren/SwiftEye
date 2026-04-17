@@ -1,5 +1,5 @@
-import Tag from '../../../components/Tag';
-import Row from '../../../components/Row';
+import Tag from '../../../core/components/Tag';
+import Row from '../../../core/components/Row';
 
 export const order = 5;
 export const layer = 'Link (L2)';

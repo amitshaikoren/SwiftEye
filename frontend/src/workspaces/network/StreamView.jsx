@@ -10,7 +10,7 @@
  */
 
 import React, { useState } from 'react';
-import { fN } from '../../utils';
+import { fN } from '../../core/utils';
 
 export default function StreamView({ pkts, session: s, loading }) {
   const [showMode, setShowMode] = useState('ascii'); // 'ascii' | 'hex' | 'raw'

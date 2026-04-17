@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Tag from './Tag';
 import { fN } from '../utils';
-import logoIconData from '../logoIconData.js';
-import logoWordmarkData from '../logoWordmarkData.js';
-import { VERSION } from '../version.js';
+import logoIconData from '../../logoIconData.js';
+import logoWordmarkData from '../../logoWordmarkData.js';
+import { VERSION } from '../../version.js';
 
 export default function TopBar({
   fileName, sourceFiles = [], stats, search, setSearch,

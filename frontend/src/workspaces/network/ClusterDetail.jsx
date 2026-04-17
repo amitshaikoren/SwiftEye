@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
-import Collapse from '../../components/Collapse';
-import Row from '../../components/Row';
-import { fN, fB } from '../../utils';
-import { CLUSTER_COLORS } from '../../clusterView';
+import Collapse from '../../core/components/Collapse';
+import Row from '../../core/components/Row';
+import { fN, fB } from '../../core/utils';
+import { CLUSTER_COLORS } from '../../core/clusterView';
 
 /** Inline expandable detail for a single member node */
 function MemberRow({ member, pColors, onNavigate }) {

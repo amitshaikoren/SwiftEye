@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { FixedSizeList } from 'react-window';
-import Tag from '../../components/Tag';
-import { fN, fB, fD } from '../../utils';
-import { fetchSessions } from '../../api';
+import Tag from '../../core/components/Tag';
+import { fN, fB, fD } from '../../core/utils';
+import { fetchSessions } from '../../core/api';
 
 export default function SessionsTable({ sessions: globalSessions, pColors, onSelect }) {
   const [sortBy, setSortBy]         = useState('bytes');
