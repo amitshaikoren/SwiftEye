@@ -47,6 +47,11 @@ class Field:
     `filter_path` is the display-filter syntax (often shorter, may differ
     from `name`). `type` drives the evaluator — a forensic `process_name`
     of type `string` reuses the same matching code as a network `hostname`.
+
+    `sources` declares additional wire keys to read from; the evaluator
+    unions the values. Defaults to `[name]`. Used when one logical field
+    is OR'd across multiple dict keys (e.g. flow `port` reads from both
+    `src_ports` and `dst_ports`). Dotted paths are supported per key.
     """
 
     name: str
@@ -57,6 +62,7 @@ class Field:
     renderer: Optional[str] = None
     bare_flag: Optional[str] = None
     description: str = ""
+    sources: Optional[List[str]] = None
 
 
 @dataclass(frozen=True)

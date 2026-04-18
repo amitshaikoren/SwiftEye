@@ -16,38 +16,28 @@
  *   activeOsFilter string  current active OS filter expression (to highlight chip)
  */
 
-import React, { useState, useRef, useEffect } from 'react';
-
-const EXAMPLES = [
-  { label: 'IP address',    expr: 'ip == 10.0.0.1' },
-  { label: 'CIDR subnet',   expr: 'ip == 192.168.1.0/24' },
-  { label: 'Source IP',     expr: 'ip.src == 10.0.0.1' },
-  { label: 'Protocol',      expr: 'http' },
-  { label: 'Port',          expr: 'port == 443' },
-  { label: 'Large traffic', expr: 'bytes > 100000' },
-  { label: 'TLS SNI',       expr: 'tls.sni contains "google"' },
-  { label: 'DNS query',     expr: 'dns contains "cloudflare"' },
-  { label: 'Private hosts', expr: 'private' },
-  { label: 'Compound',      expr: 'http && ip.src == 192.168.1.0/24' },
-  { label: 'OS filter',      expr: 'os contains "Linux"' },
-];
-
-// Autocomplete token suggestions
-const FIELD_SUGGESTIONS = [
-  'ip', 'ip.src', 'ip.dst', 'mac', 'hostname', 'protocol',
-  'port', 'bytes', 'packets', 'tls.sni', 'http.host', 'dns', 'os', 'role',
-  'private', 'subnet', 'gateway',
-  'http', 'https', 'dns', 'tcp', 'udp', 'ssh', 'tls', 'arp',
-  'icmp', 'ftp', 'smtp', 'smb', 'rdp', 'ntp', 'dhcp', 'quic',
-  'quic.sni',
-];
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useWorkspace } from '@/WorkspaceProvider';
+import { schemaFilterTokens, schemaHelpRows } from '@core/schema';
 
 export default function FilterBar({ value, onChange, onApply, onClear, matchCount, error, isActive, osGuesses = [], activeOsFilter = '' }) {
+  const workspace = useWorkspace();
   const [showHelp, setShowHelp] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [suggIdx, setSuggIdx] = useState(-1);
   const inputRef = useRef(null);
   const helpRef = useRef(null);
+
+  // Autocomplete tokens: schema filter paths + declared bare flags + the
+  // workspace's protocol-shorthand extras (http / tcp / etc.).
+  const FIELD_SUGGESTIONS = useMemo(() => {
+    const base = schemaFilterTokens(workspace.schema);
+    const extras = workspace.filterSuggestions || [];
+    return [...new Set([...base, ...extras])];
+  }, [workspace]);
+
+  const EXAMPLES = workspace.filterExamples || [];
+  const HELP_ROWS = useMemo(() => schemaHelpRows(workspace.schema), [workspace]);
 
   // Close help on outside click
   useEffect(() => {
@@ -256,28 +246,14 @@ export default function FilterBar({ value, onChange, onApply, onClear, matchCoun
 
               <div style={{ color: 'var(--txD)', marginBottom: 6, fontSize: 10 }}>FIELDS</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10 }}>
-                {[
-                  ['ip', 'any IP on a node, or edge endpoint'],
-                  ['ip.src / ip.dst', 'edge source / destination IP'],
-                  ['mac', 'MAC address on a node'],
-                  ['hostname', 'resolved hostname'],
-                  ['protocol', 'protocol name (node or edge)'],
-                  ['port', 'any port seen on an edge'],
-                  ['bytes / packets', 'traffic volume'],
-                  ['tls.sni', 'TLS SNI on an edge'],
-                  ['http.host', 'HTTP Host header on an edge'],
-                  ['dns', 'DNS query name on an edge'],
-                  ['os', 'OS guess from fingerprint (e.g. "Linux 5.x", "Windows 10/11")'],
-                  ['role', 'Network role: "gateway", "lan", "external" (from Network Map plugin)'],
-                  ['gateway', 'Boolean — node identified as a router/gateway (no operator needed)'],
-                  ['private', 'node has a private IP'],
-                  ['subnet', 'node is a /24 subnet group'],
-                ].map(([f, d]) => (
-                  <tr key={f}>
-                    <td style={{ fontFamily: 'var(--fn)', color: 'var(--ac)', paddingRight: 10, verticalAlign: 'top', whiteSpace: 'nowrap' }}>{f}</td>
-                    <td style={{ color: 'var(--txD)', fontSize: 10 }}>{d}</td>
-                  </tr>
-                ))}
+                <tbody>
+                  {HELP_ROWS.map(({ filter_path, description }) => (
+                    <tr key={filter_path}>
+                      <td style={{ fontFamily: 'var(--fn)', color: 'var(--ac)', paddingRight: 10, verticalAlign: 'top', whiteSpace: 'nowrap' }}>{filter_path}</td>
+                      <td style={{ color: 'var(--txD)', fontSize: 10 }}>{description}</td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
 
               <div style={{ color: 'var(--txD)', marginBottom: 6, fontSize: 10 }}>OPERATORS</div>

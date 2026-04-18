@@ -10,11 +10,13 @@ Catalog recovered from the exec plan
 "Implicit schema today"). If you add, remove, or rename anything here,
 that's a filter-behavior regression unless matched by an evaluator change.
 
-Notes on wire-name quirks preserved from the current implementation:
-- Host `ip` filter also accepts `ip.src` / `ip.dst` as directional variants;
-  the underlying wire key is `ips` (array). Handled in the 2B evaluator.
-- Flow `port` matches either `src_ports` or `dst_ports` (OR). `name` below
-  records the primary wire key — the evaluator OR's both arrays.
+Notes on wire-name quirks declared schema-side (no core special-casing):
+- Host IP filters (`ip`, `ip.src`, `ip.dst`) all dispatch through synthetic
+  edge fields `_endpointIps`, `_srcIp`, `_dstIp` populated by the network
+  workspace's `enrichEdge` hook in the frontend descriptor. The evaluator
+  treats them like any other schema field.
+- Flow `port` declares `sources=["src_ports", "dst_ports"]`; the evaluator
+  unions the two arrays generically. No port-specific code in core.
 """
 
 from __future__ import annotations
@@ -79,6 +81,13 @@ HOST_FIELDS = [
 
 
 # ── Flow (edge) fields ────────────────────────────────────────────────────────
+#
+# `_endpointIps`, `_srcIp`, `_dstIp` are synthetic keys populated by the
+# network workspace's frontend `enrichEdge` hook — not present on the raw
+# edge dict from the backend. They let the generic evaluator dispatch
+# `ip` / `ip.src` / `ip.dst` filters on edges without core knowing the
+# concept of "host IP." A non-network workspace (e.g. forensic) would
+# simply not declare these.
 
 FLOW_FIELDS = [
     Field(
@@ -87,9 +96,25 @@ FLOW_FIELDS = [
         description="Top-layer protocol of the flow (HTTPS, DNS, etc.).",
     ),
     Field(
+        name="_endpointIps", display_name="IP (either endpoint)", filter_path="ip",
+        type="ip", multi=True,
+        description="Matches either endpoint IP of the flow. Populated by the workspace `enrichEdge` hook.",
+    ),
+    Field(
+        name="_srcIp", display_name="Source IP", filter_path="ip.src",
+        type="ip",
+        description="Flow source endpoint IP. Populated by the workspace `enrichEdge` hook.",
+    ),
+    Field(
+        name="_dstIp", display_name="Destination IP", filter_path="ip.dst",
+        type="ip",
+        description="Flow destination endpoint IP. Populated by the workspace `enrichEdge` hook.",
+    ),
+    Field(
         name="src_ports", display_name="Port", filter_path="port",
         type="port", multi=True,
-        description="Ports observed on the flow. Evaluator OR's `src_ports` and `dst_ports`.",
+        sources=["src_ports", "dst_ports"],
+        description="Ports observed on the flow. Union of src_ports and dst_ports.",
     ),
     Field(
         name="total_bytes", display_name="Bytes", filter_path="bytes",
