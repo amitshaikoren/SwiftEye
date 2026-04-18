@@ -11,7 +11,17 @@
  * shorthand (http, https, dns, tcp, …). `filterExamples` are the
  * example expressions shown in the filter-help popover. Both are
  * workspace-specific copy, declared here so FilterBar doesn't hardcode.
+ *
+ * `NodeDetail` / `EdgeDetail` are the right-panel components for a
+ * single-host / single-flow selection. Core's `AppRightPanel` pulls
+ * them off the descriptor so `core/` carries no hardcoded reference
+ * to the network panels. Panel internals stay network-specific (Q3
+ * sign-off: shallow refactor for phase 2 — full schema-driven node-
+ * detail contract is deferred to `node-detail-contract.md`).
  */
+
+import NodeDetail from './NodeDetail';
+import EdgeDetail from './EdgeDetail';
 
 function enrichEdge(edge, srcNode, dstNode) {
   const srcIp = srcNode?.ips?.[0];
@@ -50,6 +60,8 @@ const networkWorkspace = {
   enrichEdge,
   filterSuggestions,
   filterExamples,
+  NodeDetail,
+  EdgeDetail,
 };
 
 export default networkWorkspace;
