@@ -36,6 +36,7 @@ audits/
 # ── Runtime / logs ──
 backend/swifteye.log
 backend/llm_keys.json
+backend/settings.json
 
 # ── Legacy / misc ──
 FOR_OPUS.md
