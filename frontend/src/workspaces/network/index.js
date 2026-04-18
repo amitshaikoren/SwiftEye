@@ -22,6 +22,7 @@
 
 import NodeDetail from './NodeDetail';
 import EdgeDetail from './EdgeDetail';
+import FilterBar from './FilterBar';
 
 function enrichEdge(edge, srcNode, dstNode) {
   const srcIp = srcNode?.ips?.[0];
@@ -62,6 +63,7 @@ const networkWorkspace = {
   filterExamples,
   NodeDetail,
   EdgeDetail,
+  FilterBar,
 };
 
 export default networkWorkspace;
