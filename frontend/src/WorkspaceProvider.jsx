@@ -1,44 +1,79 @@
 /**
  * WorkspaceProvider — active-workspace context.
  *
- * On mount, fetches the backend's `/api/workspace/schema` once and exposes
- * the merged descriptor (`{ ...networkWorkspace, schema }`) through context.
- * Consumers (displayFilter, FilterBar) dispatch on `schema.node_types` /
- * `schema.edge_types` rather than hardcoding field names. Renders `null`
- * until the schema resolves — fetch is one-shot at app load.
+ * On mount:
+ *   1. Fetches `/api/workspace/current` → `{active, available}`.
+ *   2. If `active` is null, renders `<WorkspaceSelector>` (Phase 3 landing).
+ *   3. If set, picks the descriptor for that workspace, fetches
+ *      `/api/workspace/schema`, and exposes `{...descriptor, schema}`
+ *      through context.
+ *
+ * Descriptor selection is a static map (`network` / `forensic`) rather
+ * than dynamic import — both bundles are tiny and eager loading avoids
+ * a second Suspense boundary at the root.
+ *
+ * Phase 3 does not offer runtime switching: once a workspace is picked,
+ * it is sticky via `backend/settings.json`. Changing it means editing
+ * that file; the selector only appears when no selection exists.
  */
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import networkWorkspace from '@workspaces/network';
-import { getWorkspaceSchema } from '@core/api';
+import forensicWorkspace from '@workspaces/forensic';
+import { getCurrentWorkspace, getWorkspaceSchema } from '@core/api';
+import WorkspaceSelector from './WorkspaceSelector';
+
+const DESCRIPTORS = {
+  network: networkWorkspace,
+  forensic: forensicWorkspace,
+};
 
 const WorkspaceContext = createContext(null);
 
 export function WorkspaceProvider({ children }) {
+  const [current, setCurrent] = useState(null);   // {active, available} | null
   const [schema, setSchema] = useState(null);
   const [error, setError] = useState(null);
 
+  // Step 1: always fetch current first.
   useEffect(() => {
+    let cancelled = false;
+    getCurrentWorkspace()
+      .then(c => { if (!cancelled) setCurrent(c); })
+      .catch(e => { if (!cancelled) setError(e); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Step 2: once current is known and active is non-null, fetch schema.
+  useEffect(() => {
+    if (!current?.active) return;
     let cancelled = false;
     getWorkspaceSchema()
       .then(s => { if (!cancelled) setSchema(s); })
       .catch(e => { if (!cancelled) setError(e); });
     return () => { cancelled = true; };
-  }, []);
+  }, [current?.active]);
 
-  const value = useMemo(
-    () => (schema ? { ...networkWorkspace, schema } : null),
-    [schema],
-  );
+  const value = useMemo(() => {
+    if (!current?.active || !schema) return null;
+    const desc = DESCRIPTORS[current.active];
+    if (!desc) return null;
+    return { ...desc, schema };
+  }, [current?.active, schema]);
 
   if (error) {
     return (
-      <div style={{ padding: 24, color: 'var(--acR)', fontFamily: 'var(--fn)' }}>
-        Failed to load workspace schema: {String(error.message || error)}
+      <div style={{ padding: 24, color: 'var(--acR, #f85149)', fontFamily: 'var(--fn)' }}>
+        Failed to load workspace: {String(error.message || error)}
       </div>
     );
   }
-  if (!value) return null;
+
+  if (!current) return null;                                // still fetching /current
+  if (!current.active) {                                    // user hasn't picked
+    return <WorkspaceSelector available={current.available} />;
+  }
+  if (!value) return null;                                  // schema in flight
 
   return (
     <WorkspaceContext.Provider value={value}>

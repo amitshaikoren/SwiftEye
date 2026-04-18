@@ -23,6 +23,7 @@
 import NodeDetail from './NodeDetail';
 import EdgeDetail from './EdgeDetail';
 import FilterBar from './FilterBar';
+import UploadScreen from './UploadScreen';
 
 function enrichEdge(edge, srcNode, dstNode) {
   const srcIp = srcNode?.ips?.[0];
@@ -64,6 +65,7 @@ const networkWorkspace = {
   NodeDetail,
   EdgeDetail,
   FilterBar,
+  UploadScreen,
 };
 
 export default networkWorkspace;

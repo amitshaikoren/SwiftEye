@@ -34,6 +34,18 @@ export async function getWorkspaceSchema() {
   return api('/api/workspace/schema');
 }
 
+export async function getCurrentWorkspace() {
+  return api('/api/workspace/current');
+}
+
+export async function selectWorkspace(name) {
+  return api('/api/workspace/select', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function fetchStats(params = {}) {
   const p = new URLSearchParams();
   if (params.timeStart != null) p.set('time_start', params.timeStart);

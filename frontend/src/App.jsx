@@ -21,7 +21,6 @@ import SchemaDialog from './core/components/SchemaDialog';
 import TypePickerDialog from './core/components/TypePickerDialog';
 import SettingsPanel from './core/components/SettingsPanel';
 import EventFlagModal from './core/components/EventFlagModal';
-import AppUploadScreen from './core/components/AppUploadScreen';
 import AppRightPanel from './core/components/AppRightPanel';
 
 // Heavy panels: loaded on first activation only (code-split to reduce initial bundle)
@@ -33,6 +32,7 @@ export default function App() {
   const c = useCapture();
   const workspace = useWorkspace();
   const FilterBar = workspace.FilterBar;
+  const UploadScreen = workspace.UploadScreen;
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
@@ -99,24 +99,36 @@ export default function App() {
   }, []);
 
   // ── Upload / loading screen ──────────────────────────────────────
+  // Unloaded-state UI is workspace-owned. Network provides a pcap/Zeek
+  // drop-zone; forensic provides a "skeleton — not yet available" stub.
+  // A workspace that omits UploadScreen gets a minimal fallback.
   if (!c.loaded) {
+    if (UploadScreen) {
+      return (
+        <UploadScreen
+          visualize={c.rPanel === 'visualize'}
+          loading={c.loading}
+          loadMsg={c.loadMsg}
+          handleDrop={c.handleDrop}
+          handleFileInput={c.handleFileInput}
+          error={c.error}
+          switchPanel={c.switchPanel}
+          schemaNegotiation={c.schemaNegotiation}
+          handleSchemaConfirm={c.handleSchemaConfirm}
+          handleSchemaCancel={c.handleSchemaCancel}
+          schemaConfirming={c.schemaConfirming}
+          typePicker={c.typePicker}
+          handleTypePickerConfirm={c.handleTypePickerConfirm}
+          handleTypePickerCancel={c.handleTypePickerCancel}
+        />
+      );
+    }
     return (
-      <AppUploadScreen
-        visualize={c.rPanel === 'visualize'}
-        loading={c.loading}
-        loadMsg={c.loadMsg}
-        handleDrop={c.handleDrop}
-        handleFileInput={c.handleFileInput}
-        error={c.error}
-        switchPanel={c.switchPanel}
-        schemaNegotiation={c.schemaNegotiation}
-        handleSchemaConfirm={c.handleSchemaConfirm}
-        handleSchemaCancel={c.handleSchemaCancel}
-        schemaConfirming={c.schemaConfirming}
-        typePicker={c.typePicker}
-        handleTypePickerConfirm={c.handleTypePickerConfirm}
-        handleTypePickerCancel={c.handleTypePickerCancel}
-      />
+      <div style={{ width: '100%', height: '100vh', background: 'var(--bg)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'var(--txD)', fontFamily: 'var(--fn)', fontSize: 13 }}>
+        No ingestion configured for workspace: {workspace.label || workspace.name}
+      </div>
     );
   }
 
