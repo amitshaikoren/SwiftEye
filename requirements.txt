@@ -20,5 +20,10 @@ plotly>=5.0.0
 # simple filter syntax (field:value, comparisons) still works without sqlglot.
 sqlglot>=20.0.0
 
+# python-evtx reads Windows .evtx event logs (Sysmon, Security, etc.) for the
+# forensic workspace. Pure-Python; slow on large logs. Swap to a Rust binding
+# (pyevtx-rs / evtx) if perf hurts on realistic Sysmon sizes.
+python-evtx>=0.8.0
+
 # ── Development / testing ────────────────────────────────────────────────────
 pytest>=7.0.0
