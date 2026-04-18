@@ -21,10 +21,12 @@ import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
 import { applyClusterView } from '../clusterView';
 import { matchSessionToEdge } from '../../workspaces/network/sessionMatch';
+import { useWorkspace } from '@/WorkspaceProvider';
 
 const SESSIONS_FETCH_LIMIT = 1000;
 
 export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) {
+  const workspace = useWorkspace();
 
   // Destructure filter values used as effect/memo deps
   const {
@@ -245,10 +247,10 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
   // E8: re-evaluate display filter when graph data changes
   useEffect(() => {
     if (!dfApplied) return;
-    const result = applyDisplayFilter(dfApplied, graph.nodes || [], graph.edges || []);
+    const result = applyDisplayFilter(dfApplied, graph.nodes || [], graph.edges || [], workspace);
     if (result?.error) { setDfError(result.error); setDfResult(null); }
     else { setDfResult(result); setDfError(null); }
-  }, [graph, dfApplied]);
+  }, [graph, dfApplied, workspace]);
 
   // Pre-build search indices when graph/sessions change (not per-keystroke).
   // nodeIndex: id → concatenated searchable text (lowercase)
@@ -430,7 +432,7 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
 
   function handleDfApply(expr) {
     if (!expr?.trim()) { setDfApplied(''); setDfResult(null); setDfError(null); return; }
-    const result = applyDisplayFilter(expr, graph.nodes || [], graph.edges || []);
+    const result = applyDisplayFilter(expr, graph.nodes || [], graph.edges || [], workspace);
     if (result?.error) { setDfError(result.error); setDfResult(null); }
     else { setDfApplied(expr); setDfResult(result); setDfError(null); }
   }

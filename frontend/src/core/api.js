@@ -30,6 +30,10 @@ export async function confirmSchemaMapping(stagingToken, mapping) {
   });
 }
 
+export async function getWorkspaceSchema() {
+  return api('/api/workspace/schema');
+}
+
 export async function fetchStats(params = {}) {
   const p = new URLSearchParams();
   if (params.timeStart != null) p.set('time_start', params.timeStart);

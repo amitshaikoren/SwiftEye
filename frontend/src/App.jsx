@@ -8,8 +8,8 @@ import { useCapture } from './core/hooks/useCapture';
 import { fetchSessionDetail } from './core/api';
 import { useSettings } from './core/hooks/useSettings';
 import { FilterContext, toProtocolNames } from './core/FilterContext';
+import { useWorkspace } from './WorkspaceProvider';
 import TopBar from './core/components/TopBar';
-import FilterBar from './core/components/FilterBar';
 import LeftPanel from './core/components/LeftPanel';
 import GraphCanvas from './core/components/GraphCanvas';
 import TimelineStrip from './core/components/TimelineStrip';
@@ -31,6 +31,8 @@ const AnimationPane = lazy(() => import('./core/components/AnimationPane'));
 
 export default function App() {
   const c = useCapture();
+  const workspace = useWorkspace();
+  const FilterBar = workspace.FilterBar;
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
@@ -135,17 +137,19 @@ export default function App() {
         onSettings={() => setShowSettings(true)}
         onLogoClick={() => { c.switchPanel('stats'); c.setSearch(''); if (c.animActive) c.stopAnimation(); }}
       />
-      <FilterBar
-        value={c.dfExpr}
-        onChange={c.setDfExpr}
-        onApply={c.handleDfApply}
-        onClear={c.handleDfClear}
-        matchCount={c.dfResult?.matchCount ?? null}
-        error={c.dfError}
-        isActive={!!c.dfApplied && !c.dfError}
-        osGuesses={c.osGuesses}
-        activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
-      />
+      {FilterBar && (
+        <FilterBar
+          value={c.dfExpr}
+          onChange={c.setDfExpr}
+          onApply={c.handleDfApply}
+          onClear={c.handleDfClear}
+          matchCount={c.dfResult?.matchCount ?? null}
+          error={c.dfError}
+          isActive={!!c.dfApplied && !c.dfError}
+          osGuesses={c.osGuesses}
+          activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
+        />
+      )}
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* LEFT PANEL — always visible */}

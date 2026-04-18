@@ -9,9 +9,8 @@
 
 import React from 'react';
 import { toProtocolNames } from '../FilterContext';
+import { useWorkspace } from '../../WorkspaceProvider';
 import SessionDetail from '../../workspaces/network/SessionDetail';
-import EdgeDetail from '../../workspaces/network/EdgeDetail';
-import NodeDetail from '../../workspaces/network/NodeDetail';
 import SessionsTable from '../../workspaces/network/SessionsTable';
 import LogsPanel from './LogsPanel';
 import HelpPanel from './HelpPanel';
@@ -23,6 +22,7 @@ import PathDetail from '../../workspaces/network/PathDetail';
 import MultiSelectPanel from './MultiSelectPanel';
 
 export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight }) {
+  const { NodeDetail, EdgeDetail } = useWorkspace();
   const pathBackLink = c.pathfindResult?.path_count > 0 ? (
     <div
       onClick={c.clearSel}
