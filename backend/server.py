@@ -29,10 +29,17 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from core.workspace import set_active as _set_active_workspace
 from workspaces.network.plugins import register_plugin
 from workspaces.network.plugins.analyses import register_analysis
 from workspaces.network.plugins.alerts import register_detector
 from workspaces.network.research import register_chart
+
+# Phase 2: activate the sole registered workspace at import time so that
+# routes depending on `get_active_workspace()` (e.g. /api/workspace/schema)
+# have a workspace to resolve against. Phase 3 replaces this with a real
+# selector when forensic lands.
+_set_active_workspace("network")
 
 from routes.data import router as data_router
 from routes.query import router as query_router
@@ -44,6 +51,7 @@ from routes.alerts import router as alerts_router
 from routes.utility import router as utility_router, setup_log_handler, _log_buffer
 from routes.schema import router as schema_router
 from routes.llm import router as llm_router
+from routes.workspace import router as workspace_router
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -139,6 +147,7 @@ app.include_router(alerts_router)
 app.include_router(utility_router)
 app.include_router(schema_router)
 app.include_router(llm_router)
+app.include_router(workspace_router)
 
 
 # ── Frontend ──────────────────────────────────────────────────────────────────

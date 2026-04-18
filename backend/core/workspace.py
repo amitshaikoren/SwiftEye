@@ -17,14 +17,16 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
+from core.schema import WorkspaceSchema
+
 
 class Workspace(ABC):
     """Abstract base for a data-domain workspace.
 
     Concrete subclasses live under `backend/workspaces/<name>/__init__.py` and
-    call `register(MyWorkspace())` at import time. Phase 1 defines only the
-    minimum surface needed for relocation; richer surfaces (schema, aggregation
-    policies, frontend schema export) land in Phase 2+.
+    call `register(MyWorkspace())` at import time. Phase 2 adds the `schema`
+    property: every workspace must declare its node/edge field catalog so that
+    core code (display filter evaluator, FilterBar) can stay domain-agnostic.
     """
 
     #: Short stable identifier used in URLs, settings, and doc mirrors.
@@ -36,6 +38,12 @@ class Workspace(ABC):
     @abstractmethod
     def activate(self) -> None:
         """Called when this workspace becomes active. Wire up parser + store."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def schema(self) -> WorkspaceSchema:
+        """Typed declaration of this workspace's node- and edge-field catalog."""
         raise NotImplementedError
 
 
