@@ -107,6 +107,7 @@ _CYPHER_KEYWORDS = {
 
 _CYPHER_TOKEN_RE = re.compile(r"""
     (?P<STRING>"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')  |  # quoted string
+    (?P<AT_NAME>@[A-Za-z_][A-Za-z0-9_]*)              |  # @named-set reference
     (?P<NUMBER>-?\d+(?:\.\d+)?)                       |  # number
     (?P<REGEX_OP>=~)                                   |  # regex operator
     (?P<CMP><>|>=|<=|!=|>|<|=)                         |  # comparison
@@ -314,6 +315,9 @@ class _CypherParser:
 
         if tok_type == "IN":
             self.advance()
+            if self.peek()[0] == "AT_NAME":
+                name_tok = self.advance()
+                return {"field": field_name, "op": "in_set", "value": name_tok[1][1:]}
             return {"field": field_name, "op": "contains_any", "value": self._parse_list()}
 
         if tok_type == "REGEX_OP":
@@ -410,6 +414,32 @@ def parse_cypher(text: str) -> dict:
 #  Walks the sqlglot AST to extract field/op/value conditions.
 # ═══════════════════════════════════════════════════════════════════════
 
+# Sentinel inserted by `_preprocess_named_sets` to route `IN @name` through
+# sqlglot as a string literal; `_walk_sql_condition` detects it and emits
+# the `in_set` op. `@name` is not valid SQL on its own.
+_SQL_SET_SENTINEL_PREFIX = "__SE_SET_"
+_SQL_SET_SENTINEL_SUFFIX = "__"
+_SQL_SET_SENTINEL_RE = re.compile(
+    r"^" + re.escape(_SQL_SET_SENTINEL_PREFIX) + r"(.+?)" + re.escape(_SQL_SET_SENTINEL_SUFFIX) + r"$"
+)
+_SQL_IN_AT_RE = re.compile(r"(?i)\bIN\s+@([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _preprocess_named_sets(text: str) -> str:
+    """Rewrite `IN @name` → `IN ('__SE_SET_name__')` so sqlglot accepts it."""
+    return _SQL_IN_AT_RE.sub(
+        lambda m: f"IN ('{_SQL_SET_SENTINEL_PREFIX}{m.group(1)}{_SQL_SET_SENTINEL_SUFFIX}')",
+        text,
+    )
+
+
+def _extract_set_name(value) -> Optional[str]:
+    """If `value` is a sentinel string from _preprocess_named_sets, return the bare name."""
+    if not isinstance(value, str):
+        return None
+    m = _SQL_SET_SENTINEL_RE.match(value)
+    return m.group(1) if m else None
+
 def _walk_sql_condition(node) -> Tuple[List[dict], str]:
     """Recursively walk a sqlglot WHERE expression tree.
 
@@ -494,6 +524,11 @@ def _walk_sql_condition(node) -> Tuple[List[dict], str]:
             v = _sql_literal_value(child)
             if v is not None:
                 values.append(v)
+        # `IN @name` arrived via preprocess as a single sentinel literal.
+        if field and len(values) == 1:
+            set_name = _extract_set_name(values[0])
+            if set_name is not None:
+                return [{"field": field, "op": "in_set", "value": set_name}], "AND"
         if field and values:
             return [{"field": field, "op": "contains_any", "value": values}], "AND"
 
@@ -573,7 +608,7 @@ def parse_sql(text: str, dialect: str = "sql") -> dict:
 
     try:
         read_dialect = "spark" if dialect == "spark" else None
-        ast = sqlglot.parse_one(text, read=read_dialect)
+        ast = sqlglot.parse_one(_preprocess_named_sets(text), read=read_dialect)
     except sqlglot.errors.ParseError as e:
         return {"error": f"SQL parse error: {e}"}
 

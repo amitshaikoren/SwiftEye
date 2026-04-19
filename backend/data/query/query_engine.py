@@ -2,8 +2,9 @@
 Query engine for the SwiftEye analysis graph.
 
 Evaluates structured JSON queries against a persistent NetworkX graph.
-Supports numeric, count-of, set, string, and boolean operators with
-AND/OR logic combinators. Returns matched node/edge IDs.
+Supports numeric, count-of, set, string, boolean, and in_set (named-group
+membership) operators with AND/OR logic combinators. Returns matched
+node/edge IDs plus verb/scope/group metadata for the pipeline executor.
 
 Engine-agnostic design: this module resolves queries against NetworkX.
 Future backends (Neo4j, SQL, PySpark) would replace this resolver
@@ -19,9 +20,23 @@ Condition modifiers (optional, on any condition dict):
 
 import re
 import logging
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger("swifteye.query_engine")
+
+
+# ── Action / scope vocabulary ────────────────────────────────────────────
+# Seven verbs, plus scope. Pipeline executor consumes these; resolve_query
+# itself is verb-agnostic — it just produces match sets and passes metadata
+# through for the pipeline to act on.
+
+ACTIONS_VIEW  = {"highlight", "show_only", "hide"}
+ACTIONS_GROUP = {"tag", "color", "cluster", "save_as_set"}
+ACTIONS = ACTIONS_VIEW | ACTIONS_GROUP | {"select"}  # "select" kept as legacy alias
+SCOPES  = {"viz", "global"}
+
+# Group-expression verbs require a name (tag/color/cluster/save_as_set).
+ACTIONS_REQUIRE_GROUP = {"tag", "color", "cluster", "save_as_set"}
 
 
 # ── Operator evaluation ──────────────────────────────────────────────────
@@ -167,12 +182,33 @@ COUNT_OPS   = {"count_gt", "count_lt", "count_eq"}
 SET_OPS     = {"contains", "contains_all", "contains_any", "is_empty", "not_empty"}
 STRING_OPS  = {"equals", "starts_with", "ends_with", "matches", "like"}
 BOOL_OPS    = {"is_true", "is_false"}
+IN_SET_OPS  = {"in_set"}
 
 
-def _eval_condition(attrs: dict, condition: dict) -> bool:
+def _eval_in_set(item_id: Any, value: Any, named_sets: Optional[dict]) -> bool:
+    """Evaluate in_set membership: is `item_id` in the named set `value`?
+
+    Unknown set → False (logged once). `named_sets` shape: {name: {"target": str, "members": [ids]}}.
+    """
+    if named_sets is None:
+        logger.warning("in_set op requires named_sets context; got None")
+        return False
+    name = str(value) if value is not None else ""
+    entry = named_sets.get(name)
+    if entry is None:
+        logger.debug("in_set: unknown named set '%s'", name)
+        return False
+    members = entry.get("members", ()) if isinstance(entry, dict) else entry
+    return item_id in set(members)
+
+
+def _eval_condition(attrs: dict, condition: dict,
+                    item_id: Any = None,
+                    named_sets: Optional[dict] = None) -> bool:
     """Evaluate a single condition against a node/edge attribute dict.
 
     Honors `negate` (inverts result) and `case_insensitive` (passed to string ops).
+    `item_id` and `named_sets` are only consulted by the `in_set` op.
     """
     field = condition.get("field", "")
     op = condition.get("op", "")
@@ -192,6 +228,8 @@ def _eval_condition(attrs: dict, condition: dict) -> bool:
         result = _eval_string(attr_val, op, value, case_insensitive)
     elif op in BOOL_OPS:
         result = _eval_boolean(attr_val, op, value)
+    elif op in IN_SET_OPS:
+        result = _eval_in_set(item_id, value, named_sets)
     else:
         logger.warning("Unknown operator: %s", op)
         result = False
@@ -201,7 +239,7 @@ def _eval_condition(attrs: dict, condition: dict) -> bool:
 
 # ── Main query resolver ──────────────────────────────────────────────────
 
-def resolve_query(G, query: dict) -> dict:
+def resolve_query(G, query: dict, named_sets: Optional[dict] = None) -> dict:
     """
     Resolve a structured query against a NetworkX analysis graph.
 
@@ -212,38 +250,72 @@ def resolve_query(G, query: dict) -> dict:
             "conditions": [{"field": str, "op": str, "value": any,
                             "negate"?: bool, "case_insensitive"?: bool}, ...],
             "logic": "AND" | "OR",
-            "action": "highlight" | "select"
+            "action": one of ACTIONS (default "highlight"),
+            "scope": "viz" | "global" (default "viz"),
+            "group_name": str (required when action ∈ ACTIONS_REQUIRE_GROUP),
+            "group_args": dict (verb-specific extras, e.g. {"color": "#ff0"})
         }
+        named_sets: optional dict of {name: {"target", "members"}}; required
+            only if any condition uses the `in_set` op.
 
-    Returns: {
-        "matched_nodes": [{"id": str, "match_details": dict}, ...],
-        "matched_edges": [{"id": str, "source": str, "target": str, "match_details": dict}, ...],
-        "action": str,
-        "total_matched": int,
-        "total_searched": int,
-        "summary": str
-    }
-    """
-    if G is None:
-        return {
-            "matched_nodes": [], "matched_edges": [],
-            "action": query.get("action", "highlight"),
-            "total_matched": 0, "total_searched": 0,
-            "summary": "No capture loaded"
+    Returns (envelope, extends the legacy shape with pipeline-friendly keys):
+        {
+            "action": str, "scope": str, "target": str,
+            "matches": [ids],                        # flat list (pipeline-primary)
+            "group": {"name": str, "members": [ids]}?,  # only for group verbs
+            "matched_nodes": [...],                  # legacy, kept for frontend compat
+            "matched_edges": [...],                  # legacy
+            "total_matched": int, "total_searched": int,
+            "summary": str,
+            "warnings": [str]                        # contract validation issues
         }
+    """
+    action = query.get("action") or "highlight"
+    scope = (query.get("scope") or "viz").lower()
+    group_name = query.get("group_name")
+    group_args = query.get("group_args") or {}
+
+    warnings: list[str] = []
+    if action not in ACTIONS:
+        warnings.append(f"Unknown action '{action}' — accepted but not one of {sorted(ACTIONS)}")
+    if scope not in SCOPES:
+        warnings.append(f"Unknown scope '{scope}' — falling back to 'viz'")
+        scope = "viz"
+    if action in ACTIONS_REQUIRE_GROUP and not group_name:
+        warnings.append(f"action '{action}' requires group_name; ignoring group for this run")
+
+    def _envelope(matched_nodes, matched_edges, total, total_matched, summary):
+        flat_ids = [m["id"] for m in matched_nodes] + [m["id"] for m in matched_edges]
+        env = {
+            "action": action,
+            "scope": scope,
+            "target": query.get("target", "nodes"),
+            "matches": flat_ids,
+            "matched_nodes": matched_nodes,
+            "matched_edges": matched_edges,
+            "total_matched": total_matched,
+            "total_searched": total,
+            "summary": summary,
+        }
+        if action in ACTIONS_REQUIRE_GROUP and group_name:
+            env["group"] = {
+                "name": group_name,
+                "members": list(flat_ids),
+                "args": dict(group_args),
+            }
+        if warnings:
+            env["warnings"] = warnings
+        return env
+
+    if G is None:
+        return _envelope([], [], 0, 0, "No capture loaded")
 
     target = query.get("target", "nodes")
     conditions = query.get("conditions", [])
     logic = query.get("logic", "AND").upper()
-    action = query.get("action", "highlight")
 
     if not conditions:
-        return {
-            "matched_nodes": [], "matched_edges": [],
-            "action": action,
-            "total_matched": 0, "total_searched": 0,
-            "summary": "No conditions specified"
-        }
+        return _envelope([], [], 0, 0, "No conditions specified")
 
     matched_nodes = []
     matched_edges = []
@@ -251,7 +323,7 @@ def resolve_query(G, query: dict) -> dict:
     if target == "nodes":
         total = G.number_of_nodes()
         for node_id, attrs in G.nodes(data=True):
-            results = [_eval_condition(attrs, c) for c in conditions]
+            results = [_eval_condition(attrs, c, item_id=node_id, named_sets=named_sets) for c in conditions]
             match = all(results) if logic == "AND" else any(results)
             if match:
                 details = {}
@@ -266,7 +338,8 @@ def resolve_query(G, query: dict) -> dict:
     elif target == "edges":
         total = G.number_of_edges()
         for u, v, attrs in G.edges(data=True):
-            results = [_eval_condition(attrs, c) for c in conditions]
+            edge_id = f"{u}|{v}"
+            results = [_eval_condition(attrs, c, item_id=edge_id, named_sets=named_sets) for c in conditions]
             match = all(results) if logic == "AND" else any(results)
             if match:
                 details = {}
@@ -276,7 +349,6 @@ def resolve_query(G, query: dict) -> dict:
                         if isinstance(val, set):
                             val = sorted(str(v) for v in val)
                         details[c["field"]] = val
-                edge_id = f"{u}|{v}"
                 matched_edges.append({"id": edge_id, "source": u, "target": v, "match_details": details})
     else:
         total = 0
@@ -284,14 +356,7 @@ def resolve_query(G, query: dict) -> dict:
     total_matched = len(matched_nodes) + len(matched_edges)
     summary = f"{total_matched} of {total} {target} matching query"
 
-    return {
-        "matched_nodes": matched_nodes,
-        "matched_edges": matched_edges,
-        "action": action,
-        "total_matched": total_matched,
-        "total_searched": total,
-        "summary": summary,
-    }
+    return _envelope(matched_nodes, matched_edges, total, total_matched, summary)
 
 
 def get_graph_schema(G) -> dict:
