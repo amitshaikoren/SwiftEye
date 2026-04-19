@@ -33,4 +33,7 @@ def register_dissector(eid: int):
 
 
 # ── Auto-import dissectors so decorators fire ────────────────────────────
-from . import dissect_eid1  # noqa: E402, F401
+from . import dissect_eid1   # noqa: E402, F401
+from . import dissect_eid3   # noqa: E402, F401
+from . import dissect_eid11  # noqa: E402, F401
+from . import dissect_eid13  # noqa: E402, F401
