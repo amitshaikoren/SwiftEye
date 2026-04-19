@@ -13,6 +13,14 @@ Supported subset:
     df.filter(col("packets").isNull())
     df.filter(col("protocols").isin(["DNS", "HTTP"]))
     df.filter(col("is_private") == True)
+    df.filter(col("hostname").like("%.corp.%"))
+    df.filter(~(col("packets") > 1000))
+    df.filter(lower(col("hostname")).contains("server"))
+    df.filter(col("hostname").lower().contains("server"))
+
+Modifiers attached to conditions:
+    negate            — set by `~` (bitwise invert) wrapping a sub-expression
+    case_insensitive  — set by `lower()` / `upper()` wrapping the col
 
 Also accepts bare expressions (no df.filter wrapper):
     col("packets") > 1000
@@ -31,6 +39,25 @@ from typing import Optional
 logger = logging.getLogger("swifteye.pyspark_translator")
 
 
+# ── Method dispatch table ─────────────────────────────────────────────
+
+NO_ARG = "NO_ARG"
+ARG_REQUIRED = "ARG_REQUIRED"
+LIST_ARG = "LIST_ARG"
+
+# Method name → (engine_op, arg_kind). Adding a method = one line.
+METHOD_MAP = {
+    "contains":   ("contains",     ARG_REQUIRED),
+    "startswith": ("starts_with",  ARG_REQUIRED),
+    "endswith":   ("ends_with",    ARG_REQUIRED),
+    "isNull":     ("is_empty",     NO_ARG),
+    "isNotNull":  ("not_empty",    NO_ARG),
+    "isin":       ("contains_any", LIST_ARG),
+    "rlike":      ("matches",      ARG_REQUIRED),
+    "like":       ("like",         ARG_REQUIRED),
+}
+
+
 def parse_pyspark(text: str) -> dict:
     """Parse PySpark DataFrame filter expression into query contract.
 
@@ -43,8 +70,6 @@ def parse_pyspark(text: str) -> dict:
         return {"error": "Empty expression"}
 
     # Auto-correct JS-style operators to Python/PySpark equivalents.
-    # || and && are syntax errors in Python; users from JS/Java backgrounds
-    # commonly type them. Swap them before any AST parsing.
     text = text.replace("||", "|").replace("&&", "&")
 
     target = _detect_target(text)
@@ -87,9 +112,7 @@ def _detect_target(text: str) -> str:
         return "edges"
     if "nodes" in t or "node" in t:
         return "nodes"
-    # Check for relationship-like patterns
     if ".filter(" in t or ".where(" in t:
-        # Look at what comes before .filter
         before = t.split(".filter(")[0] if ".filter(" in t else t.split(".where(")[0]
         before = before.strip().split("=")[-1].strip() if "=" in before else before.strip()
         if "edge" in before:
@@ -103,15 +126,12 @@ def _extract_filter_expr(text: str) -> Optional[str]:
     """Extract the inner expression from df.filter(...) or df.where(...)."""
     text = text.strip()
 
-    # Try to parse as Python and find the .filter()/.where() call
-    # Handle multi-line chained filters too
     try:
         tree = ast.parse(text, mode="eval")
         return _find_filter_arg(tree.body)
     except SyntaxError:
         pass
 
-    # Try as statement (e.g., "result = df.filter(...)")
     try:
         tree = ast.parse(text, mode="exec")
         for node in ast.walk(tree):
@@ -128,26 +148,18 @@ def _extract_filter_expr(text: str) -> Optional[str]:
 def _find_filter_arg(node) -> Optional[str]:
     """Recursively find the innermost filter/where call and return its argument as source."""
     if isinstance(node, ast.Call):
-        # Check if this is a .filter() or .where() call
         if isinstance(node.func, ast.Attribute) and node.func.attr in ("filter", "where"):
             if node.args:
                 return ast.unparse(node.args[0])
-        # Check if this is chained: df.filter(...).filter(...)
-        # The outer call might be .filter, and its func.value is another .filter call
         if isinstance(node.func, ast.Attribute):
             inner = _find_filter_arg(node.func.value)
             if inner:
-                # Chained: combine with AND
                 outer_arg = ast.unparse(node.args[0]) if node.args else None
                 if outer_arg:
                     return f"({inner}) & ({outer_arg})"
                 return inner
-
-        # Maybe the call itself is filter-like
         return _find_filter_arg_from_call(node)
 
-    # Bare expression (no df.filter wrapper) — just return it
-    # Check if it looks like a PySpark expression (has col() calls)
     src = ast.unparse(node)
     if "col(" in src or "column(" in src:
         return src
@@ -173,7 +185,14 @@ def _walk_expr(node) -> tuple:
     Returns:
         (list of condition dicts, "AND" or "OR")
     """
-    # Boolean operators: & (AND) and | (OR)
+    # ~X (bitwise invert / PySpark NOT) — recurse on operand, flip negate flag on each cond.
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Invert):
+        inner_conds, logic = _walk_expr(node.operand)
+        for c in inner_conds:
+            _flip_negate(c)
+        return inner_conds, logic
+
+    # Boolean operators: 'and' / 'or'
     if isinstance(node, ast.BoolOp):
         if isinstance(node.op, ast.And):
             logic = "AND"
@@ -201,15 +220,12 @@ def _walk_expr(node) -> tuple:
         right_conds, _ = _walk_expr(node.right)
         return left_conds + right_conds, logic
 
-    # Comparison: col("field") > value
     if isinstance(node, ast.Compare):
         return _parse_comparison(node)
 
-    # Method call: col("field").contains("x"), col("field").isNull()
     if isinstance(node, ast.Call):
         return _parse_method_call(node)
 
-    # Parenthesised expression — just unwrap
     if isinstance(node, ast.Expr):
         return _walk_expr(node.value)
 
@@ -225,7 +241,6 @@ def _parse_comparison(node: ast.Compare) -> tuple:
     op = node.ops[0]
     right = node.comparators[0]
 
-    # Check for count(col("field")) first
     is_count, count_field = _extract_count_col(left)
     if is_count:
         value = _extract_value(right)
@@ -233,120 +248,117 @@ def _parse_comparison(node: ast.Compare) -> tuple:
         op_str = f"count_{_op_suffix(op_str)}"
         return [{"field": count_field, "op": op_str, "value": value}], "AND"
 
-    # Determine which side is col() and which is the value
-    field = _extract_col_name(left)
+    field, mods = _extract_col_with_modifiers(left)
     if field is not None:
         value = _extract_value(right)
         op_str = _ast_op_to_str(op)
     else:
-        # Maybe reversed: value < col("field")
-        field = _extract_col_name(right)
+        field, mods = _extract_col_with_modifiers(right)
         if field is None:
             raise TranslationError(f"Expected col(\"field\") in comparison: {ast.unparse(node)}")
         value = _extract_value(left)
         op_str = _reverse_op(_ast_op_to_str(op))
 
-    # Boolean comparison: col("is_private") == True
     if isinstance(value, bool):
-        return [{"field": field, "op": "is_true" if value else "is_false", "value": None}], "AND"
+        cond = {"field": field, "op": "is_true" if value else "is_false", "value": None}
+    else:
+        cond = {"field": field, "op": op_str, "value": value}
 
-    return [{"field": field, "op": op_str, "value": value}], "AND"
+    _apply_modifiers(cond, mods)
+    return [cond], "AND"
 
 
 def _parse_method_call(node: ast.Call) -> tuple:
-    """Parse col("field").method() style calls."""
+    """Parse col("field").method() style calls via METHOD_MAP."""
     if not isinstance(node.func, ast.Attribute):
         raise TranslationError(f"Unsupported call: {ast.unparse(node)}")
 
     method = node.func.attr
-    col_expr = node.func.value
+    if method not in METHOD_MAP:
+        raise TranslationError(f"Unsupported method: .{method}()")
 
-    # col("field").contains("x")
-    if method == "contains":
-        field = _extract_col_name(col_expr)
-        if field is None:
-            raise TranslationError(f"Expected col() in: {ast.unparse(node)}")
+    op_name, arg_kind = METHOD_MAP[method]
+    field, mods = _extract_col_with_modifiers(node.func.value)
+    if field is None:
+        raise TranslationError(f"Expected col() in: {ast.unparse(node)}")
+
+    if arg_kind == NO_ARG:
+        cond = {"field": field, "op": op_name, "value": None}
+    elif arg_kind == ARG_REQUIRED:
         if not node.args:
-            raise TranslationError(f"contains() requires an argument")
-        value = _extract_value(node.args[0])
-        return [{"field": field, "op": "contains", "value": value}], "AND"
-
-    # col("field").startswith("x")
-    if method == "startswith":
-        field = _extract_col_name(col_expr)
-        if field is None:
-            raise TranslationError(f"Expected col() in: {ast.unparse(node)}")
+            raise TranslationError(f".{method}() requires an argument")
+        cond = {"field": field, "op": op_name, "value": _extract_value(node.args[0])}
+    elif arg_kind == LIST_ARG:
         if not node.args:
-            raise TranslationError(f"startswith() requires an argument")
-        value = _extract_value(node.args[0])
-        return [{"field": field, "op": "starts_with", "value": value}], "AND"
-
-    # col("field").endswith("x")
-    if method == "endswith":
-        field = _extract_col_name(col_expr)
-        if field is None:
-            raise TranslationError(f"Expected col() in: {ast.unparse(node)}")
-        if not node.args:
-            raise TranslationError(f"endswith() requires an argument")
-        value = _extract_value(node.args[0])
-        return [{"field": field, "op": "ends_with", "value": value}], "AND"
-
-    # col("field").isNull()
-    if method == "isNull":
-        field = _extract_col_name(col_expr)
-        if field is None:
-            raise TranslationError(f"Expected col() in: {ast.unparse(node)}")
-        return [{"field": field, "op": "is_empty", "value": None}], "AND"
-
-    # col("field").isNotNull()
-    if method == "isNotNull":
-        field = _extract_col_name(col_expr)
-        if field is None:
-            raise TranslationError(f"Expected col() in: {ast.unparse(node)}")
-        return [{"field": field, "op": "not_empty", "value": None}], "AND"
-
-    # col("field").isin(["a", "b"])
-    if method == "isin":
-        field = _extract_col_name(col_expr)
-        if field is None:
-            raise TranslationError(f"Expected col() in: {ast.unparse(node)}")
-        if not node.args:
-            raise TranslationError(f"isin() requires arguments")
-        # isin can take a list or individual args
+            raise TranslationError(f".{method}() requires arguments")
         values = []
         for arg in node.args:
             if isinstance(arg, ast.List):
                 values.extend(_extract_value(elt) for elt in arg.elts)
             else:
                 values.append(_extract_value(arg))
-        return [{"field": field, "op": "contains_any", "value": values}], "AND"
+        cond = {"field": field, "op": op_name, "value": values}
+    else:
+        raise TranslationError(f"Bad arg_kind '{arg_kind}' in METHOD_MAP[{method!r}]")
 
-    # col("field").rlike("pattern")
-    if method == "rlike":
-        field = _extract_col_name(col_expr)
-        if field is None:
-            raise TranslationError(f"Expected col() in: {ast.unparse(node)}")
-        if not node.args:
-            raise TranslationError(f"rlike() requires a pattern argument")
-        value = _extract_value(node.args[0])
-        return [{"field": field, "op": "matches", "value": value}], "AND"
-
-    raise TranslationError(f"Unsupported method: .{method}()")
+    _apply_modifiers(cond, mods)
+    return [cond], "AND"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
 def _extract_col_name(node) -> Optional[str]:
-    """Extract field name from col("field") or column("field")."""
+    """Extract field name from col("field") / column("field") / F.col("field")."""
     if isinstance(node, ast.Call):
         if isinstance(node.func, ast.Name) and node.func.id in ("col", "column", "F"):
             if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                 return node.args[0].value
-        # F.col("field")
         if isinstance(node.func, ast.Attribute) and node.func.attr in ("col", "column"):
             if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                 return node.args[0].value
     return None
+
+
+def _extract_col_with_modifiers(node) -> tuple:
+    """Unwrap lower()/upper() (function or method form) around a col() and report modifiers.
+
+    Returns (field_name_or_None, modifiers_dict). Nested wrappers collapse.
+    """
+    mods = {}
+    while True:
+        # Function form: lower(col("x")) / upper(col("x"))
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in ("lower", "upper")
+                and node.args):
+            mods["case_insensitive"] = True
+            node = node.args[0]
+            continue
+        # Method form: col("x").lower() / col("x").upper()
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in ("lower", "upper")):
+            mods["case_insensitive"] = True
+            node = node.func.value
+            continue
+        break
+    field = _extract_col_name(node)
+    return field, mods
+
+
+def _apply_modifiers(cond: dict, mods: dict) -> None:
+    """Merge modifier flags onto a condition dict in place."""
+    for k, v in mods.items():
+        cond[k] = v
+
+
+def _flip_negate(cond: dict) -> None:
+    """Toggle the negate flag on a condition. Drop the key when it returns to False."""
+    new_val = not cond.get("negate", False)
+    if new_val:
+        cond["negate"] = True
+    else:
+        cond.pop("negate", None)
 
 
 def _extract_count_col(node) -> tuple:
@@ -371,7 +383,6 @@ def _extract_value(node):
         return [_extract_value(elt) for elt in node.elts]
     if isinstance(node, ast.Tuple):
         return [_extract_value(elt) for elt in node.elts]
-    # True/False are Name nodes in some Python versions
     if isinstance(node, ast.Name):
         if node.id == "True":
             return True

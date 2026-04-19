@@ -133,3 +133,104 @@ class TestErrors:
     def test_unsupported_method(self):
         r = parse_pyspark('df.filter(col("x").foobar())')
         assert "error" in r
+
+
+class TestLike:
+    def test_like(self):
+        r = parse_pyspark('df.filter(col("hostname").like("a%b_"))')
+        assert r["conditions"][0] == {"field": "hostname", "op": "like", "value": "a%b_"}
+
+
+class TestNegate:
+    def test_negate_comparison(self):
+        r = parse_pyspark('df.filter(~(col("packets") > 5))')
+        c = r["conditions"][0]
+        assert c["field"] == "packets"
+        assert c["op"] == ">"
+        assert c["value"] == 5
+        assert c.get("negate") is True
+
+    def test_negate_method(self):
+        r = parse_pyspark('df.filter(~col("protocols").contains("DNS"))')
+        c = r["conditions"][0]
+        assert c["op"] == "contains"
+        assert c["value"] == "DNS"
+        assert c.get("negate") is True
+
+    def test_double_negate_cancels(self):
+        r = parse_pyspark('df.filter(~~(col("packets") > 5))')
+        c = r["conditions"][0]
+        assert c["op"] == ">"
+        assert "negate" not in c
+
+
+class TestCaseInsensitive:
+    def test_lower_function_form(self):
+        r = parse_pyspark('df.filter(lower(col("hostname")).contains("server"))')
+        c = r["conditions"][0]
+        assert c["field"] == "hostname"
+        assert c["op"] == "contains"
+        assert c.get("case_insensitive") is True
+
+    def test_upper_method_form(self):
+        r = parse_pyspark('df.filter(col("hostname").upper().contains("SERVER"))')
+        c = r["conditions"][0]
+        assert c["field"] == "hostname"
+        assert c.get("case_insensitive") is True
+
+    def test_lower_with_like(self):
+        r = parse_pyspark('df.filter(lower(col("hostname")).like("%.corp.%"))')
+        c = r["conditions"][0]
+        assert c["op"] == "like"
+        assert c["value"] == "%.corp.%"
+        assert c.get("case_insensitive") is True
+
+    def test_lower_in_comparison(self):
+        r = parse_pyspark('df.filter(lower(col("name")) == "alice")')
+        c = r["conditions"][0]
+        assert c["field"] == "name"
+        assert c.get("case_insensitive") is True
+
+
+class TestEngineEval:
+    """End-to-end smoke: translator output + engine eval on a small graph."""
+
+    def setup_method(self):
+        import networkx as nx
+        from data.query.query_engine import resolve_query
+        self.resolve_query = resolve_query
+        G = nx.MultiDiGraph()
+        G.add_node("a", label="alpha-server", packets=100, protocols={"DNS", "TCP"})
+        G.add_node("b", label="BETA-host", packets=5, protocols={"UDP"})
+        G.add_node("c", label="gamma", packets=50, protocols=set())
+        self.G = G
+
+    def _run(self, expr):
+        return self.resolve_query(self.G, parse_pyspark(expr))
+
+    def test_like_anchors_full_match(self):
+        # like is anchored (re.fullmatch); 'alpha%' should match 'alpha-server', not partial.
+        r = self._run('df.filter(col("label").like("alpha%"))')
+        ids = {n["id"] for n in r["matched_nodes"]}
+        assert ids == {"a"}
+
+    def test_like_default_case_sensitive(self):
+        # like is CS by default — 'beta%' should NOT match 'BETA-host'.
+        r = self._run('df.filter(col("label").like("beta%"))')
+        assert r["matched_nodes"] == []
+
+    def test_like_case_insensitive_via_lower(self):
+        r = self._run('df.filter(lower(col("label")).like("beta%"))')
+        ids = {n["id"] for n in r["matched_nodes"]}
+        assert ids == {"b"}
+
+    def test_negate_inverts(self):
+        r = self._run('df.filter(~(col("packets") > 50))')
+        ids = {n["id"] for n in r["matched_nodes"]}
+        assert ids == {"b", "c"}
+
+    def test_ends_with_engine(self):
+        # Regression: ends_with was emitted by translator but unrecognised by engine.
+        r = self._run('df.filter(col("label").endswith("server"))')
+        ids = {n["id"] for n in r["matched_nodes"]}
+        assert ids == {"a"}

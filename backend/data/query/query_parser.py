@@ -41,8 +41,12 @@ Supported ops (must match query_engine.py):
     Numeric:  >, <, =, !=, >=, <=
     Count:    count_gt, count_lt, count_eq
     Set:      contains, contains_all, contains_any, is_empty, not_empty
-    String:   equals, starts_with, matches
+    String:   equals, starts_with, ends_with, matches, like
     Boolean:  is_true, is_false
+
+Modifiers (optional on any condition):
+    negate: True            — Cypher NOT, SQL NOT (...)
+    case_insensitive: bool  — currently only acted on for `like`
 """
 
 import logging
@@ -243,105 +247,87 @@ class _CypherParser:
         return conditions, logic
 
     def _parse_condition(self):
-        """Parse a single condition: field.prop OP value or count(field) OP value."""
-        # Handle NOT prefix
+        """Parse a single condition: field.prop OP value or count(field) OP value.
+
+        A leading NOT applies a `negate: True` modifier to the resulting condition.
+        """
         negated = False
         if self.peek()[0] == "NOT":
             self.advance()
             negated = True
 
-        # Check for count(field) wrapper → count_gt/count_lt/count_eq
         is_count = False
         if self.peek()[0] == "IDENT" and self.peek()[1].lower() == "count":
-            # Lookahead: count followed by ( means it's a function call
             if self.peek(1)[0] == "LPAREN":
                 self.advance()  # consume 'count'
                 self.advance()  # consume '('
                 is_count = True
 
-        # field reference: var.property or just property
         field_name = self._parse_field_ref()
 
-        # Close paren for count()
         if is_count:
             self.expect("RPAREN")
 
-        # Operator
+        cond = self._parse_op_and_value(field_name, is_count)
+        if negated and cond is not None:
+            cond["negate"] = True
+        return cond
+
+    def _parse_op_and_value(self, field_name, is_count):
+        """Parse the operator + value half of a condition (split out for NOT composition)."""
         tok_type, tok_val = self.peek()
 
-        # IS NULL / IS TRUE / IS FALSE
         if tok_type == "IS":
             self.advance()
-            next_type, next_val = self.peek()
+            next_type, _ = self.peek()
             if next_type == "NULL":
                 self.advance()
-                op = "not_empty" if negated else "is_empty"
-                return {"field": field_name, "op": op}
-            elif next_type == "TRUE":
+                return {"field": field_name, "op": "is_empty"}
+            if next_type == "TRUE":
                 self.advance()
-                op = "is_false" if negated else "is_true"
-                return {"field": field_name, "op": op}
-            elif next_type == "FALSE":
+                return {"field": field_name, "op": "is_true"}
+            if next_type == "FALSE":
                 self.advance()
-                op = "is_true" if negated else "is_false"
-                return {"field": field_name, "op": op}
-            elif next_type == "NOT":
+                return {"field": field_name, "op": "is_false"}
+            if next_type == "NOT":
                 self.advance()
                 nn_type, _ = self.peek()
                 if nn_type == "NULL":
                     self.advance()
-                    op = "is_empty" if negated else "not_empty"
-                    return {"field": field_name, "op": op}
+                    return {"field": field_name, "op": "not_empty"}
                 raise ValueError(f"Expected NULL after IS NOT, got {nn_type}")
             raise ValueError(f"Expected NULL/TRUE/FALSE after IS, got {next_type}")
 
-        # CONTAINS
         if tok_type == "CONTAINS":
             self.advance()
-            value = self._parse_value()
-            op = "contains"
-            return {"field": field_name, "op": op, "value": value}
+            return {"field": field_name, "op": "contains", "value": self._parse_value()}
 
-        # STARTS WITH
         if tok_type == "STARTS":
             self.advance()
             self.expect("WITH")
-            value = self._parse_value()
-            return {"field": field_name, "op": "starts_with", "value": value}
+            return {"field": field_name, "op": "starts_with", "value": self._parse_value()}
 
-        # ENDS WITH
         if tok_type == "ENDS":
             self.advance()
             self.expect("WITH")
-            value = self._parse_value()
-            return {"field": field_name, "op": "matches", "value": f".*{re.escape(str(value))}$"}
+            return {"field": field_name, "op": "ends_with", "value": self._parse_value()}
 
-        # IN [list]
         if tok_type == "IN":
             self.advance()
-            values = self._parse_list()
-            return {"field": field_name, "op": "contains_any", "value": values}
+            return {"field": field_name, "op": "contains_any", "value": self._parse_list()}
 
-        # =~ regex
         if tok_type == "REGEX_OP":
             self.advance()
-            value = self._parse_value()
-            return {"field": field_name, "op": "matches", "value": value}
+            return {"field": field_name, "op": "matches", "value": self._parse_value()}
 
-        # Standard comparison: >, <, =, !=, >=, <=, <>
         if tok_type == "CMP":
             self.advance()
-            op_str = tok_val
-            if op_str == "<>":
-                op_str = "!="
+            op_str = "!=" if tok_val == "<>" else tok_val
             value = self._parse_value()
-            # count(field) > N → count_gt, count_lt, count_eq
             if is_count:
                 count_op_map = {">": "count_gt", "<": "count_lt", "=": "count_eq",
                                 ">=": "count_gt", "<=": "count_lt"}
-                cop = count_op_map.get(op_str, "count_gt")
-                return {"field": field_name, "op": cop, "value": value}
-            # Decide if this is numeric or string equals
+                return {"field": field_name, "op": count_op_map.get(op_str, "count_gt"), "value": value}
             if op_str == "=" and not _looks_numeric(value):
                 return {"field": field_name, "op": "equals", "value": value}
             return {"field": field_name, "op": op_str, "value": value}
@@ -444,9 +430,13 @@ def _walk_sql_condition(node) -> Tuple[List[dict], str]:
 
     if isinstance(node, exp.Not):
         inner_conds, logic = _walk_sql_condition(node.this)
-        # Negate the conditions
+        # Toggle the negate modifier on each returned condition (double-NOT cancels).
         for c in inner_conds:
-            c["_negated"] = True
+            new_val = not c.get("negate", False)
+            if new_val:
+                c["negate"] = True
+            else:
+                c.pop("negate", None)
         return inner_conds, logic
 
     # ── Leaf conditions ──
@@ -471,17 +461,18 @@ def _walk_sql_condition(node) -> Tuple[List[dict], str]:
                     return [{"field": field, "op": "equals", "value": value}], "AND"
                 return [{"field": field, "op": op_str, "value": value}], "AND"
 
-    # LIKE → starts_with (if pattern ends with %)
-    if isinstance(node, exp.Like):
+    # LIKE / NOT LIKE → unified `like` op (engine handles % and _ properly).
+    # Some sqlglot versions expose NOT LIKE as exp.NotLike; normalize both.
+    is_like = isinstance(node, exp.Like)
+    is_not_like = hasattr(exp, "NotLike") and isinstance(node, getattr(exp, "NotLike"))
+    if is_like or is_not_like:
         field = _sql_field_name(node.this)
         pattern = _sql_literal_value(node.expression)
         if field and pattern is not None:
-            if str(pattern).endswith("%") and not str(pattern).startswith("%"):
-                return [{"field": field, "op": "starts_with", "value": str(pattern).rstrip("%")}], "AND"
-            elif str(pattern).startswith("%") and str(pattern).endswith("%"):
-                return [{"field": field, "op": "matches", "value": str(pattern).strip("%")}], "AND"
-            else:
-                return [{"field": field, "op": "matches", "value": str(pattern).replace("%", ".*")}], "AND"
+            cond = {"field": field, "op": "like", "value": str(pattern)}
+            if is_not_like:
+                cond["negate"] = True
+            return [cond], "AND"
 
     # IS (NULL / TRUE / FALSE)
     if isinstance(node, exp.Is):
@@ -607,21 +598,6 @@ def parse_sql(text: str, dialect: str = "sql") -> dict:
 
     if where_clause:
         conditions, logic = _walk_sql_condition(where_clause.this)
-
-        # Handle negated conditions from NOT
-        for c in conditions:
-            if c.pop("_negated", False):
-                op = c.get("op", "")
-                # Flip the operator
-                flip = {
-                    ">": "<=", "<": ">=", "=": "!=", "!=": "=",
-                    ">=": "<", "<=": ">",
-                    "is_true": "is_false", "is_false": "is_true",
-                    "is_empty": "not_empty", "not_empty": "is_empty",
-                    "equals": "!=",
-                }
-                if op in flip:
-                    c["op"] = flip[op]
 
     # Detect mixed AND/OR (unsupported by flat contract)
     if conditions:

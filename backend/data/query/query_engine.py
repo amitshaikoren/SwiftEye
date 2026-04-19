@@ -8,11 +8,18 @@ AND/OR logic combinators. Returns matched node/edge IDs.
 Engine-agnostic design: this module resolves queries against NetworkX.
 Future backends (Neo4j, SQL, PySpark) would replace this resolver
 while keeping the same query contract.
+
+Condition modifiers (optional, on any condition dict):
+    negate: bool            — invert the result of this condition
+    case_insensitive: bool  — for string/like ops; tristate semantics:
+                              omitted   → engine default per op
+                              True      → force case-insensitive
+                              False     → force case-sensitive
 """
 
 import re
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("swifteye.query_engine")
 
@@ -60,13 +67,11 @@ def _eval_set(attr_val: Any, op: str, value: Any) -> bool:
     if op == "is_empty":    return len(attr_val) == 0
     if op == "not_empty":   return len(attr_val) > 0
 
-    # For contains ops, normalize value to a set for comparison
     if isinstance(value, (list, tuple)):
         target = set(str(v) for v in value)
     else:
         target = {str(value)}
 
-    # String-compare both sides for consistent matching
     attr_strs = set(str(v) for v in attr_val)
 
     if op == "contains":     return target.issubset(attr_strs)
@@ -75,24 +80,76 @@ def _eval_set(attr_val: Any, op: str, value: Any) -> bool:
     return False
 
 
-def _eval_string(attr_val: Any, op: str, value: Any) -> bool:
-    """Evaluate string operators: equals, starts_with, matches (regex)."""
+def _like_to_regex(pattern: str) -> str:
+    """Convert SQL LIKE pattern to anchored regex source.
+
+    % → .*    _ → .    other regex metachars escaped.
+    Backslash escapes the next character literally.
+    """
+    out = []
+    i = 0
+    n = len(pattern)
+    while i < n:
+        c = pattern[i]
+        if c == "\\" and i + 1 < n:
+            out.append(re.escape(pattern[i + 1]))
+            i += 2
+            continue
+        if c == "%":
+            out.append(".*")
+        elif c == "_":
+            out.append(".")
+        else:
+            out.append(re.escape(c))
+        i += 1
+    return "".join(out)
+
+
+def _eval_string(attr_val: Any, op: str, value: Any, case_insensitive: Any = None) -> bool:
+    """Evaluate string operators: equals, starts_with, ends_with, matches (regex), like.
+
+    case_insensitive tristate:
+        None   → engine default: like=CS, others=CI (preserves prior behavior)
+        True   → force CI
+        False  → force CS
+    """
     if attr_val is None:
         return False
 
-    # For set-valued fields (like hostnames), check if ANY element matches
     if isinstance(attr_val, (set, list, tuple)):
-        return any(_eval_string(item, op, value) for item in attr_val)
+        return any(_eval_string(item, op, value, case_insensitive) for item in attr_val)
 
-    a = str(attr_val).lower()
-    b = str(value).lower()
-    if op == "equals":      return a == b
-    if op == "starts_with": return a.startswith(b)
-    if op == "matches":
+    a_raw = str(attr_val)
+    b_raw = str(value)
+
+    if case_insensitive is None:
+        ci = (op != "like")
+    else:
+        ci = bool(case_insensitive)
+
+    if op == "like":
+        regex = _like_to_regex(b_raw)
+        flags = re.IGNORECASE if ci else 0
         try:
-            return bool(re.search(b, a, re.IGNORECASE))
+            return bool(re.fullmatch(regex, a_raw, flags))
         except re.error:
             return False
+
+    if op == "matches":
+        flags = re.IGNORECASE if ci else 0
+        try:
+            return bool(re.search(b_raw, a_raw, flags))
+        except re.error:
+            return False
+
+    if ci:
+        a, b = a_raw.lower(), b_raw.lower()
+    else:
+        a, b = a_raw, b_raw
+
+    if op == "equals":      return a == b
+    if op == "starts_with": return a.startswith(b)
+    if op == "ends_with":   return a.endswith(b)
     return False
 
 
@@ -108,26 +165,38 @@ def _eval_boolean(attr_val: Any, op: str, _value: Any) -> bool:
 NUMERIC_OPS = {">", "<", "=", "!=", ">=", "<="}
 COUNT_OPS   = {"count_gt", "count_lt", "count_eq"}
 SET_OPS     = {"contains", "contains_all", "contains_any", "is_empty", "not_empty"}
-STRING_OPS  = {"equals", "starts_with", "matches"}
+STRING_OPS  = {"equals", "starts_with", "ends_with", "matches", "like"}
 BOOL_OPS    = {"is_true", "is_false"}
 
 
 def _eval_condition(attrs: dict, condition: dict) -> bool:
-    """Evaluate a single condition against a node/edge attribute dict."""
+    """Evaluate a single condition against a node/edge attribute dict.
+
+    Honors `negate` (inverts result) and `case_insensitive` (passed to string ops).
+    """
     field = condition.get("field", "")
     op = condition.get("op", "")
     value = condition.get("value")
+    negate = condition.get("negate", False)
+    case_insensitive = condition.get("case_insensitive")
 
     attr_val = attrs.get(field)
 
-    if op in NUMERIC_OPS: return _eval_numeric(attr_val, op, value)
-    if op in COUNT_OPS:   return _eval_count(attr_val, op, value)
-    if op in SET_OPS:     return _eval_set(attr_val, op, value)
-    if op in STRING_OPS:  return _eval_string(attr_val, op, value)
-    if op in BOOL_OPS:    return _eval_boolean(attr_val, op, value)
+    if op in NUMERIC_OPS:
+        result = _eval_numeric(attr_val, op, value)
+    elif op in COUNT_OPS:
+        result = _eval_count(attr_val, op, value)
+    elif op in SET_OPS:
+        result = _eval_set(attr_val, op, value)
+    elif op in STRING_OPS:
+        result = _eval_string(attr_val, op, value, case_insensitive)
+    elif op in BOOL_OPS:
+        result = _eval_boolean(attr_val, op, value)
+    else:
+        logger.warning("Unknown operator: %s", op)
+        result = False
 
-    logger.warning("Unknown operator: %s", op)
-    return False
+    return (not result) if negate else result
 
 
 # ── Main query resolver ──────────────────────────────────────────────────
@@ -140,7 +209,8 @@ def resolve_query(G, query: dict) -> dict:
         G: NetworkX graph (from build_analysis_graph)
         query: {
             "target": "nodes" | "edges",
-            "conditions": [{"field": str, "op": str, "value": any}, ...],
+            "conditions": [{"field": str, "op": str, "value": any,
+                            "negate"?: bool, "case_insensitive"?: bool}, ...],
             "logic": "AND" | "OR",
             "action": "highlight" | "select"
         }
@@ -184,7 +254,6 @@ def resolve_query(G, query: dict) -> dict:
             results = [_eval_condition(attrs, c) for c in conditions]
             match = all(results) if logic == "AND" else any(results)
             if match:
-                # Build match_details: show the values of matched fields
                 details = {}
                 for c, passed in zip(conditions, results):
                     if passed:
@@ -239,7 +308,6 @@ def get_graph_schema(G) -> dict:
     def _infer_fields(items):
         fields = {}
         for item in items:
-            # nodes: (id, attrs), edges: (u, v, attrs)
             attrs = item[-1]
             for key, val in attrs.items():
                 if key in fields:
