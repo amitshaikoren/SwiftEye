@@ -7,7 +7,7 @@
  * Props: c, subgraphInfo, queryHighlight, setQueryHighlight
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { toProtocolNames } from '../FilterContext';
 import SessionDetail from './SessionDetail';
 import EdgeDetail from './EdgeDetail';
@@ -16,13 +16,35 @@ import SessionsTable from './SessionsTable';
 import LogsPanel from './LogsPanel';
 import HelpPanel from './HelpPanel';
 import QueryBuilder from './QueryBuilder';
+import RecipePanel from './query/RecipePanel';
 import GraphOptionsPanel from './GraphOptionsPanel';
 import StatsPanel from './StatsPanel';
 import ClusterDetail from './ClusterDetail';
 import PathDetail from './PathDetail';
 import MultiSelectPanel from './MultiSelectPanel';
 
+const RECIPE_LS_KEY = 'swifteye.queryRecipe';
+let nextStepIdCounter = 1;
+function newStepId() { return `s${Date.now().toString(36)}${(nextStepIdCounter++).toString(36)}`; }
+
 export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight }) {
+  // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.)
+  const [recipeSteps, setRecipeSteps] = useState(() => {
+    try {
+      const raw = localStorage.getItem(RECIPE_LS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(RECIPE_LS_KEY, JSON.stringify(recipeSteps)); } catch {}
+  }, [recipeSteps]);
+
+  function appendStep(draft) {
+    setRecipeSteps(prev => [...prev, { id: newStepId(), enabled: true, ...draft }]);
+  }
+
   const pathBackLink = c.pathfindResult?.path_count > 0 ? (
     <div
       onClick={c.clearSel}
@@ -166,26 +188,36 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
   if (c.rPanel === 'help') return <HelpPanel />;
 
   if (c.rPanel === 'query') {
+    const onQueryResultLegacy = res => {
+      const nodes = new Set((res.matched_nodes || []).map(m => m.id));
+      const edges = new Set((res.matched_edges || []).map(m => m.id));
+      setQueryHighlight(nodes.size || edges.size ? { nodes, edges } : null);
+    };
     return (
-      <QueryBuilder
-        loaded={c.loaded}
-        onQueryResult={res => {
-          const nodes = new Set((res.matched_nodes || []).map(m => m.id));
-          const edges = new Set((res.matched_edges || []).map(m => m.id));
-          setQueryHighlight(nodes.size || edges.size ? { nodes, edges } : null);
-        }}
-        onClearQuery={() => setQueryHighlight(null)}
-        onSelectNode={id => c.handleGSel('node', id, false)}
-        onSelectEdge={edgeId => {
-          const e = (c.graph.edges || []).find(e => {
-            if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
-            const s = typeof e.source === 'object' ? e.source.id : e.source;
-            const t = typeof e.target === 'object' ? e.target.id : e.target;
-            return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
-          });
-          if (e) c.handleGSel('edge', e, false);
-        }}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflowY: 'auto' }}>
+        <QueryBuilder
+          loaded={c.loaded}
+          onQueryResult={onQueryResultLegacy}
+          onClearQuery={() => setQueryHighlight(null)}
+          onAddStep={appendStep}
+          onSelectNode={id => c.handleGSel('node', id, false)}
+          onSelectEdge={edgeId => {
+            const e = (c.graph.edges || []).find(e => {
+              if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
+              const s = typeof e.source === 'object' ? e.source.id : e.source;
+              const t = typeof e.target === 'object' ? e.target.id : e.target;
+              return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
+            });
+            if (e) c.handleGSel('edge', e, false);
+          }}
+        />
+        <RecipePanel
+          loaded={c.loaded}
+          steps={recipeSteps}
+          onStepsChange={setRecipeSteps}
+          onHighlightChange={setQueryHighlight}
+        />
+      </div>
     );
   }
 

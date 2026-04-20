@@ -14,7 +14,7 @@ import { EXAMPLES } from '../query/queryExamples';
 
 // ── Operator sets per field type ────────────────────────────────────────
 
-const OPS_BY_TYPE = {
+export const OPS_BY_TYPE = {
   numeric: [
     { op: '>', label: '>' }, { op: '<', label: '<' }, { op: '=', label: '=' },
     { op: '!=', label: '!=' }, { op: '>=', label: '>=' }, { op: '<=', label: '<=' },
@@ -33,7 +33,7 @@ const OPS_BY_TYPE = {
   ],
 };
 
-const NO_VALUE_OPS = new Set(['is_empty', 'not_empty', 'is_true', 'is_false']);
+export const NO_VALUE_OPS = new Set(['is_empty', 'not_empty', 'is_true', 'is_false']);
 
 // Field display name and grouping
 function fieldLabel(name) {
@@ -157,7 +157,7 @@ function SchemaReference({ schema, dialect }) {
 
 // ── Component ───────────────────────────────────────────────────────────
 
-export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSelectNode, onSelectEdge }) {
+export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSelectNode, onSelectEdge, onAddStep }) {
   const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {} });
   const [mode, setMode] = useState('freehand');  // 'visual' | 'freehand'
 
@@ -176,8 +176,24 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
   // Shared state
   const [result, setResult] = useState(null);
   const [action, setAction] = useState('highlight');
+  const [groupName, setGroupName] = useState('');
+  const [groupColor, setGroupColor] = useState('#79c0ff');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Verbs that need a group identifier (tag/color/cluster/save_as_set).
+  const ACTIONS_REQUIRE_GROUP = new Set(['tag', 'color', 'cluster', 'save_as_set']);
+  const needsGroup = ACTIONS_REQUIRE_GROUP.has(action);
+
+  // When the verb changes, reset group_name to a sensible default so "+ Add
+  // step" is always pressable without extra clicks.
+  function handleActionChange(next) {
+    setAction(next);
+    if (ACTIONS_REQUIRE_GROUP.has(next)) {
+      setGroupName(prev => prev && !prev.startsWith('tag') && !prev.startsWith('color')
+        && !prev.startsWith('cluster') && !prev.startsWith('set') ? prev : `${next === 'save_as_set' ? 'set' : next}1`);
+    }
+  }
 
   const parseTimer = useRef(null);
   const errorTimer = useRef(null);
@@ -280,8 +296,13 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
       query = { target, conditions: validConds, logic, action };
     }
 
-    // Override action from the action selector
+    // Override action from the action selector; attach group metadata when needed.
     query.action = action;
+    if (needsGroup) {
+      if (!groupName.trim()) { setError('Enter a name for the ' + action + ' group.'); return; }
+      query.group_name = groupName.trim();
+      if (action === 'color') query.group_args = { color: groupColor };
+    }
 
     setLoading(true); setError('');
     try {
@@ -302,6 +323,57 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
     setParseResult(null);
     setShowParseError(false);
     if (onClearQuery) onClearQuery();
+  }
+
+  async function handleAddStep() {
+    if (!onAddStep) return;
+    const verb = action === 'select' ? 'highlight' : action;  // legacy alias
+    if (needsGroup && !groupName.trim()) {
+      setError('Enter a name for the ' + verb + ' group.'); return;
+    }
+    const groupFields = {};
+    if (needsGroup) {
+      groupFields.group_name = groupName.trim();
+      if (verb === 'color') groupFields.group_args = { color: groupColor };
+    }
+    if (mode === 'freehand') {
+      if (!queryText.trim()) { setError('Enter a query first.'); return; }
+      let parsed = parseResult;
+      if (!parsed || parsed.error || !parsed.query) {
+        try {
+          parsed = await parseQueryText(queryText, dialect);
+        } catch (e) {
+          setError('Parse request failed: ' + e.message); return;
+        }
+      }
+      if (parsed?.error) { setError(parsed.error); return; }
+      if (!parsed?.query) { setError('Could not parse query.'); return; }
+      setError('');
+      onAddStep({
+        kind: 'freehand',
+        verb,
+        dialect,
+        text: queryText,
+        target: parsed.query.target || 'nodes',
+        conditions: parsed.query.conditions || [],
+        logic: parsed.query.logic || 'AND',
+        ...groupFields,
+      });
+    } else {
+      const validConds = conditions
+        .filter(c => c.field && c.op)
+        .map(c => {
+          const out = { field: c.field, op: c.op };
+          if (!NO_VALUE_OPS.has(c.op)) {
+            const n = parseFloat(c.value);
+            out.value = isNaN(n) ? c.value : n;
+          }
+          return out;
+        });
+      if (!validConds.length) { setError('Add at least one complete condition.'); return; }
+      setError('');
+      onAddStep({ kind: 'visual', verb, target, conditions: validConds, logic, ...groupFields });
+    }
   }
 
   // ── Styles ──────────────────────────────────────────────────────────
@@ -594,15 +666,33 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
             padding: '8px 0', borderTop: '1px solid var(--bd)', marginTop: 4,
           }}>
             <span style={{ fontSize: 10, color: 'var(--txD)' }}>Then</span>
-            <select value={action} onChange={e => setAction(e.target.value)}
-              style={{ ...selectStyle, minWidth: 90 }}>
-              <option value="highlight">highlight</option>
-              <option value="select" disabled>select (soon)</option>
-              <option value="group" disabled>group (soon)</option>
-              <option value="hide" disabled>hide (soon)</option>
-              <option value="isolate" disabled>isolate (soon)</option>
-              <option value="export" disabled>export (soon)</option>
+            <select value={action} onChange={e => handleActionChange(e.target.value)}
+              style={{ ...selectStyle, minWidth: 110 }}>
+              <optgroup label="View">
+                <option value="highlight">highlight</option>
+                <option value="show_only">show only</option>
+                <option value="hide">hide</option>
+              </optgroup>
+              <optgroup label="Group">
+                <option value="tag">tag</option>
+                <option value="color">color</option>
+                <option value="cluster">cluster</option>
+              </optgroup>
+              <optgroup label="Data">
+                <option value="save_as_set">save as set</option>
+              </optgroup>
             </select>
+            {needsGroup && (
+              <input value={groupName} onChange={e => setGroupName(e.target.value)}
+                placeholder="name" spellCheck={false}
+                style={{ ...inputStyle, maxWidth: 90, flex: 'none' }} />
+            )}
+            {action === 'color' && (
+              <input type="color" value={groupColor} onChange={e => setGroupColor(e.target.value)}
+                title="group colour"
+                style={{ width: 26, height: 24, padding: 0, border: '1px solid var(--bd)',
+                  borderRadius: 'var(--rs)', background: 'var(--bgC)', cursor: 'pointer' }} />
+            )}
             <div style={{ flex: 1 }} />
             {result && (
               <button onClick={handleClear}
@@ -623,6 +713,18 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
               }}>
               {loading ? 'Running...' : 'Run'}
             </button>
+            {onAddStep && (
+              <button onClick={handleAddStep}
+                title="Append this query as a step in the pipeline recipe below"
+                style={{
+                  fontSize: 10, padding: '5px 12px', cursor: 'pointer',
+                  background: 'rgba(88,166,255,.12)', color: 'var(--ac)',
+                  border: '1px solid rgba(88,166,255,.4)', borderRadius: 'var(--rs)',
+                  fontWeight: 600,
+                }}>
+                + Add step
+              </button>
+            )}
           </div>
 
           {/* Error */}
