@@ -52,19 +52,21 @@ export default function Recipe({ steps, onStepsChange, schema }) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
-        {steps.map((step, i) => (
-          <RecipeStep
-            key={step.id}
-            step={step}
-            index={i}
-            editing={editingId === step.id}
-            schema={schema}
-            onToggleEdit={() => setEditingId(editingId === step.id ? null : step.id)}
-            onPatch={patch => patchStep(step.id, patch)}
-            onToggleEnabled={() => patchStep(step.id, { enabled: step.enabled === false })}
-            onRemove={() => removeStep(step.id)}
-          />
-        ))}
+        <div style={{ maxHeight: '40vh', overflowY: 'auto' }}>
+          {steps.map((step, i) => (
+            <RecipeStep
+              key={step.id}
+              step={step}
+              index={i}
+              editing={editingId === step.id}
+              schema={schema}
+              onToggleEdit={() => setEditingId(editingId === step.id ? null : step.id)}
+              onPatch={patch => patchStep(step.id, patch)}
+              onToggleEnabled={() => patchStep(step.id, { enabled: step.enabled === false })}
+              onRemove={() => removeStep(step.id)}
+            />
+          ))}
+        </div>
       </SortableContext>
     </DndContext>
   );

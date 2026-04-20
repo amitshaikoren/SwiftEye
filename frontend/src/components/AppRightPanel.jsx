@@ -7,7 +7,7 @@
  * Props: c, subgraphInfo, queryHighlight, setQueryHighlight
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { toProtocolNames } from '../FilterContext';
 import SessionDetail from './SessionDetail';
 import EdgeDetail from './EdgeDetail';
@@ -23,23 +23,13 @@ import ClusterDetail from './ClusterDetail';
 import PathDetail from './PathDetail';
 import MultiSelectPanel from './MultiSelectPanel';
 
-const RECIPE_LS_KEY = 'swifteye.queryRecipe';
 let nextStepIdCounter = 1;
 function newStepId() { return `s${Date.now().toString(36)}${(nextStepIdCounter++).toString(36)}`; }
 
 export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight }) {
-  // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.)
-  const [recipeSteps, setRecipeSteps] = useState(() => {
-    try {
-      const raw = localStorage.getItem(RECIPE_LS_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem(RECIPE_LS_KEY, JSON.stringify(recipeSteps)); } catch {}
-  }, [recipeSteps]);
+  // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.).
+  // Intentionally not persisted — fresh load (reload or server restart) starts with an empty recipe.
+  const [recipeSteps, setRecipeSteps] = useState([]);
 
   function appendStep(draft) {
     setRecipeSteps(prev => [...prev, { id: newStepId(), enabled: true, ...draft }]);
