@@ -233,6 +233,7 @@ export default function LeftPanel({
       <div style={{ borderTop: '1px solid var(--bd)', marginTop: 10, paddingTop: 10 }}>
         <div className="sh">Panel</div>
         {[
+          ['schema','Schema'],
           ['stats','Overview'],
           ['sessions','Sessions'],
           ['query','Query'],

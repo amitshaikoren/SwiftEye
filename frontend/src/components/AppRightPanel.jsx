@@ -17,6 +17,7 @@ import LogsPanel from './LogsPanel';
 import HelpPanel from './HelpPanel';
 import QueryBuilder from './QueryBuilder';
 import RecipePanel from './query/RecipePanel';
+import SchemaPanel from './SchemaPanel';
 import GraphOptionsPanel from './GraphOptionsPanel';
 import StatsPanel from './StatsPanel';
 import ClusterDetail from './ClusterDetail';
@@ -176,6 +177,7 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
   }
   if (c.rPanel === 'logs') return <LogsPanel />;
   if (c.rPanel === 'help') return <HelpPanel />;
+  if (c.rPanel === 'schema') return <SchemaPanel loaded={c.loaded} />;
 
   if (c.rPanel === 'query') {
     const onQueryResultLegacy = res => {

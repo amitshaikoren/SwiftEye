@@ -408,9 +408,6 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
             </span>
           )}
         </div>
-        <div style={{ fontSize: 10, color: 'var(--txD)' }}>
-          Search the analysis graph with structured or freehand queries.
-        </div>
       </div>
 
       {!loaded && (
