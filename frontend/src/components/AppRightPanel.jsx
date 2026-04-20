@@ -31,6 +31,7 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
   // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.).
   // Intentionally not persisted — fresh load (reload or server restart) starts with an empty recipe.
   const [recipeSteps, setRecipeSteps] = useState([]);
+  const [querySubTab, setQuerySubTab] = useState('query'); // 'query' | 'schema'
 
   function appendStep(draft) {
     setRecipeSteps(prev => [...prev, { id: newStepId(), enabled: true, ...draft }]);
@@ -177,7 +178,6 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
   }
   if (c.rPanel === 'logs') return <LogsPanel />;
   if (c.rPanel === 'help') return <HelpPanel />;
-  if (c.rPanel === 'schema') return <SchemaPanel loaded={c.loaded} />;
 
   if (c.rPanel === 'query') {
     const onQueryResultLegacy = res => {
@@ -185,30 +185,49 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
       const edges = new Set((res.matched_edges || []).map(m => m.id));
       setQueryHighlight(nodes.size || edges.size ? { nodes, edges } : null);
     };
+    const tabStyle = active => ({
+      fontSize: 11, padding: '6px 14px', cursor: 'pointer', fontFamily: 'var(--fd)',
+      background: 'transparent', border: 'none',
+      color: active ? 'var(--ac)' : 'var(--txD)',
+      borderBottom: `2px solid ${active ? 'var(--ac)' : 'transparent'}`,
+      fontWeight: active ? 600 : 400,
+    });
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflowY: 'auto' }}>
-        <QueryBuilder
-          loaded={c.loaded}
-          onQueryResult={onQueryResultLegacy}
-          onClearQuery={() => setQueryHighlight(null)}
-          onAddStep={appendStep}
-          onSelectNode={id => c.handleGSel('node', id, false)}
-          onSelectEdge={edgeId => {
-            const e = (c.graph.edges || []).find(e => {
-              if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
-              const s = typeof e.source === 'object' ? e.source.id : e.source;
-              const t = typeof e.target === 'object' ? e.target.id : e.target;
-              return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
-            });
-            if (e) c.handleGSel('edge', e, false);
-          }}
-        />
-        <RecipePanel
-          loaded={c.loaded}
-          steps={recipeSteps}
-          onStepsChange={setRecipeSteps}
-          onHighlightChange={setQueryHighlight}
-        />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--bd)', background: 'var(--bg)', flexShrink: 0 }}>
+          <button onClick={() => setQuerySubTab('query')} style={tabStyle(querySubTab === 'query')}>Query</button>
+          <button onClick={() => setQuerySubTab('schema')} style={tabStyle(querySubTab === 'schema')}>Schema</button>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {querySubTab === 'schema' ? (
+            <SchemaPanel loaded={c.loaded} />
+          ) : (
+            <>
+              <QueryBuilder
+                loaded={c.loaded}
+                onQueryResult={onQueryResultLegacy}
+                onClearQuery={() => setQueryHighlight(null)}
+                onAddStep={appendStep}
+                onSelectNode={id => c.handleGSel('node', id, false)}
+                onSelectEdge={edgeId => {
+                  const e = (c.graph.edges || []).find(e => {
+                    if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
+                    const s = typeof e.source === 'object' ? e.source.id : e.source;
+                    const t = typeof e.target === 'object' ? e.target.id : e.target;
+                    return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
+                  });
+                  if (e) c.handleGSel('edge', e, false);
+                }}
+              />
+              <RecipePanel
+                loaded={c.loaded}
+                steps={recipeSteps}
+                onStepsChange={setRecipeSteps}
+                onHighlightChange={setQueryHighlight}
+              />
+            </>
+          )}
+        </div>
       </div>
     );
   }
