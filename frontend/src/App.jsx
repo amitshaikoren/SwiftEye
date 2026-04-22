@@ -34,8 +34,9 @@ export default function App() {
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
-  const [queryNodeColors, setQueryNodeColors] = useState({});  // { nodeId: cssColor }
-  const [queryNodeTags, setQueryNodeTags] = useState({});      // { nodeId: string[] }
+  const [queryNodeColors, setQueryNodeColors] = useState({});    // { nodeId: cssColor }
+  const [queryNodeTags, setQueryNodeTags] = useState({});        // { nodeId: string[] }
+  const [queryNodeClusters, setQueryNodeClusters] = useState({}); // { clusterName: { members } }
   // InvestigationPage tab state lifted here so the back-to-timeline breadcrumb
   // can restore whichever tab the user was on when they hit "View in graph".
   const [investigationTab, setInvestigationTab] = useState('documentation');
@@ -499,6 +500,7 @@ export default function App() {
                     onClearQueryHighlight={() => setQueryHighlight(null)}
                     queryNodeColors={queryNodeColors}
                     queryNodeTags={queryNodeTags}
+                    queryNodeClusters={queryNodeClusters}
                     nodeEventSeverity={c.nodeEventSeverity}
                     edgeEventSeverity={c.edgeEventSeverity}
                     onFlagNode={(nodeId) => {
@@ -640,6 +642,7 @@ export default function App() {
                     setQueryHighlight={setQueryHighlight}
                     setQueryNodeColors={setQueryNodeColors}
                     setQueryNodeTags={setQueryNodeTags}
+                    setQueryNodeClusters={setQueryNodeClusters}
                   />
                 </div>
               </div>

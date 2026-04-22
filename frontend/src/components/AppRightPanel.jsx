@@ -28,7 +28,7 @@ import MultiSelectPanel from './MultiSelectPanel';
 let nextStepIdCounter = 1;
 function newStepId() { return `s${Date.now().toString(36)}${(nextStepIdCounter++).toString(36)}`; }
 
-export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight, setQueryNodeColors, setQueryNodeTags }) {
+export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight, setQueryNodeColors, setQueryNodeTags, setQueryNodeClusters }) {
   // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.).
   // Intentionally not persisted — fresh load (reload or server restart) starts with an empty recipe.
   const [recipeSteps, setRecipeSteps] = useState([]);
@@ -201,13 +201,13 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
           <button onClick={() => setQuerySubTab('schema')} style={tabStyle(querySubTab === 'schema')}>Schema</button>
           <button onClick={() => setQuerySubTab('groups')} style={tabStyle(querySubTab === 'groups')}>Groups</button>
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {/* All three sub-panels stay mounted — only visibility toggles. Keeps
               QueryBuilder's local form state intact on tab switch and lets the
               RecipePanel debounced pipeline run complete even while the user is
               viewing Groups (otherwise unmount-on-switch cancels the run and the
               group is never recorded). */}
-          <div style={{ display: querySubTab === 'query' ? 'flex' : 'none', flexDirection: 'column' }}>
+          <div style={{ display: querySubTab === 'query' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <QueryBuilder
               loaded={c.loaded}
               onQueryResult={onQueryResultLegacy}
@@ -233,14 +233,15 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
               onHiddenChange={c.setHiddenNodes}
               onColorChange={setQueryNodeColors}
               onTagChange={setQueryNodeTags}
+              onClusterChange={setQueryNodeClusters}
               onRunComplete={() => setGroupsVersion(v => v + 1)}
               groupsRefreshKey={groupsVersion}
             />
           </div>
-          <div style={{ display: querySubTab === 'schema' ? 'block' : 'none' }}>
+          <div style={{ display: querySubTab === 'schema' ? 'flex' : 'none', flex: 1, minHeight: 0, overflowY: 'auto', flexDirection: 'column' }}>
             <SchemaPanel loaded={c.loaded} />
           </div>
-          <div style={{ display: querySubTab === 'groups' ? 'block' : 'none' }}>
+          <div style={{ display: querySubTab === 'groups' ? 'flex' : 'none', flex: 1, minHeight: 0, overflowY: 'auto', flexDirection: 'column' }}>
             <GroupsPanel
               loaded={c.loaded}
               refreshKey={groupsVersion}

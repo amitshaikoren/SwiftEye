@@ -9,7 +9,7 @@ export default function useGraphViewSync({
   nodeColorRules, edgeColorRules, showEdgeDirection,
   investigationNodes, displayFilterNodes, displayFilterEdges,
   queryHighlight, theme,
-  queryNodeColors, queryNodeTags,
+  queryNodeColors, queryNodeTags, queryNodeClusters,
 }) {
   const selNRef = useRef(new Set());
   const selERef = useRef(null);
@@ -31,6 +31,7 @@ export default function useGraphViewSync({
   const qhRef = useRef(queryHighlight);
   const queryNodeColorsRef = useRef(queryNodeColors);
   const queryNodeTagsRef = useRef(queryNodeTags);
+  const queryNodeClustersRef = useRef(queryNodeClusters);
   const annotationsRef = useRef(annotations);
   const pathfindSourceRef = useRef(pathfindSource);
   const onPathfindTargetRef = useRef(onPathfindTarget);
@@ -81,6 +82,7 @@ export default function useGraphViewSync({
 
   useEffect(() => { queryNodeColorsRef.current = queryNodeColors; triggerRender(); }, [queryNodeColors]);
   useEffect(() => { queryNodeTagsRef.current = queryNodeTags; triggerRender(); }, [queryNodeTags]);
+  useEffect(() => { queryNodeClustersRef.current = queryNodeClusters; triggerRender(); }, [queryNodeClusters]);
 
   // Re-render on selection change
   useEffect(() => { triggerRender(); }, [selectedNodes, selectedEdge]);
@@ -101,7 +103,7 @@ export default function useGraphViewSync({
     labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
     nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
-    queryNodeColorsRef, queryNodeTagsRef,
+    queryNodeColorsRef, queryNodeTagsRef, queryNodeClustersRef,
     annotationsRef, pathfindSourceRef, onPathfindTargetRef,
   };
 }

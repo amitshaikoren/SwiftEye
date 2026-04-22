@@ -49,7 +49,7 @@ function stepToPayload(step) {
   return payload;
 }
 
-export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightChange, onHiddenChange, onColorChange, onTagChange, onRunComplete, groupsRefreshKey }) {
+export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightChange, onHiddenChange, onColorChange, onTagChange, onClusterChange, onRunComplete, groupsRefreshKey }) {
   const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {} });
   const [envelope, setEnvelope] = useState(null);
   const [error, setError] = useState('');
@@ -87,6 +87,7 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
         if (onHiddenChange) onHiddenChange(new Set());
         if (onColorChange) onColorChange({});
         if (onTagChange) onTagChange({});
+        if (onClusterChange) onClusterChange({});
         ownedExtrasRef.current = false;
       }
       return;
@@ -126,6 +127,15 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
             }
           }
           onColorChange(colorMap);
+          ownedExtrasRef.current = true;
+        }
+        // Cluster verb → bounding-box hull per cluster
+        if (onClusterChange) {
+          const clusterMap = {};
+          for (const [name, entry] of Object.entries(res.groups?.cluster || {})) {
+            if (entry.target === 'nodes') clusterMap[name] = { members: entry.members || [] };
+          }
+          onClusterChange(clusterMap);
           ownedExtrasRef.current = true;
         }
         // Tag verb → node tag badge overlays
@@ -174,8 +184,8 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
   }
 
   return (
-    <div style={{ padding: '14px 18px 0', borderTop: '1px solid var(--bd)' }}>
-      <div style={{ height: recipeHeight, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div style={{ padding: '14px 18px 0', borderTop: '1px solid var(--bd)', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ height: recipeHeight, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, flexShrink: 0 }}>
           <h2 style={sectionLabel}>Recipe</h2>
           {steps.length > 0 && (
@@ -212,7 +222,7 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
         onMouseLeave={e => (e.currentTarget.style.opacity = '0.35')}
       />
 
-      <div style={{ paddingBottom: 14 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 14 }}>
       {/* Output */}
       <h2 style={{ ...sectionLabel, marginTop: 4 }}>Output</h2>
       {envelope ? (

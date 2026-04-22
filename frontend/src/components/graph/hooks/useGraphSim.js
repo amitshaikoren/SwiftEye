@@ -8,7 +8,7 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
   labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
   nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
-  queryNodeColorsRef, queryNodeTagsRef }) {
+  queryNodeColorsRef, queryNodeTagsRef, queryNodeClustersRef }) {
 
   const simRef = useRef(null);
   const nRef = useRef([]);
@@ -388,6 +388,45 @@ resize();draw();
         }
         for (let y = Math.floor(sy / gs) * gs; y < ey; y += gs) {
           ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(ex, y); ctx.stroke();
+        }
+      }
+
+      // Cluster hulls (drawn behind edges + nodes)
+      const clusterData = queryNodeClustersRef?.current;
+      if (clusterData) {
+        const CLUSTER_HUE = ['#388bfd','#3fb950','#d29922','#f85149','#bc8cff','#22d3ee','#f0883e'];
+        let ci = 0;
+        for (const [name, { members }] of Object.entries(clusterData)) {
+          if (!members?.length) { ci++; continue; }
+          const pts = members.map(id => nRef.current.find(n => n.id === id)).filter(Boolean);
+          if (!pts.length) { ci++; continue; }
+          const pad = 28;
+          const minX = Math.min(...pts.map(p => p.x)) - pad;
+          const maxX = Math.max(...pts.map(p => p.x)) + pad;
+          const minY = Math.min(...pts.map(p => p.y)) - pad;
+          const maxY = Math.max(...pts.map(p => p.y)) + pad;
+          const bw = maxX - minX, bh = maxY - minY, br = 18;
+          const col = CLUSTER_HUE[ci % CLUSTER_HUE.length];
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(minX + br, minY);
+          ctx.lineTo(maxX - br, minY); ctx.arcTo(maxX, minY, maxX, minY + br, br);
+          ctx.lineTo(maxX, maxY - br); ctx.arcTo(maxX, maxY, maxX - br, maxY, br);
+          ctx.lineTo(minX + br, maxY); ctx.arcTo(minX, maxY, minX, maxY - br, br);
+          ctx.lineTo(minX, minY + br); ctx.arcTo(minX, minY, minX + br, minY, br);
+          ctx.closePath();
+          ctx.globalAlpha = 0.10; ctx.fillStyle = col; ctx.fill();
+          ctx.globalAlpha = 0.55; ctx.strokeStyle = col;
+          ctx.lineWidth = 1.5 / t.k; ctx.setLineDash([6 / t.k, 4 / t.k]); ctx.stroke();
+          ctx.setLineDash([]);
+          if (t.k > 0.3) {
+            ctx.globalAlpha = 0.75;
+            ctx.font = `bold ${Math.max(9, 11 / t.k)}px JetBrains Mono, monospace`;
+            ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+            ctx.fillStyle = col; ctx.fillText(`cluster:${name}`, minX + 5, minY + 4);
+          }
+          ctx.restore();
+          ci++;
         }
       }
 
