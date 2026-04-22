@@ -17,7 +17,7 @@ from data import (
     build_time_buckets, build_graph, build_analysis_graph,
     filter_packets, build_sessions, compute_global_stats, get_subnets,
 )
-from data.query import NamedSetStore
+from data.query import NamedSetStore, GroupStore
 from storage.memory import MemoryBackend
 from storage.serializers import _payload_hexdump, _payload_hex, _payload_ascii, _payload_entropy
 
@@ -54,6 +54,7 @@ class CaptureStore:
         self.investigation: dict = {"markdown": "", "images": {}}  # investigation notebook
         self.backend: MemoryBackend = MemoryBackend()
         self.named_sets: NamedSetStore = NamedSetStore()           # per-capture @name → {target, members}
+        self.group_store: GroupStore = GroupStore()                # per-capture tag/color/cluster/set browser
 
     def load(self, packets: list[PacketRecord], file_name: str, source_files: list[str] = None):
         """
@@ -74,6 +75,7 @@ class CaptureStore:
         self.alerts = []
         self.investigation = {"markdown": "", "images": {}}
         self.named_sets.clear()
+        self.group_store.clear()
 
         logger.info(f"Building sessions...")
         t0 = time.time()

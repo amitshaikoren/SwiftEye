@@ -73,7 +73,7 @@ function GroupBadge({ step }) {
   );
 }
 
-export default function RecipeStep({ step, index, editing, onToggleEdit, onPatch, onToggleEnabled, onRemove, schema }) {
+export default function RecipeStep({ step, index, editing, onToggleEdit, onPatch, onToggleEnabled, onRemove, schema, groupsRefreshKey }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id });
   const vs = VERB_STYLE[step.verb] || VERB_STYLE.highlight;
 
@@ -107,6 +107,15 @@ export default function RecipeStep({ step, index, editing, onToggleEdit, onPatch
             background: 'var(--bgC)', border: '1px solid var(--bd)', borderRadius: 10,
             fontSize: 10, color: 'var(--txD)',
           }}>{step.target || 'nodes'}</span>
+          {step.from_group && (
+            <span style={{
+              display: 'inline-block', padding: '1px 6px', marginRight: 6,
+              background: 'rgba(210,168,255,.08)', border: '1px solid rgba(210,168,255,.35)',
+              borderRadius: 10, fontSize: 10, fontFamily: 'var(--fn)', color: '#d2a8ff',
+            }} title={`scoped to ${step.from_group.kind} @${step.from_group.name}`}>
+              from @{step.from_group.name}
+            </span>
+          )}
           {step.kind === 'freehand'
             ? <FreehandSummary step={step} />
             : <VisualSummary step={step} />}
@@ -121,7 +130,7 @@ export default function RecipeStep({ step, index, editing, onToggleEdit, onPatch
             style={{ ...iconBtnStyle, color: '#f85149' }}>✕</button>
         </span>
       </div>
-      {editing && <StepEditor step={step} schema={schema} onChange={onPatch} />}
+      {editing && <StepEditor step={step} schema={schema} onChange={onPatch} groupsRefreshKey={groupsRefreshKey} />}
     </div>
   );
 }

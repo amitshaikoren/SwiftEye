@@ -221,7 +221,7 @@ export function useCapture() {
 
     // Investigation & hidden (sel slice)
     investigatedIp: sel.investigatedIp, investigationNodes: sel.investigationNodes,
-    hiddenNodes: sel.hiddenNodes, handleHideNode: sel.handleHideNode, handleUnhideAll: sel.handleUnhideAll,
+    hiddenNodes: sel.hiddenNodes, setHiddenNodes: sel.setHiddenNodes, handleHideNode: sel.handleHideNode, handleUnhideAll: sel.handleUnhideAll,
 
     // Pathfinding (sel slice)
     pathfindSource: sel.pathfindSource, startPathfind: sel.startPathfind,

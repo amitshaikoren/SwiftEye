@@ -15,6 +15,9 @@ Per-step contract (each step dict):
         "scope": "viz" | "global",             (default "viz")
         "group_name": str,                     (required for tag/color/cluster/save_as_set)
         "group_args": dict,                    (verb-specific: {"color": "#ff0"}, ...)
+        "from_group": {"kind", "name"},        (optional: scope matches to the members of a
+                                                recorded tag/color/cluster/set — target is
+                                                overridden to the group's target)
         "enabled": bool                        (default True; disabled steps are recorded but skipped)
     }
 
@@ -42,6 +45,7 @@ from typing import Optional
 import logging
 
 from .query_engine import resolve_query, ACTIONS, ACTIONS_REQUIRE_GROUP, SCOPES
+from .groups import VERB_TO_KIND
 
 logger = logging.getLogger("swifteye.query_pipeline")
 
@@ -62,6 +66,17 @@ def _build_node_edge_index(G) -> dict[str, set[str]]:
     return idx
 
 
+def _record_group(store, verb, name, target, members, steps, idx, group_args=None):
+    """Snapshot a group-producing step into the `GroupStore` if one was given."""
+    if store is None or not name:
+        return
+    kind = VERB_TO_KIND.get(verb)
+    if kind is None:
+        return
+    recipe_slice = [dict(s) for s in (steps or [])[: idx + 1]]
+    store.record(kind, name, target, list(members), recipe_slice, group_args)
+
+
 def _step_query(step: dict) -> dict:
     """Build the resolve_query input from a pipeline step."""
     return {
@@ -75,12 +90,19 @@ def _step_query(step: dict) -> dict:
     }
 
 
-def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None) -> dict:
+def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None,
+                 group_store=None) -> dict:
     """Execute `steps` against graph `G`. Returns the pipeline output envelope.
 
     `named_sets` is a shared dict of {name: {"target", "members"}} — pipeline
     reads it for `in_set` conditions and writes to it for `save_as_set` verbs,
     so callers can share one store across multiple pipeline runs.
+
+    `group_store` (optional `GroupStore`) receives a snapshot of every
+    group-producing step (tag/color/cluster/save_as_set) along with the
+    recipe slice that produced it, so the frontend can browse groups
+    independently of the current recipe. Upsert-by-name: duplicate names
+    overwrite.
     """
     named_sets = named_sets if named_sets is not None else {}
     warnings: list[str] = []
@@ -116,14 +138,47 @@ def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None) -> dic
         scope = (step.get("scope") or "viz").lower()
         enabled = step.get("enabled", True)
         group_name = step.get("group_name")
+        from_group = step.get("from_group") or None
+
+        # `from_group` scopes the step to the members of a previously-recorded
+        # group (tag/color/cluster/set). The group's target dictates the step's
+        # target — override any mismatch so conditions resolve against the right
+        # field set.
+        from_group_members: Optional[set[str]] = None
+        from_group_error: Optional[str] = None
+        if from_group:
+            fg_kind = from_group.get("kind") if isinstance(from_group, dict) else None
+            fg_name = from_group.get("name") if isinstance(from_group, dict) else None
+            if not fg_kind or not fg_name:
+                from_group_error = "from_group requires {kind, name}"
+            elif group_store is None:
+                from_group_error = "from_group requires group_store"
+            else:
+                entry = group_store.get(fg_kind, fg_name)
+                if entry is None:
+                    from_group_error = f"group @{fg_name} ({fg_kind}) not found"
+                else:
+                    target = entry.get("target", target)
+                    from_group_members = set(entry.get("members") or [])
 
         record = {
             "index": idx, "verb": verb, "target": target, "scope": scope,
             "enabled": bool(enabled), "matches": [],
         }
+        if from_group:
+            record["from_group"] = {
+                "kind": (from_group or {}).get("kind"),
+                "name": (from_group or {}).get("name"),
+            }
 
         if not enabled:
             record["skipped"] = "disabled"
+            step_records.append(record)
+            continue
+
+        if from_group_error:
+            warnings.append(f"step {idx}: {from_group_error} — skipped")
+            record["skipped"] = from_group_error
             step_records.append(record)
             continue
 
@@ -142,10 +197,25 @@ def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None) -> dic
             step_records.append(record)
             continue
 
-        env = resolve_query(G, _step_query(step), named_sets=named_sets)
-        matches_all = list(env.get("matches", []))
-        record["matches"] = matches_all
-        record["total_searched"] = env.get("total_searched", 0)
+        # Build resolve_query input with the (possibly overridden-by-from_group) target.
+        step_q = _step_query(step)
+        step_q["target"] = target
+
+        # When from_group is set with NO conditions, the group's members are
+        # the match set directly. resolve_query requires at least one condition,
+        # so short-circuit here.
+        conds_in_step = [c for c in (step.get("conditions") or []) if c.get("field") and c.get("op")]
+        if from_group_members is not None and not conds_in_step:
+            matches_all = list(from_group_members)
+            record["matches"] = matches_all
+            record["total_searched"] = len(from_group_members)
+        else:
+            env = resolve_query(G, step_q, named_sets=named_sets)
+            matches_all = list(env.get("matches", []))
+            if from_group_members is not None:
+                matches_all = [m for m in matches_all if m in from_group_members]
+            record["matches"] = matches_all
+            record["total_searched"] = env.get("total_searched", 0) if from_group_members is None else len(from_group_members)
 
         # Visibility effects only consider items that are currently visible —
         # prior steps may have narrowed the set.
@@ -192,17 +262,21 @@ def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None) -> dic
         elif verb == "tag":
             # Visual decoration — only on currently-visible items.
             groups["tag"][group_name] = {"target": target, "members": list(effective)}
+            _record_group(group_store, "tag", group_name, target, effective, steps, idx)
 
         elif verb == "color":
+            args = dict(step.get("group_args") or {})
             groups["color"][group_name] = {
                 "target": target,
                 "members": list(effective),
-                "args": dict(step.get("group_args") or {}),
+                "args": args,
             }
+            _record_group(group_store, "color", group_name, target, effective, steps, idx, args)
 
         elif verb == "cluster":
             # Collapsing into a blob — only makes sense for what's currently visible.
             groups["cluster"][group_name] = {"target": target, "members": list(effective)}
+            _record_group(group_store, "cluster", group_name, target, effective, steps, idx)
 
         elif verb == "save_as_set":
             # Data-level save: capture all matches regardless of current visibility.
@@ -210,6 +284,7 @@ def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None) -> dic
             entry = {"target": target, "members": list(matches_all)}
             saved_sets[group_name] = entry
             named_sets[group_name] = entry  # live so later in_set ops can reference it
+            _record_group(group_store, "save_as_set", group_name, target, matches_all, steps, idx)
 
         elif verb == "select":
             # Legacy alias — treat as highlight for now.

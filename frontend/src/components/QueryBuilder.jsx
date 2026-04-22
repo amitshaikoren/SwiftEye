@@ -9,6 +9,7 @@
  * Results are clickable — clicking a matched node/edge selects it on the graph.
  */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import TargetPicker from './query/TargetPicker';
 import { runQuery, fetchQuerySchema, parseQueryText } from '../api';
 import { EXAMPLES } from '../query/queryExamples';
 
@@ -34,6 +35,8 @@ export const OPS_BY_TYPE = {
 };
 
 export const NO_VALUE_OPS = new Set(['is_empty', 'not_empty', 'is_true', 'is_false']);
+
+export const ACTIONS_REQUIRE_GROUP = new Set(['tag', 'color', 'cluster', 'save_as_set']);
 
 // Field display name and grouping
 function fieldLabel(name) {
@@ -157,12 +160,13 @@ function SchemaReference({ schema, dialect }) {
 
 // ── Component ───────────────────────────────────────────────────────────
 
-export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSelectNode, onSelectEdge, onAddStep }) {
+export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSelectNode, onSelectEdge, onAddStep, groupsRefreshKey }) {
   const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {} });
   const [mode, setMode] = useState('freehand');  // 'visual' | 'freehand'
 
   // Visual mode state
   const [target, setTarget] = useState('nodes');
+  const [fromGroup, setFromGroup] = useState(null);  // {kind, name} | null
   const [conditions, setConditions] = useState([{ field: '', op: '', value: '' }]);
   const [logic, setLogic] = useState('AND');
 
@@ -181,8 +185,6 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Verbs that need a group identifier (tag/color/cluster/save_as_set).
-  const ACTIONS_REQUIRE_GROUP = new Set(['tag', 'color', 'cluster', 'save_as_set']);
   const needsGroup = ACTIONS_REQUIRE_GROUP.has(action);
 
   // When the verb changes, reset group_name to a sensible default so "+ Add
@@ -370,9 +372,12 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
           }
           return out;
         });
-      if (!validConds.length) { setError('Add at least one complete condition.'); return; }
+      // @group scope allows zero conditions (members = group).
+      if (!validConds.length && !fromGroup) { setError('Add at least one complete condition.'); return; }
       setError('');
-      onAddStep({ kind: 'visual', verb, target, conditions: validConds, logic, ...groupFields });
+      const payload = { kind: 'visual', verb, target, conditions: validConds, logic, ...groupFields };
+      if (fromGroup) payload.from_group = { kind: fromGroup.kind, name: fromGroup.name };
+      onAddStep(payload);
     }
   }
 
@@ -558,19 +563,16 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
               {/* Target row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <span style={{ fontSize: 11, color: 'var(--txD)' }}>Find</span>
-                {['nodes', 'edges'].map(t => (
-                  <button key={t}
-                    onClick={() => { setTarget(t); setConditions([{ field: '', op: '', value: '' }]); setResult(null); }}
-                    style={{
-                      fontSize: 10, padding: '4px 12px', borderRadius: 'var(--rs)', cursor: 'pointer',
-                      background: target === t ? 'rgba(88,166,255,.12)' : 'transparent',
-                      color: target === t ? 'var(--ac)' : 'var(--txD)',
-                      border: `1px solid ${target === t ? 'var(--ac)' : 'var(--bd)'}`,
-                      fontWeight: target === t ? 600 : 400,
-                    }}>
-                    {t}
-                  </button>
-                ))}
+                <TargetPicker
+                  target={target} fromGroup={fromGroup}
+                  onChange={({ target: t, fromGroup: fg }) => {
+                    setTarget(t);
+                    setFromGroup(fg);
+                    setConditions([{ field: '', op: '', value: '' }]);
+                    setResult(null);
+                  }}
+                  refreshKey={groupsRefreshKey}
+                />
                 <span style={{ fontSize: 11, color: 'var(--txD)' }}>where</span>
                 {conditions.length > 1 && (
                   <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
@@ -701,12 +703,14 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
                 Clear
               </button>
             )}
-            <button onClick={handleRun} disabled={loading}
+            <button onClick={handleRun} disabled={loading || !!fromGroup}
+              title={fromGroup ? '@group scoping runs only through the recipe — use "+ Add step"' : ''}
               style={{
-                fontSize: 10, padding: '5px 16px', cursor: 'pointer',
+                fontSize: 10, padding: '5px 16px',
+                cursor: (loading || fromGroup) ? 'not-allowed' : 'pointer',
                 background: 'rgba(63,185,80,.12)', color: '#7ee787',
                 border: '1px solid rgba(63,185,80,.4)', borderRadius: 'var(--rs)',
-                fontWeight: 600, opacity: loading ? 0.5 : 1,
+                fontWeight: 600, opacity: (loading || fromGroup) ? 0.45 : 1,
               }}>
               {loading ? 'Running...' : 'Run'}
             </button>

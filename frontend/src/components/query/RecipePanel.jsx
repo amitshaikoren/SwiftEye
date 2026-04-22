@@ -12,10 +12,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import { fetchQuerySchema, runQueryPipeline } from '../../api';
 import Recipe from './Recipe';
 
+const RECIPE_HEIGHT_KEY = 'swifteye.recipePanel.recipeHeight';
+const RECIPE_HEIGHT_MIN = 120;
+const RECIPE_HEIGHT_MAX = 900;
+const RECIPE_HEIGHT_DEFAULT = 340;
+
 function stepIsRunnable(step) {
   if (step.enabled === false) return false;
   const conds = (step.conditions || []).filter(c => c.field && c.op);
-  return conds.length > 0;
+  // A from_group step with no conditions still has a well-defined candidate
+  // set (the group members), so treat it as runnable.
+  return conds.length > 0 || !!step.from_group;
 }
 
 function stepToPayload(step) {
@@ -36,19 +43,30 @@ function stepToPayload(step) {
   };
   if (step.group_name) payload.group_name = step.group_name;
   if (step.group_args) payload.group_args = step.group_args;
+  if (step.from_group && step.from_group.kind && step.from_group.name) {
+    payload.from_group = { kind: step.from_group.kind, name: step.from_group.name };
+  }
   return payload;
 }
 
-export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightChange }) {
+export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightChange, onHiddenChange, onColorChange, onTagChange, onRunComplete, groupsRefreshKey }) {
   const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {} });
   const [envelope, setEnvelope] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const runTimer = useRef(null);
   const lastSigRef = useRef('');
-  // Recipe only clears a highlight if it previously set one, so a one-shot
-  // Run from QueryBuilder isn't wiped when the recipe has zero runnable steps.
+  const [recipeHeight, setRecipeHeight] = useState(() => {
+    const raw = typeof window !== 'undefined' && window.localStorage?.getItem(RECIPE_HEIGHT_KEY);
+    const n = raw ? parseInt(raw, 10) : NaN;
+    return Number.isFinite(n) ? Math.max(RECIPE_HEIGHT_MIN, Math.min(RECIPE_HEIGHT_MAX, n)) : RECIPE_HEIGHT_DEFAULT;
+  });
+  const heightRef = useRef(recipeHeight);
+  heightRef.current = recipeHeight;
+  // Recipe only clears graph state it previously set, so a one-shot Run from
+  // QueryBuilder isn't wiped when the recipe has zero runnable steps.
   const ownedRef = useRef(false);
+  const ownedExtrasRef = useRef(false);
 
   useEffect(() => {
     if (!loaded) { setSchema({ node_fields: {}, edge_fields: {} }); return; }
@@ -64,6 +82,12 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
       if (ownedRef.current && onHighlightChange) {
         onHighlightChange(null);
         ownedRef.current = false;
+      }
+      if (ownedExtrasRef.current) {
+        if (onHiddenChange) onHiddenChange(new Set());
+        if (onColorChange) onColorChange({});
+        if (onTagChange) onTagChange({});
+        ownedExtrasRef.current = false;
       }
       return;
     }
@@ -87,6 +111,38 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
           onHighlightChange(nodes.size || edges.size ? { nodes, edges } : null);
           ownedRef.current = true;
         }
+        // Hide/show_only → drive graph hidden-node state
+        if (onHiddenChange) {
+          onHiddenChange(new Set(res.hidden?.nodes || []));
+          ownedExtrasRef.current = true;
+        }
+        // Color verb → per-node color overrides
+        if (onColorChange) {
+          const colorMap = {};
+          for (const [, entry] of Object.entries(res.groups?.color || {})) {
+            const color = entry.args?.color;
+            if (color && entry.target === 'nodes') {
+              for (const id of (entry.members || [])) colorMap[id] = color;
+            }
+          }
+          onColorChange(colorMap);
+          ownedExtrasRef.current = true;
+        }
+        // Tag verb → node tag badge overlays
+        if (onTagChange) {
+          const tagMap = {};
+          for (const [tagName, entry] of Object.entries(res.groups?.tag || {})) {
+            if (entry.target === 'nodes') {
+              for (const id of (entry.members || [])) {
+                if (!tagMap[id]) tagMap[id] = [];
+                tagMap[id].push(tagName);
+              }
+            }
+          }
+          onTagChange(tagMap);
+          ownedExtrasRef.current = true;
+        }
+        if (onRunComplete) onRunComplete();
       } catch (e) {
         setError(e.message || 'Pipeline run failed');
       }
@@ -96,32 +152,69 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [steps]);
 
+  function startDrag(e) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = heightRef.current;
+    function onMove(ev) {
+      const h = Math.max(RECIPE_HEIGHT_MIN, Math.min(RECIPE_HEIGHT_MAX, startH + (ev.clientY - startY)));
+      setRecipeHeight(h);
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      try { window.localStorage?.setItem(RECIPE_HEIGHT_KEY, String(heightRef.current)); } catch {}
+    }
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
   return (
-    <div style={{ padding: '14px 18px', borderTop: '1px solid var(--bd)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-        <h2 style={sectionLabel}>Recipe</h2>
-        {steps.length > 0 && (
-          <button onClick={() => onStepsChange([])}
-            style={{
-              fontSize: 10, padding: '3px 10px', cursor: 'pointer',
-              background: 'transparent', color: 'var(--txD)',
-              border: '1px solid var(--bd)', borderRadius: 'var(--rs)',
-            }}>Clear all</button>
-        )}
+    <div style={{ padding: '14px 18px 0', borderTop: '1px solid var(--bd)' }}>
+      <div style={{ height: recipeHeight, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, flexShrink: 0 }}>
+          <h2 style={sectionLabel}>Recipe</h2>
+          {steps.length > 0 && (
+            <button onClick={() => onStepsChange([])}
+              style={{
+                fontSize: 10, padding: '3px 10px', cursor: 'pointer',
+                background: 'transparent', color: 'var(--txD)',
+                border: '1px solid var(--bd)', borderRadius: 'var(--rs)',
+              }}>Clear all</button>
+          )}
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
+          <Recipe steps={steps} onStepsChange={onStepsChange} schema={schema} groupsRefreshKey={groupsRefreshKey} />
+
+          {error && (
+            <div style={{
+              marginTop: 10, fontSize: 10, color: '#f85149', padding: '6px 10px',
+              background: 'rgba(248,81,73,.06)', border: '1px solid rgba(248,81,73,.15)',
+              borderRadius: 6,
+            }}>{error}</div>
+          )}
+        </div>
       </div>
 
-      <Recipe steps={steps} onStepsChange={onStepsChange} schema={schema} />
+      <div
+        onMouseDown={startDrag}
+        title="Drag to resize"
+        style={{
+          height: 6, margin: '4px -18px 4px', cursor: 'row-resize',
+          background: 'var(--bd)', opacity: 0.35,
+        }}
+        onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+        onMouseLeave={e => (e.currentTarget.style.opacity = '0.35')}
+      />
 
-      {error && (
-        <div style={{
-          marginTop: 10, fontSize: 10, color: '#f85149', padding: '6px 10px',
-          background: 'rgba(248,81,73,.06)', border: '1px solid rgba(248,81,73,.15)',
-          borderRadius: 6,
-        }}>{error}</div>
-      )}
-
+      <div style={{ paddingBottom: 14 }}>
       {/* Output */}
-      <h2 style={{ ...sectionLabel, marginTop: 16 }}>Output</h2>
+      <h2 style={{ ...sectionLabel, marginTop: 4 }}>Output</h2>
       {envelope ? (
         <div style={{ background: 'var(--bgP)', border: '1px solid var(--bd)',
           borderRadius: 6, padding: '8px 12px' }}>
@@ -166,6 +259,7 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
             : 'Complete or enable at least one step to see output.'}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -7,7 +7,8 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   renRef, rafRef, hRef,
   selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
   labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
-  nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef }) {
+  nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
+  queryNodeColorsRef, queryNodeTagsRef }) {
 
   const simRef = useRef(null);
   const nRef = useRef([]);
@@ -563,14 +564,16 @@ resize();draw();
             ctx.stroke();
             ctx.setLineDash([]);
           } else {
-            const [nFill, nStroke] = resolveNodeColor(
+            let [nFill, nStroke] = resolveNodeColor(
               node, nodeColorModeRef.current, nodeColorRulesRef.current, pc,
               nodePrivate, nodePrivateS, nodeExternal, nodeExternalS,
             );
+            const pipelineColor = queryNodeColorsRef?.current?.[node.id];
+            if (pipelineColor) { nFill = pipelineColor + '33'; nStroke = pipelineColor; }
             ctx.fillStyle = isSel ? acColor + '33' : nFill;
             ctx.fill();
             ctx.strokeStyle = isSel ? acColor : isH ? acGColor : nStroke;
-            ctx.lineWidth = isSel || isH ? 2.5 : 1.5;
+            ctx.lineWidth = isSel || isH ? 2.5 : (pipelineColor ? 2 : 1.5);
             ctx.stroke();
           }
         }
@@ -622,6 +625,32 @@ resize();draw();
           ctx.fillStyle = displayName ? '#22d3ee' : isSel ? acColor : isH ? '#e6edf3' : nodeLabel;
           ctx.fillText(lb, node.x, node.y + r + 5);
         }
+
+        // Tag badges from pipeline (tag verb)
+        const nodeTags = queryNodeTagsRef?.current?.[node.id];
+        if (nodeTags && nodeTags.length && t.k > 0.45) {
+          const fs = Math.max(7, 8 / t.k);
+          ctx.font = `600 ${fs}px JetBrains Mono, monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          const tagY = node.y + r + 18;
+          const label = nodeTags.length === 1 ? `#${nodeTags[0]}` : `#${nodeTags[0]} +${nodeTags.length - 1}`;
+          const tw = ctx.measureText(label).width;
+          const pad = 3;
+          const bx = node.x - tw / 2 - pad, by = tagY - 1, bw = tw + pad * 2, bh = fs + 4, br = 3;
+          ctx.fillStyle = 'rgba(100,53,201,0.85)';
+          ctx.beginPath();
+          ctx.moveTo(bx + br, by);
+          ctx.lineTo(bx + bw - br, by); ctx.arcTo(bx + bw, by, bx + bw, by + br, br);
+          ctx.lineTo(bx + bw, by + bh - br); ctx.arcTo(bx + bw, by + bh, bx + bw - br, by + bh, br);
+          ctx.lineTo(bx + br, by + bh); ctx.arcTo(bx, by + bh, bx, by + bh - br, br);
+          ctx.lineTo(bx, by + br); ctx.arcTo(bx, by, bx + br, by, br);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#e2ccff';
+          ctx.fillText(label, node.x, tagY);
+        }
+
         ctx.globalAlpha = 1;
       }
       ctx.restore();

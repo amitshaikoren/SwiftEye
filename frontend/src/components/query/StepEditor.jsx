@@ -6,8 +6,9 @@
  * change (debounced) so the structured fields stay in sync for the pipeline.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { OPS_BY_TYPE, NO_VALUE_OPS } from '../QueryBuilder';
+import { OPS_BY_TYPE, NO_VALUE_OPS, ACTIONS_REQUIRE_GROUP } from '../QueryBuilder';
 import { parseQueryText } from '../../api';
+import TargetPicker from './TargetPicker';
 
 const SELECT = {
   fontSize: 11, fontFamily: 'var(--fn)', padding: '4px 8px',
@@ -29,7 +30,7 @@ function groupFields(fields) {
   return g;
 }
 
-function VisualEditor({ step, schema, onChange }) {
+function VisualEditor({ step, schema, onChange, groupsRefreshKey }) {
   const fields = step.target === 'edges' ? schema.edge_fields : schema.node_fields;
   const fieldGroups = useMemo(() => groupFields(fields), [fields]);
 
@@ -56,24 +57,25 @@ function VisualEditor({ step, schema, onChange }) {
     if ((step.conditions || []).length <= 1) return;
     onChange({ conditions: step.conditions.filter((_, i) => i !== idx) });
   }
-  function setTarget(t) {
-    onChange({ target: t, conditions: [{ field: '', op: '', value: '' }] });
-  }
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--txD)' }}>Find</span>
-        {['nodes', 'edges'].map(t => (
-          <button key={t} onClick={() => setTarget(t)}
-            style={{
-              fontSize: 10, padding: '3px 10px', borderRadius: 'var(--rs)', cursor: 'pointer',
-              background: step.target === t ? 'rgba(88,166,255,.12)' : 'transparent',
-              color: step.target === t ? 'var(--ac)' : 'var(--txD)',
-              border: `1px solid ${step.target === t ? 'var(--ac)' : 'var(--bd)'}`,
-              fontWeight: step.target === t ? 600 : 400,
-            }}>{t}</button>
-        ))}
+        <TargetPicker
+          target={step.target || 'nodes'}
+          fromGroup={step.from_group || null}
+          refreshKey={groupsRefreshKey}
+          onChange={({ target: t, fromGroup: fg }) => {
+            // Reset conditions when switching between target types or in/out of a group,
+            // since field options differ.
+            onChange({
+              target: t,
+              from_group: fg || undefined,
+              conditions: [{ field: '', op: '', value: '' }],
+            });
+          }}
+        />
         {(step.conditions || []).length > 1 && (
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
             {['AND', 'OR'].map(l => (
@@ -217,13 +219,71 @@ function FreehandEditor({ step, onChange }) {
   );
 }
 
-export default function StepEditor({ step, schema, onChange }) {
+function VerbHeader({ step, onChange }) {
+  const verb = step.verb || 'highlight';
+  const needsGroup = ACTIONS_REQUIRE_GROUP.has(verb);
+
+  function changeVerb(next) {
+    const patch = { verb: next };
+    if (ACTIONS_REQUIRE_GROUP.has(next)) {
+      if (!step.group_name || !step.group_name.trim()) {
+        patch.group_name = next === 'save_as_set' ? 'set1' : `${next}1`;
+      }
+      if (next === 'color' && !step.group_args?.color) {
+        patch.group_args = { color: '#79c0ff' };
+      }
+    } else {
+      patch.group_name = undefined;
+      patch.group_args = undefined;
+    }
+    onChange(patch);
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
+      paddingBottom: 8, borderBottom: '1px solid var(--bd)' }}>
+      <span style={{ fontSize: 11, color: 'var(--txD)' }}>Then</span>
+      <select value={verb} onChange={e => changeVerb(e.target.value)}
+        style={{ ...SELECT, minWidth: 110 }}>
+        <optgroup label="View">
+          <option value="highlight">highlight</option>
+          <option value="show_only">show only</option>
+          <option value="hide">hide</option>
+        </optgroup>
+        <optgroup label="Group">
+          <option value="tag">tag</option>
+          <option value="color">color</option>
+          <option value="cluster">cluster</option>
+        </optgroup>
+        <optgroup label="Data">
+          <option value="save_as_set">save as set</option>
+        </optgroup>
+      </select>
+      {needsGroup && (
+        <input value={step.group_name || ''}
+          onChange={e => onChange({ group_name: e.target.value })}
+          placeholder="name" spellCheck={false}
+          style={{ ...INPUT, maxWidth: 90, flex: 'none' }} />
+      )}
+      {verb === 'color' && (
+        <input type="color" value={step.group_args?.color || '#79c0ff'}
+          onChange={e => onChange({ group_args: { ...(step.group_args || {}), color: e.target.value } })}
+          title="group colour"
+          style={{ width: 26, height: 24, padding: 0, border: '1px solid var(--bd)',
+            borderRadius: 'var(--rs)', background: 'var(--bgC)', cursor: 'pointer' }} />
+      )}
+    </div>
+  );
+}
+
+export default function StepEditor({ step, schema, onChange, groupsRefreshKey }) {
   return (
     <div style={{ padding: 10, background: 'var(--bgP)', border: '1px solid var(--bd)',
       borderRadius: 6, marginTop: 8 }}>
+      <VerbHeader step={step} onChange={onChange} />
       {step.kind === 'freehand'
         ? <FreehandEditor step={step} onChange={onChange} />
-        : <VisualEditor step={step} schema={schema} onChange={onChange} />}
+        : <VisualEditor step={step} schema={schema} onChange={onChange} groupsRefreshKey={groupsRefreshKey} />}
     </div>
   );
 }

@@ -48,6 +48,8 @@ export default function GraphCanvas({
   showEdgeDirection = false,
   queryHighlight = null,
   onClearQueryHighlight,
+  queryNodeColors = {},
+  queryNodeTags = {},
 }) {
   // Shared refs — declared here so all hooks share the same ref objects
   const cRef = useRef(null);
@@ -73,6 +75,7 @@ export default function GraphCanvas({
     nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
     annotationsRef, pathfindSourceRef, onPathfindTargetRef,
+    queryNodeColorsRef, queryNodeTagsRef,
   } = useGraphViewSync({
     renRef, rafRef,
     annotations, selectedNodes, selectedEdge, pColors,
@@ -82,6 +85,7 @@ export default function GraphCanvas({
     nodeColorRules, edgeColorRules, showEdgeDirection,
     investigationNodes, displayFilterNodes, displayFilterEdges,
     queryHighlight, theme,
+    queryNodeColors, queryNodeTags,
   });
 
   // Hook 2: Simulation + render loop
@@ -92,6 +96,7 @@ export default function GraphCanvas({
       selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
       labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
       nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
+      queryNodeColorsRef, queryNodeTagsRef,
     });
 
   // Hook 3: Resize polling

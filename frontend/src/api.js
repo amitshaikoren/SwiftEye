@@ -215,6 +215,16 @@ export async function runQueryPipeline(steps) {
   });
 }
 
+export async function fetchQueryGroups() {
+  return api('/api/query/groups').catch(() => ({ tag: {}, color: {}, cluster: {}, set: {} }));
+}
+
+export async function deleteQueryGroup(kind, name) {
+  return api(`/api/query/groups/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  });
+}
+
 // ── Analysis ────────────────────────────────────────────────────────────────
 
 export async function fetchAnalysisResults() {

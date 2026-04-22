@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from store import store, _require_capture
 from data.query import resolve_query, parse_query_text, get_graph_schema, run_pipeline
+from data.query.groups import KINDS
 
 router = APIRouter()
 
@@ -48,8 +49,34 @@ async def run_query_pipeline(body: dict):
     steps = body.get("steps", [])
     if not isinstance(steps, list):
         raise HTTPException(400, "steps must be a list")
-    result = run_pipeline(store.analysis_graph, steps, named_sets=store.named_sets.as_context())
+    result = run_pipeline(
+        store.analysis_graph, steps,
+        named_sets=store.named_sets.as_context(),
+        group_store=store.group_store,
+    )
     return result
+
+
+@router.get("/api/query/groups")
+async def list_groups():
+    """Return all recorded groups for the current capture, grouped by kind.
+
+    Shape: {kind: {name: {target, members, recipe, group_args, created_at}}}
+    where kind ∈ {tag, color, cluster, set}.
+    """
+    _require_capture()
+    return store.group_store.list_all()
+
+
+@router.delete("/api/query/groups/{kind}/{name}")
+async def delete_group(kind: str, name: str):
+    """Delete a single group entry."""
+    _require_capture()
+    if kind not in KINDS:
+        raise HTTPException(400, f"kind must be one of {KINDS}")
+    if not store.group_store.delete(kind, name):
+        raise HTTPException(404, f"Group '{kind}/{name}' not found")
+    return {"deleted": {"kind": kind, "name": name}}
 
 
 @router.get("/api/query/sets")

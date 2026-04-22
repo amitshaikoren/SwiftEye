@@ -273,7 +273,7 @@ export function useSelectionAndNavigation({ search, setSearch, graph }) {
     navBack, navForward, canGoBack, canGoForward,
     handleInvestigate, handleInvestigateNeighbours, exitInvestigation,
     investigatedIp, investigationNodes,
-    hiddenNodes, handleHideNode, handleUnhideAll,
+    hiddenNodes, setHiddenNodes, handleHideNode, handleUnhideAll,
     pathfindSource, startPathfind, cancelPathfind, executePathfind,
     pathfindResult, pathfindLoading, runPathfindFromPanel,
     seqAckSessionId, setSeqAckSessionId,

@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/sortable';
 import RecipeStep from './RecipeStep';
 
-export default function Recipe({ steps, onStepsChange, schema }) {
+export default function Recipe({ steps, onStepsChange, schema, groupsRefreshKey }) {
   const [editingId, setEditingId] = useState(null);
 
   const sensors = useSensors(
@@ -52,7 +52,7 @@ export default function Recipe({ steps, onStepsChange, schema }) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
-        <div style={{ maxHeight: '40vh', overflowY: 'auto' }}>
+        <div>
           {steps.map((step, i) => (
             <RecipeStep
               key={step.id}
@@ -60,6 +60,7 @@ export default function Recipe({ steps, onStepsChange, schema }) {
               index={i}
               editing={editingId === step.id}
               schema={schema}
+              groupsRefreshKey={groupsRefreshKey}
               onToggleEdit={() => setEditingId(editingId === step.id ? null : step.id)}
               onPatch={patch => patchStep(step.id, patch)}
               onToggleEnabled={() => patchStep(step.id, { enabled: step.enabled === false })}
