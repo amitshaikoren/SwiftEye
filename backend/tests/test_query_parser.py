@@ -72,9 +72,15 @@ class TestCypherParser:
 
     def test_ends_with(self):
         r = parse_cypher('MATCH (n) WHERE n.label ENDS WITH ".local" RETURN n')
-        c = r["conditions"][0]
-        assert c["op"] == "matches"
-        assert c["field"] == "label"
+        assert r["conditions"][0] == {"field": "label", "op": "ends_with", "value": ".local"}
+
+    def test_not_prefix(self):
+        r = parse_cypher('MATCH (n) WHERE NOT n.packets > 5 RETURN n')
+        assert r["conditions"][0] == {"field": "packets", "op": ">", "value": "5", "negate": True}
+
+    def test_not_contains(self):
+        r = parse_cypher('MATCH (n) WHERE NOT n.label CONTAINS "Server" RETURN n')
+        assert r["conditions"][0] == {"field": "label", "op": "contains", "value": "Server", "negate": True}
 
     def test_is_true(self):
         r = parse_cypher('MATCH (n) WHERE n.is_private IS TRUE RETURN n')
@@ -172,14 +178,28 @@ class TestSQLParser:
         assert r["logic"] == "OR"
         assert len(r["conditions"]) == 2
 
-    def test_like_starts_with(self):
+    def test_like(self):
         r = parse_sql("SELECT * FROM nodes WHERE os_guess LIKE 'Win%'")
-        assert r["conditions"][0] == {"field": "os_guess", "op": "starts_with", "value": "Win"}
+        assert r["conditions"][0] == {"field": "os_guess", "op": "like", "value": "Win%"}
 
     def test_like_contains(self):
         r = parse_sql("SELECT * FROM nodes WHERE label LIKE '%Server%'")
-        assert r["conditions"][0]["op"] == "matches"
-        assert r["conditions"][0]["value"] == "Server"
+        assert r["conditions"][0] == {"field": "label", "op": "like", "value": "%Server%"}
+
+    def test_not_like(self):
+        r = parse_sql("SELECT * FROM nodes WHERE os_guess NOT LIKE 'Win%'")
+        c = r["conditions"][0]
+        assert c["field"] == "os_guess"
+        assert c["op"] == "like"
+        assert c["value"] == "Win%"
+        assert c.get("negate") is True
+
+    def test_not_simple(self):
+        r = parse_sql("SELECT * FROM nodes WHERE NOT (packets > 5)")
+        c = r["conditions"][0]
+        assert c["field"] == "packets"
+        assert c["op"] == ">"
+        assert c.get("negate") is True
 
     def test_is_true(self):
         r = parse_sql('SELECT * FROM nodes WHERE is_private IS TRUE')
@@ -230,7 +250,7 @@ class TestSQLParser:
     def test_multi_condition(self):
         r = parse_sql("SELECT * FROM nodes WHERE os_guess LIKE 'Win%' AND packets >= 500 AND is_private IS TRUE")
         assert len(r["conditions"]) == 3
-        assert r["conditions"][0]["op"] == "starts_with"
+        assert r["conditions"][0]["op"] == "like"
         assert r["conditions"][1]["op"] == ">="
         assert r["conditions"][2]["op"] == "is_true"
 

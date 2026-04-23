@@ -1,5 +1,52 @@
 # SwiftEye — Changelog
 
+### v0.28.2 — April 2026
+- **Hidden-edges wiring** — `hide` pipeline steps now conceal both nodes and edges; `handleUnhideAll` clears both. The hidden-state banner in the graph header shows combined counts ("2 nodes, 3 edges hidden").
+- **Scoped / All mode switch** — new pill toggle in the Recipe panel header. "Scoped" (default) runs each step only against currently-visible nodes/edges. "All" opts the whole recipe into global scope, letting steps reach nodes that earlier steps hid.
+
+### v0.28.1 — April 2026
+- **Recipe/QueryBuilder layout fix** — QueryBuilder no longer expands to fill all available height, giving RecipePanel the flex space it needs below it.
+- **Color override radial gradient** — color-verb overrides now render as a radial gradient (darker centre → lighter edge) instead of a flat 20 %-opacity fill, making colored nodes visually distinct from default nodes and clearly visible on both light and dark backgrounds.
+- **Edge color verb** — the `color` pipeline verb now works on edges as well as nodes; `annotationStore.toRenderSnapshot` emits `edgeColorOverrides`; the edge render loop applies stroke-style and line-width overrides.
+- **PySpark placeholder corrected** — freehand editor PySpark placeholder text changed from `df.filter` to `nodes.filter` in QueryBuilder, StepEditor, and queryExamples.
+
+### v0.28.0 — April 2026
+- **Annotation primitives (Phases 1–4)** — unified annotation layer replacing four separate inline ref systems. New `frontend/src/core/graphPrimitives.js`: canonical canvas draw functions — `drawShapePath` (single authoritative node shape function replacing scattered `if/else` branches), `computeConvexHull` (d3.polygonHull + centroid expansion + smooth quadratic Bézier with circle/capsule fallbacks for 1/2/collinear points), `drawHulls`, `drawRings`, `drawBadges`, `applyColorOverride`. New `frontend/src/core/annotationStore.js`: `AnnotationStore` with full CRUD + four lifetimes (`transient` / `persistent` / `computed` / `flash`), `toRenderSnapshot()` pre-bakes render data with zero per-frame allocation, `toLayoutHints()` feeds hull cohesion forces. New `frontend/src/core/layouts/forceLayout.js`: `buildForceSimulation` extracted from `useGraphSim` — the layout seam for the upcoming graph-layouts initiative. Render loop refactored into two passes for correct z-ordering (0 Grid → 1 Hulls → 2 Edges → 3 Nodes → 4 Rings → 5 Labels → 6 Badges). Pipeline's `RecipePanel` now writes directly to the annotation store instead of calling per-type callbacks; `AppRightPanel` drops the four annotation-setter props.
+
+### v0.27.16 — April 2026
+- **Pipeline verbs wired to graph canvas** — `show_only` and `hide` steps now drive `hiddenNodes` state (nodes disappear from the graph). `color` steps apply per-node color overrides in the render loop (custom stroke/fill). `tag` steps draw a `#tagname` purple badge below matching nodes (zoom-guarded, arc-based rounded rect). All overrides are cleared automatically when the recipe has no runnable steps.
+
+### v0.27.15 — April 2026
+- **Sub-tab unmount fix** — switching between Query / Schema / Groups sub-tabs no longer unmounts non-active panels. Previously this caused the Groups tab to appear empty (debounced pipeline run was cancelled before `group_store` received the snapshot) and the QueryBuilder form to reset on return.
+- **Recipe / Output drag splitter** — a 6 px drag handle between the Recipe section and the Output section lets you resize both regions. Height is clamped to [120, 900 px] and persisted to `localStorage` so it survives reloads.
+- **@group scoped steps** — pipeline steps can now target a named group (`@tagname`, `@colorname`, etc.) via the visual-editor TargetPicker. The new `from_group: {kind, name}` step field scopes the step's candidate set to the group's members. Zero-condition steps with a `from_group` are valid — they match all members directly. 7 new backend tests, 306 total passing.
+
+### v0.27.14 — April 2026
+- **Step verb editable after creation** — recipe steps previously locked in their verb at creation time. The new `VerbHeader` row at the top of every open StepEditor lets you switch verb, change group name, and pick a color at any time. Switching to a group-requiring verb auto-seeds a name if the field is empty; switching away preserves any custom name the user entered.
+- **Groups sub-tab** — third sub-tab in the Query panel (alongside Query and Schema). Shows every tag, color, cluster, and saved set produced by the pipeline, each with the recipe slice that created it, a member list (click any member to navigate to it on the graph), and a delete button. Groups refresh automatically after each pipeline run. 18 new backend tests (`GroupStore` CRUD, suffix behaviour, pipeline wiring), 299 total passing.
+
+### v0.27.13 — April 2026
+- **Schema moved under Query** — the Schema view is now the second sub-tab inside the Query panel instead of a standalone left-nav tab. This keeps field reference and query building in the same place.
+
+### v0.27.12 — April 2026
+- **Schema tab** — new `SchemaPanel` shows all queryable node and edge fields grouped by type (Numeric / Sets / Flags / Text) with colour-coded chips and counts. Data comes from the existing `/api/query/schema` endpoint.
+
+### v0.27.11 — April 2026
+- **Recipe persistence dropped** — recipe state no longer persists to `localStorage`. A fresh browser load or server restart starts with an empty recipe (the previous session's recipe was rarely useful on reload and blocked clean state when switching captures).
+- **Recipe scroll container** — the recipe step list now has a `max-height: 40 vh` scroll container so long recipes don't push the Output metrics offscreen.
+
+### v0.27.10 — April 2026
+- **Query pipeline — end-to-end recipe UX** — the Query tab now has a full pipeline system. Build a "recipe" — an ordered list of steps that run automatically (300 ms debounce) as you edit. Each step can be Visual (point-and-click field/op/value) or Freehand (Cypher, SQL, or PySpark). Steps are reorderable via drag handle; individual steps can be enabled/disabled. Output section shows live counts: Visible nodes/edges, Hidden, Highlighted, Tags, Coloured, Clusters, Saved sets. Uses dnd-kit for drag-and-drop.
+
+### v0.27.9 — April 2026
+- **Query pipeline — Phase B backend: seven verbs + pipeline executor + named sets** — `resolve_query` now validates seven verbs: `highlight`, `show_only`, `hide`, `tag`, `color`, `cluster`, `save_as_set`. New `in_set` op for `IN @name` syntax in Cypher and SQL. New `backend/data/query/pipeline.py` top-to-bottom executor with per-step provenance (matches, removed, skipped, effective_matches) and current-visibility tracking. New `NamedSetStore` (per-capture, non-persistent). New routes: `POST /api/query/pipeline`, `GET/PUT/DELETE /api/query/sets`. 42 new tests, 281 total passing.
+
+### v0.27.8 — April 2026
+- **Query pipeline — Phase A backend: translator refactor + new ops** — PySpark translator rewritten around `METHOD_MAP` (adding an op = one row). New `like` op (SQL `%`/`_` wildcard semantics, case-sensitive by default). New `negate` and `case_insensitive` modifiers; Cypher `NOT` and SQL `NOT LIKE` unified on `negate`. `ends_with` silent-zero-match bug fixed (op was missing from the engine's `STRING_OPS` set). 19 new tests.
+
+### v0.27.7 — April 2026
+- **Docs audit** — DEVELOPERS.md §9 API table expanded to 57 routes; `analysis/` → `data/` path references corrected throughout; HANDOFF.md §2 directory tree and API table updated; README Features expanded (alerts, LLM panel, animation, query translation).
+
 ### v0.27.6 — April 2026
 - **Graph direction visualization** — new "Show direction" toggle in Graph Options → Edge tab (default off). When on, a filled arrowhead is drawn at the 70% mark along each edge pointing initiator → responder. Fixed screen-space size (8×10 px) regardless of edge weight or zoom. For bidirectional traffic the two arrows land at different positions (70% and 30% from A), keeping both directions readable without overlap.
 - **Legend data extraction** — `NODE_LEGENDS` / `EDGE_LEGENDS` extracted to a shared `graphLegendData.js` module; the Graph Options sidebar legend already synced with the active color mode and continues to do so.

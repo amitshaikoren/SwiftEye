@@ -121,9 +121,9 @@ export function useCapture() {
     () => (data.graph.edges || []).filter(e => {
       const s = e.source?.id || e.source;
       const t = e.target?.id || e.target;
-      return !sel.hiddenNodes.has(s) && !sel.hiddenNodes.has(t);
+      return !sel.hiddenNodes.has(s) && !sel.hiddenNodes.has(t) && !sel.hiddenEdges.has(e.id);
     }),
-    [data.graph.edges, sel.hiddenNodes]
+    [data.graph.edges, sel.hiddenNodes, sel.hiddenEdges]
   );
 
   // ── Return the merged object (identical shape to pre-decomposition) ─
@@ -221,7 +221,8 @@ export function useCapture() {
 
     // Investigation & hidden (sel slice)
     investigatedIp: sel.investigatedIp, investigationNodes: sel.investigationNodes,
-    hiddenNodes: sel.hiddenNodes, handleHideNode: sel.handleHideNode, handleUnhideAll: sel.handleUnhideAll,
+    hiddenNodes: sel.hiddenNodes, setHiddenNodes: sel.setHiddenNodes, handleHideNode: sel.handleHideNode, handleUnhideAll: sel.handleUnhideAll,
+    hiddenEdges: sel.hiddenEdges, setHiddenEdges: sel.setHiddenEdges,
 
     // Pathfinding (sel slice)
     pathfindSource: sel.pathfindSource, startPathfind: sel.startPathfind,

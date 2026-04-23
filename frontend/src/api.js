@@ -207,6 +207,24 @@ export async function fetchQuerySchema() {
   return api('/api/query/schema').catch(() => ({ node_fields: {}, edge_fields: {} }));
 }
 
+export async function runQueryPipeline(steps) {
+  return api('/api/query/pipeline', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ steps }),
+  });
+}
+
+export async function fetchQueryGroups() {
+  return api('/api/query/groups').catch(() => ({ tag: {}, color: {}, cluster: {}, set: {} }));
+}
+
+export async function deleteQueryGroup(kind, name) {
+  return api(`/api/query/groups/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  });
+}
+
 // ── Analysis ────────────────────────────────────────────────────────────────
 
 export async function fetchAnalysisResults() {

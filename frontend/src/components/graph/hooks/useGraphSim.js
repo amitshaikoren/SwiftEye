@@ -2,12 +2,15 @@ import { useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import { CLUSTER_COLORS } from '../../../clusterView';
 import { resolveNodeColor, resolveEdgeColor } from '../utils/graphColorUtils';
+import { drawHulls, drawRings, drawBadges, drawShapePath, applyColorOverride } from '../../../core/graphPrimitives';
+import { buildForceSimulation } from '../../../core/layouts/forceLayout';
 
 export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWeightMode, tRef,
   renRef, rafRef, hRef,
-  selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
+  selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef,
   labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
-  nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef }) {
+  nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
+  annotationsRef }) {
 
   const simRef = useRef(null);
   const nRef = useRef([]);
@@ -289,38 +292,13 @@ resize();draw();
     eRef.current = ne;
     if (simRef.current) simRef.current.stop();
 
-    const hasAnyClusters = nn.some(n => n.is_cluster);
-    const nodeCount = nn.length;
-    const chargeDistMax = hasAnyClusters ? 450
-      : nodeCount > 200 ? 180
-      : nodeCount > 50  ? 300
-      : 400;
-    const sim = d3.forceSimulation(nn)
-      .force('charge', d3.forceManyBody()
-        .strength(d => d.is_cluster ? -350 - (d.member_count || 0) * 18 : -180)
-        .distanceMax(chargeDistMax))
-      .force('link', d3.forceLink(ne).id(d => d.id)
-        .distance(d => {
-          const s = typeof d.source === 'object' ? d.source : null;
-          const t = typeof d.target === 'object' ? d.target : null;
-          if (s?.is_cluster || t?.is_cluster) return 200;
-          return 130;
-        })
-        .strength(0.5))
-      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.05))
-      .force('collision', d3.forceCollide().radius(d =>
-        d.is_cluster ? gRRef.current(d) * 1.8 + 15 : gRRef.current(d) + 8))
-      .force('x', d3.forceX(width / 2).strength(0.02))
-      .force('y', d3.forceY(height / 2).strength(0.02))
-      .alphaDecay(0.025)
-      .on('tick', render)
-      .on('end', () => {
-        if (simRef.current) {
-          simRef.current.force('charge').strength(
-            d => d.is_cluster ? -70 - (d.member_count || 0) * 4 : -45
-          );
-        }
-      });
+    const layoutHints = {
+      hullCohesion: (annotationsRef?.current?.hulls ?? [])
+        .filter(h => h.cohesion > 0)
+        .map(h => ({ members: h.members, strength: h.cohesion })),
+    };
+    const sim = buildForceSimulation(nn, ne, { width, height }, gRRef.current, layoutHints)
+      .on('tick', render);
 
     simRef.current = sim;
 
@@ -390,6 +368,13 @@ resize();draw();
         }
       }
 
+      // Pre-bake annotation snapshot and node lookup for this frame
+      const snap = annotationsRef?.current ?? null;
+      const nodeMap = new Map(nRef.current.map(n => [n.id, n]));
+
+      // Hulls (z-order 1: behind edges + nodes)
+      if (snap?.hulls?.length) drawHulls(ctx, t, snap.hulls, nodeMap);
+
       // Edges
       const eSizeMode = edgeSizeModeRef.current;
       const eColorMode = edgeColorModeRef.current;
@@ -413,11 +398,13 @@ resize();draw();
         const inDf  = !dfE || dfE.has(edge.id);
 
         const resolvedCol = edge.synthetic ? (edge.color || '#f0883e') : resolveEdgeColor(edge, eColorMode, eColorRules, pc);
-        const edgeColor = resolvedCol;
         const edgeW = edge.synthetic ? 2 : w;
 
-        const qh = qhRef.current;
-        const eqh = qh?.edges && (qh.edges.has(`${sId}|${tId}`) || qh.edges.has(`${tId}|${sId}`));
+        const edgeRings = snap?.rings?.edges;
+        const eqh = edgeRings && (edgeRings[`${sId}|${tId}`] || edgeRings[`${tId}|${sId}`]);
+        const eco = snap?.edgeColorOverrides;
+        const edgeOverride = eco && (eco[`${sId}|${tId}`] || eco[`${tId}|${sId}`] || eco[edge.id]);
+        const edgeColor = edgeOverride ? edgeOverride.stroke : resolvedCol;
 
         if (!inInv || !inDf) { ctx.globalAlpha = 0.04; }
         else if (edge.synthetic) ctx.globalAlpha = isSel ? 1 : hs ? (con ? 1 : 0.35) : 0.85;
@@ -427,7 +414,7 @@ resize();draw();
         ctx.moveTo(src.x, src.y);
         ctx.lineTo(tgt.x, tgt.y);
         ctx.strokeStyle = isSel ? '#fff' : eqh ? '#f0883e' : edgeColor;
-        ctx.lineWidth = isSel ? edgeW + 2 : eqh ? edgeW + 1.5 : edgeW;
+        ctx.lineWidth = isSel ? edgeW + 2 : eqh ? edgeW + 1.5 : (edgeOverride ? edgeW + 1 : edgeW);
         if (edge.synthetic) { ctx.setLineDash([6, 4]); } else { ctx.setLineDash([]); }
         ctx.stroke();
         ctx.setLineDash([]);
@@ -463,7 +450,7 @@ resize();draw();
         ctx.globalAlpha = 1;
       }
 
-      // Nodes
+      // Node pass A — shapes + glows (z-order 3)
       for (const node of nRef.current) {
         const r = gR(node);
         const isSel = ss.has(node.id);
@@ -488,110 +475,17 @@ resize();draw();
           ctx.fillRect(node.x - r * 3, node.y - r * 3, r * 6, r * 6);
         }
 
-        // Shape
-        const isGateway = node.plugin_data?.network_role?.role === 'gateway';
-        if (node.is_cluster) {
-          const cc = CLUSTER_COLORS[(node.cluster_id || 0) % CLUSTER_COLORS.length];
-          const hr = r * 1.8;
-          ctx.beginPath();
-          for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 3) * i - Math.PI / 6;
-            const hx = node.x + hr * Math.cos(angle);
-            const hy = node.y + hr * Math.sin(angle);
-            if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
-          }
-          ctx.closePath();
-          ctx.fillStyle = isSel ? cc + '44' : cc + '18';
-          ctx.fill();
-          ctx.strokeStyle = isSel ? '#fff' : isH ? acGColor : cc;
-          ctx.lineWidth = isSel || isH ? 2.5 : 2;
-          ctx.stroke();
-          if (node.member_count && t.k > 0.3) {
-            ctx.font = `bold ${Math.max(9, 11 / t.k)}px JetBrains Mono, monospace`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = cc;
-            ctx.fillText(String(node.member_count), node.x, node.y);
-          }
-        } else if (node.is_subnet) {
-          const s = r * 2.0;
-          const rad = 4;
-          ctx.beginPath();
-          if (ctx.roundRect) {
-            ctx.roundRect(node.x - s / 2, node.y - s / 2, s, s, rad);
-          } else {
-            ctx.rect(node.x - s / 2, node.y - s / 2, s, s);
-          }
-          ctx.fillStyle = isSel ? acColor + '33' : nodeSubnet;
-          ctx.fill();
-          ctx.strokeStyle = isSel ? acColor : isH ? acGColor : nodeSubnetS;
-          ctx.lineWidth = isSel ? 2.5 : 1.5;
-          ctx.setLineDash([4, 2]);
-          ctx.stroke();
-          ctx.setLineDash([]);
-          const memberCount = node.ips?.length || node.member_count;
-          if (memberCount && t.k > 0.3) {
-            ctx.font = `bold ${Math.max(8, 10 / t.k)}px JetBrains Mono, monospace`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = nodeSubnetS;
-            ctx.fillText(String(memberCount), node.x, node.y);
-          }
-        } else if (isGateway) {
-          const s = r * 1.6;
-          ctx.save();
-          ctx.translate(node.x, node.y);
-          ctx.rotate(Math.PI / 4);
-          ctx.beginPath();
-          ctx.rect(-s / 2, -s / 2, s, s);
-          ctx.fillStyle = isSel ? acColor + '33' : nodeGateway;
-          ctx.fill();
-          ctx.strokeStyle = isSel ? acColor : isH ? acGColor : nodeGatewayS;
-          ctx.lineWidth = isSel || isH ? 2.5 : 1.8;
-          ctx.stroke();
-          ctx.restore();
-        } else {
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
-          if (node.synthetic) {
-            const nc = node.color || '#f0883e';
-            ctx.fillStyle = isSel ? nc + '55' : nc + '22';
-            ctx.fill();
-            ctx.strokeStyle = isSel ? '#fff' : isH ? '#fff' : nc;
-            ctx.lineWidth = isSel || isH ? 2.5 : 2;
-            ctx.setLineDash([4, 3]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-          } else {
-            const [nFill, nStroke] = resolveNodeColor(
-              node, nodeColorModeRef.current, nodeColorRulesRef.current, pc,
-              nodePrivate, nodePrivateS, nodeExternal, nodeExternalS,
-            );
-            ctx.fillStyle = isSel ? acColor + '33' : nFill;
-            ctx.fill();
-            ctx.strokeStyle = isSel ? acColor : isH ? acGColor : nStroke;
-            ctx.lineWidth = isSel || isH ? 2.5 : 1.5;
-            ctx.stroke();
-          }
-        }
-
-        // Query highlight ring
-        const qh = qhRef.current;
-        if (qh && qh.nodes && qh.nodes.has(node.id)) {
-          ctx.save();
-          ctx.globalAlpha = 0.9;
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, r + 4, 0, Math.PI * 2);
-          ctx.strokeStyle = '#f0883e';
-          ctx.lineWidth = 2.5;
-          ctx.stroke();
-          const qgl = ctx.createRadialGradient(node.x, node.y, r, node.x, node.y, r * 2.5);
-          qgl.addColorStop(0, 'rgba(240,136,62,0.25)');
-          qgl.addColorStop(1, 'transparent');
-          ctx.fillStyle = qgl;
-          ctx.fillRect(node.x - r * 2.5, node.y - r * 2.5, r * 5, r * 5);
-          ctx.restore();
-        }
+        // Shape (via graphPrimitives — canonical shape function)
+        const colorOverride = applyColorOverride(snap?.colorOverrides?.[node.id]);
+        drawShapePath(ctx, node, {
+          r, t, isSel, isH, acColor, acGColor,
+          nodeSubnet, nodeSubnetS, nodeGateway, nodeGatewayS,
+          CLUSTER_COLORS, colorOverride,
+          resolveColor: n => resolveNodeColor(
+            n, nodeColorModeRef.current, nodeColorRulesRef.current, pc,
+            nodePrivate, nodePrivateS, nodeExternal, nodeExternalS,
+          ),
+        });
 
         // Synthetic marker
         if (node.synthetic && t.k > 0.25) {
@@ -603,8 +497,28 @@ resize();draw();
           ctx.fillText('\u2726', node.x, node.y + r + 15);
         }
 
+        ctx.globalAlpha = 1;
+      }
+
+      // Rings (z-order 4) — batch after all node shapes, before labels
+      if (snap?.rings?.nodes) {
+        const radiusMap = new Map(nRef.current.map(n => [n.id, gR(n)]));
+        drawRings(ctx, t, snap.rings.nodes, nodeMap, radiusMap);
+      }
+
+      // Node pass B — labels + badges (z-orders 5, 6)
+      const thresh = labelThreshRef.current || 0;
+      for (const node of nRef.current) {
+        const r = gR(node);
+        const isSel = ss.has(node.id);
+        const isH = hRef.current === node.id;
+        const inInv = !inv || inv.has(node.id);
+        const inDf  = !dfN || dfN.has(node.id);
+
+        if (!inInv || !inDf) { ctx.globalAlpha = 0.05; }
+        else ctx.globalAlpha = hs ? (isSel ? 1 : 0.3) : 1;
+
         // Label
-        const thresh = labelThreshRef.current || 0;
         if (t.k > 0.45 && (thresh === 0 || (node.total_bytes || 0) >= thresh || isSel || isH)) {
           const fs = Math.max(8, 10 / t.k);
           ctx.font = `500 ${fs}px JetBrains Mono, monospace`;
@@ -622,6 +536,11 @@ resize();draw();
           ctx.fillStyle = displayName ? '#22d3ee' : isSel ? acColor : isH ? '#e6edf3' : nodeLabel;
           ctx.fillText(lb, node.x, node.y + r + 5);
         }
+
+        // Badges (via graphPrimitives)
+        const nodeBadges = snap?.badges?.[node.id];
+        if (nodeBadges?.length) drawBadges(ctx, t, node, r, nodeBadges);
+
         ctx.globalAlpha = 1;
       }
       ctx.restore();

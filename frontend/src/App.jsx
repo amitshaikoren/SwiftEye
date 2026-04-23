@@ -23,6 +23,7 @@ import SettingsPanel from './components/SettingsPanel';
 import EventFlagModal from './components/EventFlagModal';
 import AppUploadScreen from './components/AppUploadScreen';
 import AppRightPanel from './components/AppRightPanel';
+import { createAnnotationStore } from './core/annotationStore';
 
 // Heavy panels: loaded on first activation only (code-split to reduce initial bundle)
 const ResearchPage  = lazy(() => import('./components/ResearchPage'));
@@ -33,7 +34,44 @@ export default function App() {
   const c = useCapture();
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
-  const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
+  const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set } — one-shot query only
+  const annotationStoreRef = useRef(createAnnotationStore());
+  const [annotationsVersion, setAnnotationsVersion] = useState(0);
+  const annotationsSnapshot = useMemo(
+    () => annotationStoreRef.current.toRenderSnapshot(),
+    [annotationsVersion],
+  );
+  const onAnnotationsChange = () => setAnnotationsVersion(v => v + 1);
+
+  // Bridge one-shot queryHighlight → ring annotation in the store
+  useEffect(() => {
+    if (queryHighlight) {
+      annotationStoreRef.current.add({
+        id: 'query-highlight',
+        type: 'ring',
+        targets: {
+          nodes: [...(queryHighlight.nodes || [])],
+          edges: [...(queryHighlight.edges || [])],
+        },
+        color: '#f0883e',
+        style: 'glow',
+        width: 2.5,
+        lifetime: 'transient',
+        metadata: { source: 'query' },
+      });
+    } else {
+      annotationStoreRef.current.remove('query-highlight');
+    }
+    onAnnotationsChange();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryHighlight]);
+
+  // Reset annotation store when capture changes
+  useEffect(() => {
+    annotationStoreRef.current.reset();
+    onAnnotationsChange();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c.captureId]);
   // InvestigationPage tab state lifted here so the back-to-timeline breadcrumb
   // can restore whichever tab the user was on when they hit "View in graph".
   const [investigationTab, setInvestigationTab] = useState('documentation');
@@ -338,15 +376,20 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Hidden nodes badge (hidden in animation mode) */}
-                {!c.animActive && c.hiddenNodes.size > 0 && (
+                {/* Hidden nodes/edges badge (hidden in animation mode) */}
+                {!c.animActive && (c.hiddenNodes.size > 0 || c.hiddenEdges.size > 0) && (
                   <div style={{
                     position: 'absolute', top: c.investigatedIp ? 38 : 8, right: 8, zIndex: 10,
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)',
                     borderRadius: 6, padding: '4px 10px', fontSize: 10,
                   }}>
-                    <span style={{ color: '#f85149' }}>{c.hiddenNodes.size} node{c.hiddenNodes.size > 1 ? 's' : ''} hidden</span>
+                    <span style={{ color: '#f85149' }}>
+                      {[
+                        c.hiddenNodes.size > 0 && `${c.hiddenNodes.size} node${c.hiddenNodes.size > 1 ? 's' : ''}`,
+                        c.hiddenEdges.size > 0 && `${c.hiddenEdges.size} edge${c.hiddenEdges.size > 1 ? 's' : ''}`,
+                      ].filter(Boolean).join(', ')} hidden
+                    </span>
                     <button className="btn" onClick={c.handleUnhideAll}
                       style={{ fontSize: 9, padding: '1px 6px', borderColor: 'rgba(248,81,73,.4)', color: '#f85149' }}>Unhide all</button>
                   </div>
@@ -495,6 +538,7 @@ export default function App() {
                     showEdgeDirection={c.showEdgeDirection}
                     queryHighlight={queryHighlight}
                     onClearQueryHighlight={() => setQueryHighlight(null)}
+                    annotationsSnapshot={annotationsSnapshot}
                     nodeEventSeverity={c.nodeEventSeverity}
                     edgeEventSeverity={c.edgeEventSeverity}
                     onFlagNode={(nodeId) => {
@@ -634,6 +678,8 @@ export default function App() {
                     subgraphInfo={subgraphInfo}
                     queryHighlight={queryHighlight}
                     setQueryHighlight={setQueryHighlight}
+                    annotationStore={annotationStoreRef.current}
+                    onAnnotationsChange={onAnnotationsChange}
                   />
                 </div>
               </div>

@@ -76,6 +76,7 @@ export function useSelectionAndNavigation({ search, setSearch, graph }) {
   const [investigatedIp, setInvestigatedIp]       = useState('');
   const [investigationNodes, setInvestigationNodes] = useState(null);
   const [hiddenNodes, setHiddenNodes]             = useState(new Set());
+  const [hiddenEdges, setHiddenEdges]             = useState(new Set());
 
   // ── Pathfinding ──────────────────────────────────────────────────
 
@@ -231,6 +232,7 @@ export function useSelectionAndNavigation({ search, setSearch, graph }) {
   }
   function handleUnhideAll() {
     setHiddenNodes(prev => prev.size === 0 ? prev : new Set());
+    setHiddenEdges(prev => prev.size === 0 ? prev : new Set());
   }
 
   // ── Panel resize ─────────────────────────────────────────────────
@@ -273,7 +275,8 @@ export function useSelectionAndNavigation({ search, setSearch, graph }) {
     navBack, navForward, canGoBack, canGoForward,
     handleInvestigate, handleInvestigateNeighbours, exitInvestigation,
     investigatedIp, investigationNodes,
-    hiddenNodes, handleHideNode, handleUnhideAll,
+    hiddenNodes, setHiddenNodes, handleHideNode, handleUnhideAll,
+    hiddenEdges, setHiddenEdges,
     pathfindSource, startPathfind, cancelPathfind, executePathfind,
     pathfindResult, pathfindLoading, runPathfindFromPanel,
     seqAckSessionId, setSeqAckSessionId,

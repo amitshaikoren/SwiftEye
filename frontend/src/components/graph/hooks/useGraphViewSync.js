@@ -9,6 +9,7 @@ export default function useGraphViewSync({
   nodeColorRules, edgeColorRules, showEdgeDirection,
   investigationNodes, displayFilterNodes, displayFilterEdges,
   queryHighlight, theme,
+  annotationsSnapshot,
 }) {
   const selNRef = useRef(new Set());
   const selERef = useRef(null);
@@ -29,6 +30,7 @@ export default function useGraphViewSync({
   const dfEdgesRef = useRef(displayFilterEdges);
   const qhRef = useRef(queryHighlight);
   const annotationsRef = useRef(annotations);
+  const renderSnapshotRef = useRef(annotationsSnapshot ?? null);
   const pathfindSourceRef = useRef(pathfindSource);
   const onPathfindTargetRef = useRef(onPathfindTarget);
 
@@ -76,6 +78,8 @@ export default function useGraphViewSync({
     triggerRender();
   }, [queryHighlight]);
 
+  useEffect(() => { renderSnapshotRef.current = annotationsSnapshot ?? null; triggerRender(); }, [annotationsSnapshot]);
+
   // Re-render on selection change
   useEffect(() => { triggerRender(); }, [selectedNodes, selectedEdge]);
 
@@ -95,6 +99,6 @@ export default function useGraphViewSync({
     labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
     nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
-    annotationsRef, pathfindSourceRef, onPathfindTargetRef,
+    annotationsRef, renderSnapshotRef, pathfindSourceRef, onPathfindTargetRef,
   };
 }

@@ -7,7 +7,7 @@
  * Props: c, subgraphInfo, queryHighlight, setQueryHighlight
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { toProtocolNames } from '../FilterContext';
 import SessionDetail from './SessionDetail';
 import EdgeDetail from './EdgeDetail';
@@ -16,13 +16,29 @@ import SessionsTable from './SessionsTable';
 import LogsPanel from './LogsPanel';
 import HelpPanel from './HelpPanel';
 import QueryBuilder from './QueryBuilder';
+import RecipePanel from './query/RecipePanel';
+import GroupsPanel from './query/GroupsPanel';
+import SchemaPanel from './SchemaPanel';
 import GraphOptionsPanel from './GraphOptionsPanel';
 import StatsPanel from './StatsPanel';
 import ClusterDetail from './ClusterDetail';
 import PathDetail from './PathDetail';
 import MultiSelectPanel from './MultiSelectPanel';
 
-export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight }) {
+let nextStepIdCounter = 1;
+function newStepId() { return `s${Date.now().toString(36)}${(nextStepIdCounter++).toString(36)}`; }
+
+export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight, annotationStore, onAnnotationsChange }) {
+  // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.).
+  // Intentionally not persisted — fresh load (reload or server restart) starts with an empty recipe.
+  const [recipeSteps, setRecipeSteps] = useState([]);
+  const [querySubTab, setQuerySubTab] = useState('query'); // 'query' | 'schema' | 'groups'
+  const [groupsVersion, setGroupsVersion] = useState(0);
+
+  function appendStep(draft) {
+    setRecipeSteps(prev => [...prev, { id: newStepId(), enabled: true, ...draft }]);
+  }
+
   const pathBackLink = c.pathfindResult?.path_count > 0 ? (
     <div
       onClick={c.clearSel}
@@ -166,26 +182,83 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
   if (c.rPanel === 'help') return <HelpPanel />;
 
   if (c.rPanel === 'query') {
+    const onQueryResultLegacy = res => {
+      const nodes = new Set((res.matched_nodes || []).map(m => m.id));
+      const edges = new Set((res.matched_edges || []).map(m => m.id));
+      setQueryHighlight(nodes.size || edges.size ? { nodes, edges } : null);
+    };
+    const tabStyle = active => ({
+      fontSize: 11, padding: '6px 14px', cursor: 'pointer', fontFamily: 'var(--fd)',
+      background: 'transparent', border: 'none',
+      color: active ? 'var(--ac)' : 'var(--txD)',
+      borderBottom: `2px solid ${active ? 'var(--ac)' : 'transparent'}`,
+      fontWeight: active ? 600 : 400,
+    });
     return (
-      <QueryBuilder
-        loaded={c.loaded}
-        onQueryResult={res => {
-          const nodes = new Set((res.matched_nodes || []).map(m => m.id));
-          const edges = new Set((res.matched_edges || []).map(m => m.id));
-          setQueryHighlight(nodes.size || edges.size ? { nodes, edges } : null);
-        }}
-        onClearQuery={() => setQueryHighlight(null)}
-        onSelectNode={id => c.handleGSel('node', id, false)}
-        onSelectEdge={edgeId => {
-          const e = (c.graph.edges || []).find(e => {
-            if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
-            const s = typeof e.source === 'object' ? e.source.id : e.source;
-            const t = typeof e.target === 'object' ? e.target.id : e.target;
-            return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
-          });
-          if (e) c.handleGSel('edge', e, false);
-        }}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--bd)', background: 'var(--bg)', flexShrink: 0 }}>
+          <button onClick={() => setQuerySubTab('query')} style={tabStyle(querySubTab === 'query')}>Query</button>
+          <button onClick={() => setQuerySubTab('schema')} style={tabStyle(querySubTab === 'schema')}>Schema</button>
+          <button onClick={() => setQuerySubTab('groups')} style={tabStyle(querySubTab === 'groups')}>Groups</button>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* All three sub-panels stay mounted — only visibility toggles. Keeps
+              QueryBuilder's local form state intact on tab switch and lets the
+              RecipePanel debounced pipeline run complete even while the user is
+              viewing Groups (otherwise unmount-on-switch cancels the run and the
+              group is never recorded). */}
+          <div style={{ display: querySubTab === 'query' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <QueryBuilder
+              loaded={c.loaded}
+              onQueryResult={onQueryResultLegacy}
+              onClearQuery={() => setQueryHighlight(null)}
+              onAddStep={appendStep}
+              groupsRefreshKey={groupsVersion}
+              onSelectNode={id => c.handleGSel('node', id, false)}
+              onSelectEdge={edgeId => {
+                const e = (c.graph.edges || []).find(e => {
+                  if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
+                  const s = typeof e.source === 'object' ? e.source.id : e.source;
+                  const t = typeof e.target === 'object' ? e.target.id : e.target;
+                  return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
+                });
+                if (e) c.handleGSel('edge', e, false);
+              }}
+            />
+            <RecipePanel
+              loaded={c.loaded}
+              steps={recipeSteps}
+              onStepsChange={setRecipeSteps}
+              onHighlightChange={setQueryHighlight}
+              onHiddenChange={c.setHiddenNodes}
+              onHiddenEdgesChange={c.setHiddenEdges}
+              annotationStore={annotationStore}
+              onAnnotationsChange={onAnnotationsChange}
+              onRunComplete={() => setGroupsVersion(v => v + 1)}
+              groupsRefreshKey={groupsVersion}
+            />
+          </div>
+          <div style={{ display: querySubTab === 'schema' ? 'flex' : 'none', flex: 1, minHeight: 0, overflowY: 'auto', flexDirection: 'column' }}>
+            <SchemaPanel loaded={c.loaded} />
+          </div>
+          <div style={{ display: querySubTab === 'groups' ? 'flex' : 'none', flex: 1, minHeight: 0, overflowY: 'auto', flexDirection: 'column' }}>
+            <GroupsPanel
+              loaded={c.loaded}
+              refreshKey={groupsVersion}
+              onSelectNode={id => c.handleGSel('node', id, false)}
+              onSelectEdge={edgeId => {
+                const e = (c.graph.edges || []).find(e => {
+                  if (e.id === edgeId || e.id?.startsWith(edgeId + '|')) return true;
+                  const s = typeof e.source === 'object' ? e.source.id : e.source;
+                  const t = typeof e.target === 'object' ? e.target.id : e.target;
+                  return `${s}|${t}` === edgeId || `${t}|${s}` === edgeId;
+                });
+                if (e) c.handleGSel('edge', e, false);
+              }}
+            />
+          </div>
+        </div>
+      </div>
     );
   }
 
