@@ -1,5 +1,14 @@
 # SwiftEye — Changelog
 
+### v0.28.6 — April 2026
+- **Hierarchical layout (dagre)** — new layout mode using the dagre library for directed top-down tree layouts. Set any node as the hierarchy root via right-click → "Set as hierarchy root"; when no root is set, the highest-in-degree node is chosen automatically. Positions are scaled and centered to fit the canvas. Falls back to force layout if dagre fails. Orange hint in GraphOptionsPanel when no root is set; muted hint showing root ID when one is active.
+
+### v0.28.5 — April 2026
+- **Radial layout** — new layout mode that arranges nodes in concentric rings by hop count from a focus node (BFS). Set any node as the radial focus via right-click → "Set as radial focus"; when no focus is set, the highest-degree node is chosen automatically. Disconnected nodes land in the outermost ring. Purple hint in GraphOptionsPanel when no focus is set; muted hint showing focus node ID when one is active.
+
+### v0.28.4 — April 2026
+- **Graph layout switcher + Circular mode** — new "Layout" section at the top of GraphOptionsPanel with Force / Circular / Radial / Hierarchical toggle buttons. Circular mode places nodes on one ring (≤20 nodes) or two concentric rings (21–60 nodes), sorted by degree; for >60 nodes it falls back to force layout. The layout registry (`layouts/index.js`) auto-discovers layout modules. `forceLayout.js` exports `LAYOUT_ID / LABEL / WORKSPACE / REQUIRES_FOCUS` and accepts `options.forceParams` for future slider support.
+
 ### v0.28.3 — April 2026
 - **Legend-as-filter** — graph legend swatches are now interactive. Each swatch gets an eye toggle (👁 / 🚫); toggling one emits a `hide` step into the active recipe (viz scope, auto-named e.g. "Legend: hide external") and dims the swatch to 0.4 opacity. Toggling it back removes that step. `handleRecipeChange` syncs the hidden-label state if the user manually deletes a legend step from the recipe, keeping legend and recipe in sync. `GraphLegend.jsx` rewritten to be mode-aware (`nodeColorMode` / `edgeColorMode` driven) and now replaces the hardcoded inline legend that was embedded in `App.jsx`.
 - **Louvain bridge-node expansion** — the Connections section in `ClusterDetail.jsx` now shows the specific node pairs whose edges cross each cluster boundary. Each cluster→cluster connection row gains a ▶ expand caret; expanding it reveals the raw member-pair crossings (from → to, clickable to navigate) sourced from `rawGraph.edges` via a `bridgesByEdgeId` useMemo. Bridge details are visible without forcing a full cluster expansion.
