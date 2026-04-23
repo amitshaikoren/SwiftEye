@@ -49,6 +49,10 @@ export default function GraphCanvas({
   queryHighlight = null,
   onClearQueryHighlight,
   annotationsSnapshot = null,
+  layoutMode = 'force',
+  layoutFocusNodeId = null,
+  setLayoutMode,
+  setLayoutFocusNodeId,
 }) {
   // Shared refs — declared here so all hooks share the same ref objects
   const cRef = useRef(null);
@@ -95,6 +99,7 @@ export default function GraphCanvas({
       labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
       nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
       annotationsRef: renderSnapshotRef,
+      layoutMode, layoutFocusNodeId,
     });
 
   // Hook 3: Resize polling
@@ -169,6 +174,8 @@ export default function GraphCanvas({
           onExpandCluster={onExpandCluster} onUnclusterSubnet={onUnclusterSubnet} onCreateManualCluster={onCreateManualCluster}
           onAddNodeAnnotation={onAddNodeAnnotation} onAddEdgeAnnotation={onAddEdgeAnnotation} onAddAnnotation={onAddAnnotation}
           setShowSyntheticNodeForm={setShowSyntheticNodeForm} setShowSyntheticEdgeForm={setShowSyntheticEdgeForm} setSynEdgeSrc={setSynEdgeSrc}
+          onSetRadialFocus={setLayoutFocusNodeId && setLayoutMode ? (id) => { setLayoutFocusNodeId(id); setLayoutMode('radial'); } : undefined}
+          onSetHierarchyRoot={setLayoutFocusNodeId && setLayoutMode ? (id) => { setLayoutFocusNodeId(id); setLayoutMode('hierarchical'); } : undefined}
         />
       )}
 

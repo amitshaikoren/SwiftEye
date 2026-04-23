@@ -157,6 +157,8 @@ export function useCapture() {
     bucketSec: filters.bucketSec, setBucketSec: filters.setBucketSec,
     subnetG: filters.subnetG, setSubnetG: filters.setSubnetG, toggleSubnetG: filters.toggleSubnetG,
     labelThreshold: filters.labelThreshold, setLabelThreshold: filters.setLabelThreshold,
+    layoutMode: filters.layoutMode, setLayoutMode: filters.setLayoutMode,
+    layoutFocusNodeId: filters.layoutFocusNodeId, setLayoutFocusNodeId: filters.setLayoutFocusNodeId,
     graphWeightMode: filters.graphWeightMode, setGraphWeightMode: filters.setGraphWeightMode,
     edgeSizeMode: filters.edgeSizeMode, setEdgeSizeMode: filters.setEdgeSizeMode,
     nodeColorMode: filters.nodeColorMode, setNodeColorMode: filters.setNodeColorMode,
