@@ -9,6 +9,50 @@ import Row from './Row';
 import { fN, fB } from '../utils';
 import { CLUSTER_COLORS } from '../clusterView';
 
+/** One row in the Connections section — shows the edge + optional bridge-node sub-list */
+function BridgeEdgeRow({ e, other, bridges, pColors, onSelectEdge, onSelectNode }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasBridges = bridges && bridges.length > 0;
+  return (
+    <div>
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 5px', borderRadius: 3, fontSize: 10 }}
+        onMouseEnter={el => el.currentTarget.style.background = 'var(--bgH)'}
+        onMouseLeave={el => el.currentTarget.style.background = 'transparent'}
+      >
+        <span style={{ width: 10, height: 2.5, borderRadius: 1, flexShrink: 0, background: pColors?.[e.protocol] || '#64748b' }} />
+        <span
+          onClick={() => onSelectEdge?.(e)}
+          style={{ flex: 1, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+        >{other}</span>
+        <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{e.protocol}</span>
+        <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{fB(e.total_bytes || 0)}</span>
+        {hasBridges && (
+          <span
+            onClick={() => setExpanded(x => !x)}
+            title={`${bridges.length} bridge pair${bridges.length > 1 ? 's' : ''}`}
+            style={{ fontSize: 9, color: 'var(--txD)', padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}
+          >{expanded ? '▼' : '▶'}</span>
+        )}
+      </div>
+      {expanded && hasBridges && (
+        <div style={{ padding: '2px 5px 4px 18px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {bridges.slice(0, 20).map((p, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: 'var(--txM)' }}>
+              <span onClick={() => onSelectNode?.(p.from)} style={{ cursor: 'pointer', color: 'var(--ac)' }}>{p.from}</span>
+              <span style={{ color: 'var(--txD)' }}>→</span>
+              <span onClick={() => onSelectNode?.(p.to)} style={{ cursor: 'pointer', color: 'var(--ac)' }}>{p.to}</span>
+            </div>
+          ))}
+          {bridges.length > 20 && (
+            <div style={{ fontSize: 9, color: 'var(--txD)' }}>+{bridges.length - 20} more pairs</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Inline expandable detail for a single member node */
 function MemberRow({ member, pColors, onNavigate }) {
   const [expanded, setExpanded] = useState(false);
@@ -195,6 +239,32 @@ export default function ClusterDetail({
     return { internalEdges: internal, externalEdges: external };
   }, [rawGraph, node]);
 
+  // Bridge node pairs for each inter-cluster edge: which raw members cross to the other cluster?
+  const bridgesByEdgeId = useMemo(() => {
+    if (!rawGraph?.edges || !rawGraph?.nodes) return {};
+    const myIds = new Set(node?.member_ids || node?.ips || []);
+    if (myIds.size === 0) return {};
+    const result = {};
+    for (const ce of connectedEdges) {
+      const src = ce.source?.id ?? ce.source;
+      const tgt = ce.target?.id ?? ce.target;
+      const otherId = src === nodeId ? tgt : src;
+      const otherNode = (nodes || []).find(n => n.id === otherId);
+      if (!otherNode) continue;
+      const otherIds = new Set(otherNode.member_ids || otherNode.ips || []);
+      if (otherIds.size === 0) continue;
+      const pairs = [];
+      for (const re of rawGraph.edges) {
+        const rs = re.source?.id ?? re.source;
+        const rt = re.target?.id ?? re.target;
+        if (myIds.has(rs) && otherIds.has(rt)) pairs.push({ from: rs, to: rt });
+        else if (myIds.has(rt) && otherIds.has(rs)) pairs.push({ from: rt, to: rs });
+      }
+      if (pairs.length > 0) result[ce.id ?? `${src}|${tgt}`] = pairs;
+    }
+    return result;
+  }, [rawGraph, node, nodes, connectedEdges, nodeId]);
+
   // Sort members
   const sortedMembers = useMemo(() => {
     const sorted = [...members];
@@ -344,27 +414,18 @@ export default function ClusterDetail({
                 const src = e.source?.id ?? e.source;
                 const tgt = e.target?.id ?? e.target;
                 const other = src === nodeId ? tgt : src;
+                const edgeKey = e.id ?? `${src}|${tgt}`;
+                const bridges = bridgesByEdgeId[edgeKey];
                 return (
-                  <div
-                    key={e.id}
-                    onClick={() => onSelectEdge?.(e)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '3px 5px',
-                      borderRadius: 3, cursor: 'pointer', fontSize: 10,
-                    }}
-                    onMouseEnter={el => el.currentTarget.style.background = 'var(--bgH)'}
-                    onMouseLeave={el => el.currentTarget.style.background = 'transparent'}
-                  >
-                    <span style={{
-                      width: 10, height: 2.5, borderRadius: 1, flexShrink: 0,
-                      background: pColors?.[e.protocol] || '#64748b',
-                    }} />
-                    <span style={{ flex: 1, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {other}
-                    </span>
-                    <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{e.protocol}</span>
-                    <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{fB(e.total_bytes || 0)}</span>
-                  </div>
+                  <BridgeEdgeRow
+                    key={edgeKey}
+                    e={e}
+                    other={other}
+                    bridges={bridges}
+                    pColors={pColors}
+                    onSelectEdge={onSelectEdge}
+                    onSelectNode={onSelectNode}
+                  />
                 );
               })}
           </div>

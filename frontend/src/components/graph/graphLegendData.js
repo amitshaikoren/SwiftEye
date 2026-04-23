@@ -1,10 +1,14 @@
 // Shared legend data used by GraphOptionsPanel (sidebar) and GraphLegend (canvas overlay).
+// Items with a `filter` field support legend-as-filter toggling in the recipe.
 
 export const NODE_LEGENDS = {
   address: [
-    { dot: true,  fill: 'var(--node-private)',  stroke: 'var(--node-private-s)',  label: 'Private (RFC1918)' },
-    { dot: true,  fill: 'var(--node-external)', stroke: 'var(--node-external-s)', label: 'External' },
-    { dot: true,  fill: 'var(--node-gateway)',  stroke: 'var(--node-gateway-s)',  label: 'Gateway' },
+    { dot: true,  fill: 'var(--node-private)',  stroke: 'var(--node-private-s)',  label: 'Private (RFC1918)',
+      filter: { target: 'nodes', conditions: [{ field: 'is_private', op: 'eq', value: true }] } },
+    { dot: true,  fill: 'var(--node-external)', stroke: 'var(--node-external-s)', label: 'External',
+      filter: { target: 'nodes', conditions: [{ field: 'is_private', op: 'eq', value: false }, { field: 'is_gateway', op: 'eq', value: false }], logic: 'and' } },
+    { dot: true,  fill: 'var(--node-gateway)',  stroke: 'var(--node-gateway-s)',  label: 'Gateway',
+      filter: { target: 'nodes', conditions: [{ field: 'is_gateway', op: 'eq', value: true }] } },
     { dot: true,  fill: 'var(--node-subnet)',   stroke: 'var(--node-subnet-s)',   label: 'Subnet node' },
   ],
   os: [
@@ -30,10 +34,14 @@ export const NODE_LEGENDS = {
 
 export const EDGE_LEGENDS = {
   protocol: [
-    { dot: false, fill: '#1f6feb', label: 'TCP' },
-    { dot: false, fill: '#388bfd', label: 'TLS' },
-    { dot: false, fill: '#3fb950', label: 'DNS' },
-    { dot: false, fill: '#d29922', label: 'HTTP' },
+    { dot: false, fill: '#1f6feb', label: 'TCP',
+      filter: { target: 'edges', conditions: [{ field: 'protocol', op: 'eq', value: 'TCP' }] } },
+    { dot: false, fill: '#388bfd', label: 'TLS',
+      filter: { target: 'edges', conditions: [{ field: 'protocol', op: 'eq', value: 'TLS' }] } },
+    { dot: false, fill: '#3fb950', label: 'DNS',
+      filter: { target: 'edges', conditions: [{ field: 'protocol', op: 'eq', value: 'DNS' }] } },
+    { dot: false, fill: '#d29922', label: 'HTTP',
+      filter: { target: 'edges', conditions: [{ field: 'protocol', op: 'eq', value: 'HTTP' }] } },
   ],
   volume: [
     { dot: false, fill: '#3fb950', label: 'Low  (< 100 KB)' },

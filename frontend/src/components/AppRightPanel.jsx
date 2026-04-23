@@ -7,7 +7,7 @@
  * Props: c, subgraphInfo, queryHighlight, setQueryHighlight
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toProtocolNames } from '../FilterContext';
 import SessionDetail from './SessionDetail';
 import EdgeDetail from './EdgeDetail';
@@ -28,7 +28,7 @@ import MultiSelectPanel from './MultiSelectPanel';
 let nextStepIdCounter = 1;
 function newStepId() { return `s${Date.now().toString(36)}${(nextStepIdCounter++).toString(36)}`; }
 
-export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight, annotationStore, onAnnotationsChange }) {
+export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight, annotationStore, onAnnotationsChange, appendStepRef, removeStepByIdRef, onRecipeChangeRef }) {
   // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.).
   // Intentionally not persisted — fresh load (reload or server restart) starts with an empty recipe.
   const [recipeSteps, setRecipeSteps] = useState([]);
@@ -38,6 +38,15 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
   function appendStep(draft) {
     setRecipeSteps(prev => [...prev, { id: newStepId(), enabled: true, ...draft }]);
   }
+
+  // Expose append/remove to parent (for legend-as-filter wiring).
+  if (appendStepRef) appendStepRef.current = appendStep;
+  if (removeStepByIdRef) removeStepByIdRef.current = (id) => setRecipeSteps(prev => prev.filter(s => s.id !== id));
+
+  // Notify parent when recipe changes (so legend toggles can stay in sync if user manually removes a step).
+  useEffect(() => {
+    onRecipeChangeRef?.current?.(recipeSteps);
+  }, [recipeSteps, onRecipeChangeRef]);
 
   const pathBackLink = c.pathfindResult?.path_count > 0 ? (
     <div

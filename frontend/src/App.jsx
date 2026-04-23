@@ -3,7 +3,7 @@
  * All state/logic lives in useCapture(). This file only renders.
  */
 
-import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useCapture } from './hooks/useCapture';
 import { fetchSessionDetail } from './api';
 import { useSettings } from './hooks/useSettings';
@@ -23,6 +23,7 @@ import SettingsPanel from './components/SettingsPanel';
 import EventFlagModal from './components/EventFlagModal';
 import AppUploadScreen from './components/AppUploadScreen';
 import AppRightPanel from './components/AppRightPanel';
+import GraphLegend from './components/graph/GraphLegend';
 import { createAnnotationStore } from './core/annotationStore';
 
 // Heavy panels: loaded on first activation only (code-split to reduce initial bundle)
@@ -42,6 +43,58 @@ export default function App() {
     [annotationsVersion],
   );
   const onAnnotationsChange = () => setAnnotationsVersion(v => v + 1);
+
+  // Legend-as-filter state and refs
+  const [hiddenLegendLabels, setHiddenLegendLabels] = useState(new Set());
+  const legendStepIdsRef = useRef({});   // label → stepId
+  const appendStepRef = useRef(null);
+  const removeStepByIdRef = useRef(null);
+  const onRecipeChangeRef = useRef(null);
+
+  // Keep onRecipeChangeRef.current pointed at a stable callback
+  const handleRecipeChange = useCallback((steps) => {
+    const activeIds = new Set(steps.map(s => s.id));
+    setHiddenLegendLabels(prev => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const [label, id] of Object.entries(legendStepIdsRef.current)) {
+        if (!activeIds.has(id)) {
+          next.delete(label);
+          delete legendStepIdsRef.current[label];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+  onRecipeChangeRef.current = handleRecipeChange;
+
+  const handleLegendToggle = useCallback((item) => {
+    const { label, filter } = item;
+    if (hiddenLegendLabels.has(label)) {
+      // Remove the corresponding recipe step
+      const id = legendStepIdsRef.current[label];
+      if (id) removeStepByIdRef.current?.(id);
+      delete legendStepIdsRef.current[label];
+      setHiddenLegendLabels(prev => { const n = new Set(prev); n.delete(label); return n; });
+    } else {
+      // Append a hide step and record its ID
+      const id = `leg-${Date.now().toString(36)}`;
+      const step = {
+        id,
+        kind: 'visual',
+        action: 'hide',
+        target: filter.target,
+        conditions: filter.conditions,
+        logic: filter.logic || 'and',
+        scope: 'viz',
+        group_name: `Legend: hide ${label}`,
+      };
+      appendStepRef.current?.(step);
+      legendStepIdsRef.current[label] = id;
+      setHiddenLegendLabels(prev => new Set([...prev, label]));
+    }
+  }, [hiddenLegendLabels]);
 
   // Bridge one-shot queryHighlight → ring annotation in the store
   useEffect(() => {
@@ -569,48 +622,12 @@ export default function App() {
 
                 {/* Legend (hidden during animation — AnimationPane has its own) */}
                 {!c.animActive && (
-                  <div style={{
-                    position: 'absolute', bottom: 10, left: 10, background: 'var(--bgP)',
-                    border: '1px solid var(--bd)', borderRadius: 'var(--r)', padding: '6px 10px',
-                    display: 'flex', flexWrap: 'wrap', gap: 7, maxWidth: 500, opacity: 0.9,
-                  }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid var(--node-private-s)', display: 'inline-block', background: 'var(--node-private)' }} />
-                      <span style={{ color: 'var(--txM)' }}>Private</span>
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid var(--node-external-s)', display: 'inline-block', background: 'var(--node-external)' }} />
-                      <span style={{ color: 'var(--txM)' }}>External</span>
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 2, border: '1.5px solid var(--node-subnet-s)', display: 'inline-block', background: 'var(--node-subnet)' }} />
-                      <span style={{ color: 'var(--txM)' }}>Subnet</span>
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9 }}>
-                      <span style={{
-                        width: 10, height: 10, display: 'inline-block',
-                        background: 'var(--node-gateway)', border: '1.5px solid var(--node-gateway-s)',
-                        transform: 'rotate(45deg)', borderRadius: 1,
-                      }} />
-                      <span style={{ color: 'var(--txM)' }}>Gateway</span>
-                    </span>
-                    <span style={{ color: 'var(--txD)', fontSize: 9 }}>|</span>
-                    {(() => {
-                      const seen = new Set();
-                      const protos = [];
-                      for (const key of c.enabledP) {
-                        const parts = key.split('/');
-                        const name = parts.length === 3 ? parts[2] : key;
-                        if (!seen.has(name)) { seen.add(name); protos.push(name); }
-                      }
-                      return protos.slice(0, 8).map(p => (
-                        <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9 }}>
-                          <span style={{ width: 10, height: 2.5, background: c.pColors[p] || '#64748b', display: 'inline-block', borderRadius: 1 }} />
-                          <span style={{ color: 'var(--txM)' }}>{p}</span>
-                        </span>
-                      ));
-                    })()}
-                  </div>
+                  <GraphLegend
+                    nodeColorMode={c.nodeColorMode}
+                    edgeColorMode={c.edgeColorMode}
+                    hiddenLabels={hiddenLegendLabels}
+                    onToggle={handleLegendToggle}
+                  />
                 )}
               </div>
 
@@ -680,6 +697,9 @@ export default function App() {
                     setQueryHighlight={setQueryHighlight}
                     annotationStore={annotationStoreRef.current}
                     onAnnotationsChange={onAnnotationsChange}
+                    appendStepRef={appendStepRef}
+                    removeStepByIdRef={removeStepByIdRef}
+                    onRecipeChangeRef={onRecipeChangeRef}
                   />
                 </div>
               </div>
