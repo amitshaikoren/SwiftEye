@@ -23,6 +23,7 @@ import SettingsPanel from './components/SettingsPanel';
 import EventFlagModal from './components/EventFlagModal';
 import AppUploadScreen from './components/AppUploadScreen';
 import AppRightPanel from './components/AppRightPanel';
+import { createAnnotationStore } from './core/annotationStore';
 
 // Heavy panels: loaded on first activation only (code-split to reduce initial bundle)
 const ResearchPage  = lazy(() => import('./components/ResearchPage'));
@@ -33,10 +34,44 @@ export default function App() {
   const c = useCapture();
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
-  const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
-  const [queryNodeColors, setQueryNodeColors] = useState({});    // { nodeId: cssColor }
-  const [queryNodeTags, setQueryNodeTags] = useState({});        // { nodeId: string[] }
-  const [queryNodeClusters, setQueryNodeClusters] = useState({}); // { clusterName: { members } }
+  const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set } — one-shot query only
+  const annotationStoreRef = useRef(createAnnotationStore());
+  const [annotationsVersion, setAnnotationsVersion] = useState(0);
+  const annotationsSnapshot = useMemo(
+    () => annotationStoreRef.current.toRenderSnapshot(),
+    [annotationsVersion],
+  );
+  const onAnnotationsChange = () => setAnnotationsVersion(v => v + 1);
+
+  // Bridge one-shot queryHighlight → ring annotation in the store
+  useEffect(() => {
+    if (queryHighlight) {
+      annotationStoreRef.current.add({
+        id: 'query-highlight',
+        type: 'ring',
+        targets: {
+          nodes: [...(queryHighlight.nodes || [])],
+          edges: [...(queryHighlight.edges || [])],
+        },
+        color: '#f0883e',
+        style: 'glow',
+        width: 2.5,
+        lifetime: 'transient',
+        metadata: { source: 'query' },
+      });
+    } else {
+      annotationStoreRef.current.remove('query-highlight');
+    }
+    onAnnotationsChange();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryHighlight]);
+
+  // Reset annotation store when capture changes
+  useEffect(() => {
+    annotationStoreRef.current.reset();
+    onAnnotationsChange();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c.captureId]);
   // InvestigationPage tab state lifted here so the back-to-timeline breadcrumb
   // can restore whichever tab the user was on when they hit "View in graph".
   const [investigationTab, setInvestigationTab] = useState('documentation');
@@ -498,9 +533,7 @@ export default function App() {
                     showEdgeDirection={c.showEdgeDirection}
                     queryHighlight={queryHighlight}
                     onClearQueryHighlight={() => setQueryHighlight(null)}
-                    queryNodeColors={queryNodeColors}
-                    queryNodeTags={queryNodeTags}
-                    queryNodeClusters={queryNodeClusters}
+                    annotationsSnapshot={annotationsSnapshot}
                     nodeEventSeverity={c.nodeEventSeverity}
                     edgeEventSeverity={c.edgeEventSeverity}
                     onFlagNode={(nodeId) => {
@@ -640,9 +673,8 @@ export default function App() {
                     subgraphInfo={subgraphInfo}
                     queryHighlight={queryHighlight}
                     setQueryHighlight={setQueryHighlight}
-                    setQueryNodeColors={setQueryNodeColors}
-                    setQueryNodeTags={setQueryNodeTags}
-                    setQueryNodeClusters={setQueryNodeClusters}
+                    annotationStore={annotationStoreRef.current}
+                    onAnnotationsChange={onAnnotationsChange}
                   />
                 </div>
               </div>

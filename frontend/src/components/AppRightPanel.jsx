@@ -28,7 +28,7 @@ import MultiSelectPanel from './MultiSelectPanel';
 let nextStepIdCounter = 1;
 function newStepId() { return `s${Date.now().toString(36)}${(nextStepIdCounter++).toString(36)}`; }
 
-export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight, setQueryNodeColors, setQueryNodeTags, setQueryNodeClusters }) {
+export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight, annotationStore, onAnnotationsChange }) {
   // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.).
   // Intentionally not persisted — fresh load (reload or server restart) starts with an empty recipe.
   const [recipeSteps, setRecipeSteps] = useState([]);
@@ -231,9 +231,8 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
               onStepsChange={setRecipeSteps}
               onHighlightChange={setQueryHighlight}
               onHiddenChange={c.setHiddenNodes}
-              onColorChange={setQueryNodeColors}
-              onTagChange={setQueryNodeTags}
-              onClusterChange={setQueryNodeClusters}
+              annotationStore={annotationStore}
+              onAnnotationsChange={onAnnotationsChange}
               onRunComplete={() => setGroupsVersion(v => v + 1)}
               groupsRefreshKey={groupsVersion}
             />
