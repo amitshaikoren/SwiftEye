@@ -231,6 +231,7 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
               onStepsChange={setRecipeSteps}
               onHighlightChange={setQueryHighlight}
               onHiddenChange={c.setHiddenNodes}
+              onHiddenEdgesChange={c.setHiddenEdges}
               annotationStore={annotationStore}
               onAnnotationsChange={onAnnotationsChange}
               onRunComplete={() => setGroupsVersion(v => v + 1)}

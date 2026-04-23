@@ -25,7 +25,7 @@ function stepIsRunnable(step) {
   return conds.length > 0 || !!step.from_group;
 }
 
-function stepToPayload(step) {
+function stepToPayload(step, globalScope = false) {
   const conds = (step.conditions || []).filter(c => c.field && c.op).map(c => {
     const out = { field: c.field, op: c.op };
     if (c.value !== undefined && c.value !== '') {
@@ -37,6 +37,7 @@ function stepToPayload(step) {
   const payload = {
     verb: step.verb || 'highlight',
     target: step.target || 'nodes',
+    scope: globalScope ? 'global' : 'viz',
     conditions: conds,
     logic: step.logic || 'AND',
     enabled: step.enabled !== false,
@@ -51,11 +52,12 @@ function stepToPayload(step) {
 
 const HULL_COLORS = ['#388bfd','#3fb950','#d29922','#f85149','#bc8cff','#22d3ee','#f0883e'];
 
-export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightChange, onHiddenChange, annotationStore, onAnnotationsChange, onRunComplete, groupsRefreshKey }) {
+export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightChange, onHiddenChange, onHiddenEdgesChange, annotationStore, onAnnotationsChange, onRunComplete, groupsRefreshKey }) {
   const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {} });
   const [envelope, setEnvelope] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [scopeMode, setScopeMode] = useState('scoped');
   const runTimer = useRef(null);
   const lastSigRef = useRef('');
   const [recipeHeight, setRecipeHeight] = useState(() => {
@@ -78,6 +80,7 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
   useEffect(() => {
     clearTimeout(runTimer.current);
     const runnable = steps.filter(stepIsRunnable);
+    const isGlobal = scopeMode === 'all';
     if (!runnable.length) {
       setEnvelope(null);
       lastSigRef.current = '';
@@ -87,18 +90,19 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
       }
       if (ownedExtrasRef.current) {
         if (onHiddenChange) onHiddenChange(new Set());
+        if (onHiddenEdgesChange) onHiddenEdgesChange(new Set());
         if (annotationStore) { annotationStore.clear('transient'); onAnnotationsChange?.(); }
         ownedExtrasRef.current = false;
       }
       return;
     }
     // Signature to skip redundant runs (e.g. reorder with no runnable change)
-    const sig = JSON.stringify(runnable.map(stepToPayload));
+    const sig = JSON.stringify(runnable.map(s => stepToPayload(s, isGlobal)));
     if (sig === lastSigRef.current) return;
     runTimer.current = setTimeout(async () => {
       setLoading(true); setError('');
       try {
-        const payload = runnable.map(stepToPayload);
+        const payload = runnable.map(s => stepToPayload(s, isGlobal));
         const res = await runQueryPipeline(payload);
         setEnvelope(res);
         lastSigRef.current = sig;
@@ -112,9 +116,13 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
           onHighlightChange(nodes.size || edges.size ? { nodes, edges } : null);
           ownedRef.current = true;
         }
-        // Hide/show_only → drive graph hidden-node state (structural, not visual annotation)
+        // Hide/show_only → drive graph hidden state (structural, not visual annotation)
         if (onHiddenChange) {
           onHiddenChange(new Set(res.hidden?.nodes || []));
+          ownedExtrasRef.current = true;
+        }
+        if (onHiddenEdgesChange) {
+          onHiddenEdgesChange(new Set(res.hidden?.edges || []));
           ownedExtrasRef.current = true;
         }
         // Visual pipeline annotations → AnnotationStore
@@ -195,7 +203,7 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
     }, 300);
     return () => clearTimeout(runTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [steps]);
+  }, [steps, scopeMode]);
 
   function startDrag(e) {
     e.preventDefault();
@@ -221,8 +229,11 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
   return (
     <div style={{ padding: '14px 18px 0', borderTop: '1px solid var(--bd)', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: recipeHeight, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, flexShrink: 0 }}>
-          <h2 style={sectionLabel}>Recipe</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h2 style={{ ...sectionLabel, marginBottom: 0 }}>Recipe</h2>
+            <ScopeModeToggle value={scopeMode} onChange={setScopeMode} />
+          </div>
           {steps.length > 0 && (
             <button onClick={() => onStepsChange([])}
               style={{
@@ -322,3 +333,25 @@ const sectionLabel = {
   fontSize: 11, margin: 0, color: 'var(--txD)',
   textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600,
 };
+
+function ScopeModeToggle({ value, onChange }) {
+  const btn = (label, mode) => (
+    <button
+      onClick={() => onChange(mode)}
+      style={{
+        fontSize: 10, padding: '2px 8px', cursor: 'pointer',
+        background: value === mode ? 'var(--ac)' : 'transparent',
+        color: value === mode ? '#fff' : 'var(--txD)',
+        border: '1px solid var(--bd)',
+        borderRadius: mode === 'scoped' ? 'var(--rs) 0 0 var(--rs)' : '0 var(--rs) var(--rs) 0',
+        marginLeft: mode === 'all' ? -1 : 0,
+      }}
+    >{label}</button>
+  );
+  return (
+    <div style={{ display: 'inline-flex' }}>
+      {btn('Scoped', 'scoped')}
+      {btn('All', 'all')}
+    </div>
+  );
+}

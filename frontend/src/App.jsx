@@ -376,15 +376,20 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Hidden nodes badge (hidden in animation mode) */}
-                {!c.animActive && c.hiddenNodes.size > 0 && (
+                {/* Hidden nodes/edges badge (hidden in animation mode) */}
+                {!c.animActive && (c.hiddenNodes.size > 0 || c.hiddenEdges.size > 0) && (
                   <div style={{
                     position: 'absolute', top: c.investigatedIp ? 38 : 8, right: 8, zIndex: 10,
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: 'rgba(248,81,73,.12)', border: '1px solid rgba(248,81,73,.3)',
                     borderRadius: 6, padding: '4px 10px', fontSize: 10,
                   }}>
-                    <span style={{ color: '#f85149' }}>{c.hiddenNodes.size} node{c.hiddenNodes.size > 1 ? 's' : ''} hidden</span>
+                    <span style={{ color: '#f85149' }}>
+                      {[
+                        c.hiddenNodes.size > 0 && `${c.hiddenNodes.size} node${c.hiddenNodes.size > 1 ? 's' : ''}`,
+                        c.hiddenEdges.size > 0 && `${c.hiddenEdges.size} edge${c.hiddenEdges.size > 1 ? 's' : ''}`,
+                      ].filter(Boolean).join(', ')} hidden
+                    </span>
                     <button className="btn" onClick={c.handleUnhideAll}
                       style={{ fontSize: 9, padding: '1px 6px', borderColor: 'rgba(248,81,73,.4)', color: '#f85149' }}>Unhide all</button>
                   </div>
