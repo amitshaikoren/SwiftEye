@@ -49,7 +49,9 @@ function stepToPayload(step) {
   return payload;
 }
 
-export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightChange, onHiddenChange, onColorChange, onTagChange, onClusterChange, onRunComplete, groupsRefreshKey }) {
+const HULL_COLORS = ['#388bfd','#3fb950','#d29922','#f85149','#bc8cff','#22d3ee','#f0883e'];
+
+export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightChange, onHiddenChange, annotationStore, onAnnotationsChange, onRunComplete, groupsRefreshKey }) {
   const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {} });
   const [envelope, setEnvelope] = useState(null);
   const [error, setError] = useState('');
@@ -85,9 +87,7 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
       }
       if (ownedExtrasRef.current) {
         if (onHiddenChange) onHiddenChange(new Set());
-        if (onColorChange) onColorChange({});
-        if (onTagChange) onTagChange({});
-        if (onClusterChange) onClusterChange({});
+        if (annotationStore) { annotationStore.clear('transient'); onAnnotationsChange?.(); }
         ownedExtrasRef.current = false;
       }
       return;
@@ -112,45 +112,80 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
           onHighlightChange(nodes.size || edges.size ? { nodes, edges } : null);
           ownedRef.current = true;
         }
-        // Hide/show_only → drive graph hidden-node state
+        // Hide/show_only → drive graph hidden-node state (structural, not visual annotation)
         if (onHiddenChange) {
           onHiddenChange(new Set(res.hidden?.nodes || []));
           ownedExtrasRef.current = true;
         }
-        // Color verb → per-node color overrides
-        if (onColorChange) {
-          const colorMap = {};
+        // Visual pipeline annotations → AnnotationStore
+        if (annotationStore) {
+          annotationStore.clear('transient');
+
+          // Color verb → color_override per node or edge
           for (const [, entry] of Object.entries(res.groups?.color || {})) {
             const color = entry.args?.color;
-            if (color && entry.target === 'nodes') {
-              for (const id of (entry.members || [])) colorMap[id] = color;
-            }
-          }
-          onColorChange(colorMap);
-          ownedExtrasRef.current = true;
-        }
-        // Cluster verb → bounding-box hull per cluster
-        if (onClusterChange) {
-          const clusterMap = {};
-          for (const [name, entry] of Object.entries(res.groups?.cluster || {})) {
-            if (entry.target === 'nodes') clusterMap[name] = { members: entry.members || [] };
-          }
-          onClusterChange(clusterMap);
-          ownedExtrasRef.current = true;
-        }
-        // Tag verb → node tag badge overlays
-        if (onTagChange) {
-          const tagMap = {};
-          for (const [tagName, entry] of Object.entries(res.groups?.tag || {})) {
+            if (!color) continue;
             if (entry.target === 'nodes') {
               for (const id of (entry.members || [])) {
-                if (!tagMap[id]) tagMap[id] = [];
-                tagMap[id].push(tagName);
+                annotationStore.add({
+                  type: 'color_override',
+                  nodeId: id,
+                  fill: color,
+                  stroke: color,
+                  lifetime: 'transient',
+                  metadata: { source: 'pipeline' },
+                });
+              }
+            } else if (entry.target === 'edges') {
+              for (const id of (entry.members || [])) {
+                annotationStore.add({
+                  type: 'color_override',
+                  edgeId: id,
+                  fill: color,
+                  stroke: color,
+                  lifetime: 'transient',
+                  metadata: { source: 'pipeline' },
+                });
               }
             }
           }
-          onTagChange(tagMap);
+
+          // Cluster verb → hull per cluster
+          let ci = 0;
+          for (const [name, entry] of Object.entries(res.groups?.cluster || {})) {
+            if (entry.target === 'nodes' && entry.members?.length) {
+              const color = entry.args?.color || HULL_COLORS[ci % HULL_COLORS.length];
+              annotationStore.add({
+                type: 'hull',
+                name,
+                members: entry.members,
+                color,
+                cohesion: 0,
+                lifetime: 'transient',
+                metadata: { source: 'pipeline', recipe_slice: entry.recipe_slice },
+              });
+              ci++;
+            }
+          }
+
+          // Tag verb → badge per node
+          for (const [tagName, entry] of Object.entries(res.groups?.tag || {})) {
+            if (entry.target === 'nodes') {
+              for (const id of (entry.members || [])) {
+                annotationStore.add({
+                  type: 'badge',
+                  nodeId: id,
+                  text: `#${tagName}`,
+                  color: 'rgba(100,53,201,0.85)',
+                  lifetime: 'transient',
+                  metadata: { source: 'pipeline', group_name: tagName },
+                });
+              }
+            }
+          }
+
           ownedExtrasRef.current = true;
+          onAnnotationsChange?.();
         }
         if (onRunComplete) onRunComplete();
       } catch (e) {

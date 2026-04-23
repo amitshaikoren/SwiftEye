@@ -199,7 +199,7 @@ function FreehandEditor({ step, onChange }) {
       <textarea value={text} onChange={e => setText(e.target.value)} spellCheck={false}
         placeholder={dialect === 'cypher'
           ? 'MATCH (n) WHERE n.packets > 1000 RETURN n'
-          : dialect === 'pyspark' ? 'df.filter(col("packets") > 1000)'
+          : dialect === 'pyspark' ? 'nodes.filter(col("packets") > 1000)'
           : 'SELECT * FROM nodes WHERE packets > 1000'}
         style={{
           width: '100%', minHeight: 56, maxHeight: 140, resize: 'vertical',
