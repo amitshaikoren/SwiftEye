@@ -175,6 +175,7 @@ export default function GraphCanvas({
           onAddNodeAnnotation={onAddNodeAnnotation} onAddEdgeAnnotation={onAddEdgeAnnotation} onAddAnnotation={onAddAnnotation}
           setShowSyntheticNodeForm={setShowSyntheticNodeForm} setShowSyntheticEdgeForm={setShowSyntheticEdgeForm} setSynEdgeSrc={setSynEdgeSrc}
           onSetRadialFocus={setLayoutFocusNodeId && setLayoutMode ? (id) => { setLayoutFocusNodeId(id); setLayoutMode('radial'); } : undefined}
+          onSetHierarchyRoot={setLayoutFocusNodeId && setLayoutMode ? (id) => { setLayoutFocusNodeId(id); setLayoutMode('hierarchical'); } : undefined}
         />
       )}
 

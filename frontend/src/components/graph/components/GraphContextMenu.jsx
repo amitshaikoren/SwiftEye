@@ -23,6 +23,7 @@ export default function GraphContextMenu({
   onAddNodeAnnotation, onAddEdgeAnnotation, onAddAnnotation,
   setShowSyntheticNodeForm, setShowSyntheticEdgeForm, setSynEdgeSrc,
   onSetRadialFocus,
+  onSetHierarchyRoot,
 }) {
   const menuRef = useRef(null);
 
@@ -91,10 +92,18 @@ export default function GraphContextMenu({
         <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>}
           onClick={() => { onInvNbRef.current?.(ctxMenu.nodeId); setCtxMenu(null); }}>Investigate neighbours</MenuItem>
 
-        {/* RADIAL FOCUS */}
-        {onSetRadialFocus && !ctxMenu.isCluster && !ctxMenu.isSubnet && (
-          <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/></svg>}
-            onClick={() => { onSetRadialFocus(ctxMenu.nodeId); setCtxMenu(null); }}>Set as radial focus</MenuItem>
+        {/* RADIAL FOCUS / HIERARCHY ROOT */}
+        {(onSetRadialFocus || onSetHierarchyRoot) && !ctxMenu.isCluster && !ctxMenu.isSubnet && (
+          <>
+            {onSetRadialFocus && (
+              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/></svg>}
+                onClick={() => { onSetRadialFocus(ctxMenu.nodeId); setCtxMenu(null); }}>Set as radial focus</MenuItem>
+            )}
+            {onSetHierarchyRoot && (
+              <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f0883e" strokeWidth="2"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>}
+                onClick={() => { onSetHierarchyRoot(ctxMenu.nodeId); setCtxMenu(null); }}>Set as hierarchy root</MenuItem>
+            )}
+          </>
         )}
 
         {/* ANIMATE */}

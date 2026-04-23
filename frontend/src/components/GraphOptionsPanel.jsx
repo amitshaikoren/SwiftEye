@@ -333,7 +333,8 @@ export default function GraphOptionsPanel({
               {[
                 { id: 'force',    label: 'Force',    title: 'D3 force simulation — organic, cluster-aware' },
                 { id: 'circular', label: 'Circular', title: 'Nodes arranged on concentric rings by degree (≤60 nodes)' },
-                { id: 'radial',   label: 'Radial',   title: 'BFS rings from a focus node — right-click any node to set focus' },
+                { id: 'radial',        label: 'Radial',        title: 'BFS rings from a focus node — right-click any node to set focus' },
+                { id: 'hierarchical', label: 'Hierarchical', title: 'Top-down DAG layout (dagre) — right-click any node to set root' },
               ].map(({ id, label, title }) => (
                 <button key={id} onClick={() => setLayoutMode(id)} title={title} style={{
                   flex: 1, fontSize: 11, padding: '5px 0',
@@ -358,6 +359,13 @@ export default function GraphOptionsPanel({
                 {layoutFocusNodeId
                   ? `Focus: ${layoutFocusNodeId} — right-click any node to change.`
                   : 'Right-click a node → "Set as radial focus". Auto-selecting highest-degree node.'}
+              </div>
+            )}
+            {layoutMode === 'hierarchical' && (
+              <div style={{ fontSize: 10, color: layoutFocusNodeId ? 'var(--txM)' : '#f0883e', marginTop: 7, lineHeight: 1.4 }}>
+                {layoutFocusNodeId
+                  ? `Root: ${layoutFocusNodeId} — right-click any node to change.`
+                  : 'Right-click a node → "Set as hierarchy root". Auto-selecting highest in-degree node.'}
               </div>
             )}
           </Section>

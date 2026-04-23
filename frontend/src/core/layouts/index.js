@@ -1,8 +1,9 @@
 import * as force from './forceLayout.js';
 import * as circular from './circularLayout.js';
 import * as radial from './radialLayout.js';
+import * as hierarchical from './hierarchicalLayout.js';
 
-export const LAYOUTS = [force, circular, radial];
+export const LAYOUTS = [force, circular, radial, hierarchical];
 
 export function getLayout(id) {
   return LAYOUTS.find(l => l.LAYOUT_ID === id) ?? force;

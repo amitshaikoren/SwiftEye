@@ -6,6 +6,7 @@ import { drawHulls, drawRings, drawBadges, drawShapePath, applyColorOverride } f
 import { buildForceSimulation } from '../../../core/layouts/forceLayout';
 import { computeStaticPositions as circularPositions } from '../../../core/layouts/circularLayout';
 import { computeStaticPositions as radialPositions } from '../../../core/layouts/radialLayout';
+import { computeStaticPositions as hierarchicalPositions } from '../../../core/layouts/hierarchicalLayout';
 
 export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWeightMode, tRef,
   renRef, rafRef, hRef,
@@ -297,10 +298,12 @@ resize();draw();
     if (simRef.current) simRef.current.stop();
 
     let sim;
-    if (layoutMode === 'circular' || layoutMode === 'radial') {
+    if (layoutMode === 'circular' || layoutMode === 'radial' || layoutMode === 'hierarchical') {
       const staticPos = layoutMode === 'circular'
         ? circularPositions(nn, ne, { width, height })
-        : radialPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId });
+        : layoutMode === 'radial'
+        ? radialPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId })
+        : hierarchicalPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId });
       if (staticPos) {
         for (const n of nn) {
           const p = staticPos[n.id];
