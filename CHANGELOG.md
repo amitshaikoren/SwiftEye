@@ -1,5 +1,9 @@
 # SwiftEye — Changelog
 
+### v0.28.3 — April 2026
+- **Legend-as-filter** — graph legend swatches are now interactive. Each swatch gets an eye toggle (👁 / 🚫); toggling one emits a `hide` step into the active recipe (viz scope, auto-named e.g. "Legend: hide external") and dims the swatch to 0.4 opacity. Toggling it back removes that step. `handleRecipeChange` syncs the hidden-label state if the user manually deletes a legend step from the recipe, keeping legend and recipe in sync. `GraphLegend.jsx` rewritten to be mode-aware (`nodeColorMode` / `edgeColorMode` driven) and now replaces the hardcoded inline legend that was embedded in `App.jsx`.
+- **Louvain bridge-node expansion** — the Connections section in `ClusterDetail.jsx` now shows the specific node pairs whose edges cross each cluster boundary. Each cluster→cluster connection row gains a ▶ expand caret; expanding it reveals the raw member-pair crossings (from → to, clickable to navigate) sourced from `rawGraph.edges` via a `bridgesByEdgeId` useMemo. Bridge details are visible without forcing a full cluster expansion.
+
 ### v0.28.2 — April 2026
 - **Hidden-edges wiring** — `hide` pipeline steps now conceal both nodes and edges; `handleUnhideAll` clears both. The hidden-state banner in the graph header shows combined counts ("2 nodes, 3 edges hidden").
 - **Scoped / All mode switch** — new pill toggle in the Recipe panel header. "Scoped" (default) runs each step only against currently-visible nodes/edges. "All" opts the whole recipe into global scope, letting steps reach nodes that earlier steps hid.
