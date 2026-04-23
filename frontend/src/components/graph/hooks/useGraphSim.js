@@ -398,11 +398,13 @@ resize();draw();
         const inDf  = !dfE || dfE.has(edge.id);
 
         const resolvedCol = edge.synthetic ? (edge.color || '#f0883e') : resolveEdgeColor(edge, eColorMode, eColorRules, pc);
-        const edgeColor = resolvedCol;
         const edgeW = edge.synthetic ? 2 : w;
 
         const edgeRings = snap?.rings?.edges;
         const eqh = edgeRings && (edgeRings[`${sId}|${tId}`] || edgeRings[`${tId}|${sId}`]);
+        const eco = snap?.edgeColorOverrides;
+        const edgeOverride = eco && (eco[`${sId}|${tId}`] || eco[`${tId}|${sId}`] || eco[edge.id]);
+        const edgeColor = edgeOverride ? edgeOverride.stroke : resolvedCol;
 
         if (!inInv || !inDf) { ctx.globalAlpha = 0.04; }
         else if (edge.synthetic) ctx.globalAlpha = isSel ? 1 : hs ? (con ? 1 : 0.35) : 0.85;
@@ -412,7 +414,7 @@ resize();draw();
         ctx.moveTo(src.x, src.y);
         ctx.lineTo(tgt.x, tgt.y);
         ctx.strokeStyle = isSel ? '#fff' : eqh ? '#f0883e' : edgeColor;
-        ctx.lineWidth = isSel ? edgeW + 2 : eqh ? edgeW + 1.5 : edgeW;
+        ctx.lineWidth = isSel ? edgeW + 2 : eqh ? edgeW + 1.5 : (edgeOverride ? edgeW + 1 : edgeW);
         if (edge.synthetic) { ctx.setLineDash([6, 4]); } else { ctx.setLineDash([]); }
         ctx.stroke();
         ctx.setLineDash([]);

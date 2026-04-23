@@ -84,10 +84,11 @@ export class AnnotationStore {
     const now = Date.now();
 
     const hulls = [];
-    const badges = {};           // nodeId → [{text, color}]
-    const ringNodes = {};        // nodeId → [{color, style, width}]
-    const ringEdges = {};        // edgeId → [{color, style, width}]
-    const colorOverrides = {};   // nodeId → {fill, stroke, priority}
+    const badges = {};              // nodeId → [{text, color}]
+    const ringNodes = {};           // nodeId → [{color, style, width}]
+    const ringEdges = {};           // edgeId → [{color, style, width}]
+    const colorOverrides = {};      // nodeId → {fill, stroke, priority}
+    const edgeColorOverrides = {};  // edgeId → {fill, stroke, priority}
 
     for (const [id, ann] of this._items) {
       // Drop expired flash
@@ -121,14 +122,17 @@ export class AnnotationStore {
         }
 
       } else if (ann.type === 'color_override') {
-        const existing = colorOverrides[ann.nodeId];
-        // Persistent wins over transient; last-write wins within same priority
-        if (!existing || ann.lifetime === 'persistent' && existing.priority !== 'persistent') {
-          colorOverrides[ann.nodeId] = {
-            fill: ann.fill,
-            stroke: ann.stroke,
-            priority: ann.lifetime === 'persistent' ? 'persistent' : 'transient',
-          };
+        const priority = ann.lifetime === 'persistent' ? 'persistent' : 'transient';
+        if (ann.nodeId) {
+          const existing = colorOverrides[ann.nodeId];
+          if (!existing || (ann.lifetime === 'persistent' && existing.priority !== 'persistent')) {
+            colorOverrides[ann.nodeId] = { fill: ann.fill, stroke: ann.stroke, priority };
+          }
+        } else if (ann.edgeId) {
+          const existing = edgeColorOverrides[ann.edgeId];
+          if (!existing || (ann.lifetime === 'persistent' && existing.priority !== 'persistent')) {
+            edgeColorOverrides[ann.edgeId] = { fill: ann.fill, stroke: ann.stroke, priority };
+          }
         }
       }
     }
@@ -138,6 +142,7 @@ export class AnnotationStore {
       badges,
       rings: { nodes: ringNodes, edges: ringEdges },
       colorOverrides,
+      edgeColorOverrides,
     };
   }
 

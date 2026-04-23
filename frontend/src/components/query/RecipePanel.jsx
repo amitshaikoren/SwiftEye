@@ -121,15 +121,27 @@ export default function RecipePanel({ loaded, steps, onStepsChange, onHighlightC
         if (annotationStore) {
           annotationStore.clear('transient');
 
-          // Color verb → color_override per node
+          // Color verb → color_override per node or edge
           for (const [, entry] of Object.entries(res.groups?.color || {})) {
             const color = entry.args?.color;
-            if (color && entry.target === 'nodes') {
+            if (!color) continue;
+            if (entry.target === 'nodes') {
               for (const id of (entry.members || [])) {
                 annotationStore.add({
                   type: 'color_override',
                   nodeId: id,
-                  fill: color + '33',
+                  fill: color,
+                  stroke: color,
+                  lifetime: 'transient',
+                  metadata: { source: 'pipeline' },
+                });
+              }
+            } else if (entry.target === 'edges') {
+              for (const id of (entry.members || [])) {
+                annotationStore.add({
+                  type: 'color_override',
+                  edgeId: id,
+                  fill: color,
                   stroke: color,
                   lifetime: 'transient',
                   metadata: { source: 'pipeline' },

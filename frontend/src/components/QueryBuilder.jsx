@@ -399,7 +399,7 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
   const syntaxInfo = SYNTAX_COLORS[dialect];
 
   return (
-    <div style={{ overflowY: 'auto', padding: '16px 18px', background: 'var(--bg)', height: '100%' }}>
+    <div style={{ overflowY: 'auto', padding: '16px 18px', background: 'var(--bg)', flexShrink: 0 }}>
 
       {/* Header */}
       <div style={{ marginBottom: 14 }}>
@@ -476,7 +476,7 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
                 placeholder={dialect === 'cypher'
                   ? 'MATCH (n) WHERE n.packets > 1000 RETURN n'
                   : dialect === 'pyspark'
-                  ? 'df.filter(col("packets") > 1000)'
+                  ? 'nodes.filter(col("packets") > 1000)'
                   : 'SELECT * FROM nodes WHERE packets > 1000'}
                 spellCheck={false}
                 style={{

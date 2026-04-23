@@ -105,11 +105,21 @@ export function drawShapePath(ctx, node, opts) {
       ctx.setLineDash([]);
     } else {
       let [nFill, nStroke] = resolveColor(node);
-      if (colorOverride) { nFill = colorOverride.fill; nStroke = colorOverride.stroke; }
-      ctx.fillStyle = isSel ? acColor + '33' : nFill;
+      if (isSel) {
+        ctx.fillStyle = acColor + '33';
+      } else if (colorOverride) {
+        // Radial gradient: darker centre fading to edge, same hue as override colour
+        const grad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, r);
+        grad.addColorStop(0, colorOverride.stroke + 'cc');
+        grad.addColorStop(1, colorOverride.stroke + '44');
+        ctx.fillStyle = grad;
+        nStroke = colorOverride.stroke;
+      } else {
+        ctx.fillStyle = nFill;
+      }
       ctx.fill();
       ctx.strokeStyle = isSel ? acColor : isH ? acGColor : nStroke;
-      ctx.lineWidth = isSel || isH ? 2.5 : (colorOverride ? 2 : 1.5);
+      ctx.lineWidth = isSel || isH ? 2.5 : (colorOverride ? 2.5 : 1.5);
       ctx.stroke();
     }
   }
