@@ -73,6 +73,11 @@ export function useCaptureFilters({ selCallbacksRef }) {
     });
   }
 
+  // ── Graph layout ─────────────────────────────────────────────────
+
+  const [layoutMode, setLayoutMode] = useState('force');
+  const [layoutFocusNodeId, setLayoutFocusNodeId] = useState(null);
+
   // ── Graph display options (view-only, no effects) ────────────────
 
   const [labelThreshold, setLabelThreshold]   = useState(0);
@@ -154,6 +159,9 @@ export function useCaptureFilters({ selCallbacksRef }) {
     subnetG, setSubnetG, toggleSubnetG,
     subnetPrefix, setSubnetPrefix: setSubnetPrefixOuter, debouncedSubnetPrefix,
     subnetExclusions, handleUnclusterSubnet,
+    // Layout
+    layoutMode, setLayoutMode,
+    layoutFocusNodeId, setLayoutFocusNodeId,
     // Display options
     labelThreshold, setLabelThreshold,
     graphWeightMode, setGraphWeightMode,

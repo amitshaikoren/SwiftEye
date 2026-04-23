@@ -248,6 +248,8 @@ function ColorBySection({ modes, legends, selected, onSelect, rules, onRulesChan
 // ── Main panel ────────────────────────────────────────────────────────────────
 export default function GraphOptionsPanel({
   onClose,
+  // Layout
+  layoutMode = 'force', setLayoutMode,
   // Node display
   nodeColorMode, setNodeColorMode,
   nodeColorRules, setNodeColorRules,
@@ -320,6 +322,36 @@ export default function GraphOptionsPanel({
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0 20px' }}>
+
+          {/* ── LAYOUT ──────────────────────────────────────────── */}
+          <Section title="Layout">
+            <div style={{
+              display: 'flex', background: 'var(--bgC)', border: '1px solid var(--bd)',
+              borderRadius: 7, padding: 2, gap: 2,
+            }}>
+              {[
+                { id: 'force',    label: 'Force',    title: 'D3 force simulation — organic, cluster-aware' },
+                { id: 'circular', label: 'Circular', title: 'Nodes arranged on concentric rings by degree (≤60 nodes)' },
+              ].map(({ id, label, title }) => (
+                <button key={id} onClick={() => setLayoutMode(id)} title={title} style={{
+                  flex: 1, fontSize: 11, padding: '5px 0',
+                  background: layoutMode === id ? 'var(--bgH)' : 'none',
+                  border: 'none', borderRadius: 5,
+                  color: layoutMode === id ? 'var(--tx)' : 'var(--txM)',
+                  fontWeight: layoutMode === id ? 600 : 400,
+                  cursor: 'pointer', fontFamily: 'var(--fd)',
+                  transition: 'all .12s',
+                }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {layoutMode === 'circular' && (
+              <div style={{ fontSize: 10, color: 'var(--txM)', marginTop: 7, lineHeight: 1.4 }}>
+                Nodes arranged by degree on concentric rings. Falls back to Force for graphs over 60 nodes.
+              </div>
+            )}
+          </Section>
 
           {/* ── DISPLAY ─────────────────────────────────────────── */}
           <Section title="Display">

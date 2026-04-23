@@ -275,6 +275,7 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
     return (
       <GraphOptionsPanel
         onClose={() => c.switchPanel('stats')}
+        layoutMode={c.layoutMode} setLayoutMode={c.setLayoutMode}
         nodeColorMode={c.nodeColorMode} setNodeColorMode={c.setNodeColorMode}
         nodeColorRules={c.nodeColorRules} setNodeColorRules={c.setNodeColorRules}
         graphWeightMode={c.graphWeightMode} setGraphWeightMode={c.setGraphWeightMode}

@@ -4,13 +4,16 @@ import { CLUSTER_COLORS } from '../../../clusterView';
 import { resolveNodeColor, resolveEdgeColor } from '../utils/graphColorUtils';
 import { drawHulls, drawRings, drawBadges, drawShapePath, applyColorOverride } from '../../../core/graphPrimitives';
 import { buildForceSimulation } from '../../../core/layouts/forceLayout';
+import { computeStaticPositions as circularPositions } from '../../../core/layouts/circularLayout';
 
 export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWeightMode, tRef,
   renRef, rafRef, hRef,
   selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef,
   labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
   nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
-  annotationsRef }) {
+  annotationsRef,
+  layoutMode = 'force',
+  layoutFocusNodeId = null }) {
 
   const simRef = useRef(null);
   const nRef = useRef([]);
@@ -49,7 +52,7 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   }
 
   function doRelayout() {
-    if (!simRef.current) return;
+    if (!simRef.current || layoutMode !== 'force') return;
     nRef.current.forEach(n => { delete n.fx; delete n.fy; });
     const nn = nRef.current;
     const nodeCount = nn.length;
@@ -292,13 +295,32 @@ resize();draw();
     eRef.current = ne;
     if (simRef.current) simRef.current.stop();
 
-    const layoutHints = {
-      hullCohesion: (annotationsRef?.current?.hulls ?? [])
-        .filter(h => h.cohesion > 0)
-        .map(h => ({ members: h.members, strength: h.cohesion })),
-    };
-    const sim = buildForceSimulation(nn, ne, { width, height }, gRRef.current, layoutHints)
-      .on('tick', render);
+    let sim;
+    if (layoutMode === 'circular') {
+      const staticPos = circularPositions(nn, ne, { width, height });
+      if (staticPos) {
+        for (const n of nn) {
+          const p = staticPos[n.id];
+          if (p) { n.fx = p.x; n.fy = p.y; n.x = p.x; n.y = p.y; }
+        }
+      } else {
+        for (const n of nn) { delete n.fx; delete n.fy; }
+      }
+      sim = d3.forceSimulation(nn)
+        .force('collision', d3.forceCollide().radius(d =>
+          d.is_cluster ? gRRef.current(d) * 1.8 + 15 : gRRef.current(d) + 8))
+        .alphaDecay(0.1)
+        .on('tick', render);
+    } else {
+      for (const n of nn) { delete n.fx; delete n.fy; }
+      const layoutHints = {
+        hullCohesion: (annotationsRef?.current?.hulls ?? [])
+          .filter(h => h.cohesion > 0)
+          .map(h => ({ members: h.members, strength: h.cohesion })),
+      };
+      sim = buildForceSimulation(nn, ne, { width, height }, gRRef.current, layoutHints)
+        .on('tick', render);
+    }
 
     simRef.current = sim;
 
@@ -548,7 +570,7 @@ resize();draw();
 
     renRef.current = render;
     return () => sim.stop();
-  }, [nodes, edges]);
+  }, [nodes, edges, layoutMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML, getSize };
 }
