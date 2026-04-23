@@ -22,6 +22,7 @@ export default function GraphContextMenu({
   onExpandCluster, onUnclusterSubnet, onCreateManualCluster,
   onAddNodeAnnotation, onAddEdgeAnnotation, onAddAnnotation,
   setShowSyntheticNodeForm, setShowSyntheticEdgeForm, setSynEdgeSrc,
+  onSetRadialFocus,
 }) {
   const menuRef = useRef(null);
 
@@ -89,6 +90,12 @@ export default function GraphContextMenu({
         {/* INVESTIGATE */}
         <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>}
           onClick={() => { onInvNbRef.current?.(ctxMenu.nodeId); setCtxMenu(null); }}>Investigate neighbours</MenuItem>
+
+        {/* RADIAL FOCUS */}
+        {onSetRadialFocus && !ctxMenu.isCluster && !ctxMenu.isSubnet && (
+          <MenuItem icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/></svg>}
+            onClick={() => { onSetRadialFocus(ctxMenu.nodeId); setCtxMenu(null); }}>Set as radial focus</MenuItem>
+        )}
 
         {/* ANIMATE */}
         {onAnimate && !ctxMenu.isCluster && !ctxMenu.isSubnet && (

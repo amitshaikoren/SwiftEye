@@ -250,6 +250,7 @@ export default function GraphOptionsPanel({
   onClose,
   // Layout
   layoutMode = 'force', setLayoutMode,
+  layoutFocusNodeId = null,
   // Node display
   nodeColorMode, setNodeColorMode,
   nodeColorRules, setNodeColorRules,
@@ -332,6 +333,7 @@ export default function GraphOptionsPanel({
               {[
                 { id: 'force',    label: 'Force',    title: 'D3 force simulation — organic, cluster-aware' },
                 { id: 'circular', label: 'Circular', title: 'Nodes arranged on concentric rings by degree (≤60 nodes)' },
+                { id: 'radial',   label: 'Radial',   title: 'BFS rings from a focus node — right-click any node to set focus' },
               ].map(({ id, label, title }) => (
                 <button key={id} onClick={() => setLayoutMode(id)} title={title} style={{
                   flex: 1, fontSize: 11, padding: '5px 0',
@@ -349,6 +351,13 @@ export default function GraphOptionsPanel({
             {layoutMode === 'circular' && (
               <div style={{ fontSize: 10, color: 'var(--txM)', marginTop: 7, lineHeight: 1.4 }}>
                 Nodes arranged by degree on concentric rings. Falls back to Force for graphs over 60 nodes.
+              </div>
+            )}
+            {layoutMode === 'radial' && (
+              <div style={{ fontSize: 10, color: layoutFocusNodeId ? 'var(--txM)' : '#a78bfa', marginTop: 7, lineHeight: 1.4 }}>
+                {layoutFocusNodeId
+                  ? `Focus: ${layoutFocusNodeId} — right-click any node to change.`
+                  : 'Right-click a node → "Set as radial focus". Auto-selecting highest-degree node.'}
               </div>
             )}
           </Section>

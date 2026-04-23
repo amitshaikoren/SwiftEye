@@ -5,6 +5,7 @@ import { resolveNodeColor, resolveEdgeColor } from '../utils/graphColorUtils';
 import { drawHulls, drawRings, drawBadges, drawShapePath, applyColorOverride } from '../../../core/graphPrimitives';
 import { buildForceSimulation } from '../../../core/layouts/forceLayout';
 import { computeStaticPositions as circularPositions } from '../../../core/layouts/circularLayout';
+import { computeStaticPositions as radialPositions } from '../../../core/layouts/radialLayout';
 
 export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWeightMode, tRef,
   renRef, rafRef, hRef,
@@ -296,8 +297,10 @@ resize();draw();
     if (simRef.current) simRef.current.stop();
 
     let sim;
-    if (layoutMode === 'circular') {
-      const staticPos = circularPositions(nn, ne, { width, height });
+    if (layoutMode === 'circular' || layoutMode === 'radial') {
+      const staticPos = layoutMode === 'circular'
+        ? circularPositions(nn, ne, { width, height })
+        : radialPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId });
       if (staticPos) {
         for (const n of nn) {
           const p = staticPos[n.id];
@@ -570,7 +573,7 @@ resize();draw();
 
     renRef.current = render;
     return () => sim.stop();
-  }, [nodes, edges, layoutMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodes, edges, layoutMode, layoutFocusNodeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML, getSize };
 }

@@ -594,6 +594,8 @@ export default function App() {
                     annotationsSnapshot={annotationsSnapshot}
                     layoutMode={c.layoutMode}
                     layoutFocusNodeId={c.layoutFocusNodeId}
+                    setLayoutMode={c.setLayoutMode}
+                    setLayoutFocusNodeId={c.setLayoutFocusNodeId}
                     nodeEventSeverity={c.nodeEventSeverity}
                     edgeEventSeverity={c.edgeEventSeverity}
                     onFlagNode={(nodeId) => {

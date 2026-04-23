@@ -51,6 +51,8 @@ export default function GraphCanvas({
   annotationsSnapshot = null,
   layoutMode = 'force',
   layoutFocusNodeId = null,
+  setLayoutMode,
+  setLayoutFocusNodeId,
 }) {
   // Shared refs — declared here so all hooks share the same ref objects
   const cRef = useRef(null);
@@ -172,6 +174,7 @@ export default function GraphCanvas({
           onExpandCluster={onExpandCluster} onUnclusterSubnet={onUnclusterSubnet} onCreateManualCluster={onCreateManualCluster}
           onAddNodeAnnotation={onAddNodeAnnotation} onAddEdgeAnnotation={onAddEdgeAnnotation} onAddAnnotation={onAddAnnotation}
           setShowSyntheticNodeForm={setShowSyntheticNodeForm} setShowSyntheticEdgeForm={setShowSyntheticEdgeForm} setSynEdgeSrc={setSynEdgeSrc}
+          onSetRadialFocus={setLayoutFocusNodeId && setLayoutMode ? (id) => { setLayoutFocusNodeId(id); setLayoutMode('radial'); } : undefined}
         />
       )}
 
