@@ -207,8 +207,8 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--bd)', background: 'var(--bg)', flexShrink: 0 }}>
           <button onClick={() => setQuerySubTab('query')} style={tabStyle(querySubTab === 'query')}>Query</button>
-          <button onClick={() => setQuerySubTab('guide')} style={tabStyle(querySubTab === 'guide')}>Guide</button>
           <button onClick={() => setQuerySubTab('groups')} style={tabStyle(querySubTab === 'groups')}>Groups</button>
+          <button onClick={() => setQuerySubTab('guide')} style={tabStyle(querySubTab === 'guide')}>Guide</button>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {/* All three sub-panels stay mounted — only visibility toggles. Keeps

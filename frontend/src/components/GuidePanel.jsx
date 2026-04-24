@@ -147,7 +147,7 @@ export default function GuidePanel({ loaded }) {
   useEffect(() => {
     setLoading(true);
     fetchQuerySchema().then(s => { setSchema(s); setLoading(false); });
-  }, []);
+  }, [loaded]);
 
   const segStyle = (active) => ({
     fontSize: 11, padding: '4px 12px', cursor: 'pointer', border: 'none',
