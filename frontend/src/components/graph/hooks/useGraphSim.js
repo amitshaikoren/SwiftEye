@@ -4,7 +4,6 @@ import { CLUSTER_COLORS } from '../../../clusterView';
 import { resolveNodeColor, resolveEdgeColor } from '../utils/graphColorUtils';
 import { drawHulls, drawRings, drawBadges, drawShapePath, applyColorOverride } from '../../../core/graphPrimitives';
 import { buildForceSimulation } from '../../../core/layouts/forceLayout';
-import { computeStaticPositions as circularPositions } from '../../../core/layouts/circularLayout';
 import { computeStaticPositions as radialPositions } from '../../../core/layouts/radialLayout';
 import { computeStaticPositions as hierarchicalPositions } from '../../../core/layouts/hierarchicalLayout';
 
@@ -302,10 +301,8 @@ resize();draw();
     if (simRef.current) simRef.current.stop();
 
     let sim;
-    if (layoutMode === 'circular' || layoutMode === 'radial' || layoutMode === 'hierarchical') {
-      const staticPos = layoutMode === 'circular'
-        ? circularPositions(nn, ne, { width, height })
-        : layoutMode === 'radial'
+    if (layoutMode === 'radial' || layoutMode === 'hierarchical') {
+      const staticPos = layoutMode === 'radial'
         ? radialPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId })
         : hierarchicalPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId });
       if (staticPos) {

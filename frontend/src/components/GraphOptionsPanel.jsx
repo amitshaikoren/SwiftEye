@@ -349,9 +349,8 @@ export default function GraphOptionsPanel({
               borderRadius: 7, padding: 2, gap: 2,
             }}>
               {[
-                { id: 'force',    label: 'Force',    title: 'D3 force simulation — organic, cluster-aware' },
-                { id: 'circular', label: 'Circular', title: 'Nodes arranged on concentric rings by degree (≤60 nodes)' },
-                { id: 'radial',        label: 'Radial',        title: 'BFS rings from a focus node — right-click any node to set focus' },
+                { id: 'force',        label: 'Force',        title: 'D3 force simulation — organic, cluster-aware' },
+                { id: 'radial',       label: 'Radial',       title: 'BFS rings from a focus node — right-click any node to set focus' },
                 { id: 'hierarchical', label: 'Hierarchical', title: 'Top-down DAG layout (dagre) — right-click any node to set root' },
               ].map(({ id, label, title }) => (
                 <button key={id} onClick={() => setLayoutMode(id)} title={title} style={{
@@ -367,11 +366,6 @@ export default function GraphOptionsPanel({
                 </button>
               ))}
             </div>
-            {layoutMode === 'circular' && (
-              <div style={{ fontSize: 10, color: 'var(--txM)', marginTop: 7, lineHeight: 1.4 }}>
-                Nodes arranged by degree on concentric rings. Falls back to Force for graphs over 60 nodes.
-              </div>
-            )}
             {layoutMode === 'radial' && (
               <div style={{ fontSize: 10, color: layoutFocusNodeId ? 'var(--txM)' : '#a78bfa', marginTop: 7, lineHeight: 1.4 }}>
                 {layoutFocusNodeId
