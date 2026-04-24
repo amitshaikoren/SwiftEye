@@ -1,5 +1,22 @@
 # SwiftEye — Changelog
 
+### v0.28.21 — April 2026
+- **Dynamic query schema + Guide tab** — `/api/query/schema` now derives node fields from `NODE_FIELD_CATALOG`, edge fields from `EDGE_CORE_FIELD_CATALOG` plus the full `EDGE_FIELD_REGISTRY`, and session fields from each protocol_fields module's `catalog()` call. `build_analysis_graph()` edges now use `init_detail_sets()` + `accumulate_from_extra()` (was 4 hardcoded fields). The Schema tab is replaced by a Guide tab (rightmost, in the Query | Groups | Guide tab row): collapsible cards per group (Nodes / Edges / Sessions), each field showing its type badge and description. Guide re-fetches its schema on every capture load.
+
+### v0.28.20 — April 2026
+- **Scoped/All wiring fixed** — the "All" mode toggle in the recipe panel now actually works. Global-scope `hide` steps use the full match set (not just currently-visible nodes), and global-scope `show_only` replaces the entire visibility state — meaning it can restore nodes that were hidden by prior steps. Previously, both verbs silently fell back to viz-scope behaviour when the whole recipe was in "All" mode.
+
+### v0.28.18 — April 2026
+- **ClusterDetail bridge nodes** — the Bridges section in ClusterDetail now shows member IPs that have external connections (not cluster-to-cluster edges). Each bridge-node row is expandable to list its outside peers, with clickable navigation. Replaces the old flat bridge-edge list.
+- **Cluster edge sessions fix** — clicking a cluster↔cluster edge no longer shows "No sessions found." The session-match path now accepts `src_members` / `dst_members` (comma-separated IP sets) so the backend can match sessions against real member IPs instead of the synthetic `cluster:0` label. Threaded from `session_match.py` → `memory.py` → `routes/data.py` → `api.js` → `EdgeDetail.jsx`.
+- **Legend overlap fixed** — ClusterLegend and GraphLegend are now wrapped in a single `position: absolute` flex-column container in `App.jsx`; individual absolute positioning removed from both components.
+- **Context menu submenus** — node right-click menu reorganised into hover-expand submenus: Investigate (neighbours / isolate / paths / animate), Layout (radial focus / hierarchy root), Annotate, Edit (hide / draw edge / expand / uncluster / delete). Flyout auto-flips left when near the right edge of the viewport.
+- **Dynamic edge legend** — `GraphLegend` now builds edge protocol items from the loaded graph's protocol→color map instead of hardcoded TCP/TLS/DNS/HTTP entries.
+- **Legend eye pipeline fix** — toggling a legend eye toggle now auto-switches to the Query panel so RecipePanel is mounted and the pipeline fires immediately.
+
+### v0.28.7 — April 2026
+- **Force simulation sliders** — new section in GraphOptionsPanel (Force layout mode only): Charge strength, Link distance, Alpha decay, and Velocity decay sliders with 500 ms debounce. A Reheat button restarts the simulation at full energy; a Freeze toggle stops it. Defaults tuned to chargeStrength −300, linkDistance 160.
+
 ### v0.28.6 — April 2026
 - **Hierarchical layout (dagre)** — new layout mode using the dagre library for directed top-down tree layouts. Set any node as the hierarchy root via right-click → "Set as hierarchy root"; when no root is set, the highest-in-degree node is chosen automatically. Positions are scaled and centered to fit the canvas. Falls back to force layout if dagre fails. Orange hint in GraphOptionsPanel when no root is set; muted hint showing root ID when one is active.
 

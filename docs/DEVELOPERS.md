@@ -1146,7 +1146,7 @@ See §14 for the full query contract, expression language, and SQL/Cypher/PySpar
 |--------|----------|-------------|
 | `POST` | `/api/query` | Run a structured JSON query against the analysis graph. Returns `{results: [...], action}`. |
 | `POST` | `/api/query/parse` | Parse raw query text (Cypher, SQL, Spark SQL) into a JSON contract. Used for live parse preview. |
-| `GET` | `/api/query/schema` | Field schema for the query builder — all queryable fields with types and operators. |
+| `GET` | `/api/query/schema` | Dynamic field catalog: `{nodes: [...], edges: [...], sessions: [...]}`. Node fields from `NODE_FIELD_CATALOG`, edge fields from `EDGE_CORE_FIELD_CATALOG` + full `EDGE_FIELD_REGISTRY`, session fields from each protocol_fields module's `catalog()`. Each entry has `name`, `type`, `description`. Used by the Guide tab; re-fetched on every capture load. |
 
 ### Plugin Endpoints (Insights)
 
