@@ -224,21 +224,6 @@ export default function ClusterDetail({
     return Object.entries(map).sort((a, b) => b[1].bytes - a[1].bytes);
   }, [members]);
 
-  // Internal vs external edge counts (from rawGraph)
-  const { internalEdges, externalEdges } = useMemo(() => {
-    if (!rawGraph?.edges) return { internalEdges: 0, externalEdges: 0 };
-    const idSet = new Set(node?.member_ids || node?.ips || []);
-    if (idSet.size === 0) return { internalEdges: 0, externalEdges: 0 };
-    let internal = 0, external = 0;
-    for (const e of rawGraph.edges) {
-      const s = e.source?.id ?? e.source;
-      const t = e.target?.id ?? e.target;
-      if (idSet.has(s) && idSet.has(t)) internal++;
-      else if (idSet.has(s) || idSet.has(t)) external++;
-    }
-    return { internalEdges: internal, externalEdges: external };
-  }, [rawGraph, node]);
-
   // Bridge node pairs for each inter-cluster edge: which raw members cross to the other cluster?
   const bridgesByEdgeId = useMemo(() => {
     if (!rawGraph?.edges || !rawGraph?.nodes) return {};
@@ -264,6 +249,62 @@ export default function ClusterDetail({
     }
     return result;
   }, [rawGraph, node, nodes, connectedEdges, nodeId]);
+
+  // Split connected edges into bridge edges (other is a cluster) vs external (other is a regular/subnet node)
+  const { bridgeEdges, externalConnEdges } = useMemo(() => {
+    const bridges = [], external = [];
+    for (const e of connectedEdges) {
+      const src = e.source?.id ?? e.source;
+      const tgt = e.target?.id ?? e.target;
+      const otherId = src === nodeId ? tgt : src;
+      const otherNode = (nodes || []).find(n => n.id === otherId);
+      if (otherNode?.is_cluster) bridges.push(e);
+      else external.push(e);
+    }
+    return { bridgeEdges: bridges, externalConnEdges: external };
+  }, [connectedEdges, nodes, nodeId]);
+
+  // Internal raw edges (both endpoints inside this cluster)
+  const internalRawEdges = useMemo(() => {
+    if (!rawGraph?.edges) return [];
+    const myIds = new Set(node?.member_ids || node?.ips || []);
+    if (myIds.size === 0) return [];
+    return rawGraph.edges.filter(e => {
+      const s = e.source?.id ?? e.source;
+      const t = e.target?.id ?? e.target;
+      return myIds.has(s) && myIds.has(t);
+    });
+  }, [rawGraph, node]);
+
+  // Partition cluster sessions into internal (both sides in cluster) and external
+  const { internalSessions, externalSessions } = useMemo(() => {
+    const internal = [], external = [];
+    for (const s of clusterSessions) {
+      if (memberIps.has(s.src_ip) && memberIps.has(s.dst_ip)) internal.push(s);
+      else external.push(s);
+    }
+    return { internalSessions: internal, externalSessions: external };
+  }, [clusterSessions, memberIps]);
+
+  // Per-endpoint-pair internal session count for internal edge rows
+  const internalSessionPairCounts = useMemo(() => {
+    const map = {};
+    for (const s of internalSessions) {
+      const k = `${s.src_ip}|${s.dst_ip}`;
+      map[k] = (map[k] || 0) + 1;
+    }
+    return map;
+  }, [internalSessions]);
+
+  // Per-other-node external session count for external connection rows
+  const externalSessionsByOtherId = useMemo(() => {
+    const map = {};
+    for (const s of externalSessions) {
+      const otherId = memberIps.has(s.src_ip) ? s.dst_ip : s.src_ip;
+      map[otherId] = (map[otherId] || 0) + 1;
+    }
+    return map;
+  }, [externalSessions, memberIps]);
 
   // Sort members
   const sortedMembers = useMemo(() => {
@@ -358,11 +399,6 @@ export default function ClusterDetail({
         ))}
       </div>
 
-      {/* Connection summary */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, fontSize: 10 }}>
-        <span style={{ color: 'var(--txM)' }}>Internal edges: <b style={{ color: 'var(--tx)' }}>{fN(internalEdges)}</b></span>
-        <span style={{ color: 'var(--txM)' }}>External edges: <b style={{ color: 'var(--tx)' }}>{fN(externalEdges)}</b></span>
-      </div>
 
       {/* Protocol breakdown */}
       {protocolBreakdown.length > 0 && (
@@ -404,28 +440,115 @@ export default function ClusterDetail({
         </Collapse>
       )}
 
-      {/* Connected edges */}
-      {connectedEdges.length > 0 && (
-        <Collapse title={`Connections (${connectedEdges.length})`}>
+      {/* Bridges — cluster-to-cluster edges */}
+      {bridgeEdges.length > 0 && (
+        <Collapse title={`Bridges (${bridgeEdges.length})`} defaultOpen>
           <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {connectedEdges
+            {bridgeEdges
               .sort((a, b) => (b.total_bytes || 0) - (a.total_bytes || 0))
               .map(e => {
                 const src = e.source?.id ?? e.source;
                 const tgt = e.target?.id ?? e.target;
                 const other = src === nodeId ? tgt : src;
                 const edgeKey = e.id ?? `${src}|${tgt}`;
-                const bridges = bridgesByEdgeId[edgeKey];
                 return (
                   <BridgeEdgeRow
                     key={edgeKey}
                     e={e}
                     other={other}
-                    bridges={bridges}
+                    bridges={bridgesByEdgeId[edgeKey]}
                     pColors={pColors}
                     onSelectEdge={onSelectEdge}
                     onSelectNode={onSelectNode}
                   />
+                );
+              })}
+          </div>
+        </Collapse>
+      )}
+
+      {/* Internal edges — within this cluster's members */}
+      {internalRawEdges.length > 0 && (
+        <Collapse title={`Internal Edges (${internalRawEdges.length} · ${internalSessions.length} sessions)`}>
+          <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {internalRawEdges
+              .sort((a, b) => (b.total_bytes || 0) - (a.total_bytes || 0))
+              .slice(0, 50)
+              .map((e, i) => {
+                const src = e.source?.id ?? e.source;
+                const tgt = e.target?.id ?? e.target;
+                const sessions = internalSessionPairCounts[`${src}|${tgt}`]
+                  || internalSessionPairCounts[`${tgt}|${src}`] || 0;
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '3px 5px', borderRadius: 3, fontSize: 10,
+                  }}
+                    onMouseEnter={el => el.currentTarget.style.background = 'var(--bgH)'}
+                    onMouseLeave={el => el.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{
+                      width: 10, height: 2.5, borderRadius: 1, flexShrink: 0,
+                      background: pColors?.[e.protocol] || '#64748b',
+                    }} />
+                    <span
+                      onClick={() => onSelectNode?.(src)}
+                      style={{ color: 'var(--ac)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 90 }}
+                    >{src}</span>
+                    <span style={{ color: 'var(--txD)', fontSize: 9 }}>→</span>
+                    <span
+                      onClick={() => onSelectNode?.(tgt)}
+                      style={{ color: 'var(--ac)', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 90 }}
+                    >{tgt}</span>
+                    <span style={{ flex: 1 }} />
+                    {sessions > 0 && (
+                      <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{sessions}s</span>
+                    )}
+                    <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{fB(e.total_bytes || 0)}</span>
+                  </div>
+                );
+              })}
+            {internalRawEdges.length > 50 && (
+              <div style={{ fontSize: 9, color: 'var(--txD)', padding: '2px 5px' }}>+{internalRawEdges.length - 50} more</div>
+            )}
+          </div>
+        </Collapse>
+      )}
+
+      {/* External connections — cluster members to outside nodes */}
+      {externalConnEdges.length > 0 && (
+        <Collapse title={`External Connections (${externalConnEdges.length} · ${externalSessions.length} sessions)`} defaultOpen>
+          <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {externalConnEdges
+              .sort((a, b) => (b.total_bytes || 0) - (a.total_bytes || 0))
+              .map(e => {
+                const src = e.source?.id ?? e.source;
+                const tgt = e.target?.id ?? e.target;
+                const otherId = src === nodeId ? tgt : src;
+                const edgeKey = e.id ?? `${src}|${tgt}`;
+                const sessionCount = externalSessionsByOtherId[otherId] || 0;
+                return (
+                  <div key={edgeKey} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '3px 5px', borderRadius: 3, fontSize: 10,
+                  }}
+                    onMouseEnter={el => el.currentTarget.style.background = 'var(--bgH)'}
+                    onMouseLeave={el => el.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{
+                      width: 10, height: 2.5, borderRadius: 1, flexShrink: 0,
+                      background: pColors?.[e.protocol] || '#64748b',
+                    }} />
+                    <span
+                      onClick={() => onSelectEdge?.(e)}
+                      style={{ flex: 1, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                    >{otherId}</span>
+                    <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{e.protocol}</span>
+                    {sessionCount > 0 && (
+                      <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{sessionCount}s</span>
+                    )}
+                    <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{fB(e.total_bytes || 0)}</span>
+                  </div>
                 );
               })}
           </div>
