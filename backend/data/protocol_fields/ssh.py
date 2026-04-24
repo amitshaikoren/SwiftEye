@@ -60,3 +60,16 @@ def serialize(s):
     s["ssh_encryption_s2c"] = sorted(s["ssh_encryption_s2c"])
     s["ssh_mac_c2s"] = sorted(s["ssh_mac_c2s"])
     s["ssh_mac_s2c"] = sorted(s["ssh_mac_s2c"])
+
+
+def catalog():
+    return [
+        {"name": "ssh_fwd_banners",          "type": "set", "description": "SSH version banners from the initiator"},
+        {"name": "ssh_rev_banners",          "type": "set", "description": "SSH version banners from the responder"},
+        {"name": "ssh_kex_algorithms",       "type": "set", "description": "Key exchange algorithms advertised"},
+        {"name": "ssh_host_key_algorithms",  "type": "set", "description": "Host key algorithms advertised"},
+        {"name": "ssh_encryption_c2s",       "type": "set", "description": "Encryption algorithms for client-to-server"},
+        {"name": "ssh_encryption_s2c",       "type": "set", "description": "Encryption algorithms for server-to-client"},
+        {"name": "ssh_mac_c2s",              "type": "set", "description": "MAC algorithms for client-to-server"},
+        {"name": "ssh_mac_s2c",              "type": "set", "description": "MAC algorithms for server-to-client"},
+    ]

@@ -25,6 +25,7 @@ from typing import Any, Optional
 from data.aggregator import NODE_FIELD_CATALOG, EDGE_CORE_FIELD_CATALOG
 from data.edge_fields import EDGE_FIELD_CATALOG
 from data.protocol_fields import all_protocol_catalogs
+from data.sessions import SESSION_CORE_CATALOG
 
 logger = logging.getLogger("swifteye.query_engine")
 
@@ -401,7 +402,7 @@ def get_graph_schema(G) -> dict:
         # Structured groups — for Guide panel
         "node_groups":        NODE_FIELD_CATALOG,
         "edge_groups":        all_edge_groups,
-        "session_groups":     all_protocol_catalogs(),
+        "session_groups":     [{"group": "core", "fields": SESSION_CORE_CATALOG}] + all_protocol_catalogs(),
         # Plugin enrichment (non-empty only when capture loaded + plugins ran)
         "plugin_node_fields": plugin_node,
         "plugin_edge_fields": plugin_edge,

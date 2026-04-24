@@ -54,3 +54,14 @@ def serialize(s):
     s["arp_dst_macs"] = sorted(s["arp_dst_macs"])
     s["arp_src_ips"] = sorted(s["arp_src_ips"])
     s["arp_dst_ips"] = sorted(s["arp_dst_ips"])
+
+
+def catalog():
+    return [
+        {"name": "arp_opcodes",         "type": "list",   "description": "ARP opcodes seen (request/reply), with counts"},
+        {"name": "arp_src_macs",        "type": "set",    "description": "Source MAC addresses in ARP packets"},
+        {"name": "arp_dst_macs",        "type": "set",    "description": "Target MAC addresses in ARP packets"},
+        {"name": "arp_src_ips",         "type": "set",    "description": "Source IP addresses in ARP packets"},
+        {"name": "arp_dst_ips",         "type": "set",    "description": "Target IP addresses in ARP packets"},
+        {"name": "arp_broadcast_count", "type": "number", "description": "Number of broadcast ARP packets"},
+    ]

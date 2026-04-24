@@ -30,3 +30,10 @@ def accumulate(s, ex, is_fwd, source_type):
 def serialize(s):
     s["llmnr_queries"] = sorted(s["llmnr_queries"])
     cap_list(s, "llmnr_answers")
+
+
+def catalog():
+    return [
+        {"name": "llmnr_queries", "type": "set",  "description": "LLMNR query names resolved via link-local multicast"},
+        {"name": "llmnr_answers", "type": "list", "description": "LLMNR answer records"},
+    ]
