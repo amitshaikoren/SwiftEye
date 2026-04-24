@@ -78,6 +78,14 @@ export function useCaptureFilters({ selCallbacksRef }) {
   const [layoutMode, setLayoutMode] = useState('force');
   const [layoutFocusNodeId, setLayoutFocusNodeId] = useState(null);
 
+  // ── Force simulation params ──────────────────────────────────────
+
+  const [forceParams, setForceParams] = useState({
+    chargeStrength: -180, linkDistance: 130, alphaDecay: 0.025, velocityDecay: 0.4,
+  });
+  const [frozen, setFrozen] = useState(false);
+  const [reheatTick, setReheatTick] = useState(0);
+
   // ── Graph display options (view-only, no effects) ────────────────
 
   const [labelThreshold, setLabelThreshold]   = useState(0);
@@ -162,6 +170,10 @@ export function useCaptureFilters({ selCallbacksRef }) {
     // Layout
     layoutMode, setLayoutMode,
     layoutFocusNodeId, setLayoutFocusNodeId,
+    // Force simulation
+    forceParams, setForceParams,
+    frozen, setFrozen,
+    reheatTick, incReheat: () => setReheatTick(t => t + 1),
     // Display options
     labelThreshold, setLabelThreshold,
     graphWeightMode, setGraphWeightMode,

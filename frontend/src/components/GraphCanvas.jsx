@@ -53,6 +53,9 @@ export default function GraphCanvas({
   layoutFocusNodeId = null,
   setLayoutMode,
   setLayoutFocusNodeId,
+  forceParams,
+  frozen = false,
+  reheatTick = 0,
 }) {
   // Shared refs — declared here so all hooks share the same ref objects
   const cRef = useRef(null);
@@ -100,6 +103,7 @@ export default function GraphCanvas({
       nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
       annotationsRef: renderSnapshotRef,
       layoutMode, layoutFocusNodeId,
+      forceParams, frozen, reheatTick,
     });
 
   // Hook 3: Resize polling
