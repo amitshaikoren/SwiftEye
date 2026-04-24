@@ -620,23 +620,24 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Cluster legend (only renders when clustering active, hidden in animation) */}
+                {/* Legend stack (bottom-left, hidden during animation) */}
                 {!c.animActive && (
-                  <ClusterLegend
-                    nodes={c.visibleNodes}
-                    onSelect={c.handleGSel}
-                    clusterNames={c.clusterNames}
-                  />
-                )}
-
-                {/* Legend (hidden during animation — AnimationPane has its own) */}
-                {!c.animActive && (
-                  <GraphLegend
-                    nodeColorMode={c.nodeColorMode}
-                    edgeColorMode={c.edgeColorMode}
-                    hiddenLabels={hiddenLegendLabels}
-                    onToggle={handleLegendToggle}
-                  />
+                  <div style={{
+                    position: 'absolute', bottom: 12, left: 12, zIndex: 8,
+                    display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start',
+                  }}>
+                    <ClusterLegend
+                      nodes={c.visibleNodes}
+                      onSelect={c.handleGSel}
+                      clusterNames={c.clusterNames}
+                    />
+                    <GraphLegend
+                      nodeColorMode={c.nodeColorMode}
+                      edgeColorMode={c.edgeColorMode}
+                      hiddenLabels={hiddenLegendLabels}
+                      onToggle={handleLegendToggle}
+                    />
+                  </div>
                 )}
               </div>
 

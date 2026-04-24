@@ -62,7 +62,6 @@ export default function GraphLegend({ nodeColorMode, edgeColorMode, hiddenLabels
 
   return (
     <div style={{
-      position: 'absolute', bottom: 12, left: 12, zIndex: 8,
       background: 'rgba(8,9,13,0.88)', border: '1px solid var(--bdL)',
       borderRadius: 6, padding: '8px 10px', minWidth: 160, maxWidth: 200,
       backdropFilter: 'blur(4px)',
