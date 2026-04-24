@@ -34,6 +34,48 @@ from data.edge_fields import (
 
 logger = logging.getLogger("swifteye.aggregator")
 
+# ── Field catalogs (declarative — consumed by query schema + Guide panel) ─────
+
+NODE_FIELD_CATALOG: list = [
+    {"group": "Identity", "fields": [
+        {"name": "macs",       "type": "set",     "description": "MAC addresses observed for this host"},
+        {"name": "hostnames",  "type": "set",     "description": "DNS-resolved hostnames"},
+        {"name": "vendors",    "type": "set",     "description": "MAC OUI vendor names"},
+    ]},
+    {"group": "Traffic", "fields": [
+        {"name": "packets",    "type": "numeric", "description": "Total packets involving this node"},
+        {"name": "bytes",      "type": "numeric", "description": "Total bytes involving this node"},
+    ]},
+    {"group": "Network", "fields": [
+        {"name": "protocols",  "type": "set",     "description": "Protocols observed for this node"},
+        {"name": "ports",      "type": "set",     "description": "Ports this node has used or hosted"},
+        {"name": "ttls",       "type": "set",     "description": "TTL values observed from this node"},
+        {"name": "is_private", "type": "boolean", "description": "True if any IP is RFC-1918 private"},
+    ]},
+    {"group": "Activity", "fields": [
+        {"name": "degree",     "type": "numeric", "description": "Number of distinct peers"},
+        {"name": "sessions",   "type": "numeric", "description": "Number of sessions this node participates in"},
+    ]},
+    {"group": "Application", "fields": [
+        {"name": "dns_queries","type": "set",     "description": "DNS names queried by this node"},
+        {"name": "http_hosts", "type": "set",     "description": "HTTP hosts contacted by this node"},
+        {"name": "ja3s",       "type": "set",     "description": "JA3 TLS fingerprints originating from this node"},
+    ]},
+]
+
+EDGE_CORE_FIELD_CATALOG: list = [
+    {"group": "Core", "fields": [
+        {"name": "protocols",    "type": "set",     "description": "Protocols observed on this connection"},
+        {"name": "ports",        "type": "set",     "description": "All ports used on this connection"},
+        {"name": "packets",      "type": "numeric", "description": "Total packets on this connection"},
+        {"name": "bytes",        "type": "numeric", "description": "Total bytes on this connection"},
+        {"name": "first_seen",   "type": "numeric", "description": "Unix timestamp of first packet"},
+        {"name": "last_seen",    "type": "numeric", "description": "Unix timestamp of last packet"},
+        {"name": "has_handshake","type": "boolean", "description": "TCP SYN handshake observed"},
+        {"name": "has_reset",    "type": "boolean", "description": "TCP RST observed on this connection"},
+    ]},
+]
+
 # ── Gap collapse thresholds ───────────────────────────────────────────
 GAP_MIN_SECONDS        = 600.0   # 10 minutes
 GAP_MIN_FRACTION       = 0.20    # 20% of total capture duration
@@ -744,19 +786,16 @@ def build_analysis_graph(
         ek = tuple(sorted([src, dst]))
         if not G.has_edge(*ek):
             G.add_edge(*ek, **{
-                "protocols": set(),
-                "ports": set(),
-                "packets": 0,
-                "bytes": 0,
-                "ja3s": set(),
-                "dns_queries": set(),
-                "http_hosts": set(),
-                "tls_snis": set(),
-                "has_handshake": False,
-                "has_reset": False,
-                "first_seen": pkt.timestamp,
-                "last_seen": pkt.timestamp,
-                "session_ids": set(),
+                "protocols":    set(),
+                "ports":        set(),
+                "packets":      0,
+                "bytes":        0,
+                "has_handshake":False,
+                "has_reset":    False,
+                "first_seen":   pkt.timestamp,
+                "last_seen":    pkt.timestamp,
+                "session_ids":  set(),
+                **init_detail_sets(),
             })
         ed = G.edges[ek]
         ed["protocols"].add(pkt.protocol)
@@ -775,16 +814,7 @@ def build_analysis_graph(
         if "RST" in pkt.tcp_flags_str:
             ed["has_reset"] = True
 
-        ex = pkt.extra
-        if ex:
-            if ex.get("tls_sni"):
-                ed["tls_snis"].add(ex["tls_sni"])
-            if ex.get("dns_query"):
-                ed["dns_queries"].add(ex["dns_query"])
-            if ex.get("http_host"):
-                ed["http_hosts"].add(ex["http_host"])
-            if ex.get("ja3"):
-                ed["ja3s"].add(ex["ja3"])
+        accumulate_from_extra(ed, pkt.extra)
 
     # ── Attach session IDs to edges ──
     # Uses canonical _session_matches_edge from storage.memory which handles

@@ -18,7 +18,7 @@ import HelpPanel from './HelpPanel';
 import QueryBuilder from './QueryBuilder';
 import RecipePanel from './query/RecipePanel';
 import GroupsPanel from './query/GroupsPanel';
-import SchemaPanel from './SchemaPanel';
+import GuidePanel from './GuidePanel';
 import GraphOptionsPanel from './GraphOptionsPanel';
 import StatsPanel from './StatsPanel';
 import ClusterDetail from './ClusterDetail';
@@ -32,7 +32,7 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
   // Recipe state hoisted here so it survives switching right panels (stats / node detail / etc.).
   // Intentionally not persisted — fresh load (reload or server restart) starts with an empty recipe.
   const [recipeSteps, setRecipeSteps] = useState([]);
-  const [querySubTab, setQuerySubTab] = useState('query'); // 'query' | 'schema' | 'groups'
+  const [querySubTab, setQuerySubTab] = useState('query'); // 'query' | 'guide' | 'groups'
   const [groupsVersion, setGroupsVersion] = useState(0);
 
   function appendStep(draft) {
@@ -207,8 +207,8 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--bd)', background: 'var(--bg)', flexShrink: 0 }}>
           <button onClick={() => setQuerySubTab('query')} style={tabStyle(querySubTab === 'query')}>Query</button>
-          <button onClick={() => setQuerySubTab('schema')} style={tabStyle(querySubTab === 'schema')}>Schema</button>
           <button onClick={() => setQuerySubTab('groups')} style={tabStyle(querySubTab === 'groups')}>Groups</button>
+          <button onClick={() => setQuerySubTab('guide')} style={tabStyle(querySubTab === 'guide')}>Guide</button>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {/* All three sub-panels stay mounted — only visibility toggles. Keeps
@@ -247,8 +247,8 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
               groupsRefreshKey={groupsVersion}
             />
           </div>
-          <div style={{ display: querySubTab === 'schema' ? 'flex' : 'none', flex: 1, minHeight: 0, overflowY: 'auto', flexDirection: 'column' }}>
-            <SchemaPanel loaded={c.loaded} />
+          <div style={{ display: querySubTab === 'guide' ? 'flex' : 'none', flex: 1, minHeight: 0, overflowY: 'auto', flexDirection: 'column' }}>
+            <GuidePanel loaded={c.loaded} />
           </div>
           <div style={{ display: querySubTab === 'groups' ? 'flex' : 'none', flex: 1, minHeight: 0, overflowY: 'auto', flexDirection: 'column' }}>
             <GroupsPanel

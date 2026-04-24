@@ -96,3 +96,22 @@ def serialize(s):
     s["http_rev_redirects"] = sorted(s["http_rev_redirects"])
     s["http_fwd_auth_types"] = sorted(s["http_fwd_auth_types"])
     s["http_fwd_usernames"] = sorted(s["http_fwd_usernames"])
+
+
+def catalog():
+    return [
+        {"name": "http_hosts",              "type": "set",     "description": "HTTP Host header values"},
+        {"name": "http_fwd_user_agents",    "type": "set",     "description": "HTTP User-Agent strings from the client"},
+        {"name": "http_fwd_methods",        "type": "set",     "description": "HTTP methods used by the client (GET, POST…)"},
+        {"name": "http_fwd_uris",           "type": "set",     "description": "HTTP URIs requested by the client"},
+        {"name": "http_fwd_referers",       "type": "set",     "description": "HTTP Referer headers from the client"},
+        {"name": "http_fwd_has_cookies",    "type": "boolean", "description": "True if the client sent cookies"},
+        {"name": "http_fwd_has_auth",       "type": "boolean", "description": "True if the client sent auth credentials"},
+        {"name": "http_fwd_auth_types",     "type": "set",     "description": "HTTP auth scheme types (Basic, Bearer…)"},
+        {"name": "http_fwd_usernames",      "type": "set",     "description": "Usernames extracted from HTTP Basic auth"},
+        {"name": "http_rev_servers",        "type": "set",     "description": "HTTP Server header values from responses"},
+        {"name": "http_rev_status_codes",   "type": "set",     "description": "HTTP response status codes (200, 404…)"},
+        {"name": "http_rev_content_types",  "type": "set",     "description": "HTTP response Content-Type values"},
+        {"name": "http_rev_redirects",      "type": "set",     "description": "Redirect URLs from 3xx responses"},
+        {"name": "http_rev_has_set_cookies","type": "boolean", "description": "True if the server set cookies"},
+    ]

@@ -30,8 +30,11 @@ async def parse_query_text_endpoint(body: dict):
 
 @router.get("/api/query/schema")
 async def get_query_schema():
-    """Return available fields and their types for the query builder dropdown."""
-    _require_capture()
+    """Return available fields and their types for the query builder and Guide panel.
+
+    Works without a loaded capture — the declarative catalog is always returned.
+    Plugin-emitted fields are merged in when a capture is loaded.
+    """
     return get_graph_schema(store.analysis_graph)
 
 

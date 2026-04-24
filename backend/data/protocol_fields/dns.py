@@ -66,3 +66,10 @@ def accumulate(s, ex, is_fwd, source_type):
 def serialize(s):
     s["dns_qclass_names"] = sorted(s["dns_qclass_names"])
     cap_list(s, "dns_queries")
+
+
+def catalog():
+    return [
+        {"name": "dns_queries",      "type": "set", "description": "DNS query records (name, type, responses) seen on this session"},
+        {"name": "dns_qclass_names", "type": "set", "description": "DNS query class names (e.g. IN)"},
+    ]

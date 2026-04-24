@@ -61,3 +61,15 @@ def serialize(s):
     cap_list(s, "smb_filenames")
     s["smb_services"] = sorted(s["smb_services"])
     s["smb_share_types"] = sorted(s["smb_share_types"])
+
+
+def catalog():
+    return [
+        {"name": "smb_versions",        "type": "set", "description": "SMB protocol versions negotiated (SMB1, SMB2, SMB3)"},
+        {"name": "smb_fwd_operations",  "type": "set", "description": "SMB commands issued by the client"},
+        {"name": "smb_rev_status_codes","type": "set", "description": "NT status codes returned by the server"},
+        {"name": "smb_tree_paths",      "type": "set", "description": "UNC share paths connected to"},
+        {"name": "smb_filenames",       "type": "set", "description": "File names accessed over SMB"},
+        {"name": "smb_services",        "type": "set", "description": "SMB service types (IPC, DISK, PRINTER)"},
+        {"name": "smb_share_types",     "type": "set", "description": "Share types (DISK, PIPE, PRINT)"},
+    ]
