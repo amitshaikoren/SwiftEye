@@ -103,3 +103,25 @@ def serialize(s):
         if info:
             ja3_apps.append({"hash": h, **info})
     s["ja3_apps"] = ja3_apps
+
+
+def catalog():
+    return [
+        {"name": "tls_snis",                   "type": "set",     "description": "TLS SNI values seen on this session"},
+        {"name": "tls_versions",               "type": "set",     "description": "TLS versions seen in handshakes"},
+        {"name": "tls_ciphers",                "type": "set",     "description": "Cipher suites offered by the client"},
+        {"name": "tls_selected_ciphers",       "type": "set",     "description": "Cipher suites selected by the server"},
+        {"name": "tls_cert",                   "type": "string",  "description": "Server certificate subject (leaf)"},
+        {"name": "tls_cert_chain",             "type": "set",     "description": "Certificate chain subjects"},
+        {"name": "tls_fwd_alpn_offered",       "type": "set",     "description": "ALPN protocols offered by the client"},
+        {"name": "tls_fwd_supported_versions", "type": "set",     "description": "TLS versions supported by the client"},
+        {"name": "tls_fwd_extensions",         "type": "set",     "description": "TLS extensions in the ClientHello"},
+        {"name": "tls_fwd_compression_methods","type": "set",     "description": "Compression methods offered by client"},
+        {"name": "tls_rev_alpn_selected",      "type": "string",  "description": "ALPN protocol selected by the server"},
+        {"name": "tls_rev_selected_version",   "type": "string",  "description": "TLS version agreed by the server"},
+        {"name": "tls_rev_key_exchange_group", "type": "string",  "description": "Key exchange group (e.g. x25519)"},
+        {"name": "tls_rev_session_resumption", "type": "boolean", "description": "True if session resumption was used"},
+        {"name": "ja3_hashes",                 "type": "set",     "description": "JA3 TLS client fingerprint hashes"},
+        {"name": "ja4_hashes",                 "type": "set",     "description": "JA4 TLS client fingerprint hashes"},
+        {"name": "ja3_apps",                   "type": "set",     "description": "Known applications matched via JA3 lookup"},
+    ]

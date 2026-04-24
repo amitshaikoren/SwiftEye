@@ -22,6 +22,10 @@ import re
 import logging
 from typing import Any, Optional
 
+from data.aggregator import NODE_FIELD_CATALOG, EDGE_CORE_FIELD_CATALOG
+from data.edge_fields import EDGE_FIELD_CATALOG
+from data.protocol_fields import all_protocol_catalogs
+
 logger = logging.getLogger("swifteye.query_engine")
 
 
@@ -361,33 +365,44 @@ def resolve_query(G, query: dict, named_sets: Optional[dict] = None) -> dict:
 
 def get_graph_schema(G) -> dict:
     """
-    Inspect the analysis graph and return available fields with their types.
+    Return available fields with their types for all three query primitives.
 
-    Used by the frontend to build the dynamic query dropdown. Fields are
-    categorized by Python type: set → "set", int/float → "numeric",
-    bool → "boolean", str → "string".
+    Always returns the declarative catalog (no capture needed).
+    When G is provided, also merges in any plugin-emitted fields not in the catalog.
     """
-    if G is None:
-        return {"node_fields": {}, "edge_fields": {}}
+    all_edge_groups = EDGE_CORE_FIELD_CATALOG + EDGE_FIELD_CATALOG
 
-    def _infer_fields(items):
-        fields = {}
-        for item in items:
-            attrs = item[-1]
-            for key, val in attrs.items():
-                if key in fields:
-                    continue
-                if isinstance(val, set):
-                    fields[key] = "set"
-                elif isinstance(val, bool):
-                    fields[key] = "boolean"
-                elif isinstance(val, (int, float)):
-                    fields[key] = "numeric"
-                elif isinstance(val, str):
-                    fields[key] = "string"
-        return fields
+    # Flat maps from catalogs (backward compat: QueryBuilder dropdown uses these)
+    node_fields = {f["name"]: f["type"] for g in NODE_FIELD_CATALOG for f in g["fields"]}
+    edge_fields = {f["name"]: f["type"] for g in all_edge_groups  for f in g["fields"]}
+
+    # Runtime: merge in plugin-emitted fields not covered by the catalog
+    plugin_node: dict = {}
+    plugin_edge: dict = {}
+    if G is not None:
+        def _t(v):
+            if isinstance(v, set):            return "set"
+            if isinstance(v, bool):           return "boolean"
+            if isinstance(v, (int, float)):   return "numeric"
+            return "string"
+        for _, attrs in G.nodes(data=True):
+            for k, v in attrs.items():
+                if k not in node_fields and k not in plugin_node:
+                    plugin_node[k] = _t(v)
+        for _, _, attrs in G.edges(data=True):
+            for k, v in attrs.items():
+                if k not in edge_fields and k not in plugin_edge and k != "session_ids":
+                    plugin_edge[k] = _t(v)
 
     return {
-        "node_fields": _infer_fields(G.nodes(data=True)),
-        "edge_fields": _infer_fields(G.edges(data=True)),
+        # Flat maps — backward compat for QueryBuilder dropdown
+        "node_fields":        {**node_fields, **plugin_node},
+        "edge_fields":        {**edge_fields, **plugin_edge},
+        # Structured groups — for Guide panel
+        "node_groups":        NODE_FIELD_CATALOG,
+        "edge_groups":        all_edge_groups,
+        "session_groups":     all_protocol_catalogs(),
+        # Plugin enrichment (non-empty only when capture loaded + plugins ran)
+        "plugin_node_fields": plugin_node,
+        "plugin_edge_fields": plugin_edge,
     }

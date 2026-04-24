@@ -84,3 +84,16 @@ def serialize(s):
     s["dhcp_dns_servers"] = sorted(s["dhcp_dns_servers"])
     s["dhcp_routers"] = sorted(s["dhcp_routers"])
     s["dhcp_options_seen"] = sorted(s["dhcp_options_seen"])
+
+
+def catalog():
+    return [
+        {"name": "dhcp_hostnames",     "type": "set",     "description": "Hostnames requested by DHCP clients"},
+        {"name": "dhcp_vendor_classes","type": "set",     "description": "DHCP vendor class identifiers"},
+        {"name": "dhcp_msg_types",     "type": "set",     "description": "DHCP message types (Discover, Offer, Request…)"},
+        {"name": "dhcp_lease_time",    "type": "numeric", "description": "Lease time offered by the server (seconds)"},
+        {"name": "dhcp_server_ids",    "type": "set",     "description": "DHCP server IP addresses"},
+        {"name": "dhcp_dns_servers",   "type": "set",     "description": "DNS servers provided by DHCP"},
+        {"name": "dhcp_routers",       "type": "set",     "description": "Default gateways provided by DHCP"},
+        {"name": "dhcp_options_seen",  "type": "set",     "description": "DHCP option codes observed"},
+    ]

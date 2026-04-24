@@ -47,6 +47,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "tls_sni",
         "edge_key":     "tls_snis",
+        "group":        "TLS",
+        "description":  "TLS Server Name Indication values",
         "multi":        False,
         "acc_cap":      None,
         "ser_cap":      None,
@@ -56,6 +58,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "tls_hello_version",
         "edge_key":     "tls_versions",
+        "group":        "TLS",
+        "description":  "TLS versions seen in handshakes",
         "multi":        False,
         "acc_cap":      None,
         "ser_cap":      None,
@@ -65,6 +69,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "tls_selected_cipher",
         "edge_key":     "tls_selected_ciphers",
+        "group":        "TLS",
+        "description":  "Cipher suites selected by the server",
         "multi":        False,
         "acc_cap":      None,
         "ser_cap":      None,
@@ -74,6 +80,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "tls_cipher_suites",
         "edge_key":     "tls_ciphers",
+        "group":        "TLS",
+        "description":  "Cipher suites offered by clients",
         "multi":        True,
         "acc_cap":      EDGE_TLS_CIPHER_SUITES,
         "ser_cap":      EDGE_TLS_CIPHERS,
@@ -83,6 +91,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "http_host",
         "edge_key":     "http_hosts",
+        "group":        "HTTP",
+        "description":  "HTTP Host header values",
         "multi":        False,
         "acc_cap":      None,
         "ser_cap":      None,
@@ -92,6 +102,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "http_user_agent",
         "edge_key":     "http_fwd_user_agents",
+        "group":        "HTTP",
+        "description":  "HTTP User-Agent strings from clients",
         "multi":        False,
         "acc_cap":      None,
         "ser_cap":      20,
@@ -101,6 +113,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "dns_query",
         "edge_key":     "dns_queries",
+        "group":        "DNS",
+        "description":  "DNS names queried on this connection",
         "multi":        False,
         "acc_cap":      None,
         "ser_cap":      EDGE_DNS_QUERIES,
@@ -110,6 +124,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "ja3",
         "edge_key":     "ja3_hashes",
+        "group":        "Fingerprints",
+        "description":  "JA3 TLS client fingerprint hashes",
         "multi":        False,
         "acc_cap":      None,
         "ser_cap":      None,
@@ -119,6 +135,8 @@ EDGE_FIELD_REGISTRY: list = [
     {
         "extra_key":    "ja4",
         "edge_key":     "ja4_hashes",
+        "group":        "Fingerprints",
+        "description":  "JA4 TLS client fingerprint hashes",
         "multi":        False,
         "acc_cap":      None,
         "ser_cap":      None,
@@ -129,6 +147,20 @@ EDGE_FIELD_REGISTRY: list = [
 
 # Pre-computed index: edge_key → registry entry (for fast lookup)
 _BY_EDGE_KEY: dict = {f["edge_key"]: f for f in EDGE_FIELD_REGISTRY}
+
+# ── Catalog: structured field list for Guide panel + query schema ─────────────
+def _make_edge_field_catalog() -> list:
+    groups: dict = {}
+    for f in EDGE_FIELD_REGISTRY:
+        g = f.get("group", "Other")
+        groups.setdefault(g, []).append({
+            "name":        f["edge_key"],
+            "type":        "set",
+            "description": f.get("description", ""),
+        })
+    return [{"group": g, "fields": fs} for g, fs in groups.items()]
+
+EDGE_FIELD_CATALOG: list = _make_edge_field_catalog()
 
 # All edge_keys that belong to "has_tls" summary hint
 _TLS_KEYS = frozenset(

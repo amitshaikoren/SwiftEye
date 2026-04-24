@@ -43,3 +43,13 @@ def accumulate(s, ex, is_fwd, source_type):
 def serialize(s):
     # Zeek metadata are scalars — no conversion needed
     pass
+
+
+def catalog():
+    return [
+        {"name": "zeek_uid",        "type": "string",  "description": "Zeek unique connection identifier"},
+        {"name": "zeek_conn_state", "type": "string",  "description": "Zeek connection state (S0, SF, REJ…)"},
+        {"name": "zeek_history",    "type": "string",  "description": "Zeek connection history flags"},
+        {"name": "zeek_duration",   "type": "numeric", "description": "Connection duration as recorded by Zeek"},
+        {"name": "zeek_service",    "type": "string",  "description": "Application-layer service detected by Zeek"},
+    ]

@@ -52,3 +52,13 @@ def serialize(s):
     s["dcerpc_opnums"] = sorted(s["dcerpc_opnums"])
     s["dcerpc_operations"] = sorted(s["dcerpc_operations"])
     s["dcerpc_named_pipes"] = sorted(s["dcerpc_named_pipes"])
+
+
+def catalog():
+    return [
+        {"name": "dcerpc_packet_types","type": "set", "description": "DCE-RPC packet types (Request, Response, Bind…)"},
+        {"name": "dcerpc_interfaces",  "type": "set", "description": "DCE-RPC interfaces contacted (UUID + name)"},
+        {"name": "dcerpc_opnums",      "type": "set", "description": "DCE-RPC operation numbers called"},
+        {"name": "dcerpc_operations",  "type": "set", "description": "Named DCE-RPC operations (e.g. DRSGetNCChanges)"},
+        {"name": "dcerpc_named_pipes", "type": "set", "description": "Named pipes used (e.g. \\pipe\\samr)"},
+    ]

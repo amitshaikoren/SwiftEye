@@ -42,7 +42,7 @@ Lazy initialization:
 
 import importlib
 import pkgutil
-from typing import Callable, Dict, Any, List, Tuple
+from typing import Callable, Dict, Any, List, Tuple  # noqa: F401
 
 # ── Serialize-time cap ───────────────────────────────────────────────
 # Generous safety valve applied only when sending data to the frontend.
@@ -67,9 +67,12 @@ _REGISTRY: List[Tuple[Callable, Callable, Callable]] = []
 # Called by sessions.py to detect application-layer session boundaries.
 _BOUNDARY_CHECKERS: List[Callable] = []
 
+# Catalog entries: [{group, fields}] — one per module that defines catalog()
+_CATALOGS: List[Dict[str, Any]] = []
+
 
 def _discover():
-    """Import all sibling modules and collect their init/accumulate/serialize."""
+    """Import all sibling modules and collect their init/accumulate/serialize/catalog."""
     for _importer, modname, _ispkg in pkgutil.iter_modules(__path__):
         mod = importlib.import_module(f".{modname}", __name__)
         init_fn = getattr(mod, "init", None)
@@ -80,6 +83,9 @@ def _discover():
         boundary_fn = getattr(mod, "check_boundary", None)
         if boundary_fn:
             _BOUNDARY_CHECKERS.append(boundary_fn)
+        cat_fn = getattr(mod, "catalog", None)
+        if cat_fn:
+            _CATALOGS.append({"group": modname, "fields": cat_fn()})
 
 
 def any_boundary(flow_state: dict, ex: dict, timestamp: float) -> bool:
@@ -124,6 +130,11 @@ def all_serialize(s: dict):
             ser_fn(s)
     # Clean up internal tracking field
     s.pop("_active_protocols", None)
+
+
+def all_protocol_catalogs() -> List[Dict[str, Any]]:
+    """Return [{group: module_name, fields: [{name, type, description}]}] for all modules."""
+    return _CATALOGS
 
 
 _discover()
