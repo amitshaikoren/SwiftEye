@@ -23,6 +23,7 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   const simRef = useRef(null);
   const nRef = useRef([]);
   const eRef = useRef([]);
+  const ringGuidesRef = useRef([]);
   const graphWeightModeRef = useRef(graphWeightMode);
 
   // Single authoritative node-radius function — reads graphWeightModeRef dynamically.
@@ -308,6 +309,7 @@ resize();draw();
         : layoutMode === 'radial'
         ? radialPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId })
         : hierarchicalPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId });
+      ringGuidesRef.current = staticPos?.__ringGuides ?? [];
       if (staticPos) {
         for (const n of nn) {
           const p = staticPos[n.id];
@@ -397,6 +399,30 @@ resize();draw();
         }
         for (let y = Math.floor(sy / gs) * gs; y < ey; y += gs) {
           ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(ex, y); ctx.stroke();
+        }
+      }
+
+      // Circular layout ring guides (dashed concentric circles)
+      const rg = ringGuidesRef.current;
+      if (rg.length) {
+        const { width: w, height: h } = getSize();
+        const cx = w / 2;
+        const cy = h / 2;
+        for (const guide of rg) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, guide.r, 0, 2 * Math.PI);
+          ctx.setLineDash([4 / t.k, 8 / t.k]);
+          ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+          ctx.lineWidth = 1 / t.k;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          if (t.k > 0.5 && guide.label) {
+            ctx.font = `${Math.round(10 / t.k)}px var(--fn, monospace)`;
+            ctx.fillStyle = 'rgba(255,255,255,0.18)';
+            ctx.fillText(guide.label, cx + guide.r * 0.707 + 6 / t.k, cy - guide.r * 0.707 - 4 / t.k);
+          }
+          ctx.restore();
         }
       }
 
@@ -593,5 +619,5 @@ resize();draw();
     simRef.current.alpha(1).restart();
   }, [reheatTick]);
 
-  return { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML, getSize };
+  return { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML, getSize, ringGuidesRef };
 }

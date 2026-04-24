@@ -83,7 +83,7 @@ export default function App() {
       const step = {
         id,
         kind: 'visual',
-        action: 'hide',
+        verb: 'hide',
         target: filter.target,
         conditions: filter.conditions,
         logic: filter.logic || 'and',
