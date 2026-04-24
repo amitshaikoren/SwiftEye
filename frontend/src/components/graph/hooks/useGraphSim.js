@@ -15,7 +15,10 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
   annotationsRef,
   layoutMode = 'force',
-  layoutFocusNodeId = null }) {
+  layoutFocusNodeId = null,
+  forceParams,
+  frozen = false,
+  reheatTick = 0 }) {
 
   const simRef = useRef(null);
   const nRef = useRef([]);
@@ -324,7 +327,7 @@ resize();draw();
           .filter(h => h.cohesion > 0)
           .map(h => ({ members: h.members, strength: h.cohesion })),
       };
-      sim = buildForceSimulation(nn, ne, { width, height }, gRRef.current, layoutHints)
+      sim = buildForceSimulation(nn, ne, { width, height }, gRRef.current, { ...layoutHints, forceParams })
         .on('tick', render);
     }
 
@@ -576,7 +579,18 @@ resize();draw();
 
     renRef.current = render;
     return () => sim.stop();
-  }, [nodes, edges, layoutMode, layoutFocusNodeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodes, edges, layoutMode, layoutFocusNodeId, forceParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!simRef.current) return;
+    if (frozen) simRef.current.stop();
+    else simRef.current.restart();
+  }, [frozen]);
+
+  useEffect(() => {
+    if (!simRef.current || reheatTick === 0) return;
+    simRef.current.alpha(1).restart();
+  }, [reheatTick]);
 
   return { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML, getSize };
 }

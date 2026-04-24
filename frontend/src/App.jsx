@@ -598,6 +598,9 @@ export default function App() {
                     layoutFocusNodeId={c.layoutFocusNodeId}
                     setLayoutMode={c.setLayoutMode}
                     setLayoutFocusNodeId={c.setLayoutFocusNodeId}
+                    forceParams={c.forceParams}
+                    frozen={c.frozen}
+                    reheatTick={c.reheatTick}
                     nodeEventSeverity={c.nodeEventSeverity}
                     edgeEventSeverity={c.edgeEventSeverity}
                     onFlagNode={(nodeId) => {
