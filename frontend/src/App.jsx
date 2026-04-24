@@ -93,8 +93,10 @@ export default function App() {
       appendStepRef.current?.(step);
       legendStepIdsRef.current[label] = id;
       setHiddenLegendLabels(prev => new Set([...prev, label]));
+      // RecipePanel only runs when query tab is mounted — switch to it so the pipeline fires
+      c.switchPanel('query');
     }
-  }, [hiddenLegendLabels]);
+  }, [hiddenLegendLabels]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bridge one-shot queryHighlight → ring annotation in the store
   useEffect(() => {
@@ -629,6 +631,7 @@ export default function App() {
                   <GraphLegend
                     nodeColorMode={c.nodeColorMode}
                     edgeColorMode={c.edgeColorMode}
+                    pColors={c.pColors}
                     hiddenLabels={hiddenLegendLabels}
                     onToggle={handleLegendToggle}
                   />
