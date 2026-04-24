@@ -58,6 +58,7 @@ async def run_query_pipeline(body: dict):
         store.analysis_graph, steps,
         named_sets=store.named_sets.as_context(),
         group_store=store.group_store,
+        sessions=store.sessions,
     )
     return result
 

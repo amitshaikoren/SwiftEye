@@ -70,8 +70,8 @@ class GroupStore:
             raise ValueError(f"unknown kind {kind!r}; want one of {KINDS}")
         if not name:
             raise ValueError("group requires a non-empty name")
-        if target not in ("nodes", "edges"):
-            raise ValueError(f"target must be 'nodes' or 'edges', got {target!r}")
+        if target not in ("nodes", "edges", "sessions"):
+            raise ValueError(f"target must be 'nodes', 'edges', or 'sessions', got {target!r}")
         entry = {
             "target": target,
             "members": [str(m) for m in members],

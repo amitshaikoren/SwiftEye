@@ -199,6 +199,16 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
 
   const parseTimer = useRef(null);
   const errorTimer = useRef(null);
+  const exBtnRef = useRef(null);
+  const [exPos, setExPos] = useState({ top: 0, left: 0 });
+
+  function handleOpenExamples() {
+    if (!showExamples && exBtnRef.current) {
+      const r = exBtnRef.current.getBoundingClientRect();
+      setExPos({ top: r.bottom + 4, left: r.left });
+    }
+    setShowExamples(s => !s);
+  }
 
   // Fetch schema on load
   useEffect(() => {
@@ -513,8 +523,8 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
 
               {/* Examples */}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ position: 'relative' }}>
-                  <button onClick={() => setShowExamples(!showExamples)}
+                <div>
+                  <button ref={exBtnRef} onClick={handleOpenExamples}
                     style={{
                       fontSize: 10, padding: '3px 10px', cursor: 'pointer',
                       background: 'transparent', color: 'var(--txD)', border: '1px solid var(--bd)',
@@ -524,19 +534,19 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
                   </button>
                   {showExamples && (
                     <div style={{
-                      position: 'absolute', top: '100%', left: 0, zIndex: 20, marginTop: 4,
+                      position: 'fixed', top: exPos.top, left: exPos.left, zIndex: 9999,
                       background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 8,
-                      padding: '6px 0', minWidth: 340, maxHeight: 260, overflowY: 'auto',
-                      boxShadow: '0 4px 16px rgba(0,0,0,.3)',
+                      padding: '6px 0', minWidth: 340, maxHeight: 300, overflowY: 'auto',
+                      boxShadow: '0 4px 24px rgba(0,0,0,.45)',
                     }}>
-                      {EXAMPLES.map((ex, i) => {
-                        const exText = ex[dialect] || ex.cypher;
+                      {EXAMPLES.filter(ex => !ex.sessionsOnly || target === 'sessions').map((ex, i, arr) => {
+                        const exText = ex[dialect] || ex.pyspark || ex.cypher;
                         return (
                           <div key={i}
                             onClick={() => { setQueryText(exText); setShowExamples(false); }}
                             style={{
                               padding: '6px 12px', cursor: 'pointer',
-                              borderBottom: i < EXAMPLES.length - 1 ? '1px solid var(--bd)' : 'none',
+                              borderBottom: i < arr.length - 1 ? '1px solid var(--bd)' : 'none',
                             }}
                             onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
                             onMouseOut={e => e.currentTarget.style.background = 'transparent'}
