@@ -60,6 +60,7 @@ export default function TargetPicker({ target, fromGroup, onChange, refreshKey, 
       <optgroup label="All">
         <option value="nodes">All nodes</option>
         <option value="edges">All edges</option>
+        <option value="sessions">All sessions</option>
       </optgroup>
       {KIND_ORDER.map(kind => {
         const entries = Object.entries(groups[kind] || {});

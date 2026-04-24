@@ -161,7 +161,7 @@ function SchemaReference({ schema, dialect }) {
 // ── Component ───────────────────────────────────────────────────────────
 
 export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSelectNode, onSelectEdge, onAddStep, groupsRefreshKey }) {
-  const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {} });
+  const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {}, session_fields: {} });
   const [mode, setMode] = useState('freehand');  // 'visual' | 'freehand'
 
   // Visual mode state
@@ -202,11 +202,11 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
 
   // Fetch schema on load
   useEffect(() => {
-    if (!loaded) { setSchema({ node_fields: {}, edge_fields: {} }); return; }
+    if (!loaded) { setSchema({ node_fields: {}, edge_fields: {}, session_fields: {} }); return; }
     fetchQuerySchema().then(setSchema);
   }, [loaded]);
 
-  const fields = target === 'nodes' ? schema.node_fields : schema.edge_fields;
+  const fields = target === 'sessions' ? schema.session_fields : target === 'nodes' ? schema.node_fields : schema.edge_fields;
   const fieldGroups = useMemo(() => groupFields(fields), [fields]);
 
   // Live parse freehand text via backend (debounced)
@@ -777,7 +777,7 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
               )}
 
               {/* Matched edges — clickable */}
-              {result.matched_edges?.length > 0 && (
+              {result.matched_edges?.length > 0 && !result.session_cards && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: result.matched_nodes?.length ? 6 : 0 }}>
                   {result.matched_edges.map(m => (
                     <div key={m.id}
@@ -802,6 +802,38 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
                           {fieldLabel(k)}: {Array.isArray(v) ? v.slice(0, 3).join(', ') : String(v)}
                         </span>
                       ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Session result cards */}
+              {result.session_cards?.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {result.session_cards.map(s => (
+                    <div key={s.id}
+                      onClick={() => {
+                        if (onSelectNode && s.src_ip) onSelectNode(s.src_ip);
+                        if (onSelectEdge && s.src_ip && s.dst_ip) {
+                          const eid = [s.src_ip, s.dst_ip].sort().join('|');
+                          onSelectEdge(eid);
+                        }
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                        fontSize: 11, fontFamily: 'var(--fn)', padding: '4px 8px', borderRadius: 4,
+                        cursor: 'pointer',
+                        background: 'rgba(121,192,255,.06)', border: '1px solid rgba(121,192,255,.2)',
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = 'rgba(121,192,255,.12)'}
+                      onMouseOut={e => e.currentTarget.style.background = 'rgba(121,192,255,.06)'}
+                    >
+                      <span style={{ color: '#79c0ff', fontWeight: 500, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={s.id}>{s.src_ip}:{s.src_port} → {s.dst_ip}:{s.dst_port}</span>
+                      {s.protocol && <span style={{ fontSize: 9, color: '#79c0ff', padding: '1px 5px', background: 'rgba(121,192,255,.12)', borderRadius: 3 }}>{s.protocol}</span>}
+                      {s.transport && s.transport !== s.protocol && <span style={{ fontSize: 9, color: 'var(--txD)', padding: '1px 5px', background: 'var(--bgC)', borderRadius: 3 }}>{s.transport}</span>}
+                      {s.duration != null && <span style={{ fontSize: 9, color: 'var(--txD)' }}>{s.duration.toFixed(2)}s</span>}
+                      {s.total_bytes != null && <span style={{ fontSize: 9, color: 'var(--txD)' }}>{s.total_bytes >= 1024 ? (s.total_bytes / 1024).toFixed(1) + 'KB' : s.total_bytes + 'B'}</span>}
                     </div>
                   ))}
                 </div>

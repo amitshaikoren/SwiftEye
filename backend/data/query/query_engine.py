@@ -395,15 +395,90 @@ def get_graph_schema(G) -> dict:
                 if k not in edge_fields and k not in plugin_edge and k != "session_ids":
                     plugin_edge[k] = _t(v)
 
+    all_session_groups = [{"group": "core", "fields": SESSION_CORE_CATALOG}] + all_protocol_catalogs()
+    session_fields = {f["name"]: f["type"] for g in all_session_groups for f in g["fields"]}
+
     return {
         # Flat maps — backward compat for QueryBuilder dropdown
         "node_fields":        {**node_fields, **plugin_node},
         "edge_fields":        {**edge_fields, **plugin_edge},
+        "session_fields":     session_fields,
         # Structured groups — for Guide panel
         "node_groups":        NODE_FIELD_CATALOG,
         "edge_groups":        all_edge_groups,
-        "session_groups":     [{"group": "core", "fields": SESSION_CORE_CATALOG}] + all_protocol_catalogs(),
+        "session_groups":     all_session_groups,
         # Plugin enrichment (non-empty only when capture loaded + plugins ran)
         "plugin_node_fields": plugin_node,
         "plugin_edge_fields": plugin_edge,
+    }
+
+
+# ── Session query resolver ───────────────────────────────────────────────
+
+def resolve_session_query(sessions: list, body: dict) -> dict:
+    """
+    Evaluate a structured query against a list of session dicts.
+
+    Body shape: same contract as resolve_query — {target, conditions, logic, action, scope}.
+    target must be 'sessions'.
+
+    Returns an envelope compatible with the existing query result shape:
+      {
+        action, scope, target,
+        matched_sessions: [session_id, ...],
+        session_cards: [{id, src_ip, dst_ip, src_port, dst_port, protocol, transport,
+                         duration, total_bytes, packet_count}, ...],
+        matched_nodes: [{id: ip}],   # src_ip + dst_ip — for graph highlight
+        matched_edges: [{id: edge_key, source: ip, target: ip}],  # for graph highlight
+        total_matched, total_searched, summary,
+      }
+    """
+    if body.get("target", "sessions") != "sessions":
+        raise ValueError(f"resolve_session_query called with target={body.get('target')}")
+
+    conditions = body.get("conditions", [])
+    logic = body.get("logic", "AND").upper()
+    action = body.get("action") or "highlight"
+    scope = (body.get("scope") or "viz").lower()
+
+    matched = []
+    for s in sessions:
+        if not conditions:
+            hit = True
+        else:
+            results = [_eval_condition(s, c) for c in conditions]
+            hit = any(results) if logic == "OR" else all(results)
+        if hit:
+            matched.append(s)
+
+    node_ids: set = set()
+    edge_id_pairs: dict = {}
+    for s in matched:
+        src = s.get("src_ip", "")
+        dst = s.get("dst_ip", "")
+        if src:
+            node_ids.add(src)
+        if dst:
+            node_ids.add(dst)
+        if src and dst:
+            pair = tuple(sorted([src, dst]))
+            edge_key = f"{pair[0]}|{pair[1]}"
+            edge_id_pairs[edge_key] = (pair[0], pair[1])
+
+    _CARD_FIELDS = ("id", "src_ip", "dst_ip", "src_port", "dst_port",
+                    "protocol", "transport", "duration", "total_bytes", "packet_count")
+    session_cards = [{k: s.get(k) for k in _CARD_FIELDS} for s in matched]
+
+    return {
+        "action":            action,
+        "scope":             scope,
+        "target":            "sessions",
+        "matched_sessions":  [s["id"] for s in matched],
+        "session_cards":     session_cards,
+        "matched_nodes":     [{"id": ip} for ip in sorted(node_ids)],
+        "matched_edges":     [{"id": ek, "source": v[0], "target": v[1]}
+                              for ek, v in sorted(edge_id_pairs.items())],
+        "total_matched":     len(matched),
+        "total_searched":    len(sessions),
+        "summary":           f"{len(matched)} of {len(sessions)} sessions matching query",
     }
