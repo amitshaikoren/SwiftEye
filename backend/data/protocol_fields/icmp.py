@@ -58,3 +58,16 @@ def serialize(s):
     s["icmp_rev_identifiers"] = sorted(s["icmp_rev_identifiers"])
     cap_list(s, "icmp_fwd_payload_samples")
     cap_list(s, "icmp_rev_payload_samples")
+
+
+def catalog():
+    return [
+        {"name": "icmp_fwd_types",           "type": "list", "description": "ICMP message types from initiator, with counts"},
+        {"name": "icmp_rev_types",           "type": "list", "description": "ICMP message types from responder, with counts"},
+        {"name": "icmp_fwd_identifiers",     "type": "set",  "description": "ICMP echo identifiers from initiator"},
+        {"name": "icmp_rev_identifiers",     "type": "set",  "description": "ICMP echo identifiers from responder"},
+        {"name": "icmp_fwd_payload_sizes",   "type": "list", "description": "ICMP payload sizes from initiator"},
+        {"name": "icmp_rev_payload_sizes",   "type": "list", "description": "ICMP payload sizes from responder"},
+        {"name": "icmp_fwd_payload_samples", "type": "list", "description": "ICMP payload hex samples from initiator"},
+        {"name": "icmp_rev_payload_samples", "type": "list", "description": "ICMP payload hex samples from responder"},
+    ]

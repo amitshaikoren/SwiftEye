@@ -45,3 +45,14 @@ def serialize(s):
     cap_list(s, "ldap_result_codes")
     s["ldap_entry_dns"] = sorted(s["ldap_entry_dns"])
     cap_list(s, "ldap_entry_dns")
+
+
+def catalog():
+    return [
+        {"name": "ldap_ops",               "type": "set",  "description": "LDAP operation types seen (e.g. bind, search, modify)"},
+        {"name": "ldap_bind_dns",          "type": "set",  "description": "Distinguished names used in LDAP bind requests"},
+        {"name": "ldap_bind_mechanisms",   "type": "set",  "description": "LDAP bind authentication mechanisms (e.g. NTLM, GSSAPI)"},
+        {"name": "ldap_search_bases",      "type": "set",  "description": "LDAP search base distinguished names"},
+        {"name": "ldap_result_codes",      "type": "list", "description": "LDAP result codes and names"},
+        {"name": "ldap_entry_dns",         "type": "set",  "description": "Entry distinguished names returned by the server"},
+    ]

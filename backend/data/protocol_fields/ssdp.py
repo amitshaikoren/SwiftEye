@@ -43,3 +43,13 @@ def serialize(s):
     s["ssdp_locations"] = sorted(s["ssdp_locations"])
     cap_list(s, "ssdp_locations")
     s["ssdp_servers"] = sorted(s["ssdp_servers"])
+
+
+def catalog():
+    return [
+        {"name": "ssdp_methods",   "type": "set", "description": "SSDP methods seen (M-SEARCH, NOTIFY, etc.)"},
+        {"name": "ssdp_sts",       "type": "set", "description": "SSDP search targets or notification types"},
+        {"name": "ssdp_usns",      "type": "set", "description": "SSDP unique service names (USN)"},
+        {"name": "ssdp_locations", "type": "set", "description": "SSDP service location URLs"},
+        {"name": "ssdp_servers",   "type": "set", "description": "SSDP server strings"},
+    ]

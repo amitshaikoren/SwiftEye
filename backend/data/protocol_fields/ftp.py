@@ -51,3 +51,15 @@ def serialize(s):
     s["ftp_usernames"] = sorted(s["ftp_usernames"])
     s["ftp_transfer_files"] = list(dict.fromkeys(s["ftp_transfer_files"]))
     cap_list(s, "ftp_transfer_files")
+
+
+def catalog():
+    return [
+        {"name": "ftp_fwd_commands",      "type": "list",    "description": "FTP commands sent by the initiator"},
+        {"name": "ftp_fwd_transfer_mode", "type": "string",  "description": "FTP transfer mode (active/passive)"},
+        {"name": "ftp_rev_response_codes","type": "list",    "description": "FTP response codes from the server"},
+        {"name": "ftp_rev_server_banner", "type": "string",  "description": "FTP server banner string"},
+        {"name": "ftp_usernames",         "type": "set",     "description": "FTP usernames seen in the session"},
+        {"name": "ftp_transfer_files",    "type": "list",    "description": "Files transferred over FTP"},
+        {"name": "ftp_has_credentials",   "type": "boolean", "description": "True if credentials were exchanged"},
+    ]

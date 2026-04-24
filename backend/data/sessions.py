@@ -417,3 +417,27 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
     
     results.sort(key=lambda s: s["total_bytes"], reverse=True)
     return results
+
+
+SESSION_CORE_CATALOG = [
+    {"name": "id",            "type": "string", "description": "Unique session identifier (5-tuple key)"},
+    {"name": "src_ip",        "type": "string", "description": "Lower IP address (lexicographic sort of the 5-tuple)"},
+    {"name": "dst_ip",        "type": "string", "description": "Higher IP address (lexicographic sort of the 5-tuple)"},
+    {"name": "src_port",      "type": "number", "description": "Lower port number"},
+    {"name": "dst_port",      "type": "number", "description": "Higher port number"},
+    {"name": "protocol",      "type": "string", "description": "Application-layer protocol (e.g. TLS, DNS, HTTP)"},
+    {"name": "transport",     "type": "string", "description": "Transport protocol (TCP, UDP, ICMP, etc.)"},
+    {"name": "packet_count",  "type": "number", "description": "Total packets in the session"},
+    {"name": "total_bytes",   "type": "number", "description": "Total bytes in the session"},
+    {"name": "payload_bytes", "type": "number", "description": "Total payload bytes (excludes transport headers)"},
+    {"name": "start_time",    "type": "number", "description": "Session start timestamp (Unix epoch, float seconds)"},
+    {"name": "end_time",      "type": "number", "description": "Session end timestamp (Unix epoch, float seconds)"},
+    {"name": "duration",      "type": "number", "description": "Session duration in seconds"},
+    {"name": "fwd_packets",   "type": "number", "description": "Packets from the session initiator"},
+    {"name": "fwd_bytes",     "type": "number", "description": "Bytes from the session initiator"},
+    {"name": "rev_packets",   "type": "number", "description": "Packets from the session responder"},
+    {"name": "rev_bytes",     "type": "number", "description": "Bytes from the session responder"},
+    {"name": "initiator_ip",  "type": "string", "description": "IP that sent the first packet (session initiator)"},
+    {"name": "responder_ip",  "type": "string", "description": "IP that responded (session responder)"},
+    {"name": "ip_version",    "type": "number", "description": "IP version: 4 or 6"},
+]

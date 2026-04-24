@@ -42,3 +42,13 @@ def serialize(s):
     s["mdns_service_names"] = sorted(s["mdns_service_names"])
     s["mdns_hostnames"] = sorted(s["mdns_hostnames"])
     cap_list(s, "mdns_txt_records")
+
+
+def catalog():
+    return [
+        {"name": "mdns_queries",       "type": "set",  "description": "mDNS query names"},
+        {"name": "mdns_service_types", "type": "set",  "description": "mDNS service types (e.g. _http._tcp, _ssh._tcp)"},
+        {"name": "mdns_service_names", "type": "set",  "description": "mDNS service instance names"},
+        {"name": "mdns_hostnames",     "type": "set",  "description": "Hostnames resolved via mDNS"},
+        {"name": "mdns_txt_records",   "type": "list", "description": "mDNS TXT record data"},
+    ]

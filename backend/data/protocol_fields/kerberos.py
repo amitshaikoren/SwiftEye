@@ -45,3 +45,14 @@ def serialize(s):
     s["krb_snames"] = sorted(s["krb_snames"])
     s["krb_etypes"] = sorted(s["krb_etypes"])
     cap_list(s, "krb_error_codes")
+
+
+def catalog():
+    return [
+        {"name": "krb_msg_types",  "type": "set",  "description": "Kerberos message types seen (e.g. AS-REQ, TGS-REP)"},
+        {"name": "krb_realms",     "type": "set",  "description": "Kerberos realm names"},
+        {"name": "krb_cnames",     "type": "set",  "description": "Client principal names"},
+        {"name": "krb_snames",     "type": "set",  "description": "Service principal names"},
+        {"name": "krb_etypes",     "type": "set",  "description": "Encryption types used in Kerberos exchanges"},
+        {"name": "krb_error_codes","type": "list", "description": "Kerberos error codes and names"},
+    ]

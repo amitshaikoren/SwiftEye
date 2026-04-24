@@ -58,3 +58,16 @@ def serialize(s):
     s["quic_tls_versions"] = sorted(s["quic_tls_versions"])
     s["quic_tls_ciphers"] = sorted(s["quic_tls_ciphers"])
     cap_list(s, "quic_tls_ciphers")
+
+
+def catalog():
+    return [
+        {"name": "quic_versions",     "type": "set", "description": "QUIC protocol versions seen"},
+        {"name": "quic_dcids",        "type": "set", "description": "QUIC destination connection IDs"},
+        {"name": "quic_scids",        "type": "set", "description": "QUIC source connection IDs"},
+        {"name": "quic_snis",         "type": "set", "description": "TLS SNI values from QUIC handshake"},
+        {"name": "quic_alpn",         "type": "set", "description": "ALPN protocols negotiated over QUIC"},
+        {"name": "quic_packet_types", "type": "set", "description": "QUIC packet types seen (Initial, Handshake, 1-RTT, etc.)"},
+        {"name": "quic_tls_versions", "type": "set", "description": "TLS versions used in QUIC handshake"},
+        {"name": "quic_tls_ciphers",  "type": "set", "description": "TLS cipher suites in QUIC handshake"},
+    ]
