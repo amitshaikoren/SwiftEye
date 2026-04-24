@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fB } from '../utils';
 import { NODE_LEGENDS, EDGE_LEGENDS } from './graph/graphLegendData';
 
@@ -271,10 +271,28 @@ export default function GraphOptionsPanel({
   // Clustering
   clusterAlgo, setClusterAlgo,
   clusterResolution, setClusterResolution,
+  // Force simulation
+  forceParams, setForceParams,
+  frozen = false, setFrozen,
+  onReheat,
   // Data availability
   visibleNodes,
 }) {
   const [neMode, setNeMode] = useState('node'); // 'node' | 'edge'
+
+  // ── Force slider local state (immediate display, debounced apply) ──
+  const [sliderVals, setSliderVals] = useState(forceParams ?? {
+    chargeStrength: -180, linkDistance: 130, alphaDecay: 0.025, velocityDecay: 0.4,
+  });
+  const debounceRef = useRef(null);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setForceParams(sliderVals), 500);
+    return () => clearTimeout(debounceRef.current);
+  }, [sliderVals]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasOsData = (visibleNodes || []).some(n => n.os_guess);
 
@@ -366,6 +384,63 @@ export default function GraphOptionsPanel({
                 {layoutFocusNodeId
                   ? `Root: ${layoutFocusNodeId} — right-click any node to change.`
                   : 'Right-click a node → "Set as hierarchy root". Auto-selecting highest in-degree node.'}
+              </div>
+            )}
+
+            {layoutMode === 'force' && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { key: 'chargeStrength', label: 'Charge', min: -600, max: -30, step: 10,
+                    fmt: v => v, hint: v => v <= -400 ? 'Very repulsive' : v >= -80 ? 'Tight' : 'Default' },
+                  { key: 'linkDistance', label: 'Link distance', min: 30, max: 400, step: 10,
+                    fmt: v => `${v}px`, hint: v => v >= 300 ? 'Very spread' : v <= 60 ? 'Compact' : 'Default' },
+                  { key: 'alphaDecay', label: 'Alpha decay', min: 0.005, max: 0.10, step: 0.005,
+                    fmt: v => v.toFixed(3), hint: v => v <= 0.01 ? 'Slow settle' : v >= 0.07 ? 'Fast settle' : 'Default' },
+                  { key: 'velocityDecay', label: 'Velocity decay', min: 0.1, max: 0.9, step: 0.05,
+                    fmt: v => v.toFixed(2), hint: v => v >= 0.7 ? 'Heavy damping' : v <= 0.25 ? 'Bouncy' : 'Default' },
+                ].map(({ key, label, min, max, step, fmt, hint }) => (
+                  <div key={key}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--tx)' }}>{label}</span>
+                      <span style={{ fontSize: 10, fontFamily: 'var(--fn)', color: 'var(--txM)' }}>
+                        {fmt(sliderVals[key])}
+                      </span>
+                    </div>
+                    <input type="range" min={min} max={max} step={step} value={sliderVals[key]}
+                      onChange={e => setSliderVals(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
+                      style={{ width: '100%', accentColor: 'var(--ac)' }}
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--txD)', fontFamily: 'var(--fn)', marginTop: 2 }}>
+                      {hint(sliderVals[key])}
+                    </div>
+                  </div>
+                ))}
+
+                <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                  <button
+                    onClick={onReheat}
+                    style={{
+                      flex: 1, fontSize: 11, padding: '5px 0',
+                      background: 'var(--bgC)', border: '1px solid var(--bdL)',
+                      borderRadius: 5, color: 'var(--ac)', cursor: 'pointer',
+                      fontFamily: 'var(--fd)', transition: 'all .12s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(88,166,255,.08)'; e.currentTarget.style.borderColor = 'var(--ac)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--bgC)'; e.currentTarget.style.borderColor = 'var(--bdL)'; }}
+                  >↺ Reheat</button>
+                  <button
+                    onClick={() => setFrozen(f => !f)}
+                    style={{
+                      flex: 1, fontSize: 11, padding: '5px 0',
+                      background: frozen ? 'rgba(88,166,255,.10)' : 'var(--bgC)',
+                      border: '1px solid ' + (frozen ? 'var(--ac)' : 'var(--bdL)'),
+                      borderRadius: 5,
+                      color: frozen ? 'var(--ac)' : 'var(--txM)',
+                      fontWeight: frozen ? 600 : 400,
+                      cursor: 'pointer', fontFamily: 'var(--fd)', transition: 'all .12s',
+                    }}
+                  >{frozen ? '❚❚ Frozen' : '▶ Freeze'}</button>
+                </div>
               </div>
             )}
           </Section>

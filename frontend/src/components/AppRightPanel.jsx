@@ -293,6 +293,9 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
         excludeBroadcasts={c.excludeBroadcasts} setExcludeBroadcasts={c.setExcludeBroadcasts}
         clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
         clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
+        forceParams={c.forceParams} setForceParams={c.setForceParams}
+        frozen={c.frozen} setFrozen={c.setFrozen}
+        onReheat={c.incReheat}
         visibleNodes={c.visibleNodes}
       />
     );
