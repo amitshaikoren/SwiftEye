@@ -282,7 +282,7 @@ export default function GraphOptionsPanel({
 
   // ── Force slider local state (immediate display, debounced apply) ──
   const [sliderVals, setSliderVals] = useState(forceParams ?? {
-    chargeStrength: -180, linkDistance: 130, alphaDecay: 0.025, velocityDecay: 0.4,
+    chargeStrength: -300, linkDistance: 160, alphaDecay: 0.025, velocityDecay: 0.4,
   });
   const debounceRef = useRef(null);
   const isFirstRender = useRef(true);

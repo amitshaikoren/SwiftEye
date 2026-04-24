@@ -81,7 +81,7 @@ export function useCaptureFilters({ selCallbacksRef }) {
   // ── Force simulation params ──────────────────────────────────────
 
   const [forceParams, setForceParams] = useState({
-    chargeStrength: -180, linkDistance: 130, alphaDecay: 0.025, velocityDecay: 0.4,
+    chargeStrength: -300, linkDistance: 160, alphaDecay: 0.025, velocityDecay: 0.4,
   });
   const [frozen, setFrozen] = useState(false);
   const [reheatTick, setReheatTick] = useState(0);

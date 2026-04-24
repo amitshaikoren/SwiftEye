@@ -18,10 +18,10 @@ export const LAYOUT_REQUIRES_FOCUS = false;
 export function buildForceSimulation(nodes, edges, { width, height }, getRadius, options = {}) {
   const hasAnyClusters = nodes.some(n => n.is_cluster);
   const nodeCount = nodes.length;
-  const chargeDistMax = hasAnyClusters ? 450
-    : nodeCount > 200 ? 180
-    : nodeCount > 50  ? 300
-    : 400;
+  const chargeDistMax = hasAnyClusters ? 700
+    : nodeCount > 200 ? 800
+    : nodeCount > 50  ? 600
+    : 500;
 
   const baseCharge    = options.forceParams?.chargeStrength  ?? -180;
   const linkDist      = options.forceParams?.linkDistance     ?? 130;
