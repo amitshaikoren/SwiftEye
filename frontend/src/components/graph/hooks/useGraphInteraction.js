@@ -171,21 +171,14 @@ export default function useGraphInteraction({
       if (n) { onSelRef.current('node', n.id, e.shiftKey); return; }
       const ed = gE(mx, my);
       if (ed) { onSelRef.current('edge', ed, false); return; }
-      // Ring guide click: select all nodes on the ring (±10px tolerance in world space)
+      // Ring guide click: select all nodes in the component (±10px tolerance in world space)
       const guides = ringGuidesRef?.current ?? [];
       if (guides.length) {
-        const { width: cw, height: ch } = c.getBoundingClientRect();
-        const cx = cw / 2, cy = ch / 2;
         const t = tRef.current;
-        // world-space click coords
         const wx = (mx - t.x) / t.k;
         const wy = (my - t.y) / t.k;
-        // canvas-center in world space
-        const wcx = (cx - t.x) / t.k;
-        const wcy = (cy - t.y) / t.k;
-        const dist = Math.hypot(wx - wcx, wy - wcy);
         const hitTol = 10 / t.k;
-        const hit = guides.find(g => Math.abs(dist - g.r) < hitTol);
+        const hit = guides.find(g => Math.abs(Math.hypot(wx - g.cx, wy - g.cy) - g.r) < hitTol);
         if (hit) {
           hit.nodeIds.forEach((id, i) => onSelRef.current('node', id, i > 0));
           return;

@@ -4,78 +4,107 @@ export const LAYOUT_WORKSPACE = null;
 export const LAYOUT_REQUIRES_FOCUS = false;
 
 /**
- * Degree-tiered circular layout with dashed ring guide lines.
+ * Per-component circular layout.
  *
- * Nodes are sorted by degree descending and split into tiers:
- *   Ring 0 (innermost) — top ~15% by degree (hubs)
- *   Ring 1             — next ~35%
- *   Ring 2 (outermost) — remaining ~50% (leaf / peripheral)
+ * Each connected component gets its own circle. Components are arranged
+ * across the canvas (largest at center, others in a surrounding ring).
+ * Within each component, nodes are sorted by degree descending.
  *
- * For small graphs (≤8 nodes) a single ring is used.
- * No node cap — scales by adjusting ring radii to fit node count.
- *
- * `ringGuides` in the returned value is consumed by GraphCanvas to draw
- * dashed SVG circles. Clicking a ring guide selects all nodes on that ring.
+ * `__ringGuides` is attached to the returned position map so the renderer
+ * can draw a dashed guide circle for each component. Clicking within ±10px
+ * of a guide ring selects all nodes in that component.
  */
-export function computeStaticPositions(nodes, _edges, { width, height }) {
+export function computeStaticPositions(nodes, edges, { width, height }) {
   if (!nodes.length) return {};
 
-  const cx = width  / 2;
-  const cy = height / 2;
-  const margin = 60;
-  const NODE_SPREAD = 36; // min arc spacing between nodes (px)
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
-  const sorted = [...nodes].sort((a, b) => (b.degree ?? 0) - (a.degree ?? 0));
-  const n = sorted.length;
-
-  // ── Determine tier split indices ───────────────────────────────────
-  let tiers;
-  if (n <= 8) {
-    tiers = [sorted];
-  } else if (n <= 24) {
-    const s0 = Math.max(1, Math.round(n * 0.25));
-    tiers = [sorted.slice(0, s0), sorted.slice(s0)];
-  } else {
-    const s0 = Math.max(1, Math.round(n * 0.15));
-    const s1 = Math.max(s0 + 1, Math.round(n * 0.50));
-    tiers = [sorted.slice(0, s0), sorted.slice(s0, s1), sorted.slice(s1)];
+  // ── 1. Build undirected adjacency ──────────────────────────────────
+  const adj = new Map(nodes.map(n => [n.id, []]));
+  for (const e of edges) {
+    const s = e.source?.id ?? e.source;
+    const t = e.target?.id ?? e.target;
+    if (adj.has(s) && adj.has(t)) {
+      adj.get(s).push(t);
+      adj.get(t).push(s);
+    }
   }
 
-  // ── Compute ring radii driven by node count and available space ────
-  const maxR = Math.min(width, height) / 2 - margin;
-  const numRings = tiers.length;
+  // ── 2. Find connected components ───────────────────────────────────
+  const visited = new Set();
+  const components = [];
+  for (const n of nodes) {
+    if (visited.has(n.id)) continue;
+    const comp = [];
+    const q = [n.id];
+    visited.add(n.id);
+    while (q.length) {
+      const cur = q.shift();
+      comp.push(cur);
+      for (const nb of adj.get(cur) ?? []) {
+        if (!visited.has(nb)) { visited.add(nb); q.push(nb); }
+      }
+    }
+    components.push(comp);
+  }
 
-  // Minimum radius for each ring so nodes aren't crowded
-  const minRadii = tiers.map(tier =>
-    tier.length <= 1 ? 0 : (tier.length * NODE_SPREAD) / (2 * Math.PI)
-  );
+  // Sort: largest component first
+  components.sort((a, b) => b.length - a.length);
 
-  // Distribute rings evenly across maxR, but respect min radii
-  // Inner ring starts at maxR * (1 / numRings), outer at maxR
-  const radii = tiers.map((_, i) => {
-    const fraction = numRings === 1 ? 1 : (i + 1) / numRings;
-    return Math.max(minRadii[i], maxR * fraction);
+  // ── 3. Compute per-component circle radius ─────────────────────────
+  const NODE_SPREAD = 36; // min arc spacing between nodes
+  const COMP_PADDING = 48; // gap between component bubbles
+
+  const compData = components.map(comp => {
+    const sorted = [...comp].sort((a, b) =>
+      (nodeMap.get(b)?.degree ?? 0) - (nodeMap.get(a)?.degree ?? 0)
+    );
+    const r = comp.length <= 1
+      ? 0
+      : Math.max(60, (comp.length * NODE_SPREAD) / (2 * Math.PI));
+    return { ids: sorted, r };
   });
 
-  // ── Place nodes on rings ───────────────────────────────────────────
-  const positions = {};
-  const ringMeta = []; // { r, nodeIds[] } — for guide lines + click-select
+  // ── 4. Arrange component bubbles on canvas ─────────────────────────
+  const cx = width  / 2;
+  const cy = height / 2;
 
-  for (let ti = 0; ti < tiers.length; ti++) {
-    const tier = tiers[ti];
-    const r = radii[ti];
-    const nodeIds = [];
-    for (let i = 0; i < tier.length; i++) {
-      const angle = -Math.PI / 2 + (2 * Math.PI * i) / tier.length;
-      positions[tier[i].id] = { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
-      nodeIds.push(tier[i].id);
-    }
-    ringMeta.push({ r, nodeIds, label: RING_LABELS[ti] ?? `Ring ${ti + 1}` });
+  // Primary (largest) at canvas center. Satellites in orbit ring.
+  const primary = compData[0];
+  const rest     = compData.slice(1);
+
+  const maxSatR  = rest.length ? Math.max(...rest.map(c => c.r)) : 0;
+  const orbitR   = primary.r + maxSatR + COMP_PADDING * 2;
+
+  // Assign a canvas center per component
+  const centers = [{ x: cx, y: cy }];
+  for (let i = 0; i < rest.length; i++) {
+    const angle = -Math.PI / 2 + (2 * Math.PI * i) / rest.length;
+    centers.push({ x: cx + orbitR * Math.cos(angle), y: cy + orbitR * Math.sin(angle) });
   }
 
-  // Attach ring metadata so the renderer can draw guide circles and handle clicks
-  positions.__ringGuides = ringMeta;
+  // ── 5. Place nodes + build ring guide metadata ─────────────────────
+  const positions = {};
+  const ringGuides = [];
+
+  for (let ci = 0; ci < compData.length; ci++) {
+    const { ids, r } = compData[ci];
+    const { x: ccx, y: ccy } = centers[ci];
+
+    if (ids.length === 1) {
+      positions[ids[0]] = { x: ccx, y: ccy };
+    } else {
+      for (let i = 0; i < ids.length; i++) {
+        const angle = -Math.PI / 2 + (2 * Math.PI * i) / ids.length;
+        positions[ids[i]] = { x: ccx + r * Math.cos(angle), y: ccy + r * Math.sin(angle) };
+      }
+    }
+
+    if (r > 0) {
+      ringGuides.push({ cx: ccx, cy: ccy, r, nodeIds: ids });
+    }
+  }
+
+  positions.__ringGuides = ringGuides;
   return positions;
 }
-
-const RING_LABELS = ['Hubs', 'Mid-tier', 'Peripheral'];

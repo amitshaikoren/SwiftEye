@@ -402,27 +402,17 @@ resize();draw();
         }
       }
 
-      // Circular layout ring guides (dashed concentric circles)
+      // Circular layout ring guides (dashed circle per component)
       const rg = ringGuidesRef.current;
       if (rg.length) {
-        const { width: w, height: h } = getSize();
-        const cx = w / 2;
-        const cy = h / 2;
         for (const guide of rg) {
-          ctx.save();
           ctx.beginPath();
-          ctx.arc(cx, cy, guide.r, 0, 2 * Math.PI);
+          ctx.arc(guide.cx, guide.cy, guide.r, 0, 2 * Math.PI);
           ctx.setLineDash([4 / t.k, 8 / t.k]);
-          ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+          ctx.strokeStyle = 'rgba(255,255,255,0.10)';
           ctx.lineWidth = 1 / t.k;
           ctx.stroke();
           ctx.setLineDash([]);
-          if (t.k > 0.5 && guide.label) {
-            ctx.font = `${Math.round(10 / t.k)}px var(--fn, monospace)`;
-            ctx.fillStyle = 'rgba(255,255,255,0.18)';
-            ctx.fillText(guide.label, cx + guide.r * 0.707 + 6 / t.k, cy - guide.r * 0.707 - 4 / t.k);
-          }
-          ctx.restore();
         }
       }
 
