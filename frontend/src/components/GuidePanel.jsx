@@ -10,7 +10,9 @@ import { fetchQuerySchema } from '../api';
 
 const TYPE_META = {
   numeric: { label: 'Num',  color: '#79c0ff', bg: 'rgba(88,166,255,.12)',  border: 'rgba(88,166,255,.35)' },
+  number:  { label: 'Num',  color: '#79c0ff', bg: 'rgba(88,166,255,.12)',  border: 'rgba(88,166,255,.35)' },
   set:     { label: 'Set',  color: '#d2a8ff', bg: 'rgba(210,168,255,.12)', border: 'rgba(210,168,255,.35)' },
+  list:    { label: 'List', color: '#d2a8ff', bg: 'rgba(210,168,255,.12)', border: 'rgba(210,168,255,.35)' },
   boolean: { label: 'Bool', color: '#7ee787', bg: 'rgba(63,185,80,.12)',   border: 'rgba(63,185,80,.35)' },
   string:  { label: 'Text', color: '#ffa657', bg: 'rgba(255,166,87,.12)',  border: 'rgba(255,166,87,.35)' },
 };
@@ -45,7 +47,7 @@ function FieldRow({ field }) {
 }
 
 function GroupCard({ group, fields }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
     <div style={{ marginBottom: 8, border: '1px solid var(--bd)', borderRadius: 6, overflow: 'hidden' }}>
       <button
@@ -73,7 +75,7 @@ function GroupCard({ group, fields }) {
 }
 
 function PluginCard({ title, fields }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   if (!fields || Object.keys(fields).length === 0) return null;
   const fieldList = Object.entries(fields).map(([name, type]) => ({ name, type, description: '' }));
   return <GroupCard group={title} fields={fieldList} />;
