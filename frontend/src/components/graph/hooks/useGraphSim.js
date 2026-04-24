@@ -453,26 +453,29 @@ resize();draw();
           ctx.stroke();
         }
 
-        // Arrowhead at 70% toward target when direction mode is on
+        // Arrowhead at 80% toward target when direction mode is on
         if (showEdgeDirectionRef?.current) {
-          const mx = src.x + (tgt.x - src.x) * 0.7;
-          const my = src.y + (tgt.y - src.y) * 0.7;
+          const mx = src.x + (tgt.x - src.x) * 0.8;
+          const my = src.y + (tgt.y - src.y) * 0.8;
           const dx = tgt.x - src.x;
           const dy = tgt.y - src.y;
           const len = Math.sqrt(dx * dx + dy * dy);
           if (len > 0) {
             const ux = dx / len;
             const uy = dy / len;
-            // Fixed screen-space size: 8px tip, 5px half-width, independent of edge weight
-            const tip = 8 / t.k;
-            const hw  = 5 / t.k;
+            const tip = 11 / t.k;
+            const hw  = 6.5 / t.k;
             ctx.beginPath();
-            ctx.moveTo(mx + ux * tip,          my + uy * tip);
+            ctx.moveTo(mx + ux * tip,           my + uy * tip);
             ctx.lineTo(mx - ux * tip - uy * hw, my - uy * tip + ux * hw);
             ctx.lineTo(mx - ux * tip + uy * hw, my - uy * tip - ux * hw);
             ctx.closePath();
             ctx.fillStyle = isSel ? '#fff' : eqh ? '#f0883e' : edgeColor;
             ctx.fill();
+            // Thin outline so the arrowhead pops off the edge line
+            ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+            ctx.lineWidth = 0.8 / t.k;
+            ctx.stroke();
           }
         }
 
