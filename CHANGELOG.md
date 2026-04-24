@@ -1,5 +1,11 @@
 # SwiftEye — Changelog
 
+### v0.28.23 — April 2026
+- **Guide tab badge fixes** — the Guide tab now correctly renders "Num" badges for `number`-typed fields (previously showed the raw string "number") and a "List" badge for list fields. Cards are collapsed by default.
+
+### v0.28.22 — April 2026
+- **Protocol catalog completeness** — every `protocol_fields/` module now declares a `catalog()` function. The 11 previously-missing modules (arp, ftp, icmp, kerberos, ldap, llmnr, mdns, quic, smtp, ssdp, ssh) each define typed, described entries for all fields they emit. `SESSION_CORE_CATALOG` added to `sessions.py` (20 core fields: id, src/dst ip/port, protocol, transport, packet_count, total_bytes, payload_bytes, start/end time, duration, fwd/rev counts, initiator_ip, responder_ip, ip_version). The query engine now prepends the core catalog as a "core" group in `session_groups` so the Guide tab shows base session fields before protocol-specific ones.
+
 ### v0.28.21 — April 2026
 - **Dynamic query schema + Guide tab** — `/api/query/schema` now derives node fields from `NODE_FIELD_CATALOG`, edge fields from `EDGE_CORE_FIELD_CATALOG` plus the full `EDGE_FIELD_REGISTRY`, and session fields from each protocol_fields module's `catalog()` call. `build_analysis_graph()` edges now use `init_detail_sets()` + `accumulate_from_extra()` (was 4 hardcoded fields). The Schema tab is replaced by a Guide tab (rightmost, in the Query | Groups | Guide tab row): collapsible cards per group (Nodes / Edges / Sessions), each field showing its type badge and description. Guide re-fetches its schema on every capture load.
 
