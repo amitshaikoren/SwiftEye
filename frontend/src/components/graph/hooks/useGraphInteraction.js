@@ -177,7 +177,7 @@ export default function useGraphInteraction({
         const t = tRef.current;
         const wx = (mx - t.x) / t.k;
         const wy = (my - t.y) / t.k;
-        const hitTol = 10 / t.k;
+        const hitTol = 22 / t.k; // covers band between inner+outer guides
         const hit = guides.find(g => Math.abs(Math.hypot(wx - g.cx, wy - g.cy) - g.r) < hitTol);
         if (hit) {
           hit.nodeIds.forEach((id, i) => onSelRef.current('node', id, i > 0));

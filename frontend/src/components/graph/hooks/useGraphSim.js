@@ -309,7 +309,7 @@ resize();draw();
         : layoutMode === 'radial'
         ? radialPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId })
         : hierarchicalPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId });
-      ringGuidesRef.current = staticPos?.__ringGuides ?? [];
+      ringGuidesRef.current = layoutMode === 'circular' ? (staticPos?.__ringGuides ?? []) : [];
       if (staticPos) {
         for (const n of nn) {
           const p = staticPos[n.id];
@@ -402,18 +402,23 @@ resize();draw();
         }
       }
 
-      // Circular layout ring guides (dashed circle per component)
+      // Circular layout ring guides — inner + outer dashed band per component
       const rg = ringGuidesRef.current;
       if (rg.length) {
+        ctx.save();
+        ctx.setLineDash([5 / t.k, 10 / t.k]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 1 / t.k;
+        const bandGap = 18; // world-px inward/outward from node-center ring
         for (const guide of rg) {
           ctx.beginPath();
-          ctx.arc(guide.cx, guide.cy, guide.r, 0, 2 * Math.PI);
-          ctx.setLineDash([4 / t.k, 8 / t.k]);
-          ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-          ctx.lineWidth = 1 / t.k;
+          ctx.arc(guide.cx, guide.cy, guide.r - bandGap, 0, 2 * Math.PI);
           ctx.stroke();
-          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.arc(guide.cx, guide.cy, guide.r + bandGap, 0, 2 * Math.PI);
+          ctx.stroke();
         }
+        ctx.restore();
       }
 
       // Pre-bake annotation snapshot and node lookup for this frame
