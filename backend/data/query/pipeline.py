@@ -230,29 +230,40 @@ def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None,
                 highlights.append({"step": idx, "target": target, "ids": list(effective)})
 
         elif verb == "show_only":
-            eff_set = set(effective)
-            if target == "nodes":
-                visible_nodes &= eff_set
-                visible_edges = {
-                    e for e in visible_edges
-                    if (lambda uv: uv[0] in visible_nodes and uv[1] in visible_nodes)(_edge_endpoints(e))
-                }
+            if scope == "global":
+                # Global: replace visibility entirely — can restore previously-hidden nodes.
+                if target == "nodes":
+                    visible_nodes = set(matches_all) & all_nodes
+                    visible_edges = {
+                        e for e in all_edges
+                        if (lambda uv: uv[0] in visible_nodes and uv[1] in visible_nodes)(_edge_endpoints(e))
+                    }
+                else:
+                    visible_edges = set(matches_all) & all_edges
             else:
-                visible_edges &= eff_set
+                eff_set = set(effective)
+                if target == "nodes":
+                    visible_nodes &= eff_set
+                    visible_edges = {
+                        e for e in visible_edges
+                        if (lambda uv: uv[0] in visible_nodes and uv[1] in visible_nodes)(_edge_endpoints(e))
+                    }
+                else:
+                    visible_edges &= eff_set
 
         elif verb == "hide":
-            eff_set = set(effective)
+            acting = set(matches_all) if scope == "global" else set(effective)
             if target == "nodes":
-                visible_nodes -= eff_set
+                visible_nodes -= acting
                 visible_edges = {
                     e for e in visible_edges
                     if (lambda uv: uv[0] in visible_nodes and uv[1] in visible_nodes)(_edge_endpoints(e))
                 }
             else:
-                visible_edges -= eff_set
+                visible_edges -= acting
                 # Orphan policy: hide touched nodes with no remaining visible edges.
                 touched = set()
-                for eid in eff_set:
+                for eid in acting:
                     u, v = _edge_endpoints(eid)
                     touched.add(u); touched.add(v)
                 for n in touched:

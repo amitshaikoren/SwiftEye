@@ -229,6 +229,29 @@ class TestGlobalScope:
         assert entry["verb"] == "hide"
         assert entry["target"] == "nodes"
         assert entry["matches"] == ["c"]
+        assert "c" not in result["visible"]["nodes"]  # global hide actually removes the node
+
+    def test_global_show_only_restores_hidden(self, run, graph):
+        # Step 1: viz-scope hide gamma (node c). Step 2: global show_only gamma.
+        # Global show_only replaces visibility entirely — gamma comes back.
+        result = run(graph, [
+            {"verb": "hide", "target": "nodes", "scope": "viz",
+             "conditions": [{"field": "label", "op": "equals", "value": "gamma"}]},
+            {"verb": "show_only", "target": "nodes", "scope": "global",
+             "conditions": [{"field": "label", "op": "equals", "value": "gamma"}]},
+        ])
+        assert result["visible"]["nodes"] == ["c"]  # gamma restored, a+b hidden
+
+    def test_global_show_only_differs_from_viz(self, run, graph):
+        # viz show_only cannot restore a hidden node — confirm the contrast.
+        result = run(graph, [
+            {"verb": "hide", "target": "nodes", "scope": "viz",
+             "conditions": [{"field": "label", "op": "equals", "value": "gamma"}]},
+            {"verb": "show_only", "target": "nodes", "scope": "viz",
+             "conditions": [{"field": "label", "op": "equals", "value": "gamma"}]},
+        ])
+        # viz show_only: effective = [] (gamma not visible), visible_nodes &= {} → nothing visible
+        assert result["visible"]["nodes"] == []
 
     def test_viz_scope_not_in_pending(self, run, graph):
         result = run(graph, [{
