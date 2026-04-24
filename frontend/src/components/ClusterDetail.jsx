@@ -9,10 +9,9 @@ import Row from './Row';
 import { fN, fB } from '../utils';
 import { CLUSTER_COLORS } from '../clusterView';
 
-/** One row in the Connections section — shows the edge + optional bridge-node sub-list */
-function BridgeEdgeRow({ e, other, bridges, pColors, onSelectEdge, onSelectNode }) {
+/** A member node that has external connections — shows the node + expandable list of outside peers */
+function BridgeNodeRow({ nodeId, externalEdges, totalBytes, pColors, onSelectNode }) {
   const [expanded, setExpanded] = useState(false);
-  const hasBridges = bridges && bridges.length > 0;
   return (
     <div>
       <div
@@ -20,32 +19,32 @@ function BridgeEdgeRow({ e, other, bridges, pColors, onSelectEdge, onSelectNode 
         onMouseEnter={el => el.currentTarget.style.background = 'var(--bgH)'}
         onMouseLeave={el => el.currentTarget.style.background = 'transparent'}
       >
-        <span style={{ width: 10, height: 2.5, borderRadius: 1, flexShrink: 0, background: pColors?.[e.protocol] || '#64748b' }} />
+        <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: 'var(--ac)', opacity: 0.8 }} />
         <span
-          onClick={() => onSelectEdge?.(e)}
-          style={{ flex: 1, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
-        >{other}</span>
-        <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{e.protocol}</span>
-        <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{fB(e.total_bytes || 0)}</span>
-        {hasBridges && (
-          <span
-            onClick={() => setExpanded(x => !x)}
-            title={`${bridges.length} bridge pair${bridges.length > 1 ? 's' : ''}`}
-            style={{ fontSize: 9, color: 'var(--txD)', padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}
-          >{expanded ? '▼' : '▶'}</span>
-        )}
+          onClick={() => onSelectNode?.(nodeId)}
+          style={{ flex: 1, color: 'var(--ac)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+        >{nodeId}</span>
+        <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{externalEdges.length} ext</span>
+        <span style={{ color: 'var(--txD)', fontSize: 9, flexShrink: 0 }}>{fB(totalBytes)}</span>
+        <span
+          onClick={() => setExpanded(x => !x)}
+          style={{ fontSize: 9, color: 'var(--txD)', padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}
+        >{expanded ? '▼' : '▶'}</span>
       </div>
-      {expanded && hasBridges && (
+      {expanded && (
         <div style={{ padding: '2px 5px 4px 18px', display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {bridges.slice(0, 20).map((p, i) => (
+          {externalEdges.slice(0, 20).map((ext, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: 'var(--txM)' }}>
-              <span onClick={() => onSelectNode?.(p.from)} style={{ cursor: 'pointer', color: 'var(--ac)' }}>{p.from}</span>
-              <span style={{ color: 'var(--txD)' }}>→</span>
-              <span onClick={() => onSelectNode?.(p.to)} style={{ cursor: 'pointer', color: 'var(--ac)' }}>{p.to}</span>
+              <span style={{ width: 8, height: 2, borderRadius: 1, flexShrink: 0, background: pColors?.[ext.protocol] || '#64748b' }} />
+              <span
+                onClick={() => onSelectNode?.(ext.otherId)}
+                style={{ flex: 1, cursor: 'pointer', color: 'var(--txM)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >{ext.otherId}</span>
+              <span style={{ color: 'var(--txD)', flexShrink: 0 }}>{fB(ext.bytes)}</span>
             </div>
           ))}
-          {bridges.length > 20 && (
-            <div style={{ fontSize: 9, color: 'var(--txD)' }}>+{bridges.length - 20} more pairs</div>
+          {externalEdges.length > 20 && (
+            <div style={{ fontSize: 9, color: 'var(--txD)' }}>+{externalEdges.length - 20} more</div>
           )}
         </div>
       )}
@@ -225,44 +224,30 @@ export default function ClusterDetail({
   }, [members]);
 
   // Bridge node pairs for each inter-cluster edge: which raw members cross to the other cluster?
-  const bridgesByEdgeId = useMemo(() => {
-    if (!rawGraph?.edges || !rawGraph?.nodes) return {};
+  // Bridge nodes: member nodes that have at least one edge going outside this cluster
+  const bridgeNodes = useMemo(() => {
+    if (!rawGraph?.edges) return [];
     const myIds = new Set(node?.member_ids || node?.ips || []);
-    if (myIds.size === 0) return {};
-    const result = {};
-    for (const ce of connectedEdges) {
-      const src = ce.source?.id ?? ce.source;
-      const tgt = ce.target?.id ?? ce.target;
-      const otherId = src === nodeId ? tgt : src;
-      const otherNode = (nodes || []).find(n => n.id === otherId);
-      if (!otherNode) continue;
-      const otherIds = new Set(otherNode.member_ids || otherNode.ips || []);
-      if (otherIds.size === 0) continue;
-      const pairs = [];
-      for (const re of rawGraph.edges) {
-        const rs = re.source?.id ?? re.source;
-        const rt = re.target?.id ?? re.target;
-        if (myIds.has(rs) && otherIds.has(rt)) pairs.push({ from: rs, to: rt });
-        else if (myIds.has(rt) && otherIds.has(rs)) pairs.push({ from: rt, to: rs });
+    if (myIds.size === 0) return [];
+    const map = {}; // memberId -> { externalEdges: [], totalBytes }
+    for (const e of rawGraph.edges) {
+      const s = e.source?.id ?? e.source;
+      const t = e.target?.id ?? e.target;
+      const sIn = myIds.has(s), tIn = myIds.has(t);
+      if (sIn && !tIn) {
+        if (!map[s]) map[s] = { externalEdges: [], totalBytes: 0 };
+        map[s].externalEdges.push({ otherId: t, bytes: e.total_bytes || 0, protocol: e.protocol });
+        map[s].totalBytes += e.total_bytes || 0;
+      } else if (!sIn && tIn) {
+        if (!map[t]) map[t] = { externalEdges: [], totalBytes: 0 };
+        map[t].externalEdges.push({ otherId: s, bytes: e.total_bytes || 0, protocol: e.protocol });
+        map[t].totalBytes += e.total_bytes || 0;
       }
-      if (pairs.length > 0) result[ce.id ?? `${src}|${tgt}`] = pairs;
     }
-    return result;
-  }, [rawGraph, node, nodes, connectedEdges, nodeId]);
-
-  // Split connected edges into bridge edges (other is a cluster) vs external (other is a regular/subnet node)
-  const { bridgeEdges, externalConnEdges } = useMemo(() => {
-    const bridges = [], external = [];
-    for (const e of connectedEdges) {
-      const src = e.source?.id ?? e.source;
-      const tgt = e.target?.id ?? e.target;
-      const otherId = src === nodeId ? tgt : src;
-      const otherNode = (nodes || []).find(n => n.id === otherId);
-      if (otherNode?.is_cluster) bridges.push(e);
-      else external.push(e);
-    }
-    return { bridgeEdges: bridges, externalConnEdges: external };
-  }, [connectedEdges, nodes, nodeId]);
+    return Object.entries(map)
+      .map(([id, d]) => ({ id, ...d }))
+      .sort((a, b) => b.totalBytes - a.totalBytes);
+  }, [rawGraph, node]);
 
   // Internal raw edges (both endpoints inside this cluster)
   const internalRawEdges = useMemo(() => {
@@ -440,29 +425,20 @@ export default function ClusterDetail({
         </Collapse>
       )}
 
-      {/* Bridges — cluster-to-cluster edges */}
-      {bridgeEdges.length > 0 && (
-        <Collapse title={`Bridges (${bridgeEdges.length})`} defaultOpen>
+      {/* Bridges — member nodes with external connections */}
+      {bridgeNodes.length > 0 && (
+        <Collapse title={`Bridges (${bridgeNodes.length} nodes)`} defaultOpen>
           <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {bridgeEdges
-              .sort((a, b) => (b.total_bytes || 0) - (a.total_bytes || 0))
-              .map(e => {
-                const src = e.source?.id ?? e.source;
-                const tgt = e.target?.id ?? e.target;
-                const other = src === nodeId ? tgt : src;
-                const edgeKey = e.id ?? `${src}|${tgt}`;
-                return (
-                  <BridgeEdgeRow
-                    key={edgeKey}
-                    e={e}
-                    other={other}
-                    bridges={bridgesByEdgeId[edgeKey]}
-                    pColors={pColors}
-                    onSelectEdge={onSelectEdge}
-                    onSelectNode={onSelectNode}
-                  />
-                );
-              })}
+            {bridgeNodes.map(bn => (
+              <BridgeNodeRow
+                key={bn.id}
+                nodeId={bn.id}
+                externalEdges={bn.externalEdges}
+                totalBytes={bn.totalBytes}
+                pColors={pColors}
+                onSelectNode={onSelectNode}
+              />
+            ))}
           </div>
         </Collapse>
       )}
@@ -515,11 +491,11 @@ export default function ClusterDetail({
         </Collapse>
       )}
 
-      {/* External connections — cluster members to outside nodes */}
-      {externalConnEdges.length > 0 && (
-        <Collapse title={`External Connections (${externalConnEdges.length} · ${externalSessions.length} sessions)`} defaultOpen>
+      {/* External connections — what this cluster connects to (collapsed-graph edges) */}
+      {connectedEdges.length > 0 && (
+        <Collapse title={`External Connections (${connectedEdges.length} · ${externalSessions.length} sessions)`} defaultOpen>
           <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {externalConnEdges
+            {connectedEdges
               .sort((a, b) => (b.total_bytes || 0) - (a.total_bytes || 0))
               .map(e => {
                 const src = e.source?.id ?? e.source;

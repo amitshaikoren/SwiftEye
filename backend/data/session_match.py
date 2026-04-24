@@ -46,8 +46,13 @@ def _protocol_matches(session_protocol: str, session_transport: str,
 
 
 def _session_matches_edge(session: dict, edge_src: str, edge_dst: str,
-                          edge_protocol: str) -> bool:
-    """Canonical check: does this session belong to this edge?"""
+                          edge_protocol: str,
+                          src_set: set = None, dst_set: set = None) -> bool:
+    """Canonical check: does this session belong to this edge?
+
+    src_set / dst_set: when the edge endpoint is a synthetic node (cluster/subnet),
+    pass the member IP sets so matching works against real session IPs.
+    """
     s_src = session.get("src_ip", "")
     s_dst = session.get("dst_ip", "")
     s_proto = session.get("protocol", "")
@@ -56,9 +61,10 @@ def _session_matches_edge(session: dict, edge_src: str, edge_dst: str,
     if not _protocol_matches(s_proto, s_transport, edge_protocol):
         return False
 
-    # Bidirectional IP match: session (src,dst) can be in either order
-    # relative to edge (src,dst) because session IPs are sorted.
+    def _matches_src(ip): return ip in src_set if src_set else _ip_matches_endpoint(ip, edge_src)
+    def _matches_dst(ip): return ip in dst_set if dst_set else _ip_matches_endpoint(ip, edge_dst)
+
     return (
-        (_ip_matches_endpoint(s_src, edge_src) and _ip_matches_endpoint(s_dst, edge_dst)) or
-        (_ip_matches_endpoint(s_src, edge_dst) and _ip_matches_endpoint(s_dst, edge_src))
+        (_matches_src(s_src) and _matches_dst(s_dst)) or
+        (_matches_src(s_dst) and _matches_dst(s_src))
     )

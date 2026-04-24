@@ -68,16 +68,24 @@ export default function EdgeDetail({ edge: e, pColors, onClear, nodes = [], onSe
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // Fetch sessions from canonical /api/edge-sessions endpoint when edge changes
+  // Fetch sessions — expand cluster/subnet nodes to member IPs so the backend can match
   useEffect(() => {
     if (!edgeId) { setEdgeSessions([]); setSessionTotal(0); return; }
     setExpanded(false);
     setLoading(true);
-    fetchEdgeSessions(edgeId)
+    const getMemberIps = (nodeId) => {
+      const n = nodes.find(nd => nd.id === nodeId);
+      if (!n) return undefined;
+      const ids = n.member_ids || n.ips;
+      return ids?.length ? ids : undefined;
+    };
+    const srcMembers = getMemberIps(src);
+    const dstMembers = getMemberIps(tgt);
+    fetchEdgeSessions(edgeId, { srcMembers, dstMembers })
       .then(d => { setEdgeSessions(d.sessions || []); setSessionTotal(d.total ?? 0); })
       .catch(() => { setEdgeSessions([]); setSessionTotal(0); })
       .finally(() => setLoading(false));
-  }, [edgeId]);
+  }, [edgeId, src, tgt, nodes]);
 
   // Lazy-fetch edge detail (TLS/HTTP/DNS fields) when edge changes
   useEffect(() => {
