@@ -6,9 +6,8 @@ export const NODE_LEGENDS = {
     { dot: true,  fill: 'var(--node-private)',  stroke: 'var(--node-private-s)',  label: 'Private (RFC1918)',
       filter: { target: 'nodes', conditions: [{ field: 'is_private', op: '=', value: true }] } },
     { dot: true,  fill: 'var(--node-external)', stroke: 'var(--node-external-s)', label: 'External',
-      filter: { target: 'nodes', conditions: [{ field: 'is_private', op: '=', value: false }, { field: 'is_gateway', op: '=', value: false }], logic: 'and' } },
-    { dot: true,  fill: 'var(--node-gateway)',  stroke: 'var(--node-gateway-s)',  label: 'Gateway',
-      filter: { target: 'nodes', conditions: [{ field: 'is_gateway', op: '=', value: true }] } },
+      filter: { target: 'nodes', conditions: [{ field: 'is_private', op: '=', value: false }] } },
+    { dot: true,  fill: 'var(--node-gateway)',  stroke: 'var(--node-gateway-s)',  label: 'Gateway' },
     { dot: true,  fill: 'var(--node-subnet)',   stroke: 'var(--node-subnet-s)',   label: 'Subnet node' },
   ],
   os: [

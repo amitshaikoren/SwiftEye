@@ -58,9 +58,6 @@ def build_analysis_graph_and_run():
                     store.analysis_graph.nodes[nid]["os_guess"] = node["os_guess"]
                 if "plugin_data" in node:
                     store.analysis_graph.nodes[nid]["plugin_data"] = node["plugin_data"]
-                    role = (node["plugin_data"] or {}).get("network_role", {})
-                    if isinstance(role, dict) and role.get("role") == "gateway":
-                        store.analysis_graph.nodes[nid]["is_gateway"] = True
     logger.info(f"  Unfiltered graph: {len(unfiltered['nodes'])} nodes, {len(unfiltered['edges'])} edges in {time.time()-t0:.2f}s")
 
     run_analyses()
