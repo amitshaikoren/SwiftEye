@@ -4,7 +4,6 @@ import { CLUSTER_COLORS } from '../../../clusterView';
 import { resolveNodeColor, resolveEdgeColor } from '../utils/graphColorUtils';
 import { drawHulls, drawRings, drawBadges, drawShapePath, applyColorOverride } from '../../../core/graphPrimitives';
 import { buildForceSimulation } from '../../../core/layouts/forceLayout';
-import { computeStaticPositions as circularPositions } from '../../../core/layouts/circularLayout';
 import { computeStaticPositions as radialPositions } from '../../../core/layouts/radialLayout';
 import { computeStaticPositions as hierarchicalPositions } from '../../../core/layouts/hierarchicalLayout';
 
@@ -62,12 +61,13 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
     const nn = nRef.current;
     const nodeCount = nn.length;
     const hasAnyClusters = nn.some(n => n.is_cluster);
-    const chargeDistMax = hasAnyClusters ? 450
-      : nodeCount > 200 ? 180
-      : nodeCount > 50  ? 300
-      : 400;
+    const chargeDistMax = hasAnyClusters ? 700
+      : nodeCount > 200 ? 800
+      : nodeCount > 50  ? 600
+      : 500;
+    const baseCharge = forceParams?.chargeStrength ?? -300;
     simRef.current.force('charge')
-      .strength(d => d.is_cluster ? -350 - (d.member_count || 0) * 18 : -180)
+      .strength(d => d.is_cluster ? -350 - (d.member_count || 0) * 18 : baseCharge)
       .distanceMax(chargeDistMax);
     simRef.current.alpha(0.9).alphaTarget(0).restart();
   }
@@ -301,10 +301,8 @@ resize();draw();
     if (simRef.current) simRef.current.stop();
 
     let sim;
-    if (layoutMode === 'circular' || layoutMode === 'radial' || layoutMode === 'hierarchical') {
-      const staticPos = layoutMode === 'circular'
-        ? circularPositions(nn, ne, { width, height })
-        : layoutMode === 'radial'
+    if (layoutMode === 'radial' || layoutMode === 'hierarchical') {
+      const staticPos = layoutMode === 'radial'
         ? radialPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId })
         : hierarchicalPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId });
       if (staticPos) {

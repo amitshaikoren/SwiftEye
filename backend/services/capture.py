@@ -49,6 +49,15 @@ def build_analysis_graph_and_run():
     )
     enrich_nodes_with_plugins(unfiltered["nodes"], get_global_results())
     store.graph_cache = {"nodes": unfiltered["nodes"], "edges": unfiltered["edges"]}
+    # Propagate plugin-enriched fields to the analysis graph so the query engine can filter on them.
+    if store.analysis_graph is not None:
+        for node in unfiltered["nodes"]:
+            nid = node.get("id")
+            if nid and store.analysis_graph.has_node(nid):
+                if "os_guess" in node:
+                    store.analysis_graph.nodes[nid]["os_guess"] = node["os_guess"]
+                if "plugin_data" in node:
+                    store.analysis_graph.nodes[nid]["plugin_data"] = node["plugin_data"]
     logger.info(f"  Unfiltered graph: {len(unfiltered['nodes'])} nodes, {len(unfiltered['edges'])} edges in {time.time()-t0:.2f}s")
 
     run_analyses()

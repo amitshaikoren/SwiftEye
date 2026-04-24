@@ -337,13 +337,16 @@ async def get_edge_sessions(
     edge_id: str = Query(..., description="Edge ID: 'src|dst|protocol'"),
     sort_by: str = Query(default="bytes", enum=["bytes", "packets", "duration", "time"]),
     limit: int = Query(default=500, ge=1, le=10000),
+    src_members: Optional[str] = Query(default=None, description="Comma-separated member IPs for synthetic src node"),
+    dst_members: Optional[str] = Query(default=None, description="Comma-separated member IPs for synthetic dst node"),
 ):
     """
     Get sessions belonging to a specific edge.
 
     Single canonical endpoint for session↔edge matching.
     Handles directional edges, subnet grouping, MAC-split nodes,
-    and protocol/transport matching.
+    protocol/transport matching, and cluster/subnet synthetic nodes
+    (pass src_members/dst_members as comma-separated IP lists).
     """
     _require_capture()
 
@@ -352,12 +355,16 @@ async def get_edge_sessions(
         raise HTTPException(400, f"Invalid edge_id format: expected 'src|dst|protocol', got '{edge_id}'")
 
     edge_src, edge_dst, edge_protocol = parts
+    src_set = set(src_members.split(",")) if src_members else None
+    dst_set = set(dst_members.split(",")) if dst_members else None
     sessions, total = store.backend.get_sessions_for_edge(
         edge_src=edge_src,
         edge_dst=edge_dst,
         edge_protocol=edge_protocol,
         sort_by=sort_by,
         limit=limit,
+        src_members=src_set,
+        dst_members=dst_set,
     )
     return SessionsResponse(sessions=sessions, total=total)
 

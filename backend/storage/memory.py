@@ -149,10 +149,13 @@ class MemoryBackend(StorageBackend):
         edge_protocol: str,
         sort_by: str = "bytes",
         limit: int = 500,
+        src_members: set = None,
+        dst_members: set = None,
     ) -> Tuple[List[dict], int]:
         matched = []
         for s in self._sessions:
-            if not _session_matches_edge(s, edge_src, edge_dst, edge_protocol):
+            if not _session_matches_edge(s, edge_src, edge_dst, edge_protocol,
+                                         src_set=src_members, dst_set=dst_members):
                 continue
             matched.append(s)
 

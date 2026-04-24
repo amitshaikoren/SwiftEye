@@ -31,7 +31,6 @@ export default function ClusterLegend({ nodes, onSelect, clusterNames }) {
 
   return (
     <div style={{
-      position: 'absolute', bottom: 44, left: 10,
       background: 'var(--bgP)', border: '1px solid var(--bd)',
       borderRadius: 'var(--r)', padding: collapsed ? '4px 8px' : '6px 10px',
       opacity: 0.92, maxWidth: 260, maxHeight: 200, overflow: 'hidden',
