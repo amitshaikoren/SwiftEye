@@ -9,10 +9,6 @@ export const LAYOUT_REQUIRES_FOCUS = false;
  * Each connected component gets its own circle. Components are arranged
  * across the canvas (largest at center, others in a surrounding ring).
  * Within each component, nodes are sorted by degree descending.
- *
- * `__ringGuides` is attached to the returned position map so the renderer
- * can draw a dashed guide circle for each component. Clicking within ±10px
- * of a guide ring selects all nodes in that component.
  */
 export function computeStaticPositions(nodes, edges, { width, height }) {
   if (!nodes.length) return {};
@@ -85,7 +81,6 @@ export function computeStaticPositions(nodes, edges, { width, height }) {
 
   // ── 5. Place nodes + build ring guide metadata ─────────────────────
   const positions = {};
-  const ringGuides = [];
 
   for (let ci = 0; ci < compData.length; ci++) {
     const { ids, r } = compData[ci];
@@ -100,11 +95,7 @@ export function computeStaticPositions(nodes, edges, { width, height }) {
       }
     }
 
-    if (r > 0) {
-      ringGuides.push({ cx: ccx, cy: ccy, r, nodeIds: ids });
-    }
   }
 
-  positions.__ringGuides = ringGuides;
   return positions;
 }

@@ -23,7 +23,6 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   const simRef = useRef(null);
   const nRef = useRef([]);
   const eRef = useRef([]);
-  const ringGuidesRef = useRef([]);
   const graphWeightModeRef = useRef(graphWeightMode);
 
   // Single authoritative node-radius function — reads graphWeightModeRef dynamically.
@@ -309,7 +308,6 @@ resize();draw();
         : layoutMode === 'radial'
         ? radialPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId })
         : hierarchicalPositions(nn, ne, { width, height }, { focusNodeId: layoutFocusNodeId });
-      ringGuidesRef.current = layoutMode === 'circular' ? (staticPos?.__ringGuides ?? []) : [];
       if (staticPos) {
         for (const n of nn) {
           const p = staticPos[n.id];
@@ -400,25 +398,6 @@ resize();draw();
         for (let y = Math.floor(sy / gs) * gs; y < ey; y += gs) {
           ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(ex, y); ctx.stroke();
         }
-      }
-
-      // Circular layout ring guides — inner + outer dashed band per component
-      const rg = ringGuidesRef.current;
-      if (rg.length) {
-        ctx.save();
-        ctx.setLineDash([5 / t.k, 10 / t.k]);
-        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-        ctx.lineWidth = 1 / t.k;
-        const bandGap = 18; // world-px inward/outward from node-center ring
-        for (const guide of rg) {
-          ctx.beginPath();
-          ctx.arc(guide.cx, guide.cy, guide.r - bandGap, 0, 2 * Math.PI);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.arc(guide.cx, guide.cy, guide.r + bandGap, 0, 2 * Math.PI);
-          ctx.stroke();
-        }
-        ctx.restore();
       }
 
       // Pre-bake annotation snapshot and node lookup for this frame
@@ -614,5 +593,5 @@ resize();draw();
     simRef.current.alpha(1).restart();
   }, [reheatTick]);
 
-  return { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML, getSize, ringGuidesRef };
+  return { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML, getSize };
 }

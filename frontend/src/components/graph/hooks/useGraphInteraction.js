@@ -7,7 +7,6 @@ export default function useGraphInteraction({
   selNRef, pathfindSourceRef, onPathfindTargetRef,
   onSelRef, qhRef, onClearQHRef,
   setCtxMenu, setLasso, setTransformVersion,
-  ringGuidesRef,
 }) {
   const lassoRef = useRef(null);
 
@@ -171,19 +170,6 @@ export default function useGraphInteraction({
       if (n) { onSelRef.current('node', n.id, e.shiftKey); return; }
       const ed = gE(mx, my);
       if (ed) { onSelRef.current('edge', ed, false); return; }
-      // Ring guide click: select all nodes in the component (±10px tolerance in world space)
-      const guides = ringGuidesRef?.current ?? [];
-      if (guides.length) {
-        const t = tRef.current;
-        const wx = (mx - t.x) / t.k;
-        const wy = (my - t.y) / t.k;
-        const hitTol = 22 / t.k; // covers band between inner+outer guides
-        const hit = guides.find(g => Math.abs(Math.hypot(wx - g.cx, wy - g.cy) - g.r) < hitTol);
-        if (hit) {
-          hit.nodeIds.forEach((id, i) => onSelRef.current('node', id, i > 0));
-          return;
-        }
-      }
       onSelRef.current('clear', null, false);
       if (qhRef.current) onClearQHRef.current?.();
     }

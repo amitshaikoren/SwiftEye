@@ -94,7 +94,7 @@ export default function GraphCanvas({
   });
 
   // Hook 2: Simulation + render loop
-  const { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML, ringGuidesRef } =
+  const { simRef, nRef, eRef, gRRef, doRelayout, doExportHTML } =
     useGraphSim({
       nodes, edges, cRef, containerRef, graphWeightMode, tRef,
       renRef, rafRef, hRef,
@@ -115,7 +115,6 @@ export default function GraphCanvas({
     selNRef, pathfindSourceRef, onPathfindTargetRef,
     onSelRef, qhRef, onClearQHRef,
     setCtxMenu, setLasso, setTransformVersion,
-    ringGuidesRef,
   });
 
   return (
