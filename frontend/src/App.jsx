@@ -631,7 +631,6 @@ export default function App() {
                   <GraphLegend
                     nodeColorMode={c.nodeColorMode}
                     edgeColorMode={c.edgeColorMode}
-                    pColors={c.pColors}
                     hiddenLabels={hiddenLegendLabels}
                     onToggle={handleLegendToggle}
                   />

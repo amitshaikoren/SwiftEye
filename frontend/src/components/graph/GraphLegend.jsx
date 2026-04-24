@@ -53,24 +53,10 @@ function LegendSection({ title, items, dot, hiddenLabels, onToggle }) {
   );
 }
 
-function buildEdgeProtocolItems(pColors) {
-  if (!pColors || typeof pColors !== 'object') return EDGE_LEGENDS.protocol;
-  const entries = Object.entries(pColors);
-  if (!entries.length) return EDGE_LEGENDS.protocol;
-  return entries.map(([proto, color]) => ({
-    dot: false,
-    fill: color,
-    label: proto,
-    filter: { target: 'edges', conditions: [{ field: 'protocol', op: 'eq', value: proto }] },
-  }));
-}
-
-export default function GraphLegend({ nodeColorMode, edgeColorMode, pColors, hiddenLabels, onToggle }) {
+export default function GraphLegend({ nodeColorMode, edgeColorMode, hiddenLabels, onToggle }) {
   const nodeItems = NODE_LEGENDS[nodeColorMode];
-  const staticEdgeItems = EDGE_LEGENDS[edgeColorMode];
-  const edgeItems = edgeColorMode === 'protocol'
-    ? buildEdgeProtocolItems(pColors)
-    : staticEdgeItems;
+  // Protocol mode has a dedicated filter bar — no need to duplicate it in the legend
+  const edgeItems = edgeColorMode === 'protocol' ? null : EDGE_LEGENDS[edgeColorMode];
 
   if (!nodeItems && !edgeItems) return null;
 
