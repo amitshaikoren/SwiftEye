@@ -263,6 +263,8 @@ def _parse_comparison(node: ast.Compare) -> tuple:
 
     if isinstance(value, bool):
         cond = {"field": field, "op": "is_true" if value else "is_false", "value": None}
+    elif op_str == "=" and isinstance(value, str):
+        cond = {"field": field, "op": "equals", "value": value}
     else:
         cond = {"field": field, "op": op_str, "value": value}
 

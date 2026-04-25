@@ -28,7 +28,7 @@ class TestBasicComparisons:
 
     def test_string_equals(self):
         r = parse_pyspark('df.filter(col("protocol") == "HTTP")')
-        assert r["conditions"][0] == {"field": "protocol", "op": "=", "value": "HTTP"}
+        assert r["conditions"][0] == {"field": "protocol", "op": "equals", "value": "HTTP"}
 
     def test_boolean_true(self):
         r = parse_pyspark('df.filter(col("is_private") == True)')
@@ -232,5 +232,12 @@ class TestEngineEval:
     def test_ends_with_engine(self):
         # Regression: ends_with was emitted by translator but unrecognised by engine.
         r = self._run('df.filter(col("label").endswith("server"))')
+        ids = {n["id"] for n in r["matched_nodes"]}
+        assert ids == {"a"}
+
+    def test_string_equals_engine(self):
+        # Regression: col("field") == "str" was emitting op "=" which routes to
+        # _eval_numeric; float("alpha-server") raises ValueError → False for all rows.
+        r = self._run('df.filter(col("label") == "alpha-server")')
         ids = {n["id"] for n in r["matched_nodes"]}
         assert ids == {"a"}
