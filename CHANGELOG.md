@@ -1,5 +1,14 @@
 # SwiftEye — Changelog
 
+### v0.28.31 — April 2026
+- **Session src/dst now reflects true connection direction** — `src_ip`/`src_port`/`dst_ip`/`dst_port` on session objects now point to the real initiator and responder, not to lexicographically-sorted endpoints. Previously, ports were sorted by numeric value so port 443 would appear as `src_port` on an HTTPS session (lower number), making `col("dst_port") == 443` always return zero matches. The session key used for grouping is unchanged; only the exposed fields are corrected.
+
+### v0.28.30 — April 2026
+- **Query panel cleanup** — removed the "Fields ▾" collapsible from the freehand query area. The Guide tab covers field discovery; the duplicate panel was dead weight.
+
+### v0.28.29 — April 2026
+- **Freehand session string queries fixed** — `col("field") == "value"` in PySpark freehand mode now correctly matches string fields (protocol, service, IP addresses, etc.). Previously, the translator emitted op `"="` for all equality, which routed to the numeric evaluator; `float("HTTPS")` raised `ValueError` → every string comparison silently returned zero matches. The fix emits op `"equals"` when the right-hand side is a string literal, matching how the Cypher/SQL parser already handled this case.
+
 ### v0.28.27 — April 2026
 - **Sessions as a query target (Plan 2 complete)** — `target: sessions` is now a first-class query primitive. Visual mode: select "All sessions" in the target picker, filter by any session field (protocol, dst_port, total_bytes, duration, tls_cert, http_uris, etc.), and get blue session result cards showing the 5-tuple, protocol, duration, and bytes. Clicking a card highlights the source node and edge on the graph. Freehand PySpark: `sessions.filter(col("dst_port") == 443)` parses and runs end-to-end. Guide tab "coming soon" banner removed. Pipeline fully supports sessions steps (highlight emits node+edge IDs; group verbs accept sessions target). Examples dropdown now floats over the recipe panel via `position: fixed`. Query+recipe panel scrolls as one unit. 7 new tests; 315 passing.
 
