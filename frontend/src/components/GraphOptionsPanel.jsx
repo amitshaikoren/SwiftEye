@@ -555,7 +555,7 @@ export default function GraphOptionsPanel({
                   >{showEdgeDirection ? 'On' : 'Off'}</button>
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--txD)', fontFamily: 'var(--fn)', marginTop: 3 }}>
-                  Draw arrowheads on edges (src → dst).
+                  Arrows follow session initiator (TCP SYN / first packet). Two arrows = bidirectional.
                 </div>
               </>
             )}

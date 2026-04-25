@@ -453,18 +453,19 @@ resize();draw();
           ctx.stroke();
         }
 
-        // Arrowhead at 80% toward target when direction mode is on
+        // Arrowhead(s) based on session initiator when direction mode is on
         if (showEdgeDirectionRef?.current) {
-          const mx = src.x + (tgt.x - src.x) * 0.8;
-          const my = src.y + (tgt.y - src.y) * 0.8;
-          const dx = tgt.x - src.x;
-          const dy = tgt.y - src.y;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          if (len > 0) {
+          const drawArrow = (from, to) => {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len === 0) return;
             const ux = dx / len;
             const uy = dy / len;
             const tip = 11 / t.k;
             const hw  = 6.5 / t.k;
+            const mx = from.x + dx * 0.8;
+            const my = from.y + dy * 0.8;
             ctx.beginPath();
             ctx.moveTo(mx + ux * tip,           my + uy * tip);
             ctx.lineTo(mx - ux * tip - uy * hw, my - uy * tip + ux * hw);
@@ -472,10 +473,19 @@ resize();draw();
             ctx.closePath();
             ctx.fillStyle = isSel ? '#fff' : eqh ? '#f0883e' : edgeColor;
             ctx.fill();
-            // Thin outline so the arrowhead pops off the edge line
             ctx.strokeStyle = 'rgba(255,255,255,0.55)';
             ctx.lineWidth = 0.8 / t.k;
             ctx.stroke();
+          };
+          const init = edge.initiator;
+          if (!init || init === sId) {
+            drawArrow(src, tgt);
+          } else if (init === tId) {
+            drawArrow(tgt, src);
+          } else {
+            // bidirectional
+            drawArrow(src, tgt);
+            drawArrow(tgt, src);
           }
         }
 

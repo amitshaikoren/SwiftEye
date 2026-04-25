@@ -302,6 +302,29 @@ async def get_graph(
     if not get_analysis_results():
         build_analysis_graph_and_run()
 
+    # Enrich edges with initiator direction from sessions
+    if store.sessions:
+        _ses_by_pair: dict = {}
+        for s in store.sessions:
+            sip, dip = s.get("src_ip", ""), s.get("dst_ip", "")
+            init = s.get("initiator_ip", "")
+            if not sip or not dip or not init:
+                continue
+            pair = (min(sip, dip), max(sip, dip))
+            _ses_by_pair.setdefault(pair, set()).add(init)
+        for e in result["edges"]:
+            src_id, tgt_id = e["source"], e["target"]
+            if "/" in src_id or "/" in tgt_id:
+                continue
+            pair = (min(src_id, tgt_id), max(src_id, tgt_id))
+            inits = _ses_by_pair.get(pair)
+            if not inits:
+                continue
+            if len(inits) == 1:
+                e["initiator"] = next(iter(inits))
+            else:
+                e["initiator"] = "both"
+
     if store.synthetic:
         syn_nodes = [s for s in store.synthetic.values() if s["type"] == "node"]
         syn_edges = [s for s in store.synthetic.values() if s["type"] == "edge"]
