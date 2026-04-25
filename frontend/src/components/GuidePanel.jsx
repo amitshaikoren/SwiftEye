@@ -112,13 +112,6 @@ function SessionsSection({ schema }) {
   return (
     <div>
       <SectionHint text="Per-flow (5-tuple) session fields. Richest protocol detail." />
-      <div style={{
-        fontSize: 10, color: '#ffa657', background: 'rgba(255,166,87,.08)',
-        border: '1px solid rgba(255,166,87,.25)', borderRadius: 5,
-        padding: '7px 10px', marginBottom: 10,
-      }}>
-        Session querying is informational in this release — coming in Plan 2.
-      </div>
       {session_groups.map(g => <GroupCard key={g.group} group={g.group} fields={g.fields} />)}
       {session_groups.length === 0 && <EmptyNote text="No session fields declared." />}
     </div>

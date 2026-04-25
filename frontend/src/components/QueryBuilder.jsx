@@ -161,7 +161,7 @@ function SchemaReference({ schema, dialect }) {
 // ── Component ───────────────────────────────────────────────────────────
 
 export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSelectNode, onSelectEdge, onAddStep, groupsRefreshKey }) {
-  const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {} });
+  const [schema, setSchema] = useState({ node_fields: {}, edge_fields: {}, session_fields: {} });
   const [mode, setMode] = useState('freehand');  // 'visual' | 'freehand'
 
   // Visual mode state
@@ -199,14 +199,24 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
 
   const parseTimer = useRef(null);
   const errorTimer = useRef(null);
+  const exBtnRef = useRef(null);
+  const [exPos, setExPos] = useState({ top: 0, left: 0 });
+
+  function handleOpenExamples() {
+    if (!showExamples && exBtnRef.current) {
+      const r = exBtnRef.current.getBoundingClientRect();
+      setExPos({ top: r.bottom + 4, left: r.left });
+    }
+    setShowExamples(s => !s);
+  }
 
   // Fetch schema on load
   useEffect(() => {
-    if (!loaded) { setSchema({ node_fields: {}, edge_fields: {} }); return; }
+    if (!loaded) { setSchema({ node_fields: {}, edge_fields: {}, session_fields: {} }); return; }
     fetchQuerySchema().then(setSchema);
   }, [loaded]);
 
-  const fields = target === 'nodes' ? schema.node_fields : schema.edge_fields;
+  const fields = target === 'sessions' ? schema.session_fields : target === 'nodes' ? schema.node_fields : schema.edge_fields;
   const fieldGroups = useMemo(() => groupFields(fields), [fields]);
 
   // Live parse freehand text via backend (debounced)
@@ -513,8 +523,8 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
 
               {/* Examples */}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ position: 'relative' }}>
-                  <button onClick={() => setShowExamples(!showExamples)}
+                <div>
+                  <button ref={exBtnRef} onClick={handleOpenExamples}
                     style={{
                       fontSize: 10, padding: '3px 10px', cursor: 'pointer',
                       background: 'transparent', color: 'var(--txD)', border: '1px solid var(--bd)',
@@ -524,19 +534,19 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
                   </button>
                   {showExamples && (
                     <div style={{
-                      position: 'absolute', top: '100%', left: 0, zIndex: 20, marginTop: 4,
+                      position: 'fixed', top: exPos.top, left: exPos.left, zIndex: 9999,
                       background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 8,
-                      padding: '6px 0', minWidth: 340, maxHeight: 260, overflowY: 'auto',
-                      boxShadow: '0 4px 16px rgba(0,0,0,.3)',
+                      padding: '6px 0', minWidth: 340, maxHeight: 300, overflowY: 'auto',
+                      boxShadow: '0 4px 24px rgba(0,0,0,.45)',
                     }}>
-                      {EXAMPLES.map((ex, i) => {
-                        const exText = ex[dialect] || ex.cypher;
+                      {EXAMPLES.filter(ex => !ex.pysparkOnly || dialect === 'pyspark').map((ex, i, arr) => {
+                        const exText = ex[dialect] || ex.pyspark || ex.cypher;
                         return (
                           <div key={i}
                             onClick={() => { setQueryText(exText); setShowExamples(false); }}
                             style={{
                               padding: '6px 12px', cursor: 'pointer',
-                              borderBottom: i < EXAMPLES.length - 1 ? '1px solid var(--bd)' : 'none',
+                              borderBottom: i < arr.length - 1 ? '1px solid var(--bd)' : 'none',
                             }}
                             onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,.04)'}
                             onMouseOut={e => e.currentTarget.style.background = 'transparent'}
@@ -777,7 +787,7 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
               )}
 
               {/* Matched edges — clickable */}
-              {result.matched_edges?.length > 0 && (
+              {result.matched_edges?.length > 0 && !result.session_cards && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: result.matched_nodes?.length ? 6 : 0 }}>
                   {result.matched_edges.map(m => (
                     <div key={m.id}
@@ -802,6 +812,38 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
                           {fieldLabel(k)}: {Array.isArray(v) ? v.slice(0, 3).join(', ') : String(v)}
                         </span>
                       ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Session result cards */}
+              {result.session_cards?.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {result.session_cards.map(s => (
+                    <div key={s.id}
+                      onClick={() => {
+                        if (onSelectNode && s.src_ip) onSelectNode(s.src_ip);
+                        if (onSelectEdge && s.src_ip && s.dst_ip) {
+                          const eid = [s.src_ip, s.dst_ip].sort().join('|');
+                          onSelectEdge(eid);
+                        }
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                        fontSize: 11, fontFamily: 'var(--fn)', padding: '4px 8px', borderRadius: 4,
+                        cursor: 'pointer',
+                        background: 'rgba(121,192,255,.06)', border: '1px solid rgba(121,192,255,.2)',
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = 'rgba(121,192,255,.12)'}
+                      onMouseOut={e => e.currentTarget.style.background = 'rgba(121,192,255,.06)'}
+                    >
+                      <span style={{ color: '#79c0ff', fontWeight: 500, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={s.id}>{s.src_ip}:{s.src_port} → {s.dst_ip}:{s.dst_port}</span>
+                      {s.protocol && <span style={{ fontSize: 9, color: '#79c0ff', padding: '1px 5px', background: 'rgba(121,192,255,.12)', borderRadius: 3 }}>{s.protocol}</span>}
+                      {s.transport && s.transport !== s.protocol && <span style={{ fontSize: 9, color: 'var(--txD)', padding: '1px 5px', background: 'var(--bgC)', borderRadius: 3 }}>{s.transport}</span>}
+                      {s.duration != null && <span style={{ fontSize: 9, color: 'var(--txD)' }}>{s.duration.toFixed(2)}s</span>}
+                      {s.total_bytes != null && <span style={{ fontSize: 9, color: 'var(--txD)' }}>{s.total_bytes >= 1024 ? (s.total_bytes / 1024).toFixed(1) + 'KB' : s.total_bytes + 'B'}</span>}
                     </div>
                   ))}
                 </div>

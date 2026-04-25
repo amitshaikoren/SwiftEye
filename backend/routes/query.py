@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from store import store, _require_capture
-from data.query import resolve_query, parse_query_text, get_graph_schema, run_pipeline
+from data.query import resolve_query, resolve_session_query, parse_query_text, get_graph_schema, run_pipeline
 from data.query.groups import KINDS
 
 router = APIRouter()
@@ -8,8 +8,10 @@ router = APIRouter()
 
 @router.post("/api/query")
 async def run_query(body: dict):
-    """Execute a structured query against the analysis graph."""
+    """Execute a structured query against nodes, edges, or sessions."""
     _require_capture()
+    if body.get("target") == "sessions":
+        return resolve_session_query(store.sessions, body)
     if store.analysis_graph is None:
         raise HTTPException(400, "Analysis graph not available")
     return resolve_query(store.analysis_graph, body, named_sets=store.named_sets.as_context())
@@ -56,6 +58,7 @@ async def run_query_pipeline(body: dict):
         store.analysis_graph, steps,
         named_sets=store.named_sets.as_context(),
         group_store=store.group_store,
+        sessions=store.sessions,
     )
     return result
 

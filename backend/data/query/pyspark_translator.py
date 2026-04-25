@@ -106,8 +106,10 @@ class TranslationError(Exception):
 # ── Target detection ──────────────────────────────────────────────────
 
 def _detect_target(text: str) -> str:
-    """Detect whether query targets nodes or edges from variable names or table refs."""
+    """Detect whether query targets nodes, edges, or sessions from variable names or table refs."""
     t = text.lower()
+    if "sessions" in t or "session" in t:
+        return "sessions"
     if "edges" in t or "edge" in t:
         return "edges"
     if "nodes" in t or "node" in t:

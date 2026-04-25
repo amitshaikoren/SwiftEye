@@ -56,6 +56,31 @@ export const EXAMPLES = [
     sql:    "SELECT * FROM nodes WHERE os_guess LIKE 'Win%' AND bytes > 50000",
     pyspark: 'nodes.filter((col("os_guess").startswith("Win")) & (col("bytes") > 50000))',
   },
+  {
+    title: 'TLS sessions',
+    pyspark: 'sessions.filter(col("protocol") == "TLS")',
+    pysparkOnly: true,
+  },
+  {
+    title: 'Large flows (>1 MB)',
+    pyspark: 'sessions.filter(col("total_bytes") > 1000000)',
+    pysparkOnly: true,
+  },
+  {
+    title: 'Long-lived sessions (>5 min)',
+    pyspark: 'sessions.filter(col("duration") > 300)',
+    pysparkOnly: true,
+  },
+  {
+    title: 'HTTPS sessions (port 443)',
+    pyspark: 'sessions.filter(col("dst_port") == 443)',
+    pysparkOnly: true,
+  },
+  {
+    title: 'DNS sessions',
+    pyspark: 'sessions.filter(col("protocol") == "DNS")',
+    pysparkOnly: true,
+  },
 ];
 
 /** Get a random example in the given syntax. */

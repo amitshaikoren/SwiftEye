@@ -44,7 +44,7 @@ step's `in_set` op can reference a set saved earlier in the same recipe.
 from typing import Optional
 import logging
 
-from .query_engine import resolve_query, ACTIONS, ACTIONS_REQUIRE_GROUP, SCOPES
+from .query_engine import resolve_query, resolve_session_query, ACTIONS, ACTIONS_REQUIRE_GROUP, SCOPES
 from .groups import VERB_TO_KIND
 
 logger = logging.getLogger("swifteye.query_pipeline")
@@ -91,7 +91,7 @@ def _step_query(step: dict) -> dict:
 
 
 def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None,
-                 group_store=None) -> dict:
+                 group_store=None, sessions: Optional[list] = None) -> dict:
     """Execute `steps` against graph `G`. Returns the pipeline output envelope.
 
     `named_sets` is a shared dict of {name: {"target", "members"}} — pipeline
@@ -205,10 +205,27 @@ def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None,
         # the match set directly. resolve_query requires at least one condition,
         # so short-circuit here.
         conds_in_step = [c for c in (step.get("conditions") or []) if c.get("field") and c.get("op")]
-        if from_group_members is not None and not conds_in_step:
+
+        if target == "sessions":
+            # Sessions step: resolve against the sessions list, not the analysis graph.
+            sess_list = sessions or []
+            env = resolve_session_query(sess_list, step_q)
+            matches_all = env.get("matched_sessions", [])
+            record["matches"] = matches_all
+            record["total_searched"] = env.get("total_searched", 0)
+            # Sessions are not part of the graph visibility set — all matched sessions
+            # are "effective". Graph highlights come from node_ids / edge_ids.
+            effective = list(matches_all)
+            record["effective_matches"] = effective
+            record["node_ids"] = [m["id"] for m in env.get("matched_nodes", [])]
+            record["edge_ids"] = [m["id"] for m in env.get("matched_edges", [])]
+        elif from_group_members is not None and not conds_in_step:
             matches_all = list(from_group_members)
             record["matches"] = matches_all
             record["total_searched"] = len(from_group_members)
+            current_visible = visible_nodes if target == "nodes" else visible_edges
+            effective = [m for m in matches_all if m in current_visible]
+            record["effective_matches"] = effective
         else:
             env = resolve_query(G, step_q, named_sets=named_sets)
             matches_all = list(env.get("matches", []))
@@ -216,14 +233,30 @@ def run_pipeline(G, steps: list[dict], named_sets: Optional[dict] = None,
                 matches_all = [m for m in matches_all if m in from_group_members]
             record["matches"] = matches_all
             record["total_searched"] = env.get("total_searched", 0) if from_group_members is None else len(from_group_members)
-
-        # Visibility effects only consider items that are currently visible —
-        # prior steps may have narrowed the set.
-        current_visible = visible_nodes if target == "nodes" else visible_edges
-        effective = [m for m in matches_all if m in current_visible]
-        record["effective_matches"] = effective
+            # Visibility effects only consider items that are currently visible —
+            # prior steps may have narrowed the set.
+            current_visible = visible_nodes if target == "nodes" else visible_edges
+            effective = [m for m in matches_all if m in current_visible]
+            record["effective_matches"] = effective
 
         before_nodes, before_edges = set(visible_nodes), set(visible_edges)
+
+        if target == "sessions":
+            # Sessions don't exist in the graph visibility model. Only highlight makes sense:
+            # emit node+edge highlights for the matched sessions' endpoints.
+            if verb == "highlight":
+                node_ids = record.get("node_ids", [])
+                edge_ids = record.get("edge_ids", [])
+                if node_ids:
+                    highlights.append({"step": idx, "target": "nodes", "ids": node_ids})
+                if edge_ids:
+                    highlights.append({"step": idx, "target": "edges", "ids": edge_ids})
+            elif verb in ACTIONS_REQUIRE_GROUP and group_name:
+                _record_group(group_store, VERB_TO_KIND[verb], group_name, target, effective, steps, idx,
+                              dict(step.get("group_args") or {}) if verb == "color" else None)
+            record["removed"] = {"nodes": [], "edges": []}
+            step_records.append(record)
+            continue
 
         if verb == "highlight":
             if effective:
