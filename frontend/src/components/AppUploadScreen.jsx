@@ -70,7 +70,7 @@ export default function AppUploadScreen({
           </div>
           <div style={{ fontSize: 12, color: 'var(--txD)' }}>or click to browse · multiple files merge by timestamp · max 500MB each</div>
           {error && <div style={{ marginTop: 20, color: 'var(--acR)', fontSize: 13 }}>{error}</div>}
-          <input id="pcap-up" type="file" accept=".pcap,.pcapng,.cap,.log,.csv" multiple onChange={handleFileInput} style={{ display: 'none' }} />
+          <input id="pcap-up" type="file" accept=".pcap,.pcapng,.cap,.log,.csv,.parquet" multiple onChange={handleFileInput} style={{ display: 'none' }} />
         </div>
       )}
       <div style={{ position: 'absolute', bottom: 24, display: 'flex', gap: 12 }}>
