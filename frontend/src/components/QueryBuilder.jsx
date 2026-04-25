@@ -64,100 +64,6 @@ const SYNTAX_COLORS = {
   pyspark: { bg: 'rgba(240,136,62,.12)', border: 'rgba(240,136,62,.3)', color: '#f5a623', label: 'PySpark' },
 };
 
-// ── Schema reference (collapsible field list) ───────────────────────────
-
-const TYPE_BADGE = {
-  numeric: { color: '#79c0ff', bg: 'rgba(88,166,255,.1)' },
-  set:     { color: '#d2a8ff', bg: 'rgba(210,168,255,.1)' },
-  boolean: { color: '#7ee787', bg: 'rgba(63,185,80,.1)' },
-  string:  { color: '#ffa657', bg: 'rgba(255,166,87,.1)' },
-};
-
-function fieldSyntax(name, dialect, entity) {
-  // entity is 'n' for nodes, 'r' for edges
-  if (dialect === 'cypher') return `${entity}.${name}`;
-  if (dialect === 'pyspark') return `col("${name}")`;
-  return name; // SQL
-}
-
-function SchemaReference({ schema, dialect }) {
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState('nodes');
-
-  const fields = tab === 'nodes' ? schema.node_fields : schema.edge_fields;
-  const groups = groupFields(fields || {});
-  const entity = tab === 'nodes' ? 'n' : 'r';
-  const hasFields = Object.values(fields || {}).length > 0;
-
-  return (
-    <div style={{ marginTop: 2 }}>
-      <button onClick={() => setOpen(!open)}
-        style={{
-          fontSize: 10, padding: '3px 10px', cursor: 'pointer',
-          background: 'transparent', color: 'var(--txD)', border: '1px solid var(--bd)',
-          borderRadius: 'var(--rs)',
-        }}>
-        Fields {open ? '▴' : '▾'}
-      </button>
-
-      {open && (
-        <div style={{
-          marginTop: 6, background: 'var(--bgP)', border: '1px solid var(--bd)',
-          borderRadius: 8, padding: '8px 10px', maxHeight: 300, overflowY: 'auto',
-        }}>
-          {/* Node / Edge toggle */}
-          <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
-            {['nodes', 'edges'].map((t, i) => (
-              <button key={t} onClick={() => setTab(t)}
-                style={{
-                  fontSize: 9, padding: '3px 10px', cursor: 'pointer',
-                  background: tab === t ? 'rgba(88,166,255,.12)' : 'transparent',
-                  color: tab === t ? 'var(--ac)' : 'var(--txD)',
-                  border: `1px solid ${tab === t ? 'var(--ac)' : 'var(--bd)'}`,
-                  borderRadius: i === 0 ? 'var(--rs) 0 0 var(--rs)' : '0 var(--rs) var(--rs) 0',
-                  fontWeight: tab === t ? 600 : 400,
-                  borderLeft: i > 0 ? 'none' : undefined,
-                }}>
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {!hasFields && (
-            <div style={{ fontSize: 10, color: 'var(--txD)', padding: 4 }}>
-              Load a capture to see available fields.
-            </div>
-          )}
-
-          {Object.entries(groups).map(([group, entries]) =>
-            entries.length > 0 && (
-              <div key={group} style={{ marginBottom: 6 }}>
-                <div style={{ fontSize: 9, color: 'var(--txD)', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                  {group}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                  {entries.map(f => (
-                    <span key={f.name}
-                      title={`${f.name} (${f.type})`}
-                      style={{
-                        fontSize: 10, fontFamily: 'var(--fn)', padding: '2px 6px', borderRadius: 4,
-                        background: TYPE_BADGE[f.type]?.bg || 'var(--bgC)',
-                        color: TYPE_BADGE[f.type]?.color || 'var(--txD)',
-                        cursor: 'default', whiteSpace: 'nowrap',
-                      }}>
-                      {fieldSyntax(f.name, dialect, entity)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Component ───────────────────────────────────────────────────────────
 
 export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSelectNode, onSelectEdge, onAddStep, groupsRefreshKey }) {
@@ -562,8 +468,6 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
                 <span style={{ fontSize: 9, color: 'var(--txD)' }}>Ctrl+Enter to run</span>
               </div>
 
-              {/* ── Field reference ─────────────────────────────────── */}
-              <SchemaReference schema={schema} dialect={dialect} />
             </div>
           )}
 
