@@ -20,5 +20,9 @@ plotly>=5.0.0
 # simple filter syntax (field:value, comparisons) still works without sqlglot.
 sqlglot>=20.0.0
 
+# pyarrow enables Parquet file ingestion via ParquetAdapter.
+# Without it the server starts normally but .parquet uploads are unavailable.
+pyarrow>=12.0.0
+
 # ── Development / testing ────────────────────────────────────────────────────
 pytest>=7.0.0
