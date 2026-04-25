@@ -216,7 +216,7 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
               RecipePanel debounced pipeline run complete even while the user is
               viewing Groups (otherwise unmount-on-switch cancels the run and the
               group is never recorded). */}
-          <div style={{ display: querySubTab === 'query' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div style={{ display: querySubTab === 'query' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto' }}>
             <QueryBuilder
               loaded={c.loaded}
               onQueryResult={onQueryResultLegacy}
