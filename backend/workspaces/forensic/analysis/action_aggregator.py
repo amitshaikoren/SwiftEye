@@ -176,16 +176,18 @@ def build_forensic_graph(events: List[Event]) -> Dict[str, Any]:
         if not src_id or not dst_id:
             continue
 
-        # Upsert nodes
+        # Upsert nodes — packet_count tracks event participation so gR() gets a valid radius
         if src_id not in node_registry:
             node_registry[src_id] = _make_node(src_id, ev.src_entity, computer)
         else:
             _merge_node_fields(node_registry[src_id], ev.src_entity, computer)
+        node_registry[src_id]["packet_count"] = node_registry[src_id].get("packet_count", 0) + 1
 
         if dst_id not in node_registry:
             node_registry[dst_id] = _make_node(dst_id, ev.dst_entity, computer)
         else:
             _merge_node_fields(node_registry[dst_id], ev.dst_entity, computer)
+        node_registry[dst_id]["packet_count"] = node_registry[dst_id].get("packet_count", 0) + 1
 
         # Upsert edge
         edge_key = (src_id, dst_id)
