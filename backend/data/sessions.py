@@ -370,6 +370,15 @@ def build_sessions(packets: List[PacketRecord]) -> List[Dict[str, Any]]:
         # ── Protocol fields (auto-discovered) ──
         all_serialize(s)
 
+        # Point src/dst at the real initiator→responder direction.
+        # The session key uses sorted IPs+ports for grouping — that stays as the id.
+        # Exposed fields should reflect who opened the connection, not numeric ordering.
+        if s["initiator_ip"]:
+            s["src_ip"]   = s["initiator_ip"]
+            s["src_port"] = s["initiator_port"]
+            s["dst_ip"]   = s["responder_ip"]
+            s["dst_port"] = s["responder_port"]
+
         # TCP state detection (adapter may pre-set has_handshake, e.g. Zeek conn_state)
         fc = s["flag_counts"]
         if s.get("has_handshake") is None:
