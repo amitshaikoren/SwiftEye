@@ -90,9 +90,17 @@ def _entity_id(entity: Dict[str, Any], computer: str = "") -> Optional[str]:
 # Node builder
 # ---------------------------------------------------------------------------
 
+_TYPE_COLOR: Dict[str, str] = {
+    "process":  "#4fc3f7",
+    "file":     "#fff176",
+    "registry": "#ffb74d",
+    "endpoint": "#ce93d8",
+}
+
+
 def _make_node(entity_id: str, entity: Dict[str, Any], computer: str = "") -> Dict[str, Any]:
     t = entity.get("type", "process")
-    node: Dict[str, Any] = {"id": entity_id, "type": t}
+    node: Dict[str, Any] = {"id": entity_id, "type": t, "color": _TYPE_COLOR.get(t, "#4fc3f7")}
     if t == "process":
         node["image"]   = entity.get("image") or ""
         node["guid"]    = entity.get("guid") or ""

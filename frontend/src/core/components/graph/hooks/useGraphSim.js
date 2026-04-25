@@ -20,10 +20,11 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
     gRRef.current = function gR(n) {
       if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
       if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
-      if (graphWeightModeRef.current === 'bytes') {
-        return Math.max(5, Math.min(28, Math.log(Math.max(1, n.total_bytes)) * 2));
+      if (graphWeightModeRef.current === 'bytes' && n.total_bytes != null) {
+        const r = Math.max(5, Math.min(28, Math.log(Math.max(1, n.total_bytes)) * 2));
+        if (isFinite(r)) return r;
       }
-      return Math.max(5, Math.min(28, Math.sqrt(n.packet_count) * 2 + 3));
+      return Math.max(5, Math.min(28, Math.sqrt(n.packet_count || 1) * 2 + 3));
     };
   }
 
@@ -80,7 +81,7 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
 
     const snapshotNodes = nRef.current.map(n => {
       const r = gR(n);
-      const [fill, stroke] = n.is_cluster || n.is_subnet || n.synthetic
+      const [fill, stroke] = n.is_cluster || n.is_subnet || n.synthetic || n.color
         ? [n.color || '#f0883e', n.color || '#f0883e']
         : resolveNodeColor(n, nColorMode, nColorRules, pc, nodePrivate, nodePrivateS, nodeExternal, nodeExternalS);
       const topProtos = (n.top_protocols || []).slice(0, 3).map(p => p[0]).join(', ');
@@ -562,6 +563,12 @@ resize();draw();
             ctx.setLineDash([4, 3]);
             ctx.stroke();
             ctx.setLineDash([]);
+          } else if (node.color) {
+            ctx.fillStyle = isSel ? node.color + '55' : node.color;
+            ctx.fill();
+            ctx.strokeStyle = isSel ? '#fff' : isH ? '#fff' : node.color;
+            ctx.lineWidth = isSel || isH ? 2.5 : 1.5;
+            ctx.stroke();
           } else {
             const [nFill, nStroke] = resolveNodeColor(
               node, nodeColorModeRef.current, nodeColorRulesRef.current, pc,
