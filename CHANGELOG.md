@@ -1,5 +1,8 @@
 # SwiftEye — Changelog
 
+### v0.28.27 — April 2026
+- **Sessions as a query target (Plan 2 complete)** — `target: sessions` is now a first-class query primitive. Visual mode: select "All sessions" in the target picker, filter by any session field (protocol, dst_port, total_bytes, duration, tls_cert, http_uris, etc.), and get blue session result cards showing the 5-tuple, protocol, duration, and bytes. Clicking a card highlights the source node and edge on the graph. Freehand PySpark: `sessions.filter(col("dst_port") == 443)` parses and runs end-to-end. Guide tab "coming soon" banner removed. Pipeline fully supports sessions steps (highlight emits node+edge IDs; group verbs accept sessions target). Examples dropdown now floats over the recipe panel via `position: fixed`. Query+recipe panel scrolls as one unit. 7 new tests; 315 passing.
+
 ### v0.28.23 — April 2026
 - **Guide tab badge fixes** — the Guide tab now correctly renders "Num" badges for `number`-typed fields (previously showed the raw string "number") and a "List" badge for list fields. Cards are collapsed by default.
 
