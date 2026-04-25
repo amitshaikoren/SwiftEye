@@ -237,7 +237,7 @@ class TestBuildForensicGraph:
         g = build_forensic_graph([ev])
         assert "nodes" in g and "edges" in g
         edge = g["edges"][0]
-        for key in ("id", "src", "dst", "type", "events", "count", "ts_first", "ts_last"):
+        for key in ("id", "source", "target", "type", "events", "count", "ts_first", "ts_last"):
             assert key in edge, f"Missing key: {key}"
 
 

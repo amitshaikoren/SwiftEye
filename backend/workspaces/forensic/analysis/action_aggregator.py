@@ -192,8 +192,8 @@ def build_forensic_graph(events: List[Event]) -> Dict[str, Any]:
         if edge_key not in edge_registry:
             edge_registry[edge_key] = {
                 "id":       f"{src_id}|{dst_id}",
-                "src":      src_id,
-                "dst":      dst_id,
+                "source":   src_id,
+                "target":   dst_id,
                 "type":     _ACTION_TO_EDGE_TYPE.get(ev.action_type, "unknown"),
                 "events":   [],
                 "count":    0,
