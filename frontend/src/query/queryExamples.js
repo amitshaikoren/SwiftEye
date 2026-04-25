@@ -57,29 +57,29 @@ export const EXAMPLES = [
     pyspark: 'nodes.filter((col("os_guess").startswith("Win")) & (col("bytes") > 50000))',
   },
   {
-    title: 'Sessions — TLS only',
+    title: 'TLS sessions',
     pyspark: 'sessions.filter(col("protocol") == "TLS")',
-    sessionsOnly: true,
+    pysparkOnly: true,
   },
   {
-    title: 'Sessions — large flows (>1 MB)',
+    title: 'Large flows (>1 MB)',
     pyspark: 'sessions.filter(col("total_bytes") > 1000000)',
-    sessionsOnly: true,
+    pysparkOnly: true,
   },
   {
-    title: 'Sessions — long-lived (>5 min)',
+    title: 'Long-lived sessions (>5 min)',
     pyspark: 'sessions.filter(col("duration") > 300)',
-    sessionsOnly: true,
+    pysparkOnly: true,
   },
   {
-    title: 'Sessions — HTTPS (port 443)',
+    title: 'HTTPS sessions (port 443)',
     pyspark: 'sessions.filter(col("dst_port") == 443)',
-    sessionsOnly: true,
+    pysparkOnly: true,
   },
   {
-    title: 'Sessions — DNS queries',
+    title: 'DNS sessions',
     pyspark: 'sessions.filter(col("protocol") == "DNS")',
-    sessionsOnly: true,
+    pysparkOnly: true,
   },
 ];
 

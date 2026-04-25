@@ -539,7 +539,7 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
                       padding: '6px 0', minWidth: 340, maxHeight: 300, overflowY: 'auto',
                       boxShadow: '0 4px 24px rgba(0,0,0,.45)',
                     }}>
-                      {EXAMPLES.filter(ex => !ex.sessionsOnly || target === 'sessions').map((ex, i, arr) => {
+                      {EXAMPLES.filter(ex => !ex.pysparkOnly || dialect === 'pyspark').map((ex, i, arr) => {
                         const exText = ex[dialect] || ex.pyspark || ex.cypher;
                         return (
                           <div key={i}
@@ -751,7 +751,7 @@ export default function QueryBuilder({ loaded, onQueryResult, onClearQuery, onSe
 
           {/* ── Results ─────────────────────────────────────────────────── */}
           {result && result.total_matched > 0 && (
-            <div style={{ marginTop: 12, background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ marginTop: 12, background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 8, padding: '10px 12px', maxHeight: 320, overflowY: 'auto' }}>
               <div style={{ fontSize: 11, color: 'var(--txM)', marginBottom: 8 }}>
                 <span style={{ color: '#f0883e', fontWeight: 700, fontSize: 14 }}>{result.total_matched}</span>
                 <span style={{ color: 'var(--txD)' }}> / {result.total_searched} matched</span>
