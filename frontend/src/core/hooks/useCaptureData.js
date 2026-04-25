@@ -126,15 +126,15 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
     sessions: ss, fullSessions: fs, sessionTotal: st,
     pluginResults: pr, pluginSlots: ps,
   }) => {
-    setStats(s);
-    setTimeline(t);
-    setProtocols(p);
-    setPColors(pc);
-    setSessions(ss);
-    setFullSessions(fs);
-    setSessionTotal(st);
-    setPluginResults(pr);
-    setPluginSlots(ps);
+    setStats(s ?? null);
+    setTimeline(t ?? []);
+    setProtocols(p ?? []);
+    setPColors(pc ?? {});
+    setSessions(ss ?? []);
+    setFullSessions(fs ?? []);
+    setSessionTotal(st ?? 0);
+    setPluginResults(pr ?? {});
+    setPluginSlots(ps ?? []);
   }, []);
 
   // ── Effects ──────────────────────────────────────────────────────
@@ -211,7 +211,8 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
 
   // E7: re-fetch graph when any filter changes (debounced)
   useEffect(() => {
-    if (!loaded || !timeline.length) return;
+    // Workspace-owned graph fetchers have no timeline dependency.
+    if (!loaded || (!workspace.fetchGraph && !timeline.length)) return;
     const ts = timeline[debouncedTR[0]]?.start_time;
     const te = timeline[debouncedTR[1]]?.end_time;
     const params = {};
@@ -228,6 +229,18 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
     if (clusterAlgo) {
       params.clusterAlgorithm = clusterAlgo;
       if (clusterAlgo === 'louvain') params.clusterResolution = clusterResolution;
+    }
+
+    // Workspace may supply its own graph fetcher (e.g. forensic workspace
+    // uses /api/forensic/graph with no filter params).
+    if (workspace.fetchGraph) {
+      workspace.fetchGraph().then(d => {
+        setRawGraph(d);
+        if (!fullGraphRef.current) {
+          fullGraphRef.current = { nodes: d.nodes || [], edges: d.edges || [] };
+        }
+      }).catch(e => console.error(e));
+      return;
     }
 
     const ctrl = new AbortController();

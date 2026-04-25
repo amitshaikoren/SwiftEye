@@ -62,6 +62,7 @@ from routes.utility import router as utility_router, setup_log_handler, _log_buf
 from routes.schema import router as schema_router
 from routes.llm import router as llm_router
 from routes.workspace import router as workspace_router
+from routes.forensic import router as forensic_router
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -158,6 +159,7 @@ app.include_router(utility_router)
 app.include_router(schema_router)
 app.include_router(llm_router)
 app.include_router(workspace_router)
+app.include_router(forensic_router)
 
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
