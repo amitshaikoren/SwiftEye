@@ -20,8 +20,10 @@ import {
   uploadPcap, uploadMetadata, confirmSchemaMapping,
 } from '../api';
 import { STORAGE_KEYS } from '../storageKeys';
+import { useWorkspace } from '@/WorkspaceProvider';
 
 export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph }) {
+  const workspace = useWorkspace();
 
   // ── Capture lifecycle state ──────────────────────────────────────
 
@@ -107,10 +109,16 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
   // ── E1: mount — check if capture already loaded server-side ──────
 
   useEffect(() => {
-    fetchStatus().then(d => {
-      if (d.capture_loaded) {
+    const statusFn = workspace.fetchStatus || fetchStatus;
+    statusFn().then(d => {
+      const isLoaded = d.capture_loaded ?? d.loaded;
+      if (isLoaded) {
         setFileName(d.file_name);
-        loadAll();
+        if (workspace.loadAll) {
+          workspace.loadAll().then(onCaptureLoaded);
+        } else {
+          loadAll();
+        }
       }
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -121,6 +129,20 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
     setLoading(true); setError(''); setLoadMsg('Uploading...');
     try {
       setLoadMsg('Parsing capture data...');
+
+      // Workspace-provided upload overrides the default network upload.
+      if (workspace.uploadFile) {
+        const file = Array.isArray(files) ? files[0] : files;
+        const res = await workspace.uploadFile(file);
+        setFileName(res.file_name);
+        setSourceFiles([res.file_name]);
+        setLoadMsg('Building graph...');
+        const graphData = await workspace.loadAll();
+        onCaptureLoaded(graphData);
+        setLoading(false);
+        return;
+      }
+
       const res = await uploadPcap(files, forceAdapter);
 
       if (res.detection_failed) {

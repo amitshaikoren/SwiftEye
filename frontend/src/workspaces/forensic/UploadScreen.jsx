@@ -1,35 +1,70 @@
 /**
- * Forensic workspace — pre-capture screen (Phase 3 skeleton).
+ * Forensic workspace — EVTX upload screen (Phase 5).
  *
- * Shown when the forensic workspace is active but no capture is loaded.
- * Phase 4 replaces this stub with an EVTX upload zone once the parser
- * lands. Kept copy-free of implementation details — users see a short
- * "not yet available" message, not a roadmap.
+ * Uses the handleDrop / handleFileInput props injected by useCaptureLoad,
+ * which now dispatches to workspace.uploadFile (forensicEvtx) when the
+ * forensic workspace descriptor provides it.
+ *
+ * Props mirror the network UploadScreen so App.jsx can call both uniformly.
  */
 
 import React from 'react';
 import logoFullData from '@/logoFullData';
 
-export default function ForensicUploadScreen() {
+export default function ForensicUploadScreen({
+  loading, loadMsg,
+  handleDrop, handleFileInput,
+  error,
+}) {
   return (
     <div style={{
       width: '100%', height: '100vh', background: 'var(--bg)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'var(--fn)',
     }}>
-      <div style={{
-        textAlign: 'center', padding: '64px 80px',
-        border: '1.5px dashed rgba(88,166,255,.3)', borderRadius: 20,
-        minWidth: 460, background: 'rgba(88,166,255,.02)',
-      }}>
-        <img src={logoFullData} alt="SwiftEye" style={{ height: 120, marginBottom: 40, opacity: 0.95 }} />
-        <div style={{ fontSize: 16, color: 'var(--txM)', marginBottom: 10 }}>
-          <span style={{ color: 'var(--ac)' }}>Forensic</span> ingestion is not available yet.
+      {loading ? (
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: 40, height: 40, border: '3px solid var(--bd)',
+            borderTopColor: '#4fc3f7', borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite', margin: '0 auto 16px',
+          }} />
+          <div style={{ color: 'var(--txM)', fontSize: 13, fontFamily: 'var(--fn)' }}>
+            {loadMsg || 'Parsing events…'}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--txD)' }}>
-          This workspace is a skeleton — EVTX / Sysmon support is in progress.
+      ) : (
+        <div
+          onDrop={handleDrop}
+          onDragOver={e => e.preventDefault()}
+          onClick={() => document.getElementById('evtx-up').click()}
+          style={{
+            textAlign: 'center', padding: '64px 80px',
+            border: '1.5px dashed rgba(79,195,247,.35)', borderRadius: 20,
+            cursor: 'pointer', minWidth: 460,
+            background: 'rgba(79,195,247,.02)',
+          }}
+        >
+          <img src={logoFullData} alt="SwiftEye" style={{ height: 120, marginBottom: 40, opacity: 0.95 }} />
+          <div style={{ fontSize: 16, color: 'var(--txM)', marginBottom: 8, fontFamily: 'var(--fn)' }}>
+            Drop an <span style={{ color: '#4fc3f7' }}>EVTX</span> file, or click to browse
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--txD)', fontFamily: 'var(--fn)' }}>
+            Sysmon event logs (.evtx) · EIDs 1, 3, 11, 13
+          </div>
+          {error && (
+            <div style={{ marginTop: 18, fontSize: 11, color: 'var(--acR)', fontFamily: 'var(--fn)' }}>
+              {error}
+            </div>
+          )}
+          <input
+            id="evtx-up"
+            type="file"
+            accept=".evtx"
+            style={{ display: 'none' }}
+            onChange={handleFileInput}
+          />
         </div>
-      </div>
+      )}
     </div>
   );
 }

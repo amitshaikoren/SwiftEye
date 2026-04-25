@@ -127,8 +127,9 @@ export function useCaptureFilters({ selCallbacksRef }) {
   // ── Init from full-capture load ──────────────────────────────────
 
   const initFromLoad = useCallback(({ enabledProtocolKeys, timelineLength }) => {
-    setEnabledP(new Set(enabledProtocolKeys));
-    const fullRange = [0, timelineLength - 1];
+    setEnabledP(new Set(enabledProtocolKeys || []));
+    const len = timelineLength || 0;
+    const fullRange = len > 0 ? [0, len - 1] : [0, 0];
     setTimeRange(fullRange);
     setDebouncedTR(fullRange);
   }, []);

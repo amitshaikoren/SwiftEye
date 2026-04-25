@@ -223,6 +223,26 @@ export async function fetchQuerySchema() {
   return api('/api/query/schema').catch(() => ({ node_fields: {}, edge_fields: {} }));
 }
 
+// ── Forensic workspace ───────────────────────────────────────────────────────
+
+export async function uploadForensicEvtx(file) {
+  const form = new FormData();
+  form.append('file', file);
+  return api('/api/forensic/upload', { method: 'POST', body: form });
+}
+
+export async function fetchForensicStatus() {
+  return api('/api/forensic/status');
+}
+
+export async function fetchForensicGraph() {
+  return api('/api/forensic/graph');
+}
+
+export async function fetchForensicEvents(edgeKey) {
+  return api(`/api/forensic/events?edge_key=${encodeURIComponent(edgeKey)}`);
+}
+
 // ── Analysis ────────────────────────────────────────────────────────────────
 
 export async function fetchAnalysisResults() {
