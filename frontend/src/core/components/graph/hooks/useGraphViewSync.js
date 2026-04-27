@@ -7,6 +7,7 @@ export default function useGraphViewSync({
   pathfindSource, onPathfindTarget,
   labelThreshold, edgeSizeMode, nodeColorMode, edgeColorMode,
   nodeColorRules, edgeColorRules, showEdgeDirection,
+  nodeWeightField, nodeWeightScale, edgeWeightField, edgeWeightScale,
   investigationNodes, displayFilterNodes, displayFilterEdges,
   queryHighlight, theme,
 }) {
@@ -24,6 +25,10 @@ export default function useGraphViewSync({
   const nodeColorRulesRef = useRef(nodeColorRules);
   const edgeColorRulesRef = useRef(edgeColorRules);
   const showEdgeDirectionRef = useRef(showEdgeDirection);
+  const nodeWeightFieldRef = useRef(nodeWeightField);
+  const nodeWeightScaleRef = useRef(nodeWeightScale);
+  const edgeWeightFieldRef = useRef(edgeWeightField);
+  const edgeWeightScaleRef = useRef(edgeWeightScale);
   const invNodesRef = useRef(investigationNodes);
   const dfNodesRef = useRef(displayFilterNodes);
   const dfEdgesRef = useRef(displayFilterEdges);
@@ -59,6 +64,8 @@ export default function useGraphViewSync({
   useEffect(() => { nodeColorRulesRef.current    = nodeColorRules;    triggerRender(); }, [nodeColorRules]);
   useEffect(() => { edgeColorRulesRef.current    = edgeColorRules;    triggerRender(); }, [edgeColorRules]);
   useEffect(() => { showEdgeDirectionRef.current = showEdgeDirection; triggerRender(); }, [showEdgeDirection]);
+  useEffect(() => { edgeWeightFieldRef.current   = edgeWeightField;   triggerRender(); }, [edgeWeightField]);
+  useEffect(() => { edgeWeightScaleRef.current   = edgeWeightScale;   triggerRender(); }, [edgeWeightScale]);
 
   useEffect(() => {
     invNodesRef.current = investigationNodes;
@@ -94,6 +101,7 @@ export default function useGraphViewSync({
     onSelRef, onInvRef, onInvNbRef, onClearQHRef,
     labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
     nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
+    nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef, edgeWeightScaleRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
     annotationsRef, pathfindSourceRef, onPathfindTargetRef,
   };

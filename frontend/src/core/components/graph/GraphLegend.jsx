@@ -1,18 +1,33 @@
 import React from 'react';
 import { NODE_LEGENDS, EDGE_LEGENDS } from './graphLegendData';
+import { useWorkspace } from '@/WorkspaceProvider';
 
-// Mode labels shown in the legend header
-const NODE_MODE_LABELS = {
-  address: 'Nodes: Address type',
-  os: 'Nodes: OS guess',
-  protocol: 'Nodes: Protocol',
-  volume: 'Nodes: Volume',
+// Phase 5.7 — mode-id → header-label map. Workspace-declared modes contribute
+// labels via the descriptor; this map covers network's pre-5.7 mode ids and
+// stays as a fallback when a mode lacks a `label` in the descriptor.
+const _FALLBACK_NODE_LABELS = {
+  address: 'Address type',
+  os: 'OS guess',
+  protocol: 'Protocol',
+  volume: 'Volume',
 };
-const EDGE_MODE_LABELS = {
-  protocol: 'Edges: Protocol',
-  volume: 'Edges: Volume',
-  sessions: 'Edges: Sessions',
+const _FALLBACK_EDGE_LABELS = {
+  protocol: 'Protocol',
+  volume: 'Volume',
+  sessions: 'Sessions',
 };
+
+function _resolveLegend(modes, modeId, staticMap, workspace) {
+  const m = (modes || []).find(x => x.id === modeId);
+  if (m?.legendItems) {
+    return typeof m.legendItems === 'function' ? m.legendItems(workspace) : m.legendItems;
+  }
+  return staticMap[modeId];
+}
+function _resolveLabel(modes, modeId, fallbackMap) {
+  const m = (modes || []).find(x => x.id === modeId);
+  return m?.label || fallbackMap[modeId];
+}
 
 function LegendSection({ title, items, dot }) {
   return (
@@ -24,7 +39,7 @@ function LegendSection({ title, items, dot }) {
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
           {dot ? (
             <svg width="10" height="10" style={{ flexShrink: 0 }}>
-              <circle cx="5" cy="5" r="4" fill={item.fill} stroke={item.stroke} strokeWidth="1.5" />
+              <circle cx="5" cy="5" r="4" fill={item.fill} stroke={item.stroke || item.fill} strokeWidth="1.5" />
             </svg>
           ) : (
             <svg width="14" height="4" style={{ flexShrink: 0 }}>
@@ -39,11 +54,20 @@ function LegendSection({ title, items, dot }) {
 }
 
 export default function GraphLegend({ nodeColorMode, edgeColorMode }) {
-  const nodeItems = NODE_LEGENDS[nodeColorMode];
-  const edgeItems = EDGE_LEGENDS[edgeColorMode];
+  const workspace = useWorkspace();
+  // Phase 5.7 escape hatch: a workspace can opt out of the graph display
+  // catalog entirely with `graphDisplay: null`. In that case there is no
+  // mode-driven legend to show.
+  if (workspace.graphDisplay === null) return null;
+  const gd = workspace.graphDisplay || {};
+  const nodeItems = _resolveLegend(gd.nodeColorModes, nodeColorMode, NODE_LEGENDS, workspace);
+  const edgeItems = _resolveLegend(gd.edgeColorModes, edgeColorMode, EDGE_LEGENDS, workspace);
 
   // Don't render legend for custom rules — no static mapping to show
-  if (!nodeItems && !edgeItems) return null;
+  if (!nodeItems?.length && !edgeItems?.length) return null;
+
+  const nodeTitle = 'Nodes: ' + (_resolveLabel(gd.nodeColorModes, nodeColorMode, _FALLBACK_NODE_LABELS) || nodeColorMode);
+  const edgeTitle = 'Edges: ' + (_resolveLabel(gd.edgeColorModes, edgeColorMode, _FALLBACK_EDGE_LABELS) || edgeColorMode);
 
   return (
     <div style={{
@@ -52,23 +76,15 @@ export default function GraphLegend({ nodeColorMode, edgeColorMode }) {
       borderRadius: 6, padding: '8px 10px', minWidth: 150, maxWidth: 190,
       backdropFilter: 'blur(4px)',
     }}>
-      {nodeItems && (
-        <LegendSection
-          title={NODE_MODE_LABELS[nodeColorMode] || 'Nodes'}
-          items={nodeItems}
-          dot={true}
-        />
-      )}
-      {edgeItems && nodeItems && (
+      {nodeItems?.length ? (
+        <LegendSection title={nodeTitle} items={nodeItems} dot={true} />
+      ) : null}
+      {edgeItems?.length && nodeItems?.length ? (
         <div style={{ height: 1, background: 'var(--bgH)', margin: '4px 0 8px' }} />
-      )}
-      {edgeItems && (
-        <LegendSection
-          title={EDGE_MODE_LABELS[edgeColorMode] || 'Edges'}
-          items={edgeItems}
-          dot={false}
-        />
-      )}
+      ) : null}
+      {edgeItems?.length ? (
+        <LegendSection title={edgeTitle} items={edgeItems} dot={false} />
+      ) : null}
     </div>
   );
 }

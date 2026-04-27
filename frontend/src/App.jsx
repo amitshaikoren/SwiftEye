@@ -527,6 +527,10 @@ export default function App() {
                     edgeSizeMode={c.edgeSizeMode}
                     nodeColorMode={c.nodeColorMode}
                     edgeColorMode={c.edgeColorMode}
+                    nodeWeightField={c.nodeWeightField}
+                    nodeWeightScale={c.nodeWeightScale}
+                    edgeWeightField={c.edgeWeightField}
+                    edgeWeightScale={c.edgeWeightScale}
                     nodeColorRules={c.nodeColorRules}
                     edgeColorRules={c.edgeColorRules}
                     showEdgeDirection={c.showEdgeDirection}

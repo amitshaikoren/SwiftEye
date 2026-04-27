@@ -237,8 +237,88 @@ class TestBuildForensicGraph:
         g = build_forensic_graph([ev])
         assert "nodes" in g and "edges" in g
         edge = g["edges"][0]
-        for key in ("id", "source", "target", "type", "events", "count", "ts_first", "ts_last"):
+        for key in ("id", "source", "target", "type", "events", "count",
+                    "event_count", "ts_first", "ts_last"):
             assert key in edge, f"Missing key: {key}"
+
+    # ── Phase 5.7 graphDisplay weight fields ─────────────────────────────────
+
+    def test_node_event_count_increments_per_event(self):
+        """Each event participation bumps event_count on src and dst."""
+        proc = _proc("{p7}")
+        f1   = _file("C:\\a.txt")
+        f2   = _file("C:\\b.txt")
+        evs = [
+            Event(action_type="file_create", src_entity=proc, dst_entity=f1, fields={}, source={"eid": 11}),
+            Event(action_type="file_create", src_entity=proc, dst_entity=f2, fields={}, source={"eid": 11}),
+        ]
+        g = build_forensic_graph(evs)
+        proc_node = next(n for n in g["nodes"] if n["type"] == "process")
+        # proc participated in both events as src
+        assert proc_node["event_count"] == 2
+        # each file participated in one event as dst
+        for fn in (n for n in g["nodes"] if n["type"] == "file"):
+            assert fn["event_count"] == 1
+
+    def test_edge_event_count_mirrors_count(self):
+        """edge.event_count is the number of accumulated events on the edge."""
+        proc = _proc("{p8}")
+        f    = _file("C:\\x.txt")
+        evs = [Event(action_type="file_create", src_entity=proc, dst_entity=f,
+                     fields={}, source={"eid": 11}) for _ in range(3)]
+        g = build_forensic_graph(evs)
+        edge = g["edges"][0]
+        assert edge["event_count"] == 3
+        assert edge["event_count"] == edge["count"]
+
+    def test_node_connection_count_counts_connected_edges_as_source(self):
+        """connection_count = number of `connected` edges where this node is source."""
+        proc = _proc("{p9}", image="beacon.exe")
+        ep1  = _endpoint("1.1.1.1", 443)
+        ep2  = _endpoint("2.2.2.2", 443)
+        f    = _file("C:\\dropped.dll")
+        evs = [
+            Event(action_type="network_connect", src_entity=proc, dst_entity=ep1, fields={}, source={"eid": 3}),
+            Event(action_type="network_connect", src_entity=proc, dst_entity=ep2, fields={}, source={"eid": 3}),
+            # file_create should NOT contribute to connection_count
+            Event(action_type="file_create",     src_entity=proc, dst_entity=f,   fields={}, source={"eid": 11}),
+        ]
+        g = build_forensic_graph(evs)
+        proc_node = next(n for n in g["nodes"] if n["type"] == "process")
+        assert proc_node["connection_count"] == 2
+        # file/endpoint nodes are never sources of connected edges → stay 0
+        for n in g["nodes"]:
+            if n["type"] != "process":
+                assert n["connection_count"] == 0
+
+    def test_node_child_count_counts_spawned_edges_as_source(self):
+        """child_count = number of `spawned` edges where this node is source."""
+        parent = _proc("{p10-parent}", image="cmd.exe")
+        child1 = _proc("{p10-child1}", image="whoami.exe")
+        child2 = _proc("{p10-child2}", image="net.exe")
+        evs = [
+            Event(action_type="process_create", src_entity=parent, dst_entity=child1, fields={}, source={"eid": 1}),
+            Event(action_type="process_create", src_entity=parent, dst_entity=child2, fields={}, source={"eid": 1}),
+        ]
+        g = build_forensic_graph(evs)
+        parent_node = next(n for n in g["nodes"] if n["id"] == "fx:proc:{p10-parent}")
+        assert parent_node["child_count"] == 2
+        # child nodes never source a spawned edge → stay 0
+        for cid in ("fx:proc:{p10-child1}", "fx:proc:{p10-child2}"):
+            cn = next(n for n in g["nodes"] if n["id"] == cid)
+            assert cn["child_count"] == 0
+
+    def test_node_weight_fields_initialized_zero_when_no_matching_edges(self):
+        """A file node never sources connected/spawned → both stay at 0."""
+        proc = _proc("{p11}")
+        f    = _file("C:\\foo.bin")
+        ev = Event(action_type="file_create", src_entity=proc, dst_entity=f,
+                   fields={}, source={"eid": 11})
+        g = build_forensic_graph([ev])
+        file_node = next(n for n in g["nodes"] if n["type"] == "file")
+        assert file_node["connection_count"] == 0
+        assert file_node["child_count"] == 0
+        assert file_node["event_count"] == 1
 
 
 # ── Integration: EVTX → graph ────────────────────────────────────────────────

@@ -163,6 +163,46 @@ const filterExamples = [
   { label: 'OS filter',     expr: 'os contains "Linux"' },
 ];
 
+// Graph Options catalog — declares the mode lists shown in the Graph Options
+// panel + the field name on node/edge each weight mode reads. Phase 5.7 (B2)
+// moves these out of `useCaptureFilters` defaults + GraphOptionsPanel hardcodes.
+// Network preserves the historical four mode lists exactly. The
+// `nodeColorModes` legendItems live in the existing static `graphLegendData`
+// map keyed by mode id, so no per-mode legend declaration is required here.
+const graphDisplay = {
+  // `scale` controls how the raw field value maps to node radius: 'log' for
+  // wide-range counters like bytes (default), 'sqrt' for narrower counters
+  // like packets. Edges always scale linearly against the max edge metric.
+  nodeWeightModes: [
+    { id: 'bytes',   label: 'Bytes',   field: 'total_bytes',  scale: 'log'  },
+    { id: 'packets', label: 'Packets', field: 'packet_count', scale: 'sqrt' },
+  ],
+  edgeWeightModes: [
+    { id: 'bytes',    label: 'Bytes',    field: 'total_bytes' },
+    { id: 'packets',  label: 'Packets',  field: 'packet_count' },
+    { id: 'sessions', label: 'Sessions', field: 'session_count' },
+  ],
+  nodeColorModes: [
+    { id: 'address',  label: 'Address',  icon: '🌐', hint: 'Private vs external' },
+    { id: 'os',       label: 'OS',       icon: '💻', hint: 'Detected OS family' },
+    { id: 'protocol', label: 'Protocol', icon: '📡', hint: 'Dominant protocol' },
+    { id: 'volume',   label: 'Volume',   icon: '🔥', hint: 'Bytes transferred' },
+    { id: 'custom',   label: 'Custom',   icon: '🎨', hint: 'Your own IP rules', supportsCustomRules: true },
+  ],
+  edgeColorModes: [
+    { id: 'protocol', label: 'Protocol', icon: '📡', hint: 'Per-protocol color' },
+    { id: 'volume',   label: 'Volume',   icon: '🔥', hint: 'Bytes transferred' },
+    { id: 'sessions', label: 'Sessions', icon: '🔗', hint: 'Session count' },
+    { id: 'custom',   label: 'Custom',   icon: '🎨', hint: 'Your own rules', supportsCustomRules: true },
+  ],
+  defaults: {
+    nodeWeight: 'bytes',
+    edgeWeight: 'bytes',
+    nodeColor:  'address',
+    edgeColor:  'protocol',
+  },
+};
+
 const networkWorkspace = {
   name: 'network',
   label: 'Network',
@@ -183,6 +223,8 @@ const networkWorkspace = {
   // a session row matches the search query). Forensic has no sessions
   // and omits this — useCaptureData skips the matcher when undefined.
   matchSessionToEdge,
+  // Graph Options catalog (mode lists + defaults). See declaration above.
+  graphDisplay,
 };
 
 export default networkWorkspace;

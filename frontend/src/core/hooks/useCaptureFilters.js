@@ -9,10 +9,22 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useWorkspace } from '@/WorkspaceProvider';
 
 const TIME_RANGE_DEBOUNCE_MS = 300;
 
+// Network-shape fallback if a workspace omits graphDisplay entirely. Keeps
+// pre-Phase-5.7 behaviour for any descriptor that hasn't migrated yet.
+const _DEFAULT_GRAPH_DISPLAY_DEFAULTS = {
+  nodeWeight: 'bytes',
+  edgeWeight: 'bytes',
+  nodeColor:  'address',
+  edgeColor:  'protocol',
+};
+
 export function useCaptureFilters({ selCallbacksRef }) {
+  const workspace = useWorkspace();
+  const gdDefaults = workspace.graphDisplay?.defaults || _DEFAULT_GRAPH_DISPLAY_DEFAULTS;
 
   // ── Time range ───────────────────────────────────────────────────
 
@@ -80,14 +92,31 @@ export function useCaptureFilters({ selCallbacksRef }) {
   }
 
   // ── Graph display options (view-only, no effects) ────────────────
+  //
+  // Defaults come from the active workspace's `graphDisplay.defaults`
+  // (Phase 5.7). Switching workspaces is a full app reload today, so
+  // initial state is sufficient — no reset effect needed.
 
   const [labelThreshold, setLabelThreshold]   = useState(0);
-  const [graphWeightMode, setGraphWeightMode] = useState('bytes');
-  const [edgeSizeMode, setEdgeSizeMode]       = useState('bytes');
-  const [nodeColorMode, setNodeColorMode]     = useState('address');
-  const [edgeColorMode, setEdgeColorMode]     = useState('protocol');
+  const [graphWeightMode, setGraphWeightMode] = useState(gdDefaults.nodeWeight);
+  const [edgeSizeMode, setEdgeSizeMode]       = useState(gdDefaults.edgeWeight);
+  const [nodeColorMode, setNodeColorMode]     = useState(gdDefaults.nodeColor);
+  const [edgeColorMode, setEdgeColorMode]     = useState(gdDefaults.edgeColor);
   const [nodeColorRules, setNodeColorRules]   = useState([]);
   const [edgeColorRules, setEdgeColorRules]   = useState([]);
+
+  // Resolved mode → field+scale for the renderer. Computed here so consumers
+  // (App.jsx → GraphCanvas → useGraphSim) don't need workspace-context access.
+  // If a mode id falls out of sync with the catalog (workspace switch race or
+  // a deleted mode), we fall back to the catalog's first entry.
+  const _nwModes = workspace.graphDisplay?.nodeWeightModes || [];
+  const _ewModes = workspace.graphDisplay?.edgeWeightModes || [];
+  const _nwMode = _nwModes.find(m => m.id === graphWeightMode) || _nwModes[0] || null;
+  const _ewMode = _ewModes.find(m => m.id === edgeSizeMode)    || _ewModes[0] || null;
+  const nodeWeightField = _nwMode?.field || 'total_bytes';
+  const nodeWeightScale = _nwMode?.scale || 'log';
+  const edgeWeightField = _ewMode?.field || 'total_bytes';
+  const edgeWeightScale = _ewMode?.scale || 'log';
   const [showEdgeDirection, setShowEdgeDirection] = useState(false);
 
   // ── Merge / IPv6 / hostname / broadcast toggles ──────────────────
@@ -173,6 +202,8 @@ export function useCaptureFilters({ selCallbacksRef }) {
     nodeColorRules, setNodeColorRules,
     edgeColorRules, setEdgeColorRules,
     showEdgeDirection, setShowEdgeDirection,
+    // Resolved (mode-id → field+scale) — consumed by GraphCanvas/useGraphSim.
+    nodeWeightField, nodeWeightScale, edgeWeightField, edgeWeightScale,
     // Merge/IPv6/hostname/broadcast
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,
