@@ -150,3 +150,44 @@ async def forensic_events(edge_key: str = ""):
         raise HTTPException(status_code=400, detail="edge_key is required")
     events = forensic_store.get_events_for_edge(edge_key)
     return ForensicEventsResponse(edge_key=edge_key, events=events)
+
+
+# ---------------------------------------------------------------------------
+# Research chart routes (forensic-local registry)
+# ---------------------------------------------------------------------------
+
+@router.get("/api/forensic/research")
+async def list_forensic_research_charts():
+    """List all registered forensic research charts (no capture required)."""
+    from workspaces.forensic.research import get_charts
+    return {"charts": [c.to_info() for c in get_charts().values()]}
+
+
+@router.post("/api/forensic/research/{chart_name}")
+async def run_forensic_research_chart(chart_name: str, body: dict):
+    """
+    Run a forensic research chart and return a Plotly figure dict.
+
+    Requires a forensic capture to be loaded.
+    Body: { "_filter_*": ... }  — reserved for future filter params.
+    Response: { "figure": { "data": [...], "layout": {...} }, "filter_schema": {} }
+    """
+    _require_forensic_capture()
+    from workspaces.forensic.research import get_chart, run_chart, ForensicContext
+    chart = get_chart(chart_name)
+    if not chart:
+        raise HTTPException(status_code=404, detail=f"Forensic chart '{chart_name}' not found")
+    try:
+        ctx = ForensicContext(
+            events=forensic_store.events,
+            nodes=forensic_store.graph_cache.get("nodes", []),
+            edges=forensic_store.graph_cache.get("edges", []),
+        )
+        chart_params = {k: v for k, v in body.items() if not k.startswith("_")}
+        filter_params = {k: v for k, v in body.items() if k.startswith("_filter_")}
+        return run_chart(chart_name, ctx, chart_params, filter_params=filter_params)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error(f"Forensic chart '{chart_name}' failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

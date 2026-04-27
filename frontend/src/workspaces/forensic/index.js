@@ -144,8 +144,15 @@ const forensicWorkspace = {
 
   supportedTabs: [
     'stats', 'alerts', 'investigation', 'visualize',
-    'graph-options', 'logs', 'help',
+    'graph-options', 'research', 'logs', 'help',
   ],
+
+  // Research tab wiring: points ResearchPage at the forensic chart API.
+  // hasCustomChart: false hides the network-specific custom chart builder.
+  research: {
+    apiBase: '/api/forensic/research',
+    hasCustomChart: false,
+  },
 
   // Top bar stats: events + artifact node count.
   // nodeCount is passed by App.jsx as c.visibleNodes.length.

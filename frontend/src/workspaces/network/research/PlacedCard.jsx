@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { runResearchChart, runCustomChart } from '../../../core/api';
+import { api, runCustomChart } from '../../../core/api';
 import { fTtime } from '../../../core/utils';
 import Sparkline from '../../../core/components/Sparkline';
 import ScopePill from '../../../core/components/ScopePill';
 import { useFilterContext, toProtocolNames } from '../../../core/FilterContext';
 import { STORAGE_KEYS } from '../../../core/storageKeys';
+import { useWorkspace } from '../../../WorkspaceProvider';
 
 export const DEFAULT_CARD_HEIGHT = 380;
 
@@ -147,6 +148,8 @@ export default function PlacedCard({
   slotId,
 }) {
   const filterCtx = useFilterContext();
+  const workspace = useWorkspace();
+  const researchApiBase = workspace.research?.apiBase || '/api/research';
   const [scope, setScope] = useScopeState(STORAGE_KEYS.scopeSlot(slotId));
   function handleResizeStart(e) {
     e.preventDefault();
@@ -285,7 +288,11 @@ export default function PlacedCard({
         res = await runCustomChart({ ...chart._customConfig, ...filterOverrides });
       } else {
         const payload = { ...values, ...filterOverrides, ...filterParamOverrides };
-        res = await runResearchChart(chart.name, payload);
+        res = await api(`${researchApiBase}/${chart.name}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
       }
       hasRun.current = true;
       setFigure(res.figure);
