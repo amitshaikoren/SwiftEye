@@ -100,7 +100,20 @@ def _entity_id(entity: Dict[str, Any], computer: str = "") -> Optional[str]:
 
 def _make_node(entity_id: str, entity: Dict[str, Any], computer: str = "") -> Dict[str, Any]:
     t = entity.get("type", "process")
-    node: Dict[str, Any] = {"id": entity_id, "type": t, "color": _NODE_COLORS.get(t, "#4fc3f7")}
+    node: Dict[str, Any] = {
+        "id": entity_id,
+        "type": t,
+        "color": _NODE_COLORS.get(t, "#4fc3f7"),
+        # Phase 5.7 graphDisplay weight fields. event_count = times this entity
+        # appeared as src or dst (kept alongside packet_count for back-compat
+        # with the renderer's network-shaped fallback). connection_count and
+        # child_count are populated in a finalisation pass below — tracked here
+        # so graphDisplay defaults render a non-null radius even before that
+        # pass (e.g. for node types that never see those edge classes).
+        "event_count":      0,
+        "connection_count": 0,
+        "child_count":      0,
+    }
     if t == "process":
         node["image"]   = entity.get("image") or ""
         node["guid"]    = entity.get("guid") or ""
@@ -184,33 +197,39 @@ def build_forensic_graph(events: List[Event]) -> Dict[str, Any]:
         if not src_id or not dst_id:
             continue
 
-        # Upsert nodes — packet_count tracks event participation so gR() gets a valid radius
+        # Upsert nodes. packet_count tracks event participation so the renderer's
+        # network-shaped fallback (Math.sqrt(packet_count)) still produces a
+        # valid radius. event_count is the schema-declared field used by the
+        # forensic graphDisplay weight modes.
         if src_id not in node_registry:
             node_registry[src_id] = _make_node(src_id, ev.src_entity, computer)
         else:
             _merge_node_fields(node_registry[src_id], ev.src_entity, computer)
         node_registry[src_id]["packet_count"] = node_registry[src_id].get("packet_count", 0) + 1
+        node_registry[src_id]["event_count"]  = node_registry[src_id].get("event_count", 0) + 1
 
         if dst_id not in node_registry:
             node_registry[dst_id] = _make_node(dst_id, ev.dst_entity, computer)
         else:
             _merge_node_fields(node_registry[dst_id], ev.dst_entity, computer)
         node_registry[dst_id]["packet_count"] = node_registry[dst_id].get("packet_count", 0) + 1
+        node_registry[dst_id]["event_count"]  = node_registry[dst_id].get("event_count", 0) + 1
 
         # Upsert edge
         edge_key = (src_id, dst_id)
         if edge_key not in edge_registry:
             edge_type = _ACTION_TO_EDGE_TYPE.get(ev.action_type, "unknown")
             edge_registry[edge_key] = {
-                "id":       f"{src_id}|{dst_id}",
-                "source":   src_id,
-                "target":   dst_id,
-                "type":     edge_type,
-                "color":    _EDGE_COLORS.get(edge_type, "#8b949e"),
-                "events":   [],
-                "count":    0,
-                "ts_first": None,
-                "ts_last":  None,
+                "id":          f"{src_id}|{dst_id}",
+                "source":      src_id,
+                "target":      dst_id,
+                "type":        edge_type,
+                "color":       _EDGE_COLORS.get(edge_type, "#8b949e"),
+                "events":      [],
+                "count":       0,
+                "event_count": 0,
+                "ts_first":    None,
+                "ts_last":     None,
             }
         edge = edge_registry[edge_key]
 
@@ -221,7 +240,8 @@ def build_forensic_graph(events: List[Event]) -> Dict[str, Any]:
             "fields":      ev.fields,
             "source":      ev.source,
         })
-        edge["count"] += 1
+        edge["count"]       += 1
+        edge["event_count"]  = edge["count"]
 
         if ts_iso:
             if edge["ts_first"] is None or ts_iso < edge["ts_first"]:
@@ -234,6 +254,18 @@ def build_forensic_graph(events: List[Event]) -> Dict[str, Any]:
         if edge["type"] != _ACTION_TO_EDGE_TYPE.get(ev.action_type, "unknown"):
             edge["type"] = "mixed"
             edge["color"] = "#8b949e"
+
+    # Finalisation pass: per-source per-edge-type counters used by the forensic
+    # graphDisplay weight modes (`connection_count`, `child_count`). Run after
+    # all events are aggregated so we count finalised edges, not partial state.
+    for (src, _dst), edge in edge_registry.items():
+        node = node_registry.get(src)
+        if node is None:
+            continue
+        if edge["type"] == "connected":
+            node["connection_count"] = node.get("connection_count", 0) + 1
+        elif edge["type"] == "spawned":
+            node["child_count"] = node.get("child_count", 0) + 1
 
     return {
         "nodes": list(node_registry.values()),

@@ -7,28 +7,41 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   renRef, rafRef, hRef,
   selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
   labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
-  nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef }) {
+  nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
+  nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef }) {
 
   const simRef = useRef(null);
   const nRef = useRef([]);
   const eRef = useRef([]);
   const graphWeightModeRef = useRef(graphWeightMode);
 
-  // Single authoritative node-radius function — reads graphWeightModeRef dynamically.
+  // Single authoritative node-radius function — reads
+  // nodeWeightFieldRef / nodeWeightScaleRef dynamically. The workspace
+  // declares the field (e.g. 'total_bytes', 'event_count', 'connection_count')
+  // and scale ('log' | 'sqrt') in `workspace.graphDisplay.nodeWeightModes`.
+  // Fallback chain (when refs are absent or the field is null): packet_count
+  // sqrt scaling — preserves pre-Phase-5.7 network behaviour byte-for-byte.
   const gRRef = useRef(null);
   if (!gRRef.current) {
     gRRef.current = function gR(n) {
       if (n.is_cluster) return Math.max(14, Math.min(36, Math.sqrt(n.member_count) * 6 + 8));
       if (n.synthetic) return Math.max(8, Math.min(28, n.size || 14));
-      if (graphWeightModeRef.current === 'bytes' && n.total_bytes != null) {
-        const r = Math.max(5, Math.min(28, Math.log(Math.max(1, n.total_bytes)) * 2));
+      const field = nodeWeightFieldRef?.current;
+      const scale = nodeWeightScaleRef?.current || 'log';
+      const v = field ? n[field] : null;
+      if (v != null) {
+        const raw = scale === 'sqrt'
+          ? Math.sqrt(v) * 2 + 3
+          : Math.log(Math.max(1, v)) * 2;
+        const r = Math.max(5, Math.min(28, raw));
         if (isFinite(r)) return r;
       }
       return Math.max(5, Math.min(28, Math.sqrt(n.packet_count || 1) * 2 + 3));
     };
   }
 
-  // Update collision radius when graphWeightMode changes
+  // Update collision radius when graphWeightMode changes (mode id still drives
+  // the recompute; field+scale change in lockstep with it via the parent).
   useEffect(() => {
     graphWeightModeRef.current = graphWeightMode;
     if (simRef.current) {
@@ -104,14 +117,13 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
       const tgt = typeof e.target === 'object' ? e.target : nRef.current.find(n => n.id === e.target);
       if (!src || !tgt) return null;
       const color = resolveEdgeColor(e, eColorMode, eColorRules, pc);
-      const metric = edgeSizeModeRef.current === 'packets' ? (e.packet_count || 0)
-        : edgeSizeModeRef.current === 'sessions' ? (e.session_count || 0)
-        : (e.total_bytes || 0);
-      const maxMetric = Math.max(...eRef.current.map(ex =>
-        edgeSizeModeRef.current === 'packets' ? (ex.packet_count || 0)
-          : edgeSizeModeRef.current === 'sessions' ? (ex.session_count || 0)
-          : (ex.total_bytes || 0)
-      ), 1);
+      // Workspace-declared edge weight field (Phase 5.7). Fallback to
+      // 'total_bytes' preserves pre-5.7 network behaviour when the prop is
+      // absent (HTML export reads the live ref, so workspaces declaring
+      // alternate fields like 'event_count' flow through naturally).
+      const ewField = edgeWeightFieldRef?.current || 'total_bytes';
+      const metric = e[ewField] || 0;
+      const maxMetric = Math.max(...eRef.current.map(ex => ex[ewField] || 0), 1);
       const protocols = (e.protocols && e.protocols.length)
         ? e.protocols.join(', ')
         : (e.protocol || '');
@@ -393,15 +405,13 @@ resize();draw();
         }
       }
 
-      // Edges
-      const eSizeMode = edgeSizeModeRef.current;
+      // Edges. Workspace-declared edge weight field (Phase 5.7); falls back
+      // to 'total_bytes' so any descriptor missing graphDisplay still renders
+      // the historical network shape.
       const eColorMode = edgeColorModeRef.current;
       const eColorRules = edgeColorRulesRef.current;
-      const edgeMetric = e => {
-        if (eSizeMode === 'packets')  return e.packet_count  || 0;
-        if (eSizeMode === 'sessions') return e.session_count || 0;
-        return e.total_bytes || 0;
-      };
+      const ewField = edgeWeightFieldRef?.current || 'total_bytes';
+      const edgeMetric = e => e[ewField] || 0;
       const meb = Math.max(...eRef.current.map(edgeMetric), 1);
       for (const edge of eRef.current) {
         const src = typeof edge.source === 'object' ? edge.source : nRef.current.find(n => n.id === edge.source);

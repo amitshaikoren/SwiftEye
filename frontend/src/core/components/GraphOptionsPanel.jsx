@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { fB } from '../utils';
 import { NODE_LEGENDS, EDGE_LEGENDS } from './graph/graphLegendData';
+import { useWorkspace } from '@/WorkspaceProvider';
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────
 function Toggle({ checked, onChange, title }) {
@@ -83,20 +84,13 @@ function Row({ label, hint, children }) {
 }
 
 // ── Color mode card grid ──────────────────────────────────────────────────────
-const NODE_MODES = [
-  { id: 'address',  icon: '🌐', name: 'Address',  hint: 'Private vs external' },
-  { id: 'os',       icon: '💻', name: 'OS',        hint: 'Detected OS family' },
-  { id: 'protocol', icon: '📡', name: 'Protocol',  hint: 'Dominant protocol' },
-  { id: 'volume',   icon: '🔥', name: 'Volume',    hint: 'Bytes transferred' },
-  { id: 'custom',   icon: '🎨', name: 'Custom',    hint: 'Your own IP rules' },
-];
-
-const EDGE_MODES = [
-  { id: 'protocol', icon: '📡', name: 'Protocol', hint: 'Per-protocol color' },
-  { id: 'volume',   icon: '🔥', name: 'Volume',   hint: 'Bytes transferred' },
-  { id: 'sessions', icon: '🔗', name: 'Sessions', hint: 'Session count' },
-  { id: 'custom',   icon: '🎨', name: 'Custom',   hint: 'Your own rules' },
-];
+//
+// Phase 5.7: mode lists come from `workspace.graphDisplay.{node,edge}ColorModes`.
+// Each mode declares `{ id, label, icon?, hint?, supportsCustomRules?, legendItems? }`.
+// `supportsCustomRules` enables the per-rule editor (network's "custom" mode).
+// `legendItems` is either an array or a function `(workspace) => [...]` —
+// when absent, GraphOptionsPanel falls back to the static legend keyed by
+// mode id, preserving network's existing legend behaviour.
 
 const LBL_STEPS = [0, 1024, 10240, 102400, 1048576, 10485760];
 const LBL_HINTS = [
@@ -188,8 +182,27 @@ function CustomRules({ rules, onChange, placeholder }) {
 }
 
 // ── Color mode section (shared for node/edge) ─────────────────────────────────
-function ColorBySection({ modes, legends, selected, onSelect, rules, onRulesChange, placeholder, hasOsData }) {
-  const legend = legends[selected];
+//
+// `modes` is the workspace-declared mode list. Each entry: `{ id, label,
+// icon?, hint?, supportsCustomRules?, legendItems? }`. `dotShape` ('dot' for
+// nodes, 'line' for edges) controls the legend rendering. `staticLegendKey`
+// selects which fallback static map to consult (NODE_LEGENDS or EDGE_LEGENDS)
+// when a mode doesn't declare its own legendItems — keeps network's existing
+// legend behaviour without per-mode legend declarations.
+function ColorBySection({
+  modes, selected, onSelect, rules, onRulesChange, placeholder, hasOsData,
+  dotShape, staticLegendMap, workspace,
+}) {
+  const selMode = modes.find(m => m.id === selected);
+  let legend = null;
+  if (selMode?.legendItems) {
+    legend = typeof selMode.legendItems === 'function'
+      ? selMode.legendItems(workspace)
+      : selMode.legendItems;
+  } else if (staticLegendMap) {
+    legend = staticLegendMap[selected];
+  }
+  const showCustomRules = !!selMode?.supportsCustomRules;
   return (
     <div>
       <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 2 }}>Color by</div>
@@ -211,16 +224,16 @@ function ColorBySection({ modes, legends, selected, onSelect, rules, onRulesChan
               }}
             >
               <div style={{ fontSize: 15, lineHeight: 1 }}>{m.icon}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: isSel ? 'var(--ac)' : 'var(--tx)' }}>{m.name}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: isSel ? 'var(--ac)' : 'var(--tx)' }}>{m.label || m.name}</div>
               <div style={{ fontSize: 9, color: 'var(--txD)', lineHeight: 1.35 }}>{m.hint}</div>
             </div>
           );
         })}
       </div>
 
-      {selected === 'custom' ? (
+      {showCustomRules ? (
         <CustomRules rules={rules} onChange={onRulesChange} placeholder={placeholder} />
-      ) : legend ? (
+      ) : legend?.length ? (
         <div style={{
           marginTop: 10, padding: '8px 10px',
           background: 'var(--bgC)', border: '1px solid var(--bd)', borderRadius: 6,
@@ -228,10 +241,10 @@ function ColorBySection({ modes, legends, selected, onSelect, rules, onRulesChan
         }}>
           {legend.map((item, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, color: 'var(--txM)', fontFamily: 'var(--fn)' }}>
-              {item.dot ? (
+              {dotShape === 'dot' ? (
                 <div style={{
                   width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                  background: item.fill, border: '1.5px solid ' + item.stroke,
+                  background: item.fill, border: '1.5px solid ' + (item.stroke || item.fill),
                 }} />
               ) : (
                 <div style={{ width: 22, height: 3, borderRadius: 2, background: item.fill, flexShrink: 0 }} />
@@ -271,6 +284,29 @@ export default function GraphOptionsPanel({
   // Data availability
   visibleNodes,
 }) {
+  const workspace = useWorkspace();
+  // Phase 5.7 escape hatch — a workspace can opt out of mode-driven graph
+  // options with `graphDisplay: null`. The workspace is also expected to
+  // omit `'graph-options'` from `supportedTabs`, but we render a friendly
+  // empty state if the panel still gets surfaced.
+  if (workspace.graphDisplay === null) {
+    return (
+      <div style={{
+        width: '100%', height: '100%', background: 'var(--bgP)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24, color: 'var(--txD)', fontSize: 11, fontFamily: 'var(--fn)',
+        textAlign: 'center', lineHeight: 1.5,
+      }}>
+        Graph options aren't available for the {workspace.label} workspace.
+      </div>
+    );
+  }
+  const gd = workspace.graphDisplay || {};
+  const nodeWeightModes  = gd.nodeWeightModes  || [{ id: 'bytes',    label: 'Bytes' }, { id: 'packets', label: 'Packets' }];
+  const edgeWeightModes  = gd.edgeWeightModes  || [{ id: 'bytes',    label: 'Bytes' }, { id: 'packets', label: 'Packets' }, { id: 'sessions', label: 'Sessions' }];
+  const nodeColorModes   = gd.nodeColorModes   || [];
+  const edgeColorModes   = gd.edgeColorModes   || [];
+
   const [neMode, setNeMode] = useState('node'); // 'node' | 'edge'
 
   const hasOsData = (visibleNodes || []).some(n => n.os_guess);
@@ -354,25 +390,27 @@ export default function GraphOptionsPanel({
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 5 }}>Size by</div>
                   <Seg
-                    options={[{ id: 'bytes', label: 'Bytes' }, { id: 'packets', label: 'Packets' }]}
+                    options={nodeWeightModes.map(m => ({ id: m.id, label: m.label }))}
                     value={graphWeightMode}
                     onChange={setGraphWeightMode}
                   />
                   <div style={{ fontSize: 10, color: 'var(--txD)', fontFamily: 'var(--fn)', marginTop: 4 }}>
-                    Node radius scales logarithmically with the selected metric.
+                    Node radius scales with the selected metric.
                   </div>
                 </div>
 
                 {/* Node color */}
                 <ColorBySection
-                  modes={NODE_MODES}
-                  legends={NODE_LEGENDS}
+                  modes={nodeColorModes}
                   selected={nodeColorMode}
                   onSelect={setNodeColorMode}
                   rules={nodeColorRules}
                   onRulesChange={setNodeColorRules}
                   placeholder="IP, CIDR, or hostname…"
                   hasOsData={hasOsData}
+                  dotShape="dot"
+                  staticLegendMap={NODE_LEGENDS}
+                  workspace={workspace}
                 />
 
                 {/* Label threshold */}
@@ -398,11 +436,7 @@ export default function GraphOptionsPanel({
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 5 }}>Thickness by</div>
                   <Seg
-                    options={[
-                      { id: 'bytes',    label: 'Bytes' },
-                      { id: 'packets',  label: 'Packets' },
-                      { id: 'sessions', label: 'Sessions' },
-                    ]}
+                    options={edgeWeightModes.map(m => ({ id: m.id, label: m.label }))}
                     value={edgeSizeMode}
                     onChange={setEdgeSizeMode}
                   />
@@ -413,14 +447,16 @@ export default function GraphOptionsPanel({
 
                 {/* Edge color */}
                 <ColorBySection
-                  modes={EDGE_MODES}
-                  legends={EDGE_LEGENDS}
+                  modes={edgeColorModes}
                   selected={edgeColorMode}
                   onSelect={setEdgeColorMode}
                   rules={edgeColorRules}
                   onRulesChange={setEdgeColorRules}
                   placeholder="Protocol name or keyword…"
                   hasOsData={true}
+                  dotShape="line"
+                  staticLegendMap={EDGE_LEGENDS}
+                  workspace={workspace}
                 />
 
                 {/* Edge direction */}

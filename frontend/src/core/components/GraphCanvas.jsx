@@ -46,6 +46,12 @@ export default function GraphCanvas({
   nodeColorRules = [],
   edgeColorRules = [],
   showEdgeDirection = false,
+  // Phase 5.7: resolved node/edge weight field + scale (workspace-declared).
+  // Defaults preserve pre-5.7 network rendering behaviour exactly when these
+  // props are missing.
+  nodeWeightField = 'total_bytes',
+  nodeWeightScale = 'log',
+  edgeWeightField = 'total_bytes',
   queryHighlight = null,
   onClearQueryHighlight,
 }) {
@@ -71,6 +77,7 @@ export default function GraphCanvas({
     onSelRef, onInvRef, onInvNbRef, onClearQHRef,
     labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
     nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
+    nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
     annotationsRef, pathfindSourceRef, onPathfindTargetRef,
   } = useGraphViewSync({
@@ -80,6 +87,7 @@ export default function GraphCanvas({
     pathfindSource, onPathfindTarget,
     labelThreshold, edgeSizeMode, nodeColorMode, edgeColorMode,
     nodeColorRules, edgeColorRules, showEdgeDirection,
+    nodeWeightField, nodeWeightScale, edgeWeightField,
     investigationNodes, displayFilterNodes, displayFilterEdges,
     queryHighlight, theme,
   });
@@ -92,6 +100,7 @@ export default function GraphCanvas({
       selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
       labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
       nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
+      nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef,
     });
 
   // Hook 3: Resize polling

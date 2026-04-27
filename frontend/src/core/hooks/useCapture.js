@@ -167,6 +167,9 @@ export function useCapture() {
     nodeColorRules: filters.nodeColorRules, setNodeColorRules: filters.setNodeColorRules,
     edgeColorRules: filters.edgeColorRules, setEdgeColorRules: filters.setEdgeColorRules,
     showEdgeDirection: filters.showEdgeDirection, setShowEdgeDirection: filters.setShowEdgeDirection,
+    // Phase 5.7 resolved mode → field+scale (see useCaptureFilters)
+    nodeWeightField: filters.nodeWeightField, nodeWeightScale: filters.nodeWeightScale,
+    edgeWeightField: filters.edgeWeightField,
     subnetPrefix: filters.subnetPrefix, setSubnetPrefix: filters.setSubnetPrefix,
     mergeByMac: filters.mergeByMac, setMergeByMac: filters.setMergeByMac,
     includeIPv6: filters.includeIPv6, setIncludeIPv6: filters.setIncludeIPv6,
