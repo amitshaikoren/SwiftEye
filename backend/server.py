@@ -126,6 +126,13 @@ _dynamic_register([
     ("workspaces.network.research.http_ua_timeline",       "HTTPUserAgentTimeline"),
 ], register_chart, "research chart")
 
+from workspaces.forensic.research import register_chart as _fx_register_chart
+_dynamic_register([
+    ("workspaces.forensic.research.process_gantt",      "ProcessGantt"),
+    ("workspaces.forensic.research.registry_timeline",  "RegistryTimeline"),
+    ("workspaces.forensic.research.network_timeline",   "NetworkTimeline"),
+], _fx_register_chart, "forensic research chart")
+
 _dynamic_register([
     ("workspaces.network.plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
     ("workspaces.network.plugins.alerts.suspicious_ua", "SuspiciousUADetector"),

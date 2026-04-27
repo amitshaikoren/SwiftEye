@@ -31,9 +31,9 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
       const v = field ? n[field] : null;
       if (v != null) {
         const raw = scale === 'sqrt'
-          ? Math.sqrt(v) * 5 + 8
+          ? Math.sqrt(v) * 5 + 14
           : Math.log(Math.max(1, v)) * 2;
-        const r = Math.max(5, Math.min(28, raw));
+        const r = Math.max(8, Math.min(28, raw));
         if (isFinite(r)) return r;
       }
       return Math.max(5, Math.min(28, Math.sqrt(n.packet_count || 1) * 2 + 3));
@@ -126,7 +126,7 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
       const metric = e[ewField] || 0;
       const maxMetric = Math.max(...eRef.current.map(ex => ex[ewField] || 0), 1);
       const edgeW = ewScale === 'sqrt'
-        ? Math.max(0.6, Math.min(4, Math.sqrt(metric) * 1.5))
+        ? Math.max(0.6, Math.min(2.5, Math.sqrt(metric)))
         : Math.max(0.6, (metric / maxMetric) * 10);
       const protocols = (e.protocols && e.protocols.length)
         ? e.protocols.join(', ')
@@ -424,7 +424,7 @@ resize();draw();
         if (!src || !tgt) continue;
         const isSel = se?.id === edge.id;
         const w = ewScale === 'sqrt'
-          ? Math.max(0.6, Math.min(4, Math.sqrt(edgeMetric(edge)) * 1.5))
+          ? Math.max(0.6, Math.min(2.5, Math.sqrt(edgeMetric(edge))))
           : Math.max(0.6, (edgeMetric(edge) / meb) * 10);
         const sId = typeof src === 'object' ? src.id : src;
         const tId = typeof tgt === 'object' ? tgt.id : tgt;

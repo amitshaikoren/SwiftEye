@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { fetchResearchCharts } from '../api';
+import { api } from '../api';
 import { fTtime } from '../utils';
+import { useWorkspace } from '../../WorkspaceProvider';
 import Sparkline from './Sparkline';
 import { loadSavedCustomCharts, saveCustomCharts } from '../../workspaces/network/research/customChartPersistence';
 import CustomChartBuilder from '../../workspaces/network/research/CustomChartBuilder';
@@ -17,6 +18,9 @@ export default function ResearchPage({
   bucketSec = 15, setBucketSec,
 }) {
   const effectiveIp = investigatedIp || searchIp;
+  const workspace = useWorkspace();
+  const researchApiBase  = workspace.research?.apiBase  || '/api/research';
+  const hasCustomChart   = workspace.research?.hasCustomChart !== false;
 
   const [allCharts, setAllCharts] = useState([]);
   const [loadErr, setLoadErr]     = useState('');
@@ -52,7 +56,7 @@ export default function ResearchPage({
   }
 
   useEffect(() => {
-    fetchResearchCharts()
+    api(researchApiBase)
       .then(d => {
         const charts = (d.charts || [])
           .map(c => ({ ...c, _category: inferCategory(c) }));
@@ -66,7 +70,7 @@ export default function ResearchPage({
         }
       })
       .catch(e => setLoadErr(e.message));
-  }, []);
+  }, [researchApiBase]);
 
   function placeChart(prevSlots, slotId, chart) {
     const next = {};
@@ -310,7 +314,8 @@ export default function ResearchPage({
         {/* Palette content */}
         {paletteOpen && (
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
-            {/* Custom chart button — at top of palette */}
+            {/* Custom chart button — hidden for workspaces that don't support it */}
+            {hasCustomChart && (
             <div style={{ marginBottom: 12 }}>
               <button
                 onClick={() => setBuilderState({ mode: 'create', slotId: null })}
@@ -326,6 +331,7 @@ export default function ResearchPage({
                 <span style={{ fontSize: 13 }}>✦</span> Custom chart
               </button>
             </div>
+            )}
             {CAT_ORDER.map(cat => (
               <PaletteCategory
                 key={cat}
@@ -345,16 +351,16 @@ export default function ResearchPage({
           charts={allCharts}
           onPick={handlePickerPick}
           onClose={() => setPickerSlotId(null)}
-          onCustom={() => {
+          onCustom={hasCustomChart ? () => {
             const sid = pickerSlotId;
             setPickerSlotId(null);
             setBuilderState({ mode: 'create', slotId: sid });
-          }}
+          } : null}
         />
       )}
 
-      {/* Custom chart builder modal */}
-      {builderState && (
+      {/* Custom chart builder modal — network workspace only */}
+      {hasCustomChart && builderState && (
         <CustomChartBuilder
           initial={builderState.initial || null}
           onSave={handleBuilderSave}
