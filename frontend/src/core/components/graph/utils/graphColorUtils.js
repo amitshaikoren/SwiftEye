@@ -21,6 +21,11 @@ export function matchesCidr(ip, cidr) {
 
 // ── Resolve node fill/stroke from color mode ──────────────────────────────────
 export function resolveNodeColor(node, mode, rules, pColors, nodePrivate, nodePrivateS, nodeExternal, nodeExternalS) {
+  // Workspace-declared color (set by aggregator from schema.nodeTypes[type].color)
+  // takes precedence over view-mode resolution. Mode-based coloring assumes
+  // network-shaped data (is_private, os_guess, total_bytes, …) which other
+  // workspaces don't carry.
+  if (node.color) return [node.color + '22', node.color];
   switch (mode) {
     case 'os': {
       const os = node.os_guess || '';
@@ -60,6 +65,8 @@ export function resolveNodeColor(node, mode, rules, pColors, nodePrivate, nodePr
 
 // ── Resolve edge color from color mode ────────────────────────────────────────
 export function resolveEdgeColor(edge, mode, rules, pColors) {
+  // Workspace-declared edge color (set from schema.edgeTypes[type].color) wins.
+  if (edge.color) return edge.color;
   switch (mode) {
     case 'volume': {
       const b = edge.total_bytes || 0;

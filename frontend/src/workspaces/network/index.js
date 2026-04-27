@@ -24,6 +24,65 @@ import NodeDetail from './NodeDetail';
 import EdgeDetail from './EdgeDetail';
 import FilterBar from './FilterBar';
 import UploadScreen from './UploadScreen';
+import { matchSessionToEdge } from './sessionMatch';
+import {
+  fetchEdgeFieldMeta, fetchTimeline, fetchSessions, fetchStats,
+} from '@core/api';
+
+const SESSIONS_FETCH_LIMIT = 1000;
+
+// Hint-keyword → edge-field flag aliasing. Lives here (not in core/) because
+// the flags themselves (has_tls / has_http / has_dns) are network-specific.
+function _flagFor(kw) {
+  if (kw === 'tls' || kw === 'sni' || kw === 'cipher' || kw === 'ja3' || kw === 'ja4') return 'has_tls';
+  if (kw === 'http') return 'has_http';
+  if (kw === 'dns')  return 'has_dns';
+  return null;
+}
+
+// Workspace-owned data lifecycle. useCaptureData dispatches mount /
+// bucket-change / time-range-change events here so core never hardcodes
+// network endpoints. A workspace that omits a hook simply skips that effect.
+const dataHooks = {
+  // Called once after WorkspaceProvider mounts. Returns a partial state patch.
+  onMount: async () => {
+    const data = await fetchEdgeFieldMeta();
+    if (!data?.fields?.length) return null;
+    const seen = new Set();
+    const hints = [];
+    for (const f of data.fields) {
+      for (const kw of (f.hint_keyword || [])) {
+        const flag = _flagFor(kw);
+        if (!flag) continue;
+        const key = flag + ':' + kw;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        hints.push({ flag, keyword: kw });
+      }
+    }
+    return hints.length ? { edgeFieldHints: hints } : null;
+  },
+
+  // Called when the timeline bucket size changes. Returns { timeline }.
+  onBucketSecChange: async (bucketSec) => {
+    const d = await fetchTimeline(bucketSec);
+    return { timeline: d.buckets };
+  },
+
+  // Called when the debounced time range changes. Returns { sessions, sessionTotal, stats }.
+  onTimeRangeChange: async (ts, te) => {
+    const trParams = ts != null && te != null ? { timeStart: ts, timeEnd: te } : {};
+    const [sessionData, statsData] = await Promise.all([
+      fetchSessions(SESSIONS_FETCH_LIMIT, '', trParams),
+      fetchStats(trParams),
+    ]);
+    return {
+      sessions: sessionData.sessions || [],
+      sessionTotal: sessionData.total ?? sessionData.sessions?.length ?? 0,
+      stats: statsData.stats || {},
+    };
+  },
+};
 
 function enrichEdge(edge, srcNode, dstNode) {
   const srcIp = srcNode?.ips?.[0];
@@ -66,6 +125,14 @@ const networkWorkspace = {
   EdgeDetail,
   FilterBar,
   UploadScreen,
+  // Workspace-owned data lifecycle (see useCaptureData)
+  dataHooks,
+  // Drop-zone accept list (see useCaptureLoad.handleDrop)
+  acceptedExtensions: ['.pcap', '.pcapng', '.cap', '.log', '.csv'],
+  // Search-effect helper for matching sessions onto edges (used when
+  // a session row matches the search query). Forensic has no sessions
+  // and omits this — useCaptureData skips the matcher when undefined.
+  matchSessionToEdge,
 };
 
 export default networkWorkspace;

@@ -206,8 +206,11 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
 
   function handleDrop(e) {
     e.preventDefault();
+    // Workspace declares which extensions its drop-zone accepts. Falls back to
+    // the network defaults so a workspace that omits the field still works.
+    const exts = workspace.acceptedExtensions || ['.pcap', '.pcapng', '.cap', '.log', '.csv'];
     const files = Array.from(e.dataTransfer.files).filter(f =>
-      ['.pcap', '.pcapng', '.cap', '.log', '.csv'].some(ext => f.name.toLowerCase().endsWith(ext))
+      exts.some(ext => f.name.toLowerCase().endsWith(ext))
     );
     if (files.length) handleUpload(files);
   }

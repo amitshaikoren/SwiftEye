@@ -8,6 +8,9 @@ export default function LeftPanel({
   onApplyDisplayFilter, activeOsFilter, osGuesses = [],
   queryActive = false,
   alertSummary = {},
+  // Phase 5.5: workspace-specific overrides
+  leftPanelTop = null,     // rendered element replacing protocol tree; null = show protocol tree
+  supportedTabs = null,    // array of tab keys; null = show all tabs
 }) {
   const [collapsed, setCollapsed] = useState({});
   const toggle = k => setCollapsed(c => ({ ...c, [k]: !c[k] }));
@@ -103,23 +106,40 @@ export default function LeftPanel({
   };
   const soloKeys = (keys) => setEnabledP(new Set(keys));
 
+  const allTabs = [
+    ['stats','Overview'],
+    ['sessions','Sessions'],
+    ['query','Query'],
+    ['research','Research'],
+    ['analysis','Analysis ✦'],
+    ['alerts','Alerts'],
+    ['investigation','Investigation'],
+    ['visualize','Visualize'],
+    ['graph-options','Graph Options'],
+    ['logs','Server Logs'],
+    ['help','Help'],
+  ];
+  const visibleTabs = supportedTabs ? allTabs.filter(([k]) => supportedTabs.includes(k)) : allTabs;
+
   return (
     <div style={{
       width: 170, background: 'var(--bgP)', borderRight: '1px solid var(--bd)',
       overflowY: 'auto', flexShrink: 0, padding: '10px',
     }}>
-      {/* Protocol tree */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div className="sh" style={{ marginBottom: 0 }}>Protocols</div>
-        <div style={{ display: 'flex', gap: 2 }}>
-          <button className="btn" style={{ padding: '1px 6px', fontSize: 10 }}
-            onClick={() => setEnabledP(new Set(allKeys))}>All</button>
-          <button className="btn" style={{ padding: '1px 6px', fontSize: 10 }}
-            onClick={() => setEnabledP(new Set())}>None</button>
-        </div>
-      </div>
+      {/* Protocol tree OR workspace-provided top section */}
+      {leftPanelTop ? leftPanelTop : (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div className="sh" style={{ marginBottom: 0 }}>Protocols</div>
+            <div style={{ display: 'flex', gap: 2 }}>
+              <button className="btn" style={{ padding: '1px 6px', fontSize: 10 }}
+                onClick={() => setEnabledP(new Set(allKeys))}>All</button>
+              <button className="btn" style={{ padding: '1px 6px', fontSize: 10 }}
+                onClick={() => setEnabledP(new Set())}>None</button>
+            </div>
+          </div>
 
-      {tree.map(ipGroup => {
+          {tree.map(ipGroup => {
         const ipCollapsed = collapsed[ipGroup.ipVersion];
         const isIpGroup = ipGroup.ipVersion === '4' || ipGroup.ipVersion === '6';
 
@@ -228,23 +248,13 @@ export default function LeftPanel({
           </div>
         );
       })}
+        </>
+      )}
 
       {/* Panel switcher */}
       <div style={{ borderTop: '1px solid var(--bd)', marginTop: 10, paddingTop: 10 }}>
         <div className="sh">Panel</div>
-        {[
-          ['stats','Overview'],
-          ['sessions','Sessions'],
-          ['query','Query'],
-          ['research','Research'],
-          ['analysis','Analysis ✦'],
-          ['alerts','Alerts'],
-          ['investigation','Investigation'],
-          ['visualize','Visualize'],
-          ['graph-options','Graph Options'],
-          ['logs','Server Logs'],
-          ['help','Help'],
-        ].map(([k, l]) => {
+        {visibleTabs.map(([k, l]) => {
           const isActive = rPanel === k && !selNodes.length && !selEdge && !selSession;
           const showBadge = k === 'sessions' && activeSearch && sessionTotal > 0 && sessionFiltered !== sessionTotal;
           return (

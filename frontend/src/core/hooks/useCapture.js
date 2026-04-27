@@ -121,9 +121,11 @@ export function useCapture() {
     () => (data.graph.edges || []).filter(e => {
       const s = e.source?.id || e.source;
       const t = e.target?.id || e.target;
-      return !sel.hiddenNodes.has(s) && !sel.hiddenNodes.has(t);
+      if (sel.hiddenNodes.has(s) || sel.hiddenNodes.has(t)) return false;
+      if (filters.hiddenEdgeTypes.size > 0 && e.type && filters.hiddenEdgeTypes.has(e.type)) return false;
+      return true;
     }),
-    [data.graph.edges, sel.hiddenNodes]
+    [data.graph.edges, sel.hiddenNodes, filters.hiddenEdgeTypes]
   );
 
   // ── Return the merged object (identical shape to pre-decomposition) ─
@@ -152,6 +154,7 @@ export function useCapture() {
     // Filters (filters slice)
     timeRange: filters.timeRange, setTimeRange: filters.setTimeRange,
     enabledP: filters.enabledP, setEnabledP: filters.setEnabledP,
+    hiddenEdgeTypes: filters.hiddenEdgeTypes, setHiddenEdgeTypes: filters.setHiddenEdgeTypes,
     search: filters.search, setSearch: filters.setSearch, searchResult: data.searchResult,
     collapseStatesRef: sel.collapseStatesRef,
     bucketSec: filters.bucketSec, setBucketSec: filters.setBucketSec,

@@ -58,8 +58,8 @@ export function WorkspaceProvider({ children }) {
     if (!current?.active || !schema) return null;
     const desc = DESCRIPTORS[current.active];
     if (!desc) return null;
-    return { ...desc, schema };
-  }, [current?.active, schema]);
+    return { ...desc, schema, available: current.available || [] };
+  }, [current?.active, current?.available, schema]);
 
   if (error) {
     return (

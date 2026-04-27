@@ -33,7 +33,6 @@ from dataclasses import asdict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from core import settings_store
 from core.workspace import (
     active_name,
     get_active_workspace,
@@ -68,14 +67,13 @@ async def get_current_workspace() -> dict:
 
 @router.post("/api/workspace/select")
 async def select_workspace(req: WorkspaceSelectRequest) -> dict:
-    """Pick a workspace. Persists to settings.json so future boots auto-load it."""
+    """Activate a workspace for the current server session (not persisted)."""
     try:
         get_workspace(req.name)  # validate before mutating
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Unknown workspace: {req.name!r}")
     set_active(req.name)
-    settings_store.set_active_workspace(req.name)
-    logger.info(f"Active workspace set to '{req.name}' (persisted)")
+    logger.info(f"Active workspace set to '{req.name}'")
     return _current_payload()
 
 

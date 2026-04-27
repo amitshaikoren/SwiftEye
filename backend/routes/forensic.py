@@ -43,6 +43,7 @@ class ForensicStatusResponse(BaseModel):
 class ForensicGraphResponse(BaseModel):
     nodes: List[Dict[str, Any]]
     edges: List[Dict[str, Any]]
+    event_count: int
 
 
 class ForensicEventsResponse(BaseModel):
@@ -138,6 +139,7 @@ async def forensic_graph():
     return ForensicGraphResponse(
         nodes=forensic_store.graph_cache.get("nodes", []),
         edges=forensic_store.graph_cache.get("edges", []),
+        event_count=len(forensic_store.events),
     )
 
 
