@@ -27,6 +27,8 @@ import UploadScreen from './UploadScreen';
 import { matchSessionToEdge } from './sessionMatch';
 import {
   fetchEdgeFieldMeta, fetchTimeline, fetchSessions, fetchStats,
+  fetchProtocols, fetchPluginResults, fetchPluginSlots,
+  fetchAnnotations, fetchSynthetic, fetchAlerts,
 } from '@core/api';
 
 const SESSIONS_FETCH_LIMIT = 1000;
@@ -84,6 +86,52 @@ const dataHooks = {
   },
 };
 
+// Workspace-owned full-capture load. Phase 5.6 (B3) moves the 9-fetcher
+// fan-out + protocol composite-key seed out of core's useCaptureLoad. The
+// result shape is what onCaptureLoaded consumes in useCapture.
+async function loadAll() {
+  const [sd, td, pd, ss, pr, ps, an, sy, al] = await Promise.all([
+    fetchStats(), fetchTimeline(), fetchProtocols(),
+    fetchSessions(), fetchPluginResults(), fetchPluginSlots(),
+    fetchAnnotations(), fetchSynthetic(), fetchAlerts(),
+  ]);
+
+  const sp = sd.stats?.protocols || {};
+  const initKeys = [];
+  const nonIpTransports = new Set(['ARP', 'OTHER']);
+  for (const pName of pd.protocols) {
+    if (!pName || !pName.trim()) continue;
+    const info = sp[pName] || {};
+    const transport = info.transport || pName;
+    const v4 = info.ipv4 || 0;
+    const v6 = info.ipv6 || 0;
+    const total = info.packets || 0;
+    if (nonIpTransports.has(transport)) {
+      initKeys.push(`0/${transport}/${pName}`);
+    } else {
+      if (v4 > 0 || (v6 === 0 && total > 0)) initKeys.push(`4/${transport}/${pName}`);
+      if (v6 > 0) initKeys.push(`6/${transport}/${pName}`);
+    }
+  }
+
+  return {
+    stats: sd.stats,
+    timeline: td.buckets,
+    timelineLength: td.buckets.length,
+    protocols: pd.protocols,
+    pColors: pd.colors,
+    sessions: ss.sessions || [],
+    fullSessions: ss.sessions || [],
+    sessionTotal: ss.total ?? ss.sessions?.length ?? 0,
+    pluginResults: pr.results || {},
+    pluginSlots: ps.ui_slots || [],
+    annotations: an.annotations || [],
+    synthetic: sy.synthetic || [],
+    alerts: al || { alerts: [], summary: {} },
+    enabledProtocolKeys: initKeys,
+  };
+}
+
 function enrichEdge(edge, srcNode, dstNode) {
   const srcIp = srcNode?.ips?.[0];
   const dstIp = dstNode?.ips?.[0];
@@ -125,6 +173,8 @@ const networkWorkspace = {
   EdgeDetail,
   FilterBar,
   UploadScreen,
+  // Workspace-owned full-capture load (see useCaptureLoad)
+  loadAll,
   // Workspace-owned data lifecycle (see useCaptureData)
   dataHooks,
   // Drop-zone accept list (see useCaptureLoad.handleDrop)

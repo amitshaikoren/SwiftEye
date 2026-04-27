@@ -44,10 +44,18 @@ _ENDPOINT_FIELDS = [
     Field(name="hostname", display_name="Hostname",  filter_path="hostname", type="string"),
 ]
 
-PROCESS_NODE  = NodeType(name="process",  label="Process",  color="#4fc3f7", shape="circle",  label_field="image",  fields=_PROCESS_FIELDS,  description="An executing process observed by Sysmon.")
-FILE_NODE     = NodeType(name="file",     label="File",     color="#fff176", shape="diamond", label_field="path",   fields=_FILE_FIELDS,     description="A file system object created or modified by a process.")
-REGISTRY_NODE = NodeType(name="registry", label="Registry", color="#ffb74d", shape="square",  label_field="key",    fields=_REGISTRY_FIELDS, description="A registry key modified by a process.")
-ENDPOINT_NODE = NodeType(name="endpoint", label="Endpoint", color="#ce93d8", shape="rounded", label_field="ip",     fields=_ENDPOINT_FIELDS, description="A network endpoint contacted by a process.")
+PROCESS_NODE  = NodeType(name="process",  label="Process",  color="#4fc3f7", shape="circle",  label_field="image",  fields=_PROCESS_FIELDS,
+                         searchable_fields=["image", "command_line", "user", "guid", "hashes", "computer"],
+                         description="An executing process observed by Sysmon.")
+FILE_NODE     = NodeType(name="file",     label="File",     color="#fff176", shape="diamond", label_field="path",   fields=_FILE_FIELDS,
+                         searchable_fields=["path", "extension"],
+                         description="A file system object created or modified by a process.")
+REGISTRY_NODE = NodeType(name="registry", label="Registry", color="#ffb74d", shape="square",  label_field="key",    fields=_REGISTRY_FIELDS,
+                         searchable_fields=["key", "hive"],
+                         description="A registry key modified by a process.")
+ENDPOINT_NODE = NodeType(name="endpoint", label="Endpoint", color="#ce93d8", shape="rounded", label_field="ip",     fields=_ENDPOINT_FIELDS,
+                         searchable_fields=["ip", "hostname"],
+                         description="A network endpoint contacted by a process.")
 
 # ---------------------------------------------------------------------------
 # Edge types
@@ -76,10 +84,18 @@ _SET_VALUE_FIELDS = [
     Field(name="event_type", display_name="Event Type",   filter_path="event_type", type="string"),
 ]
 
-SPAWNED_EDGE   = EdgeType(name="spawned",   label="Spawned",    color="#4fc3f7", src_type="process", dst_type="process",  fields=_SPAWNED_FIELDS,   description="Parent process spawned child process (EID 1).")
-CONNECTED_EDGE = EdgeType(name="connected", label="Connected",  color="#ce93d8", src_type="process", dst_type="endpoint", fields=_CONNECTED_FIELDS, description="Process opened a network connection (EID 3).")
-WROTE_EDGE     = EdgeType(name="wrote",     label="Wrote",      color="#fff176", src_type="process", dst_type="file",     fields=_WROTE_FIELDS,     description="Process created or overwrote a file (EID 11).")
-SET_VALUE_EDGE = EdgeType(name="set_value", label="Set Value",  color="#ffb74d", src_type="process", dst_type="registry", fields=_SET_VALUE_FIELDS, description="Process set a registry value (EID 13).")
+SPAWNED_EDGE   = EdgeType(name="spawned",   label="Spawned",    color="#4fc3f7", src_type="process", dst_type="process",  fields=_SPAWNED_FIELDS,
+                          searchable_fields=["command_line", "parent_command_line", "hashes"],
+                          description="Parent process spawned child process (EID 1).")
+CONNECTED_EDGE = EdgeType(name="connected", label="Connected",  color="#ce93d8", src_type="process", dst_type="endpoint", fields=_CONNECTED_FIELDS,
+                          searchable_fields=["protocol", "local_ip"],
+                          description="Process opened a network connection (EID 3).")
+WROTE_EDGE     = EdgeType(name="wrote",     label="Wrote",      color="#fff176", src_type="process", dst_type="file",     fields=_WROTE_FIELDS,
+                          searchable_fields=["hashes", "creation_utc_time"],
+                          description="Process created or overwrote a file (EID 11).")
+SET_VALUE_EDGE = EdgeType(name="set_value", label="Set Value",  color="#ffb74d", src_type="process", dst_type="registry", fields=_SET_VALUE_FIELDS,
+                          searchable_fields=["details", "event_type"],
+                          description="Process set a registry value (EID 13).")
 
 # ---------------------------------------------------------------------------
 # Schema
