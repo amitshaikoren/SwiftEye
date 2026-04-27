@@ -52,6 +52,7 @@ export default function GraphCanvas({
   nodeWeightField = 'total_bytes',
   nodeWeightScale = 'log',
   edgeWeightField = 'total_bytes',
+  edgeWeightScale = 'log',
   queryHighlight = null,
   onClearQueryHighlight,
 }) {
@@ -77,7 +78,7 @@ export default function GraphCanvas({
     onSelRef, onInvRef, onInvNbRef, onClearQHRef,
     labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
     nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
-    nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef,
+    nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef, edgeWeightScaleRef,
     invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
     annotationsRef, pathfindSourceRef, onPathfindTargetRef,
   } = useGraphViewSync({
@@ -87,7 +88,7 @@ export default function GraphCanvas({
     pathfindSource, onPathfindTarget,
     labelThreshold, edgeSizeMode, nodeColorMode, edgeColorMode,
     nodeColorRules, edgeColorRules, showEdgeDirection,
-    nodeWeightField, nodeWeightScale, edgeWeightField,
+    nodeWeightField, nodeWeightScale, edgeWeightField, edgeWeightScale,
     investigationNodes, displayFilterNodes, displayFilterEdges,
     queryHighlight, theme,
   });
@@ -100,7 +101,7 @@ export default function GraphCanvas({
       selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
       labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
       nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
-      nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef,
+      nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef, edgeWeightScaleRef,
     });
 
   // Hook 3: Resize polling

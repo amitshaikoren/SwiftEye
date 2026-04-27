@@ -116,6 +116,7 @@ export function useCaptureFilters({ selCallbacksRef }) {
   const nodeWeightField = _nwMode?.field || 'total_bytes';
   const nodeWeightScale = _nwMode?.scale || 'log';
   const edgeWeightField = _ewMode?.field || 'total_bytes';
+  const edgeWeightScale = _ewMode?.scale || 'log';
   const [showEdgeDirection, setShowEdgeDirection] = useState(false);
 
   // ── Merge / IPv6 / hostname / broadcast toggles ──────────────────
@@ -202,7 +203,7 @@ export function useCaptureFilters({ selCallbacksRef }) {
     edgeColorRules, setEdgeColorRules,
     showEdgeDirection, setShowEdgeDirection,
     // Resolved (mode-id → field+scale) — consumed by GraphCanvas/useGraphSim.
-    nodeWeightField, nodeWeightScale, edgeWeightField,
+    nodeWeightField, nodeWeightScale, edgeWeightField, edgeWeightScale,
     // Merge/IPv6/hostname/broadcast
     mergeByMac, setMergeByMac,
     includeIPv6, setIncludeIPv6,

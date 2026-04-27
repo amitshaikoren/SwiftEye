@@ -8,7 +8,7 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   selNRef, selERef, pcRef, invNodesRef, dfNodesRef, dfEdgesRef, qhRef,
   labelThreshRef, edgeSizeModeRef, nodeColorModeRef, edgeColorModeRef,
   nodeColorRulesRef, edgeColorRulesRef, showEdgeDirectionRef,
-  nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef }) {
+  nodeWeightFieldRef, nodeWeightScaleRef, edgeWeightFieldRef, edgeWeightScaleRef }) {
 
   const simRef = useRef(null);
   const nRef = useRef([]);
@@ -31,7 +31,7 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
       const v = field ? n[field] : null;
       if (v != null) {
         const raw = scale === 'sqrt'
-          ? Math.sqrt(v) * 2 + 3
+          ? Math.sqrt(v) * 5 + 8
           : Math.log(Math.max(1, v)) * 2;
         const r = Math.max(5, Math.min(28, raw));
         if (isFinite(r)) return r;
@@ -122,8 +122,12 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
       // absent (HTML export reads the live ref, so workspaces declaring
       // alternate fields like 'event_count' flow through naturally).
       const ewField = edgeWeightFieldRef?.current || 'total_bytes';
+      const ewScale = edgeWeightScaleRef?.current || 'log';
       const metric = e[ewField] || 0;
       const maxMetric = Math.max(...eRef.current.map(ex => ex[ewField] || 0), 1);
+      const edgeW = ewScale === 'sqrt'
+        ? Math.max(0.6, Math.min(4, Math.sqrt(metric) * 1.5))
+        : Math.max(0.6, (metric / maxMetric) * 10);
       const protocols = (e.protocols && e.protocols.length)
         ? e.protocols.join(', ')
         : (e.protocol || '');
@@ -131,7 +135,7 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
       const tgtId = typeof tgt === 'object' ? tgt.id : tgt;
       return {
         sx: src.x, sy: src.y, tx: tgt.x, ty: tgt.y,
-        color, width: Math.max(0.6, (metric / maxMetric) * 10),
+        color, width: edgeW,
         protocols, bytes: e.total_bytes || 0, packets: e.packet_count || 0,
         sessions: e.session_count || 0,
         srcId, tgtId,
@@ -411,6 +415,7 @@ resize();draw();
       const eColorMode = edgeColorModeRef.current;
       const eColorRules = edgeColorRulesRef.current;
       const ewField = edgeWeightFieldRef?.current || 'total_bytes';
+      const ewScale = edgeWeightScaleRef?.current || 'log';
       const edgeMetric = e => e[ewField] || 0;
       const meb = Math.max(...eRef.current.map(edgeMetric), 1);
       for (const edge of eRef.current) {
@@ -418,7 +423,9 @@ resize();draw();
         const tgt = typeof edge.target === 'object' ? edge.target : nRef.current.find(n => n.id === edge.target);
         if (!src || !tgt) continue;
         const isSel = se?.id === edge.id;
-        const w = Math.max(0.6, (edgeMetric(edge) / meb) * 10);
+        const w = ewScale === 'sqrt'
+          ? Math.max(0.6, Math.min(4, Math.sqrt(edgeMetric(edge)) * 1.5))
+          : Math.max(0.6, (edgeMetric(edge) / meb) * 10);
         const sId = typeof src === 'object' ? src.id : src;
         const tId = typeof tgt === 'object' ? tgt.id : tgt;
         const con = hs && (ss.has(sId) || ss.has(tId));

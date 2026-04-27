@@ -61,7 +61,7 @@ const graphDisplay = {
     { id: 'child_count',      label: 'Children',    field: 'child_count',      scale: 'sqrt' },
   ],
   edgeWeightModes: [
-    { id: 'event_count', label: 'Events', field: 'event_count' },
+    { id: 'event_count', label: 'Events', field: 'event_count', scale: 'sqrt' },
   ],
   nodeColorModes: [
     { id: 'entity_type', label: 'Entity', icon: '●', hint: 'Schema colour per entity',
