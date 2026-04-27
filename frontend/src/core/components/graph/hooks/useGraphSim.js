@@ -81,7 +81,9 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
 
     const snapshotNodes = nRef.current.map(n => {
       const r = gR(n);
-      const [fill, stroke] = n.is_cluster || n.is_subnet || n.synthetic || n.color
+      // Cluster/subnet/synthetic keep their special export colors.
+      // Schema-colored nodes flow through resolveNodeColor (which now handles n.color).
+      const [fill, stroke] = n.is_cluster || n.is_subnet || n.synthetic
         ? [n.color || '#f0883e', n.color || '#f0883e']
         : resolveNodeColor(n, nColorMode, nColorRules, pc, nodePrivate, nodePrivateS, nodeExternal, nodeExternalS);
       const topProtos = (n.top_protocols || []).slice(0, 3).map(p => p[0]).join(', ');
@@ -563,13 +565,9 @@ resize();draw();
             ctx.setLineDash([4, 3]);
             ctx.stroke();
             ctx.setLineDash([]);
-          } else if (node.color) {
-            ctx.fillStyle = isSel ? node.color + '55' : node.color;
-            ctx.fill();
-            ctx.strokeStyle = isSel ? '#fff' : isH ? '#fff' : node.color;
-            ctx.lineWidth = isSel || isH ? 2.5 : 1.5;
-            ctx.stroke();
           } else {
+            // resolveNodeColor handles workspace-declared node.color natively;
+            // no per-workspace branching needed here.
             const [nFill, nStroke] = resolveNodeColor(
               node, nodeColorModeRef.current, nodeColorRulesRef.current, pc,
               nodePrivate, nodePrivateS, nodeExternal, nodeExternalS,
@@ -617,10 +615,13 @@ resize();draw();
           ctx.font = `500 ${fs}px JetBrains Mono, monospace`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'top';
+          // node.label covers forensic human-readable names (image, path, key, ip:port).
+          // hostnames covers network nodes. metadata.name covers synthetic/cluster labels.
           const displayName = node.metadata?.name
             || (node.hostnames?.length ? node.hostnames[0] : null)
-            || ((node.synthetic || node.is_cluster) && node.label ? node.label : null);
-          const rawId = (node.synthetic || node.is_cluster) && node.label ? node.label : node.id;
+            || node.label
+            || null;
+          const rawId = node.id;
           const lb = displayName
             ? (displayName.length > 22 ? displayName.slice(0, 20) + '\u2026' : displayName)
             : (rawId.length > 22 ? rawId.slice(0, 20) + '\u2026' : rawId);
@@ -628,6 +629,16 @@ resize();draw();
           ctx.fillText(lb, node.x + 0.5, node.y + r + 5.5);
           ctx.fillStyle = displayName ? '#22d3ee' : isSel ? acColor : isH ? '#e6edf3' : nodeLabel;
           ctx.fillText(lb, node.x, node.y + r + 5);
+
+          // On hover: show node type as a dim subscript (forensic entity type badge)
+          if (isH && node.type) {
+            const tsz = Math.max(7, 8 / t.k);
+            ctx.font = `${tsz}px JetBrains Mono, monospace`;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillText(node.type, node.x + 0.5, node.y + r + 5.5 + fs + 2);
+            ctx.fillStyle = '#8b949e';
+            ctx.fillText(node.type, node.x, node.y + r + 5 + fs + 2);
+          }
         }
         ctx.globalAlpha = 1;
       }

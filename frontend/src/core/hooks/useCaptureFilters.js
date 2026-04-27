@@ -29,6 +29,12 @@ export function useCaptureFilters({ selCallbacksRef }) {
 
   const [enabledP, setEnabledP] = useState(new Set());
 
+  // ── Edge-type visibility (used by forensic artifact browser) ─────
+  // Set of edge `type` values that are currently hidden.
+  // Empty = all visible. Network workspace never populates this.
+
+  const [hiddenEdgeTypes, setHiddenEdgeTypes] = useState(new Set());
+
   // ── Search ───────────────────────────────────────────────────────
 
   const [search, setSearch] = useState('');
@@ -128,6 +134,7 @@ export function useCaptureFilters({ selCallbacksRef }) {
 
   const initFromLoad = useCallback(({ enabledProtocolKeys, timelineLength }) => {
     setEnabledP(new Set(enabledProtocolKeys || []));
+    setHiddenEdgeTypes(new Set());
     const len = timelineLength || 0;
     const fullRange = len > 0 ? [0, len - 1] : [0, 0];
     setTimeRange(fullRange);
@@ -147,6 +154,8 @@ export function useCaptureFilters({ selCallbacksRef }) {
     timeRange, setTimeRange: setTimeRangeOuter, debouncedTR,
     // Protocol
     enabledP, setEnabledP,
+    // Edge-type visibility
+    hiddenEdgeTypes, setHiddenEdgeTypes,
     // Search
     search, setSearch,
     // Bucket

@@ -29,27 +29,15 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from core import settings_store
-from core.workspace import set_active as _set_active_workspace
 from workspaces.network.plugins import register_plugin
 from workspaces.network.plugins.analyses import register_analysis
 from workspaces.network.plugins.alerts import register_detector
 from workspaces.network.research import register_chart
 
-# Phase 3: restore the previously-selected workspace from settings.json if
-# the user has picked one before. Otherwise leave the active workspace
-# unset — the frontend WorkspaceSelector hits /api/workspace/select on
-# first run, which both activates it and persists the choice. Routes that
-# depend on an active workspace (e.g. /api/workspace/schema) return 409
-# until then.
-_stored_ws = settings_store.get_active_workspace()
-if _stored_ws:
-    try:
-        _set_active_workspace(_stored_ws)
-    except KeyError:
-        # Stored name no longer registered (workspace removed?). Ignore and
-        # let the user re-pick via the selector.
-        pass
+# Workspace selection is intentionally NOT restored from settings on startup.
+# The frontend WorkspaceSelector always appears on cold start so the user
+# can choose their workspace. Selection is ephemeral (in-process only);
+# /api/workspace/select activates it for the lifetime of the server.
 
 from routes.data import router as data_router
 from routes.query import router as query_router

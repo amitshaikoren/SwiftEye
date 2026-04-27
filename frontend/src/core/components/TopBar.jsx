@@ -4,20 +4,29 @@ import { fN } from '../utils';
 import logoIconData from '../../logoIconData.js';
 import logoWordmarkData from '../../logoWordmarkData.js';
 import { VERSION } from '../../version.js';
+import { selectWorkspace } from '../api';
 
 export default function TopBar({
   fileName, sourceFiles = [], stats, search, setSearch,
   searchResult, onSelectNode, onSelectEdge,
   onNewFile, onMetadataFile, onSettings, onLogoClick,
+  // Workspace switcher
+  workspaceName, availableWorkspaces = [],
+  // If provided, replaces the default "pkts" stat tag.
+  // Array of { value, label } objects.
+  topBarStats,
 }) {
   const isMulti = sourceFiles.length > 1;
   const fileTitle = isMulti ? sourceFiles.join('\n') : fileName;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropRef = useRef(null);
+  const [wsDropOpen, setWsDropOpen] = useState(false);
+  const wsDropRef = useRef(null);
+  const [wsSwitching, setWsSwitching] = useState(false);
 
   const searchInputRef = useRef(null);
 
-  // Open dropdown when search has results AND the input is focused (user is typing)
+  // Open search dropdown when search has results AND the input is focused
   useEffect(() => {
     const isFocused = document.activeElement === searchInputRef.current;
     if (isFocused && search && searchResult && (searchResult.totalNodes > 0 || searchResult.totalEdges > 0)) {
@@ -27,13 +36,32 @@ export default function TopBar({
     }
   }, [search, searchResult]);
 
-  // Close on click outside
+  // Close search dropdown on click outside
   useEffect(() => {
     if (!dropdownOpen) return;
     const handler = e => { if (dropRef.current && !dropRef.current.contains(e.target)) setDropdownOpen(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [dropdownOpen]);
+
+  // Close workspace dropdown on click outside
+  useEffect(() => {
+    if (!wsDropOpen) return;
+    const handler = e => { if (wsDropRef.current && !wsDropRef.current.contains(e.target)) setWsDropOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [wsDropOpen]);
+
+  async function handleSwitchWorkspace(name) {
+    if (name === workspaceName || wsSwitching) return;
+    setWsSwitching(true);
+    try {
+      await selectWorkspace(name);
+      window.location.reload();
+    } catch {
+      setWsSwitching(false);
+    }
+  }
 
   const sr = searchResult || {};
   const mNodes = sr.matchedNodes || [];
@@ -65,7 +93,66 @@ export default function TopBar({
           ? <><span style={{ color: 'var(--ac)', fontWeight: 600 }}>{sourceFiles.length} files</span></>
           : fileName}
       </span>
-      <Tag color="var(--ac)">{fN(stats?.total_packets)} pkts</Tag>
+
+      {/* Stats — workspace-specific or default packet count */}
+      {topBarStats ? (
+        topBarStats.map(({ value, label }) => (
+          <Tag key={label} color="var(--ac)">{value} {label}</Tag>
+        ))
+      ) : (
+        <Tag color="var(--ac)">{fN(stats?.total_packets)} pkts</Tag>
+      )}
+
+      {/* Workspace switcher */}
+      {availableWorkspaces.length > 1 && (
+        <div style={{ position: 'relative' }} ref={wsDropRef}>
+          <button
+            className="btn"
+            onClick={() => setWsDropOpen(o => !o)}
+            disabled={wsSwitching}
+            title="Switch workspace"
+            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3" />
+            </svg>
+            {wsSwitching ? '…' : 'Switch'}
+          </button>
+          {wsDropOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 200,
+              background: 'var(--bgP)', border: '1px solid var(--bd)', borderRadius: 6,
+              boxShadow: '0 8px 24px rgba(0,0,0,.4)', minWidth: 130, overflow: 'hidden',
+            }}>
+              {availableWorkspaces.map(ws => {
+                const isActive = ws.name === workspaceName;
+                return (
+                  <div
+                    key={ws.name}
+                    onClick={() => { setWsDropOpen(false); handleSwitchWorkspace(ws.name); }}
+                    style={{
+                      padding: '8px 12px', cursor: isActive ? 'default' : 'pointer',
+                      fontSize: 12, color: isActive ? 'var(--txD)' : 'var(--txM)',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      transition: 'background .1s',
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(88,166,255,.06)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    {isActive && (
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ac)', flexShrink: 0 }} />
+                    )}
+                    {!isActive && <span style={{ width: 6 }} />}
+                    {ws.label || ws.name}
+                    {isActive && <span style={{ fontSize: 9, color: 'var(--txD)', marginLeft: 'auto' }}>active</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ flex: 1 }} />
 
       {/* Search with dropdown */}
@@ -116,7 +203,7 @@ export default function TopBar({
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: n.is_private ? 'var(--node-private)' : 'var(--node-external)', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 11, color: 'var(--txM)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {n.hostnames?.[0] || n.id}
+                        {n.hostnames?.[0] || n.label || n.id}
                       </div>
                       {n.hostnames?.[0] && n.id !== n.hostnames[0] && (
                         <div style={{ fontSize: 9, color: 'var(--txD)', fontFamily: 'var(--fn)' }}>{n.id}</div>

@@ -26,6 +26,14 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from workspaces.forensic.parser.event import Event
+from workspaces.forensic.schema import FORENSIC_SCHEMA
+
+# Schema is the single source of truth for node/edge colours. The aggregator
+# stamps them onto each node/edge dict so the frontend renderer (which reads
+# `node.color` / `edge.color` via the schema-agnostic colour primitives) gets
+# the right colour without redeclaring it.
+_NODE_COLORS: Dict[str, str] = {nt.name: nt.color for nt in FORENSIC_SCHEMA.node_types}
+_EDGE_COLORS: Dict[str, str] = {et.name: et.color for et in FORENSIC_SCHEMA.edge_types}
 
 
 # ---------------------------------------------------------------------------
@@ -90,17 +98,9 @@ def _entity_id(entity: Dict[str, Any], computer: str = "") -> Optional[str]:
 # Node builder
 # ---------------------------------------------------------------------------
 
-_TYPE_COLOR: Dict[str, str] = {
-    "process":  "#4fc3f7",
-    "file":     "#fff176",
-    "registry": "#ffb74d",
-    "endpoint": "#ce93d8",
-}
-
-
 def _make_node(entity_id: str, entity: Dict[str, Any], computer: str = "") -> Dict[str, Any]:
     t = entity.get("type", "process")
-    node: Dict[str, Any] = {"id": entity_id, "type": t, "color": _TYPE_COLOR.get(t, "#4fc3f7")}
+    node: Dict[str, Any] = {"id": entity_id, "type": t, "color": _NODE_COLORS.get(t, "#4fc3f7")}
     if t == "process":
         node["image"]   = entity.get("image") or ""
         node["guid"]    = entity.get("guid") or ""
@@ -200,11 +200,13 @@ def build_forensic_graph(events: List[Event]) -> Dict[str, Any]:
         # Upsert edge
         edge_key = (src_id, dst_id)
         if edge_key not in edge_registry:
+            edge_type = _ACTION_TO_EDGE_TYPE.get(ev.action_type, "unknown")
             edge_registry[edge_key] = {
                 "id":       f"{src_id}|{dst_id}",
                 "source":   src_id,
                 "target":   dst_id,
-                "type":     _ACTION_TO_EDGE_TYPE.get(ev.action_type, "unknown"),
+                "type":     edge_type,
+                "color":    _EDGE_COLORS.get(edge_type, "#8b949e"),
                 "events":   [],
                 "count":    0,
                 "ts_first": None,
@@ -231,6 +233,7 @@ def build_forensic_graph(events: List[Event]) -> Dict[str, Any]:
         # types accumulate, mark as "mixed" (rare in practice with current EIDs).
         if edge["type"] != _ACTION_TO_EDGE_TYPE.get(ev.action_type, "unknown"):
             edge["type"] = "mixed"
+            edge["color"] = "#8b949e"
 
     return {
         "nodes": list(node_registry.values()),

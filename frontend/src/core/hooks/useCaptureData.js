@@ -13,17 +13,11 @@
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import {
-  fetchStats, fetchTimeline, fetchSessions, fetchGraph,
-  fetchAlerts, slicePcapUrl, fetchEdgeFieldMeta,
-} from '../api';
+import { fetchGraph, fetchAlerts, slicePcapUrl } from '../api';
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
 import { applyClusterView } from '../clusterView';
-import { matchSessionToEdge } from '../../workspaces/network/sessionMatch';
 import { useWorkspace } from '@/WorkspaceProvider';
-
-const SESSIONS_FETCH_LIMIT = 1000;
 
 export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) {
   const workspace = useWorkspace();
@@ -139,51 +133,40 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
 
   // ── Effects ──────────────────────────────────────────────────────
 
-  // E0: load edge field hint keywords once on mount (used by search bar hints)
+  // E0: workspace-owned mount hook (e.g. network preloads edge field hints
+  // for search-bar autocomplete). Workspaces without an onMount hook skip.
   useEffect(() => {
-    fetchEdgeFieldMeta().then(data => {
-      if (!data?.fields?.length) return;
-      // Derive hint entries from registry: map hint_keyword aliases → boolean flag names
-      const flagFor = kw => {
-        if (['tls', 'sni', 'cipher', 'ja3', 'ja4'].includes(kw)) return 'has_tls';
-        if (kw === 'http') return 'has_http';
-        if (kw === 'dns')  return 'has_dns';
-        return null;
-      };
-      const seen = new Set();
-      const hints = [];
-      for (const f of data.fields) {
-        for (const kw of (f.hint_keyword || [])) {
-          const key = `${flagFor(kw)}:${kw}`;
-          if (!seen.has(key) && flagFor(kw)) { seen.add(key); hints.push({ flag: flagFor(kw), keyword: kw }); }
-        }
-      }
-      if (hints.length) setEdgeFieldHints(hints);
-    });
+    if (!workspace.dataHooks?.onMount) return;
+    workspace.dataHooks.onMount().then(patch => {
+      if (patch?.edgeFieldHints?.length) setEdgeFieldHints(patch.edgeFieldHints);
+    }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // E3: re-fetch timeline when bucket size changes
+  // E3: workspace-owned bucket-change hook (network re-fetches timeline at
+  // the new bucket size; forensic has no timeline and skips).
   useEffect(() => {
     if (!loaded) return;
-    fetchTimeline(bucketSec).then(d => {
-      setTimeline(d.buckets);
-      resetTimeRange(d.buckets.length);
+    if (!workspace.dataHooks?.onBucketSecChange) return;
+    workspace.dataHooks.onBucketSecChange(bucketSec).then(patch => {
+      if (patch?.timeline) {
+        setTimeline(patch.timeline);
+        resetTimeRange(patch.timeline.length);
+      }
     }).catch(() => {});
   }, [bucketSec, loaded, resetTimeRange]);
 
-  // E4+E5: re-fetch sessions + stats together on time-range change (batched via Promise.all → single render)
+  // E4+E5: workspace-owned time-range-change hook (network re-fetches sessions
+  // + stats; forensic skips entirely).
   useEffect(() => {
     if (!loaded || !timeline.length) return;
+    if (!workspace.dataHooks?.onTimeRangeChange) return;
     const ts = timeline[debouncedTR[0]]?.start_time;
     const te = timeline[debouncedTR[1]]?.end_time;
-    const trParams = ts != null && te != null ? { timeStart: ts, timeEnd: te } : {};
-    Promise.all([
-      fetchSessions(SESSIONS_FETCH_LIMIT, '', trParams),
-      fetchStats(trParams),
-    ]).then(([sessionData, statsData]) => {
-      setSessions(sessionData.sessions || []);
-      setSessionTotal(sessionData.total ?? sessionData.sessions?.length ?? 0);
-      setStats(statsData.stats || {});
+    workspace.dataHooks.onTimeRangeChange(ts, te).then(patch => {
+      if (!patch) return;
+      if (patch.sessions !== undefined) setSessions(patch.sessions);
+      if (patch.sessionTotal !== undefined) setSessionTotal(patch.sessionTotal);
+      if (patch.stats !== undefined) setStats(patch.stats);
     }).catch(() => {});
   }, [loaded, debouncedTR, timeline]);
 
@@ -396,14 +379,17 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
       if (reason) { directEdges.push({ edge: e, reason }); directEdgeIds.add(e.id); }
     }
 
-    if (sessions.length > 0) {
+    // Session→edge matching is workspace-owned (ties session 5-tuples to
+    // graph edges). Workspaces without a matcher (e.g. forensic) skip this step.
+    const wsSessionToEdge = workspace.matchSessionToEdge;
+    if (sessions.length > 0 && wsSessionToEdge) {
       for (const sess of sessions) {
         if (matchSession(sess)) {
           for (const e of edges) {
             if (directEdgeIds.has(e.id)) continue;
             const eSrc = e.source?.id || e.source;
             const eTgt = e.target?.id || e.target;
-            if (matchSessionToEdge(sess, eSrc, eTgt, e.protocol)) {
+            if (wsSessionToEdge(sess, eSrc, eTgt, e.protocol)) {
               directEdges.push({ edge: e, reason: 'session match' });
               directEdgeIds.add(e.id);
               if (!directNodeIds.has(eSrc)) { directNodeIds.add(eSrc); }

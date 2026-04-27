@@ -33,6 +33,22 @@ export default function App() {
   const workspace = useWorkspace();
   const FilterBar = workspace.FilterBar;
   const UploadScreen = workspace.UploadScreen;
+  const LeftPanelTop = workspace.LeftPanelTop;
+
+  // Workspace-specific top bar stats (null = use default packet count)
+  const topBarStats = workspace.getTopBarStats
+    ? workspace.getTopBarStats(c.stats, c.visibleNodes.length)
+    : null;
+
+  // Pre-instantiate the workspace left-panel top section with the props it needs
+  const leftPanelTop = LeftPanelTop ? (
+    <LeftPanelTop
+      graph={c.graph}
+      hiddenEdgeTypes={c.hiddenEdgeTypes}
+      setHiddenEdgeTypes={c.setHiddenEdgeTypes}
+      schema={workspace.schema}
+    />
+  ) : null;
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set }
@@ -148,6 +164,9 @@ export default function App() {
         onMetadataFile={() => document.getElementById('meta-up').click()}
         onSettings={() => setShowSettings(true)}
         onLogoClick={() => { c.switchPanel('stats'); c.setSearch(''); if (c.animActive) c.stopAnimation(); }}
+        workspaceName={workspace.name}
+        availableWorkspaces={workspace.available}
+        topBarStats={topBarStats}
       />
       {FilterBar && (
         <FilterBar
@@ -178,6 +197,8 @@ export default function App() {
           osGuesses={c.osGuesses}
           queryActive={!!queryHighlight}
           alertSummary={c.alerts.summary}
+          leftPanelTop={leftPanelTop}
+          supportedTabs={workspace.supportedTabs ?? null}
         />
 
         {c.rPanel === 'research' ? (
@@ -587,7 +608,7 @@ export default function App() {
               </div>
 
               {/* Timeline strip */}
-              {c.timeline.length > 1 && (
+              {c.timeline.length > 1 && workspace.showTimeline !== false && (
                 <TimelineStrip
                   timeline={c.timeline}
                   timeRange={c.timeRange}
