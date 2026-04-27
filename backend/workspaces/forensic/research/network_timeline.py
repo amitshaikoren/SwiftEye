@@ -39,6 +39,13 @@ def _ts_epoch(dt) -> float:
         return 0.0
 
 
+def _hex_rgba(hex_color: str, alpha: float = 0.5) -> str:
+    """Convert #rrggbb to rgba() — Plotly doesn't accept 8-digit hex."""
+    h = hex_color.lstrip('#')
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f'rgba({r},{g},{b},{alpha})'
+
+
 class NetworkTimeline(ForensicResearchChart):
     name        = "network_timeline"
     title       = "Network Connection Timeline"
@@ -119,7 +126,7 @@ class NetworkTimeline(ForensicResearchChart):
                 y=[e["endpoint"] for e in evts],
                 mode="markers",
                 marker=dict(color=color, size=10, opacity=0.85,
-                            line=dict(width=1, color=color + "88")),
+                            line=dict(width=1, color=_hex_rgba(color, 0.5))),
                 text=hover,
                 hovertemplate="%{text}<extra></extra>",
             ))

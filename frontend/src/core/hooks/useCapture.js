@@ -169,7 +169,7 @@ export function useCapture() {
     showEdgeDirection: filters.showEdgeDirection, setShowEdgeDirection: filters.setShowEdgeDirection,
     // Phase 5.7 resolved mode → field+scale (see useCaptureFilters)
     nodeWeightField: filters.nodeWeightField, nodeWeightScale: filters.nodeWeightScale,
-    edgeWeightField: filters.edgeWeightField,
+    edgeWeightField: filters.edgeWeightField, edgeWeightScale: filters.edgeWeightScale,
     subnetPrefix: filters.subnetPrefix, setSubnetPrefix: filters.setSubnetPrefix,
     mergeByMac: filters.mergeByMac, setMergeByMac: filters.setMergeByMac,
     includeIPv6: filters.includeIPv6, setIncludeIPv6: filters.setIncludeIPv6,
