@@ -67,7 +67,14 @@ class Field:
 
 @dataclass(frozen=True)
 class NodeType:
-    """A kind of entity this workspace produces (network: `host` only)."""
+    """A kind of entity this workspace produces (network: `host` only).
+
+    `searchable_fields` is the list of `Field.name` values (or any wire-key
+    path resolvable on the node dict) that the global search box scans for
+    substring matches. The matched field's `display_name` is shown as the
+    match reason. Phase 5.6 (B1) — replaces hardcoded network field names
+    in `useCaptureData.js`. Empty list = node not searchable.
+    """
 
     name: str
     label: str
@@ -75,13 +82,17 @@ class NodeType:
     shape: NodeShape
     label_field: str
     fields: List[Field] = field(default_factory=list)
+    searchable_fields: List[str] = field(default_factory=list)
     icon: Optional[str] = None
     description: str = ""
 
 
 @dataclass(frozen=True)
 class EdgeType:
-    """A kind of relationship. `src_type` / `dst_type` reference NodeType names."""
+    """A kind of relationship. `src_type` / `dst_type` reference NodeType names.
+
+    `searchable_fields` — same role as on `NodeType`, scoped to edges.
+    """
 
     name: str
     label: str
@@ -89,6 +100,7 @@ class EdgeType:
     src_type: str
     dst_type: str
     fields: List[Field] = field(default_factory=list)
+    searchable_fields: List[str] = field(default_factory=list)
     description: str = ""
 
 

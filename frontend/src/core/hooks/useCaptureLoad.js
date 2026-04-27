@@ -14,10 +14,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  fetchStatus, fetchStats, fetchTimeline, fetchProtocols,
-  fetchSessions, fetchPluginResults, fetchPluginSlots,
-  fetchAnnotations, fetchSynthetic, fetchAlerts,
-  uploadPcap, uploadMetadata, confirmSchemaMapping,
+  fetchStatus, uploadPcap, uploadMetadata, confirmSchemaMapping,
 } from '../api';
 import { STORAGE_KEYS } from '../storageKeys';
 import { useWorkspace } from '@/WorkspaceProvider';
@@ -51,7 +48,11 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
   }
   function closeFlagModal() { setFlaggingTarget(null); }
 
-  // ── loadAll — fetch everything and fan out via callback ──────────
+  // ── loadAll — dispatch to workspace, then fan out via callback ──
+  //
+  // Phase 5.6 (B3): the fetcher fan-out used to live here, hardcoded in
+  // network shape. It now lives on the workspace descriptor; core only
+  // owns workspace-agnostic concerns (scope-pill reset).
 
   const loadAll = useCallback(async () => {
     // Reset scope pills to SCOPED on every fresh capture load
@@ -63,48 +64,12 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
         .forEach(k => localStorage.removeItem(k));
     } catch {}
 
-    const [sd, td, pd, ss, pr, ps, an, sy, al] = await Promise.all([
-      fetchStats(), fetchTimeline(), fetchProtocols(),
-      fetchSessions(), fetchPluginResults(), fetchPluginSlots(),
-      fetchAnnotations(), fetchSynthetic(), fetchAlerts(),
-    ]);
-
-    // Compute enabled protocol composite keys
-    const sp = sd.stats?.protocols || {};
-    const initKeys = [];
-    const nonIpTransports = new Set(['ARP', 'OTHER']);
-    for (const pName of pd.protocols) {
-      if (!pName || !pName.trim()) continue;
-      const info = sp[pName] || {};
-      const transport = info.transport || pName;
-      const v4 = info.ipv4 || 0;
-      const v6 = info.ipv6 || 0;
-      const total = info.packets || 0;
-      if (nonIpTransports.has(transport)) {
-        initKeys.push(`0/${transport}/${pName}`);
-      } else {
-        if (v4 > 0 || (v6 === 0 && total > 0)) initKeys.push(`4/${transport}/${pName}`);
-        if (v6 > 0) initKeys.push(`6/${transport}/${pName}`);
-      }
+    if (!workspace.loadAll) {
+      throw new Error(`Workspace "${workspace.name}" did not declare loadAll()`);
     }
-
-    onCaptureLoaded({
-      stats: sd.stats,
-      timeline: td.buckets,
-      timelineLength: td.buckets.length,
-      protocols: pd.protocols,
-      pColors: pd.colors,
-      sessions: ss.sessions || [],
-      fullSessions: ss.sessions || [],
-      sessionTotal: ss.total ?? ss.sessions?.length ?? 0,
-      pluginResults: pr.results || {},
-      pluginSlots: ps.ui_slots || [],
-      annotations: an.annotations || [],
-      synthetic: sy.synthetic || [],
-      alerts: al || { alerts: [], summary: {} },
-      enabledProtocolKeys: initKeys,
-    });
-  }, [onCaptureLoaded]);
+    const data = await workspace.loadAll();
+    onCaptureLoaded(data);
+  }, [workspace, onCaptureLoaded]);
 
   // ── E1: mount — check if capture already loaded server-side ──────
 
@@ -114,11 +79,7 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
       const isLoaded = d.capture_loaded ?? d.loaded;
       if (isLoaded) {
         setFileName(d.file_name);
-        if (workspace.loadAll) {
-          workspace.loadAll().then(onCaptureLoaded);
-        } else {
-          loadAll();
-        }
+        loadAll();
       }
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -137,8 +98,7 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
         setFileName(res.file_name);
         setSourceFiles([res.file_name]);
         setLoadMsg('Building graph...');
-        const graphData = await workspace.loadAll();
-        onCaptureLoaded(graphData);
+        await loadAll();
         setLoading(false);
         return;
       }

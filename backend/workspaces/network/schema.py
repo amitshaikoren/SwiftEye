@@ -38,6 +38,11 @@ HOST_FIELDS = [
         description="Hardware addresses observed for this host.",
     ),
     Field(
+        name="mac_vendors", display_name="Vendor", filter_path="vendor",
+        type="string", multi=True,
+        description="MAC OUI vendor lookup for this host.",
+    ),
+    Field(
         name="hostnames", display_name="Hostname", filter_path="hostname",
         type="string", multi=True,
         description="DNS / mDNS / NetBIOS names resolved to this host.",
@@ -156,6 +161,9 @@ NETWORK_SCHEMA = WorkspaceSchema(
             shape="circle",
             label_field="ips",
             fields=HOST_FIELDS,
+            # Phase 5.6 (B1): fields the global search bar scans on each host.
+            # Match reason shown to the user is the field's display_name.
+            searchable_fields=["ips", "macs", "mac_vendors", "hostnames", "os_guess"],
             description="A network endpoint identified by one or more IP addresses.",
         ),
     ],
@@ -167,6 +175,18 @@ NETWORK_SCHEMA = WorkspaceSchema(
             src_type="host",
             dst_type="host",
             fields=FLOW_FIELDS,
+            # Phase 5.6 (B1): edge fields scanned by the global search bar.
+            # Includes protocol + the EDGE_FIELD_REGISTRY edge_keys whose
+            # values are user-relevant strings (TLS / HTTP / DNS / JA3-4).
+            # Wire keys that don't have a matching Field show the wire key
+            # as the match reason — informative enough for power users.
+            searchable_fields=[
+                "protocol",
+                "tls_snis", "tls_versions", "tls_selected_ciphers", "tls_ciphers",
+                "http_hosts", "http_fwd_user_agents",
+                "dns_queries",
+                "ja3_hashes", "ja4_hashes",
+            ],
             description="A bidirectional conversation between two hosts on one protocol.",
         ),
     ],

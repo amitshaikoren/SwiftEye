@@ -17,7 +17,51 @@ import { fetchGraph, fetchAlerts, slicePcapUrl } from '../api';
 import { fTtime } from '../utils';
 import { applyDisplayFilter } from '../displayFilter';
 import { applyClusterView } from '../clusterView';
+import { getFieldValues } from '../schema';
 import { useWorkspace } from '@/WorkspaceProvider';
+
+// ── Schema-driven search helpers (Phase 5.6 / B1) ─────────────────────
+//
+// Resolve the list of searchable fields for one node-or-edge type. Each
+// returned entry is `{ name, label, field }` where `field` is the full
+// schema Field (so callers can use `getFieldValues` to handle multi /
+// sources / dotted paths uniformly). `label` is shown to the user as
+// the match reason.
+function _resolveSearchFields(typeDecl) {
+  const out = [];
+  const names = typeDecl?.searchable_fields || [];
+  const fields = typeDecl?.fields || [];
+  for (const fname of names) {
+    const f = fields.find(x => x.name === fname);
+    out.push({
+      name: fname,
+      label: (f?.display_name || fname).toLowerCase(),
+      field: f || { name: fname },
+    });
+  }
+  return out;
+}
+
+// Build a flat search-field list across every node (or edge) type in the
+// schema. For workspaces with a single node type (network: `host`) this
+// matches every node; for forensic the matchEntity helper picks the
+// type-specific subset via `entity.type`.
+function _allSearchFieldsByType(schema, kind) {
+  const types = (kind === 'node' ? schema?.node_types : schema?.edge_types) || [];
+  const byType = new Map();
+  for (const t of types) byType.set(t.name, _resolveSearchFields(t));
+  return byType;
+}
+
+// Pick the relevant type's search fields. Falls back to the first type
+// if `entity.type` is unset (network nodes/edges don't carry an explicit
+// type — that workspace has only one).
+function _searchFieldsFor(entity, byType, schema, kind) {
+  if (entity?.type && byType.has(entity.type)) return byType.get(entity.type);
+  const types = (kind === 'node' ? schema?.node_types : schema?.edge_types) || [];
+  if (types.length === 0) return [];
+  return byType.get(types[0].name) || [];
+}
 
 export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) {
   const workspace = useWorkspace();
@@ -248,20 +292,43 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
     else { setDfResult(result); setDfError(null); }
   }, [graph, dfApplied, workspace]);
 
+  // Per-workspace searchable-field map. Built once per schema change so
+  // matchNode / matchEdge / nodeIndex don't redo it per node.
+  const nodeSearchByType = useMemo(
+    () => _allSearchFieldsByType(workspace.schema, 'node'),
+    [workspace.schema]
+  );
+  const edgeSearchByType = useMemo(
+    () => _allSearchFieldsByType(workspace.schema, 'edge'),
+    [workspace.schema]
+  );
+
   // Pre-build search indices when graph/sessions change (not per-keystroke).
   // nodeIndex: id → concatenated searchable text (lowercase)
   // sessionIndex: session_key → concatenated searchable text (lowercase)
   const nodeIndex = useMemo(() => {
     const idx = new Map();
     for (const n of (graph.nodes || [])) {
-      idx.set(n.id, [
-        ...(n.ips || []), ...(n.macs || []), ...(n.mac_vendors || []),
-        ...(n.hostnames || []), n.os_guess || '', n.id || '',
-        ...Object.values(n.metadata || {}),
-      ].filter(Boolean).join('\0').toLowerCase());
+      const fields = _searchFieldsFor(n, nodeSearchByType, workspace.schema, 'node');
+      const parts = [];
+      for (const sf of fields) {
+        for (const v of getFieldValues(n, sf.field)) {
+          if (v == null) continue;
+          parts.push(String(v));
+        }
+      }
+      // n.id and metadata values are workspace-agnostic (every node has
+      // an id; metadata is a generic freeform bag) — included unconditionally.
+      if (n.id) parts.push(String(n.id));
+      if (n.metadata) {
+        for (const v of Object.values(n.metadata)) {
+          if (v != null) parts.push(String(v));
+        }
+      }
+      idx.set(n.id, parts.join('\0').toLowerCase());
     }
     return idx;
-  }, [graph.nodes]);
+  }, [graph.nodes, nodeSearchByType, workspace.schema]);
 
   const sessionIndex = useMemo(() => {
     const idx = new Map();
@@ -297,40 +364,35 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
     const edges = graph.edges || [];
 
     const matchNode = n => {
-      // Fast reject via pre-built index before scanning individual fields
+      // Fast reject via pre-built index before scanning individual fields.
       if (!nodeIndex.get(n.id)?.includes(q)) return null;
-      for (const ip of (n.ips || [])) { if (ip.toLowerCase().includes(q)) return 'ip'; }
-      for (const mac of (n.macs || [])) { if (mac.toLowerCase().includes(q)) return 'mac'; }
-      for (const v of (n.mac_vendors || [])) { if (v && v.toLowerCase().includes(q)) return 'vendor'; }
-      for (const h of (n.hostnames || [])) { if (h.toLowerCase().includes(q)) return 'hostname'; }
-      if (n.os_guess && n.os_guess.toLowerCase().includes(q)) return 'os';
+      const fields = _searchFieldsFor(n, nodeSearchByType, workspace.schema, 'node');
+      for (const sf of fields) {
+        for (const v of getFieldValues(n, sf.field)) {
+          if (v != null && String(v).toLowerCase().includes(q)) return sf.label;
+        }
+      }
       if (n.id && n.id.toLowerCase().includes(q)) return 'id';
       if (n.metadata) {
-        for (const [mk, mv] of Object.entries(n.metadata)) { if (mv && String(mv).toLowerCase().includes(q)) return 'metadata: ' + mk; }
+        for (const [mk, mv] of Object.entries(n.metadata)) {
+          if (mv != null && String(mv).toLowerCase().includes(q)) return 'metadata: ' + mk;
+        }
       }
       return null;
     };
 
-    const _SKIP_EDGE_KEYS = new Set([
-      'id', 'source', 'target', 'protocol', 'type', 'synthetic',
-      'total_bytes', 'packet_count', 'ports', 'has_tls', 'has_http', 'has_dns',
-      'bytes_to_source', 'bytes_to_target', 'packets_to_source', 'packets_to_target',
-    ]);
     const matchEdge = e => {
-      if (e.protocol && e.protocol.toLowerCase().includes(q)) return 'protocol';
-      for (const [key, val] of Object.entries(e)) {
-        if (_SKIP_EDGE_KEYS.has(key)) continue;
-        if (typeof val === 'string' && val.toLowerCase().includes(q)) return key;
-        if (Array.isArray(val)) {
-          for (const item of val) {
-            if (typeof item === 'string' && item.toLowerCase().includes(q)) return key;
-          }
+      const fields = _searchFieldsFor(e, edgeSearchByType, workspace.schema, 'edge');
+      for (const sf of fields) {
+        for (const v of getFieldValues(e, sf.field)) {
+          if (v != null && String(v).toLowerCase().includes(q)) return sf.label;
         }
       }
       const src = e.source?.id || e.source || '';
       const tgt = e.target?.id || e.target || '';
       if (src.toLowerCase().includes(q) || tgt.toLowerCase().includes(q)) return 'endpoint';
-      // Boolean presence hints (has_tls / has_http / has_dns)
+      // Boolean presence hints (has_tls / has_http / has_dns) — declared by
+      // the workspace's onMount hook (network only). Forensic skips this.
       for (const hint of edgeFieldHints) {
         if (hint.keyword.includes(q) && e[hint.flag]) return `has ${hint.keyword}`;
       }
@@ -417,7 +479,7 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
       totalNodes: directNodes.length,
       totalEdges: directEdges.length,
     });
-  }, [search, graph, sessions, nodeIndex, sessionIndex, edgeFieldHints]);
+  }, [search, graph, sessions, nodeIndex, sessionIndex, edgeFieldHints, nodeSearchByType, edgeSearchByType, workspace]);
 
   // E11: clear stale pathfind results when graph data changes
   useEffect(() => {
