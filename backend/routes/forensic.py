@@ -18,6 +18,7 @@ from typing import Any, Dict, List
 
 from workspaces.forensic.store import forensic_store
 from workspaces.forensic.parser.adapters import detect_adapter, ADAPTERS
+from workspaces.forensic.plugins import run_all_forensic_plugins, ForensicAnalysisContext
 
 logger = logging.getLogger("swifteye.routes.forensic")
 router = APIRouter()
@@ -150,6 +151,42 @@ async def forensic_events(edge_key: str = ""):
         raise HTTPException(status_code=400, detail="edge_key is required")
     events = forensic_store.get_events_for_edge(edge_key)
     return ForensicEventsResponse(edge_key=edge_key, events=events)
+
+
+# ---------------------------------------------------------------------------
+# Plugin routes
+# ---------------------------------------------------------------------------
+
+@router.get("/api/forensic/plugins")
+async def forensic_plugins():
+    """
+    Run all registered forensic classifier plugins against the loaded capture.
+
+    Returns:
+      slots   — UI slot metadata (plugin, slot_id, title, priority, default_open)
+      results — plugin name -> {node_id -> slot_data}
+    """
+    _require_forensic_capture()
+    from workspaces.forensic.plugins import get_forensic_plugins
+    ctx = ForensicAnalysisContext(
+        events=forensic_store.events,
+        nodes=forensic_store.graph_cache.get("nodes", []),
+        edges=forensic_store.graph_cache.get("edges", []),
+    )
+    results = run_all_forensic_plugins(ctx)
+    slots = []
+    for name, plugin in get_forensic_plugins().items():
+        for s in plugin.get_ui_slots():
+            slots.append({
+                "plugin": name,
+                "slot_id": s.slot_id,
+                "slot_type": s.slot_type,
+                "title": s.title,
+                "priority": s.priority,
+                "default_open": s.default_open,
+            })
+    slots.sort(key=lambda s: s["priority"])
+    return {"slots": slots, "results": results}
 
 
 # ---------------------------------------------------------------------------

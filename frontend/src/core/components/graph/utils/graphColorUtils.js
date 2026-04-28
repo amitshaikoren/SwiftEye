@@ -25,7 +25,13 @@ export function resolveNodeColor(node, mode, rules, pColors, nodePrivate, nodePr
   // takes precedence over view-mode resolution. Mode-based coloring assumes
   // network-shaped data (is_private, os_guess, total_bytes, …) which other
   // workspaces don't carry.
-  if (node.color) return [node.color + '22', node.color];
+  if (node.color) {
+    const r = parseInt(node.color.slice(1, 3), 16);
+    const g = parseInt(node.color.slice(3, 5), 16);
+    const b = parseInt(node.color.slice(5, 7), 16);
+    const dark = `#${Math.round(r * 0.15).toString(16).padStart(2, '0')}${Math.round(g * 0.15).toString(16).padStart(2, '0')}${Math.round(b * 0.15).toString(16).padStart(2, '0')}`;
+    return [dark, node.color];
+  }
   switch (mode) {
     case 'os': {
       const os = node.os_guess || '';
