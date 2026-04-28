@@ -133,6 +133,8 @@ _dynamic_register([
     ("workspaces.forensic.research.network_timeline",   "NetworkTimeline"),
 ], _fx_register_chart, "forensic research chart")
 
+import workspaces.forensic.plugins  # noqa: F401, E402 — triggers classifier self-registration
+
 _dynamic_register([
     ("workspaces.network.plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
     ("workspaces.network.plugins.alerts.suspicious_ua", "SuspiciousUADetector"),

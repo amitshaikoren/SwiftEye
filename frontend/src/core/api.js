@@ -243,6 +243,10 @@ export async function fetchForensicEvents(edgeKey) {
   return api(`/api/forensic/events?edge_key=${encodeURIComponent(edgeKey)}`);
 }
 
+export async function fetchForensicPlugins() {
+  return api('/api/forensic/plugins');
+}
+
 // ── Analysis ────────────────────────────────────────────────────────────────
 
 export async function fetchAnalysisResults() {

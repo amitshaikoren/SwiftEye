@@ -25,6 +25,7 @@ import {
   uploadForensicEvtx,
   fetchForensicStatus,
   fetchForensicGraph,
+  fetchForensicPlugins,
 } from '@core/api';
 
 // Schema-driven legend builders. Forensic colours nodes/edges from
@@ -87,9 +88,11 @@ function fN(n) {
 }
 
 async function loadAll() {
-  const [d, status] = await Promise.all([fetchForensicGraph(), fetchForensicStatus()]);
-  // Return the shape onCaptureLoaded expects.
-  // stats.event_count is surfaced in the top bar via getTopBarStats.
+  const [d, status, plugins] = await Promise.all([
+    fetchForensicGraph(),
+    fetchForensicStatus(),
+    fetchForensicPlugins().catch(() => ({ results: {} })),
+  ]);
   return {
     nodes: d.nodes || [],
     edges: d.edges || [],
@@ -101,8 +104,8 @@ async function loadAll() {
     sessions: [],
     fullSessions: [],
     sessionTotal: 0,
-    pluginResults: {},
-    pluginSlots: [],
+    pluginResults: plugins.results || {},
+    pluginSlots: plugins.slots || [],
     annotations: [],
     synthetic: [],
     alerts: { alerts: [], summary: {} },

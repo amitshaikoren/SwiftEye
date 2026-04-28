@@ -3,10 +3,17 @@
  *
  * Renders per-type field lists for process, file, registry, and endpoint
  * nodes from the forensic graph. Field order matches schema.py.
+ *
+ * Plugin sections (LOLbin, binary type, registry category) are rendered
+ * below the static fields using pluginResults + uiSlots passed from
+ * AppRightPanel. Each section uses Collapse + GenericDisplay so no
+ * dedicated frontend renderer is needed.
  */
 
 import React from 'react';
 import Row from '../../core/components/Row';
+import Collapse from '../../core/components/Collapse';
+import { GenericDisplay } from '../../core/components/PluginSection';
 
 // ── Per-type renderers ───────────────────────────────────────────────────────
 
@@ -53,6 +60,26 @@ function EndpointDetail({ node }) {
   );
 }
 
+// ── Plugin sections ───────────────────────────────────────────────────────────
+
+function ForensicPluginSections({ nodeId, pluginResults, uiSlots }) {
+  if (!pluginResults || !uiSlots || uiSlots.length === 0) return null;
+
+  const nodeSlots = uiSlots
+    .filter(s => s.slot_type === 'node_detail_section')
+    .sort((a, b) => a.priority - b.priority);
+
+  return nodeSlots.map(slot => {
+    const nodeData = pluginResults?.[slot.plugin]?.[nodeId];
+    if (!nodeData?._display || nodeData._display.length === 0) return null;
+    return (
+      <Collapse key={`${slot.plugin}.${slot.slot_id}`} title={slot.title} open={slot.default_open}>
+        <GenericDisplay display={nodeData._display} />
+      </Collapse>
+    );
+  });
+}
+
 // ── Type → color + label ─────────────────────────────────────────────────────
 
 const TYPE_META = {
@@ -64,7 +91,7 @@ const TYPE_META = {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ForensicNodeDetail({ nodeId, nodes = [], onClear }) {
+export default function ForensicNodeDetail({ nodeId, nodes = [], onClear, pluginResults, uiSlots }) {
   const node = nodes.find(n => n.id === nodeId);
   if (!node) return null;
 
@@ -93,11 +120,14 @@ export default function ForensicNodeDetail({ nodeId, nodes = [], onClear }) {
         )}
       </div>
 
-      {/* Fields */}
+      {/* Static fields */}
       {node.type === 'process'  && <ProcessDetail  node={node} />}
       {node.type === 'file'     && <FileDetail     node={node} />}
       {node.type === 'registry' && <RegistryDetail node={node} />}
       {node.type === 'endpoint' && <EndpointDetail node={node} />}
+
+      {/* Plugin classifier sections */}
+      <ForensicPluginSections nodeId={nodeId} pluginResults={pluginResults} uiSlots={uiSlots} />
 
       {/* Entity ID */}
       <div style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid var(--bd)' }}>
