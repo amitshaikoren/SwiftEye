@@ -22,7 +22,7 @@ import PathDetail from '../../workspaces/network/PathDetail';
 import MultiSelectPanel from './MultiSelectPanel';
 
 export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQueryHighlight }) {
-  const { NodeDetail, EdgeDetail } = useWorkspace();
+  const { NodeDetail, EdgeDetail, OverviewPanel } = useWorkspace();
   const pathBackLink = c.pathfindResult?.path_count > 0 ? (
     <div
       onClick={c.clearSel}
@@ -210,6 +210,18 @@ export default function AppRightPanel({ c, subgraphInfo, queryHighlight, setQuer
         clusterAlgo={c.clusterAlgo} setClusterAlgo={c.setClusterAlgo}
         clusterResolution={c.clusterResolution} setClusterResolution={c.setClusterResolution}
         visibleNodes={c.visibleNodes}
+      />
+    );
+  }
+
+  if (OverviewPanel) {
+    return (
+      <OverviewPanel
+        nodes={c.graph?.nodes || []}
+        edges={c.graph?.edges || []}
+        stats={c.stats}
+        onSelectNode={c.selectNodePanel}
+        loaded={c.loaded}
       />
     );
   }

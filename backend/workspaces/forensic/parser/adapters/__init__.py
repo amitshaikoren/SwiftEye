@@ -80,4 +80,5 @@ def detect_adapter(path: Path) -> Optional[ForensicAdapter]:
 
 
 # ── Auto-import adapters so they self-register ───────────────────────────
-from . import evtx_adapter  # noqa: E402, F401
+from . import evtx_adapter          # noqa: E402, F401
+from . import velociraptor_adapter  # noqa: E402, F401
