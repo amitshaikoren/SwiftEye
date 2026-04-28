@@ -21,6 +21,7 @@ import NodeDetail from './NodeDetail';
 import EdgeDetail from './EdgeDetail';
 import UploadScreen from './UploadScreen';
 import ArtifactBrowser from './ArtifactBrowser';
+import ForensicStatsPanel from './StatsPanel';
 import {
   uploadForensicEvtx,
   fetchForensicStatus,
@@ -133,7 +134,7 @@ const forensicWorkspace = {
   dataHooks: {},
 
   // Drop-zone accept list (see useCaptureLoad.handleDrop)
-  acceptedExtensions: ['.evtx'],
+  acceptedExtensions: ['.evtx', '.zip', '.csv'],
 
   // Per-event action_type (carried on each edge.events entry) maps to one of
   // the edge types in schema. EdgeDetail uses this to colour action badges
@@ -171,6 +172,7 @@ const forensicWorkspace = {
   UploadScreen,
   NodeDetail,
   EdgeDetail,
+  OverviewPanel: ForensicStatsPanel,
 
   // Graph Options catalog (mode lists + defaults). See declaration above.
   graphDisplay,
