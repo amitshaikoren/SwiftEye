@@ -27,6 +27,7 @@ import {
   fetchForensicStatus,
   fetchForensicGraph,
   fetchForensicPlugins,
+  fetchForensicAnimation,
 } from '@core/api';
 
 // Schema-driven legend builders. Forensic colours nodes/edges from
@@ -88,18 +89,50 @@ function fN(n) {
     : String(n);
 }
 
+// Build an event-density timeline from graph edges, compatible with TimelineStrip.
+// Returns [{packet_count, start_time, end_time}] using packet_count as the bar field.
+function buildForensicTimeline(edges, buckets = 60) {
+  const times = [];
+  for (const e of edges) {
+    for (const ev of (e.events || [])) {
+      if (ev.ts) {
+        const t = new Date(ev.ts).getTime() / 1000;
+        if (!isNaN(t) && t > 0) times.push(t);
+      }
+    }
+  }
+  if (times.length < 2) return [];
+  times.sort((a, b) => a - b);
+  const tMin = times[0];
+  const tMax = times[times.length - 1];
+  if (tMax === tMin) return [{ packet_count: times.length, start_time: tMin, end_time: tMin + 1 }];
+
+  const bucketWidth = (tMax - tMin) / buckets;
+  const counts = new Array(buckets).fill(0);
+  for (const t of times) {
+    const bi = Math.min(Math.floor((t - tMin) / bucketWidth), buckets - 1);
+    counts[bi]++;
+  }
+  return counts.map((c, i) => ({
+    packet_count: c,
+    start_time:   tMin + i * bucketWidth,
+    end_time:     tMin + (i + 1) * bucketWidth,
+  }));
+}
+
 async function loadAll() {
   const [d, status, plugins] = await Promise.all([
     fetchForensicGraph(),
     fetchForensicStatus(),
     fetchForensicPlugins().catch(() => ({ results: {} })),
   ]);
+  const timeline = buildForensicTimeline(d.edges || []);
   return {
     nodes: d.nodes || [],
     edges: d.edges || [],
     stats: { event_count: d.event_count ?? status.event_count ?? 0 },
-    timeline: [],
-    timelineLength: 0,
+    timeline,
+    timelineLength: timeline.length,
     protocols: [],
     pColors: {},
     sessions: [],
@@ -126,8 +159,15 @@ const forensicWorkspace = {
   // Graph hook consumed by useCaptureData E7
   fetchGraph:  fetchForensicGraph,
 
-  // Phase 5.5: workspace switcher descriptor fields
-  showTimeline: false,
+  // Timeline: event-density strip, computed by loadAll from edge timestamps.
+  showTimeline: true,
+
+  // Animation: use the forensic-specific fetch route + recency window so
+  // AnimationPane shows the last N events bright and older events as a dim trail.
+  animation: {
+    fetchFn: fetchForensicAnimation,
+    recencyWindow: 3,
+  },
 
   // Forensic has no time-range / bucket / mount lifecycle — useCaptureData
   // skips its E0 / E3 / E4+E5 effects entirely when these are absent.

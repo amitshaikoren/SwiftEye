@@ -180,7 +180,7 @@ export function useAnimationCanvas({
           cpy += (ny / len) * offset;
         }
 
-        const protoColor = pc[edge.protocol] || '#64748b';
+        const protoColor = edge.color || pc[edge.protocol] || '#64748b';
 
         if (isActive) {
           // Flash glow
@@ -298,14 +298,16 @@ export function useAnimationCanvas({
           ctx.globalAlpha = 0.28;
         }
 
-        // Fill / stroke colors
-        const fillColor = isPrivate ? '#264060' : '#3d2855';
-        const strokeColor = isSpotlight ? '#58a6ff' : (isPrivate ? '#5a9ad5' : '#9060cc');
+        // Fill / stroke colors — prefer schema color from meta (forensic); fall back to network palette
+        const schemaColor = meta.color;
+        const fillColor = schemaColor ? schemaColor + '26' : (isPrivate ? '#264060' : '#3d2855');
+        const strokeColor = schemaColor || (isSpotlight ? '#58a6ff' : (isPrivate ? '#5a9ad5' : '#9060cc'));
+        const glowColor = schemaColor ? schemaColor + '44' : '#58a6ff44';
 
         // Spotlight glow
         if (isSpotlight) {
           const gl = ctx.createRadialGradient(p.x, p.y, NODE_RADIUS, p.x, p.y, NODE_RADIUS * 3);
-          gl.addColorStop(0, '#58a6ff44');
+          gl.addColorStop(0, glowColor);
           gl.addColorStop(1, 'transparent');
           ctx.fillStyle = gl;
           ctx.fillRect(p.x - NODE_RADIUS * 3, p.y - NODE_RADIUS * 3, NODE_RADIUS * 6, NODE_RADIUS * 6);
@@ -324,7 +326,7 @@ export function useAnimationCanvas({
         if (isSpotlight) {
           ctx.beginPath();
           ctx.arc(p.x, p.y, SPOTLIGHT_RING_R, 0, Math.PI * 2);
-          ctx.strokeStyle = '#58a6ff';
+          ctx.strokeStyle = strokeColor;
           ctx.lineWidth = 2;
           ctx.setLineDash([4, 3]);
           ctx.stroke();

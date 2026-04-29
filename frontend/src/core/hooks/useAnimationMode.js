@@ -11,6 +11,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { fetchNodeAnimation } from '../api';
 
+// Default recency window (0 = original network behaviour — active/ended driven by event pairs)
+const DEFAULT_RECENCY_WINDOW = 0;
+
 const SPEED_MS = { 0.5: 2000, 1: 1000, 2: 500, 5: 200 };
 
 export function useAnimationMode() {
@@ -42,6 +45,7 @@ export function useAnimationMode() {
 
   const playTimerRef = useRef(null);
   const eventsRef = useRef([]);
+  const recencyWindowRef = useRef(DEFAULT_RECENCY_WINDOW);
   useEffect(() => { eventsRef.current = animEvents; }, [animEvents]);
 
   // Clamp animFrame whenever the effective event list shrinks (e.g. toggling isolate on).
@@ -51,11 +55,13 @@ export function useAnimationMode() {
 
   // ── Start / Stop ──────────────────────────────────────────────────
 
-  const startAnimation = useCallback(async (nodeIds, protocols) => {
+  const startAnimation = useCallback(async (nodeIds, protocols, fetchFn, recencyWindow) => {
     setAnimLoading(true);
     setAnimError(null);
+    recencyWindowRef.current = recencyWindow ?? DEFAULT_RECENCY_WINDOW;
     try {
-      const resp = await fetchNodeAnimation(nodeIds, protocols);
+      const fetch = fetchFn || fetchNodeAnimation;
+      const resp = await fetch(nodeIds, protocols);
       setAnimNodes(nodeIds);
       setRawEvents(resp.events || []);
       setAnimNodeMeta(resp.nodes || {});
@@ -79,6 +85,7 @@ export function useAnimationMode() {
     setAnimNodes([]);
     setIsIsolated(false);
     setAnimError(null);
+    recencyWindowRef.current = DEFAULT_RECENCY_WINDOW;
     if (playTimerRef.current) {
       clearInterval(playTimerRef.current);
       playTimerRef.current = null;
@@ -156,6 +163,16 @@ export function useAnimationMode() {
       } else {
         active.delete(ev.session_id);
         ended.add(ev.session_id);
+      }
+    }
+    // Recency window: keep only the last N active sessions; push older ones to ended.
+    // Used by forensic workspace where events only have 'start' types and never end.
+    const rw = recencyWindowRef.current;
+    if (rw > 0 && active.size > rw) {
+      const overflow = [...active].slice(0, active.size - rw);
+      for (const sid of overflow) {
+        active.delete(sid);
+        ended.add(sid);
       }
     }
     return { active, ended };

@@ -247,6 +247,12 @@ export async function fetchForensicPlugins() {
   return api('/api/forensic/plugins');
 }
 
+export async function fetchForensicAnimation(nodeIds) {
+  const p = new URLSearchParams();
+  if (nodeIds && nodeIds.length > 0) p.set('nodes', nodeIds.join(','));
+  return api(`/api/forensic/animation?${p}`);
+}
+
 // ── Analysis ────────────────────────────────────────────────────────────────
 
 export async function fetchAnalysisResults() {
