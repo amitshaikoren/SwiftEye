@@ -235,8 +235,12 @@ export async function fetchForensicStatus() {
   return api('/api/forensic/status');
 }
 
-export async function fetchForensicGraph() {
-  return api('/api/forensic/graph');
+export async function fetchForensicGraph(params = {}) {
+  const q = new URLSearchParams();
+  if (params.timeStart != null) q.set('time_start', params.timeStart);
+  if (params.timeEnd   != null) q.set('time_end',   params.timeEnd);
+  const qs = q.toString();
+  return api(qs ? `/api/forensic/graph?${qs}` : '/api/forensic/graph');
 }
 
 export async function fetchForensicEvents(edgeKey) {
@@ -245,6 +249,12 @@ export async function fetchForensicEvents(edgeKey) {
 
 export async function fetchForensicPlugins() {
   return api('/api/forensic/plugins');
+}
+
+export async function fetchForensicAnimation(nodeIds) {
+  const p = new URLSearchParams();
+  if (nodeIds && nodeIds.length > 0) p.set('nodes', nodeIds.join(','));
+  return api(`/api/forensic/animation?${p}`);
 }
 
 // ── Analysis ────────────────────────────────────────────────────────────────

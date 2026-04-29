@@ -466,14 +466,17 @@ export default function App() {
                       pColors={c.pColors}
                       savedPositionsRef={animSavedPositionsRef}
                       onSelectNode={id => id ? c.handleGSel('node', id, false) : c.clearSel()}
-                      onSelectSession={sid => {
-                        const sess = c.sessions.find(s => s.id === sid);
-                        if (sess) { c.selectSession(sess); return; }
-                        // Session not in local list (capped at 1000) — fetch from API
-                        fetchSessionDetail(sid, 0)
-                          .then(d => { if (d.session) c.selectSession(d.session); })
-                          .catch(() => {});
-                      }}
+                      selectEventLabel={workspace.animation?.selectEventLabel}
+                      onSelectSession={workspace.animation?.onSelectEvent
+                        ? (sid => workspace.animation.onSelectEvent(sid, c))
+                        : (sid => {
+                            const sess = c.sessions.find(s => s.id === sid);
+                            if (sess) { c.selectSession(sess); return; }
+                            fetchSessionDetail(sid, 0)
+                              .then(d => { if (d.session) c.selectSession(d.session); })
+                              .catch(() => {});
+                          })
+                      }
                     />
                   </Suspense>
                 ) : (

@@ -1,24 +1,29 @@
 """
 Forensic workspace API routes.
 
-POST /api/forensic/upload  — ingest an EVTX file into ForensicStore.
-GET  /api/forensic/status  — is a forensic capture loaded?
-GET  /api/forensic/graph   — nodes + edges from the loaded forensic capture.
-GET  /api/forensic/events  — event list for a specific edge (by edge_key).
+POST /api/forensic/upload     — ingest an EVTX file into ForensicStore.
+GET  /api/forensic/status     — is a forensic capture loaded?
+GET  /api/forensic/graph      — nodes + edges from the loaded forensic capture.
+GET  /api/forensic/events     — event list for a specific edge (by edge_key).
+GET  /api/forensic/animation  — animation event stream for spotlight nodes.
 """
 
 import tempfile
 import time
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
 from typing import Any, Dict, List
 
+from core.models import NodeAnimationResponse
 from workspaces.forensic.store import forensic_store
 from workspaces.forensic.parser.adapters import detect_adapter, ADAPTERS
 from workspaces.forensic.plugins import run_all_forensic_plugins, ForensicAnalysisContext
+from workspaces.forensic.analysis.animation import build_forensic_animation_response
 
 logger = logging.getLogger("swifteye.routes.forensic")
 router = APIRouter()
@@ -135,12 +140,56 @@ async def forensic_status():
 
 
 @router.get("/api/forensic/graph", response_model=ForensicGraphResponse)
-async def forensic_graph():
+async def forensic_graph(
+    time_start: Optional[float] = Query(None),
+    time_end:   Optional[float] = Query(None),
+):
     _require_forensic_capture()
+    all_nodes = forensic_store.graph_cache.get("nodes", [])
+    all_edges = forensic_store.graph_cache.get("edges", [])
+
+    if time_start is None and time_end is None:
+        return ForensicGraphResponse(
+            nodes=all_nodes, edges=all_edges,
+            event_count=len(forensic_store.events),
+        )
+
+    # Filter edges whose activity window overlaps [time_start, time_end].
+    # ts_first / ts_last are ISO strings; convert to epoch for comparison.
+    def _iso_epoch(s):
+        if not s:
+            return None
+        try:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return dt.timestamp()
+        except Exception:
+            return None
+
+    filtered_edges = []
+    for e in all_edges:
+        ef = _iso_epoch(e.get("ts_first"))
+        el = _iso_epoch(e.get("ts_last")) or ef
+        # include if no timestamps (always visible) or overlap
+        if ef is None:
+            filtered_edges.append(e)
+            continue
+        if time_end is not None and ef > time_end:
+            continue
+        if time_start is not None and el is not None and el < time_start:
+            continue
+        filtered_edges.append(e)
+
+    # Keep only nodes referenced by filtered edges
+    referenced_ids = set()
+    for e in filtered_edges:
+        referenced_ids.add(e.get("source"))
+        referenced_ids.add(e.get("target"))
+    filtered_nodes = [n for n in all_nodes if n.get("id") in referenced_ids]
+
     return ForensicGraphResponse(
-        nodes=forensic_store.graph_cache.get("nodes", []),
-        edges=forensic_store.graph_cache.get("edges", []),
-        event_count=len(forensic_store.events),
+        nodes=filtered_nodes,
+        edges=filtered_edges,
+        event_count=sum(e.get("event_count", 0) for e in filtered_edges),
     )
 
 
@@ -228,3 +277,27 @@ async def run_forensic_research_chart(chart_name: str, body: dict):
     except Exception as e:
         logger.error(f"Forensic chart '{chart_name}' failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Animation
+# ---------------------------------------------------------------------------
+
+@router.get("/api/forensic/animation", response_model=NodeAnimationResponse)
+async def forensic_animation(
+    nodes: Optional[str] = Query(None, description="Comma-separated spotlight node IDs (empty = all)"),
+):
+    """
+    Return animation events for the given spotlight nodes (or all nodes).
+
+    Events are sorted by timestamp. Each event maps to one forensic action
+    (process_create, network_connect, etc.) and carries src/dst node IDs plus
+    the edge schema color so AnimationPane can colour edges correctly.
+    """
+    _require_forensic_capture()
+    node_ids: set = set()
+    if nodes:
+        node_ids = {n.strip() for n in nodes.split(",") if n.strip()}
+
+    result = build_forensic_animation_response(forensic_store.graph_cache, node_ids)
+    return NodeAnimationResponse(**result)

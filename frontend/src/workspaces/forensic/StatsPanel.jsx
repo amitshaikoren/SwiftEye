@@ -67,9 +67,9 @@ function MiniBar({ items, color = 'rgba(88,166,255,.35)', onSelect }) {
         >
           <span style={{
             fontFamily: 'var(--fn)', color: onSelect ? 'var(--ac)' : 'var(--txM)',
-            width: 130, flexShrink: 0, overflow: 'hidden',
+            flex: '0 0 40%', minWidth: 60, maxWidth: 180, overflow: 'hidden',
             textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10,
-          }}>{item.label}</span>
+          }} title={item.label}>{item.label}</span>
           <div style={{ flex: 1, height: 8, background: 'var(--bgC)', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{
               width: `${(item.value / maxVal) * 100}%`, height: '100%',
@@ -125,7 +125,7 @@ export default function ForensicStatsPanel({ nodes = [], edges = [], stats = {},
       .filter(n => n.type === 'process')
       .sort((a, b) => (b.event_count || 0) - (a.event_count || 0))
       .slice(0, 8)
-      .map(n => ({ id: n.id, label: n.image || n.label || n.id, value: n.event_count || 0 }));
+      .map(n => ({ id: n.id, label: n.label || n.image || n.id, value: n.event_count || 0 }));
 
     // Top endpoints by connection_count (or event_count)
     const topEndpoints = nodes

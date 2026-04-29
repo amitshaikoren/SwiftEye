@@ -258,10 +258,10 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
       if (clusterAlgo === 'louvain') params.clusterResolution = clusterResolution;
     }
 
-    // Workspace may supply its own graph fetcher (e.g. forensic workspace
-    // uses /api/forensic/graph with no filter params).
+    // Workspace may supply its own graph fetcher (e.g. forensic workspace).
+    // Pass params so time-range filtering works.
     if (workspace.fetchGraph) {
-      workspace.fetchGraph().then(d => {
+      workspace.fetchGraph(params).then(d => {
         setRawGraph(d);
         if (!fullGraphRef.current) {
           fullGraphRef.current = { nodes: d.nodes || [], edges: d.edges || [] };

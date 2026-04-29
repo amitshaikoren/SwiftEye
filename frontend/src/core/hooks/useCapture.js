@@ -25,11 +25,13 @@ import { useAnnotationsAndSynthetic } from './useAnnotationsAndSynthetic';
 import { useCaptureData } from './useCaptureData';
 import { useSelectionAndNavigation } from './useSelectionAndNavigation';
 import { useCaptureLoad } from './useCaptureLoad';
+import { useWorkspace } from '@/WorkspaceProvider';
 
 export function useCapture() {
 
   // ── Independent sub-hooks (already decoupled) ────────────────────
 
+  const workspace = useWorkspace();
   const anim = useAnimationMode();
   const evs = useEvents();
 
@@ -127,6 +129,16 @@ export function useCapture() {
     }),
     [data.graph.edges, sel.hiddenNodes, filters.hiddenEdgeTypes]
   );
+
+  // ── Coordinator-level: workspace-aware startAnimation ────────────
+  // Injects workspace.animation.fetchFn and recencyWindow so AnimationPane
+  // uses the correct fetch route and frame-state model per workspace.
+
+  const startAnimation = useCallback((nodeIds, protocols) => {
+    const fetchFn = workspace.animation?.fetchFn;
+    const recencyWindow = workspace.animation?.recencyWindow;
+    return anim.startAnimation(nodeIds, protocols, fetchFn, recencyWindow);
+  }, [workspace, anim.startAnimation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Return the merged object (identical shape to pre-decomposition) ─
 
@@ -244,8 +256,9 @@ export function useCapture() {
     // Graph setter (data slice)
     setGraph: data.setGraph,
 
-    // Animation mode (decoupled sub-hook)
+    // Animation mode (decoupled sub-hook; startAnimation overridden below)
     ...anim,
+    startAnimation,
 
     // Events (v0.21.0) — researcher-flagged nodes/edges/sessions
     events: evs.events,
