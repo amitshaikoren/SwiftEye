@@ -140,23 +140,29 @@ export default function MultiSelectPanel({
         <div className="sc">
           <div style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 2 }}>Nodes</div>
           <div style={{ fontSize: 17, fontWeight: 600, fontFamily: 'var(--fd)' }}>{selectedNodes.length}</div>
-          <div style={{ fontSize: 9, color: 'var(--txD)' }}>{stats.allIps.size} IPs · {stats.allMacs.size} MACs</div>
+          {(stats.allIps.size > 0 || stats.allMacs.size > 0) && (
+            <div style={{ fontSize: 9, color: 'var(--txD)' }}>{stats.allIps.size} IPs · {stats.allMacs.size} MACs</div>
+          )}
         </div>
+        {selSessions.length > 0 && (
         <div className="sc">
           <div style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 2 }}>Sessions</div>
           <div style={{ fontSize: 17, fontWeight: 600, fontFamily: 'var(--fd)' }}>{fN(selSessions.length)}</div>
           <div style={{ fontSize: 9, color: 'var(--txD)' }}>{fN(internalSessions.length)} internal</div>
         </div>
+        )}
         <div className="sc">
           <div style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 2 }}>Edges</div>
           <div style={{ fontSize: 17, fontWeight: 600, fontFamily: 'var(--fd)' }}>{connEdges.length}</div>
           <div style={{ fontSize: 9, color: 'var(--txD)' }}>{selEdges.length} between selected</div>
         </div>
+        {stats.totalBytes > 0 && (
         <div className="sc">
           <div style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 2 }}>Traffic</div>
           <div style={{ fontSize: 17, fontWeight: 600, fontFamily: 'var(--fd)' }}>{fB(stats.totalBytes)}</div>
           <div style={{ fontSize: 9, color: 'var(--txD)' }}>{fB(stats.internalBytes)} internal</div>
         </div>
+        )}
       </div>
 
       {/* TCP state */}
@@ -176,13 +182,14 @@ export default function MultiSelectPanel({
               fontSize: 10, padding: '5px 4px', borderBottom: '1px solid var(--bd)',
               cursor: 'pointer', borderRadius: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-            <span style={{ fontWeight: 500 }}>{n.id}</span>
-            <span style={{ color: 'var(--txD)' }}>{fB(n.total_bytes)}</span>
+            <span style={{ fontWeight: 500 }}>{n.label || n.id}</span>
+            {n.total_bytes > 0 && <span style={{ color: 'var(--txD)' }}>{fB(n.total_bytes)}</span>}
           </div>
         ))}
       </Collapse>
 
-      {/* Protocol breakdown */}
+      {/* Protocol breakdown — only rendered when edge protocols are present */}
+      {Object.keys(stats.protoTraffic).length > 0 && (
       <Collapse title="Protocols" open={true}>
         {Object.entries(stats.protoTraffic)
           .sort((a, b) => b[1].bytes - a[1].bytes)
@@ -196,6 +203,7 @@ export default function MultiSelectPanel({
             </div>
           ))}
       </Collapse>
+      )}
 
       {/* Internal edges */}
       {selEdges.length > 0 && (
@@ -203,6 +211,8 @@ export default function MultiSelectPanel({
           {selEdges.slice(0, 20).map((e, i) => {
             const s = typeof e.source === 'object' ? e.source.id : e.source;
             const t = typeof e.target === 'object' ? e.target.id : e.target;
+            const edgeLabel = e.type || e.protocol;
+            const edgeColor = e.color || pColors[e.protocol] || '#64748b';
             return (
               <div key={i} className="hr" onClick={() => onSelectEdge(e)}
                 style={{
@@ -210,11 +220,11 @@ export default function MultiSelectPanel({
                   cursor: 'pointer', borderRadius: 3,
                 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Tag color={pColors[e.protocol] || '#64748b'} small>{e.protocol}</Tag>
+                  {edgeLabel && <Tag color={edgeColor} small>{edgeLabel}</Tag>}
                   <span style={{ color: 'var(--txM)', flex: 1, marginLeft: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {s} ↔ {t}
                   </span>
-                  <span style={{ color: 'var(--txD)', marginLeft: 4 }}>{fB(e.total_bytes)}</span>
+                  {e.total_bytes > 0 && <span style={{ color: 'var(--txD)', marginLeft: 4 }}>{fB(e.total_bytes)}</span>}
                 </div>
               </div>
             );
@@ -222,7 +232,8 @@ export default function MultiSelectPanel({
         </Collapse>
       )}
 
-      {/* Sessions */}
+      {/* Sessions — only rendered when present */}
+      {selSessions.length > 0 && (
       <Collapse title={`Sessions (${selSessions.length})`}>
         {selSessions.slice(0, 30).map((s, i) => (
           <div key={i} className="hr" onClick={() => onSelectSession(s)}
@@ -248,6 +259,7 @@ export default function MultiSelectPanel({
           </div>
         )}
       </Collapse>
+      )}
     </div>
   );
 }
