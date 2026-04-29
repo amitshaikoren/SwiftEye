@@ -37,6 +37,8 @@ export default function AnimationPane({
   savedPositionsRef,
   // Click handlers for detail panels
   onSelectNode, onSelectSession,
+  // Workspace-specific label for the select-event button (default: "View session")
+  selectEventLabel,
 }) {
   // ── Shared refs (passed to hooks) ─────────────────────────────────
   const canvasRef = useRef(null);
@@ -128,10 +130,12 @@ export default function AnimationPane({
   const eventDesc = useMemo(() => {
     if (!currentEvent) return { text: 'Ready', detail: '', cls: 'init' };
     const arrow = currentEvent.type === 'start' ? '──▶' : '──×';
-    const text = `${currentEvent.src} ─[${currentEvent.protocol}]${arrow} ${currentEvent.dst}`;
+    const srcLabel = animNodeMeta[currentEvent.src]?.label || currentEvent.src;
+    const dstLabel = animNodeMeta[currentEvent.dst]?.label || currentEvent.dst;
+    const text = `${srcLabel} ─[${currentEvent.protocol}]${arrow} ${dstLabel}`;
     const detail = currentEvent.type === 'start' ? 'new session' : 'session ended';
     return { text, detail, cls: currentEvent.type };
-  }, [currentEvent]);
+  }, [currentEvent, animNodeMeta]);
 
   const handleScrubberClick = useCallback((e) => {
     const bar = e.currentTarget;
@@ -403,6 +407,7 @@ export default function AnimationPane({
         eventDesc={eventDesc}
         currentEvent={currentEvent}
         onSelectSession={onSelectSession}
+        selectEventLabel={selectEventLabel}
         animOpts={animOpts}
         setAnimOpts={setAnimOpts}
         showOptions={showOptions}

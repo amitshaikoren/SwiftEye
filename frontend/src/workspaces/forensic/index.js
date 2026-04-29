@@ -167,6 +167,7 @@ const forensicWorkspace = {
   animation: {
     fetchFn: fetchForensicAnimation,
     recencyWindow: 3,
+    selectEventLabel: 'View event',
   },
 
   // Forensic has no time-range / bucket / mount lifecycle — useCaptureData

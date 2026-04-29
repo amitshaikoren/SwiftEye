@@ -11,6 +11,7 @@ GET  /api/forensic/animation  — animation event stream for spotlight nodes.
 import tempfile
 import time
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -139,12 +140,56 @@ async def forensic_status():
 
 
 @router.get("/api/forensic/graph", response_model=ForensicGraphResponse)
-async def forensic_graph():
+async def forensic_graph(
+    time_start: Optional[float] = Query(None),
+    time_end:   Optional[float] = Query(None),
+):
     _require_forensic_capture()
+    all_nodes = forensic_store.graph_cache.get("nodes", [])
+    all_edges = forensic_store.graph_cache.get("edges", [])
+
+    if time_start is None and time_end is None:
+        return ForensicGraphResponse(
+            nodes=all_nodes, edges=all_edges,
+            event_count=len(forensic_store.events),
+        )
+
+    # Filter edges whose activity window overlaps [time_start, time_end].
+    # ts_first / ts_last are ISO strings; convert to epoch for comparison.
+    def _iso_epoch(s):
+        if not s:
+            return None
+        try:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return dt.timestamp()
+        except Exception:
+            return None
+
+    filtered_edges = []
+    for e in all_edges:
+        ef = _iso_epoch(e.get("ts_first"))
+        el = _iso_epoch(e.get("ts_last")) or ef
+        # include if no timestamps (always visible) or overlap
+        if ef is None:
+            filtered_edges.append(e)
+            continue
+        if time_end is not None and ef > time_end:
+            continue
+        if time_start is not None and el is not None and el < time_start:
+            continue
+        filtered_edges.append(e)
+
+    # Keep only nodes referenced by filtered edges
+    referenced_ids = set()
+    for e in filtered_edges:
+        referenced_ids.add(e.get("source"))
+        referenced_ids.add(e.get("target"))
+    filtered_nodes = [n for n in all_nodes if n.get("id") in referenced_ids]
+
     return ForensicGraphResponse(
-        nodes=forensic_store.graph_cache.get("nodes", []),
-        edges=forensic_store.graph_cache.get("edges", []),
-        event_count=len(forensic_store.events),
+        nodes=filtered_nodes,
+        edges=filtered_edges,
+        event_count=sum(e.get("event_count", 0) for e in filtered_edges),
     )
 
 

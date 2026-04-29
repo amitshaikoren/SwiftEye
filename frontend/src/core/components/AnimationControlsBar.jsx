@@ -79,6 +79,7 @@ export default function AnimationControlsBar({
   eventDesc,
   currentEvent,
   onSelectSession,
+  selectEventLabel,
   // options popover
   animOpts,
   setAnimOpts,
@@ -256,7 +257,7 @@ export default function AnimationControlsBar({
               fontFamily: 'inherit', fontSize: 9.5, lineHeight: 1,
             }}
           >
-            View session
+            {selectEventLabel || 'View session'}
           </button>
         )}
       </div>
