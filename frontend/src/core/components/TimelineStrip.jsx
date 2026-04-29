@@ -177,11 +177,11 @@ export default function TimelineStrip({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 9, color: 'var(--txM)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Timeline</span>
-          {[1, 5, 15, 30, 60].map(s => (
+          {setTimeRange && [1, 5, 15, 30, 60].map(s => (
             <button key={s} className={'btn' + (bucketSec === s ? ' on' : '')}
               onClick={() => setBucketSec(s)} style={{ padding: '1px 5px', fontSize: 9 }}>{s}s</button>
           ))}
-          {hasGaps && (
+          {setTimeRange && hasGaps && (
             <>
               {segments.map((seg, i) => (
                 <button key={i}
@@ -267,23 +267,25 @@ export default function TimelineStrip({
         })}
       </div>
 
-      {/* Row 3: Start slider */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-        <span style={{ fontSize: 9, color: 'var(--txD)', width: 30, flexShrink: 0 }}>Start</span>
-        <input type="range" min={0} max={N - 1} value={timeRange[0]}
-          onChange={e => { const v = +e.target.value; setTimeRange([v, Math.max(v, timeRange[1])]); }}
-          style={{ flex: 1 }} />
-        <span style={{ fontSize: 9, color: '#378ADD', minWidth: 155, textAlign: 'right', fontFamily: 'var(--fn)' }}>{startTs}</span>
-      </div>
-
-      {/* Row 4: End slider */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
-        <span style={{ fontSize: 9, color: 'var(--txD)', width: 30, flexShrink: 0 }}>End</span>
-        <input type="range" min={0} max={N - 1} value={timeRange[1]}
-          onChange={e => { const v = +e.target.value; setTimeRange([Math.min(timeRange[0], v), v]); }}
-          style={{ flex: 1 }} />
-        <span style={{ fontSize: 9, color: '#1D9E75', minWidth: 155, textAlign: 'right', fontFamily: 'var(--fn)' }}>{endTs}</span>
-      </div>
+      {/* Rows 3+4: Start/End sliders — only shown when the workspace supports time-range filtering */}
+      {setTimeRange && (
+        <>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+            <span style={{ fontSize: 9, color: 'var(--txD)', width: 30, flexShrink: 0 }}>Start</span>
+            <input type="range" min={0} max={N - 1} value={timeRange[0]}
+              onChange={e => { const v = +e.target.value; setTimeRange([v, Math.max(v, timeRange[1])]); }}
+              style={{ flex: 1 }} />
+            <span style={{ fontSize: 9, color: '#378ADD', minWidth: 155, textAlign: 'right', fontFamily: 'var(--fn)' }}>{startTs}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
+            <span style={{ fontSize: 9, color: 'var(--txD)', width: 30, flexShrink: 0 }}>End</span>
+            <input type="range" min={0} max={N - 1} value={timeRange[1]}
+              onChange={e => { const v = +e.target.value; setTimeRange([Math.min(timeRange[0], v), v]); }}
+              style={{ flex: 1 }} />
+            <span style={{ fontSize: 9, color: '#1D9E75', minWidth: 155, textAlign: 'right', fontFamily: 'var(--fn)' }}>{endTs}</span>
+          </div>
+        </>
+      )}
 
     </div>
   );

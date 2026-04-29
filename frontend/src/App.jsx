@@ -616,7 +616,7 @@ export default function App() {
                 <TimelineStrip
                   timeline={c.timeline}
                   timeRange={c.timeRange}
-                  setTimeRange={c.setTimeRange}
+                  setTimeRange={workspace.dataHooks?.onTimeRangeChange ? c.setTimeRange : null}
                   bucketSec={c.bucketSec}
                   setBucketSec={c.setBucketSec}
                   width={gSize.width - 32}
