@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from data.query.query_parser import (
+from core.data.query.query_parser import (
     detect_syntax,
     parse_cypher,
     parse_sql,

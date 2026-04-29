@@ -1,6 +1,6 @@
 """Tests for resolve_session_query — session query primitive."""
 import pytest
-from data.query.query_engine import resolve_session_query
+from core.data.query.query_engine import resolve_session_query
 
 
 def _make_sessions():

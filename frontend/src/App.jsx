@@ -4,35 +4,53 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
-import { useCapture } from './hooks/useCapture';
-import { fetchSessionDetail } from './api';
-import { useSettings } from './hooks/useSettings';
-import { FilterContext, toProtocolNames } from './FilterContext';
-import TopBar from './components/TopBar';
-import FilterBar from './components/FilterBar';
-import LeftPanel from './components/LeftPanel';
-import GraphCanvas from './components/GraphCanvas';
-import TimelineStrip from './components/TimelineStrip';
-import AlertsPanel from './components/AlertsPanel';
-import InvestigationPage from './components/InvestigationPage';
-import VisualizePage from './components/VisualizePage';
-import ClusterLegend from './components/ClusterLegend';
-import SchemaDialog from './components/SchemaDialog';
-import TypePickerDialog from './components/TypePickerDialog';
-import SettingsPanel from './components/SettingsPanel';
-import EventFlagModal from './components/EventFlagModal';
-import AppUploadScreen from './components/AppUploadScreen';
-import AppRightPanel from './components/AppRightPanel';
-import GraphLegend from './components/graph/GraphLegend';
+import { useCapture } from './core/hooks/useCapture';
+import { fetchSessionDetail } from './core/api';
+import { useSettings } from './core/hooks/useSettings';
+import { FilterContext, toProtocolNames } from './core/FilterContext';
+import { useWorkspace } from './WorkspaceProvider';
+import TopBar from './core/components/TopBar';
+import LeftPanel from './core/components/LeftPanel';
+import GraphCanvas from './core/components/GraphCanvas';
+import TimelineStrip from './core/components/TimelineStrip';
+import AlertsPanel from './core/components/AlertsPanel';
+import InvestigationPage from './core/components/InvestigationPage';
+import VisualizePage from './core/components/VisualizePage';
+import ClusterLegend from './workspaces/network/ClusterLegend';
+import SchemaDialog from './core/components/SchemaDialog';
+import TypePickerDialog from './core/components/TypePickerDialog';
+import SettingsPanel from './core/components/SettingsPanel';
+import EventFlagModal from './core/components/EventFlagModal';
+import AppRightPanel from './core/components/AppRightPanel';
+import GraphLegend from './core/components/graph/GraphLegend';
 import { createAnnotationStore } from './core/annotationStore';
 
 // Heavy panels: loaded on first activation only (code-split to reduce initial bundle)
-const ResearchPage  = lazy(() => import('./components/ResearchPage'));
-const AnalysisPage  = lazy(() => import('./components/AnalysisPage'));
-const AnimationPane = lazy(() => import('./components/AnimationPane'));
+const ResearchPage  = lazy(() => import('./core/components/ResearchPage'));
+const AnalysisPage  = lazy(() => import('./core/components/AnalysisPage'));
+const AnimationPane = lazy(() => import('./core/components/AnimationPane'));
 
 export default function App() {
   const c = useCapture();
+  const workspace = useWorkspace();
+  const FilterBar = workspace.FilterBar;
+  const UploadScreen = workspace.UploadScreen;
+  const LeftPanelTop = workspace.LeftPanelTop;
+
+  // Workspace-specific top bar stats (null = use default packet count)
+  const topBarStats = workspace.getTopBarStats
+    ? workspace.getTopBarStats(c.stats, c.visibleNodes.length)
+    : null;
+
+  // Pre-instantiate the workspace left-panel top section with the props it needs
+  const leftPanelTop = LeftPanelTop ? (
+    <LeftPanelTop
+      graph={c.graph}
+      hiddenEdgeTypes={c.hiddenEdgeTypes}
+      setHiddenEdgeTypes={c.setHiddenEdgeTypes}
+      schema={workspace.schema}
+    />
+  ) : null;
   const { settings, setSetting } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [queryHighlight, setQueryHighlight] = useState(null);  // { nodes: Set, edges: Set } — one-shot query only
@@ -190,24 +208,36 @@ export default function App() {
   }, []);
 
   // ── Upload / loading screen ──────────────────────────────────────
+  // Unloaded-state UI is workspace-owned. Network provides a pcap/Zeek
+  // drop-zone; forensic provides a "skeleton — not yet available" stub.
+  // A workspace that omits UploadScreen gets a minimal fallback.
   if (!c.loaded) {
+    if (UploadScreen) {
+      return (
+        <UploadScreen
+          visualize={c.rPanel === 'visualize'}
+          loading={c.loading}
+          loadMsg={c.loadMsg}
+          handleDrop={c.handleDrop}
+          handleFileInput={c.handleFileInput}
+          error={c.error}
+          switchPanel={c.switchPanel}
+          schemaNegotiation={c.schemaNegotiation}
+          handleSchemaConfirm={c.handleSchemaConfirm}
+          handleSchemaCancel={c.handleSchemaCancel}
+          schemaConfirming={c.schemaConfirming}
+          typePicker={c.typePicker}
+          handleTypePickerConfirm={c.handleTypePickerConfirm}
+          handleTypePickerCancel={c.handleTypePickerCancel}
+        />
+      );
+    }
     return (
-      <AppUploadScreen
-        visualize={c.rPanel === 'visualize'}
-        loading={c.loading}
-        loadMsg={c.loadMsg}
-        handleDrop={c.handleDrop}
-        handleFileInput={c.handleFileInput}
-        error={c.error}
-        switchPanel={c.switchPanel}
-        schemaNegotiation={c.schemaNegotiation}
-        handleSchemaConfirm={c.handleSchemaConfirm}
-        handleSchemaCancel={c.handleSchemaCancel}
-        schemaConfirming={c.schemaConfirming}
-        typePicker={c.typePicker}
-        handleTypePickerConfirm={c.handleTypePickerConfirm}
-        handleTypePickerCancel={c.handleTypePickerCancel}
-      />
+      <div style={{ width: '100%', height: '100vh', background: 'var(--bg)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'var(--txD)', fontFamily: 'var(--fn)', fontSize: 13 }}>
+        No ingestion configured for workspace: {workspace.label || workspace.name}
+      </div>
     );
   }
 
@@ -227,18 +257,23 @@ export default function App() {
         onMetadataFile={() => document.getElementById('meta-up').click()}
         onSettings={() => setShowSettings(true)}
         onLogoClick={() => { c.switchPanel('stats'); c.setSearch(''); if (c.animActive) c.stopAnimation(); }}
+        workspaceName={workspace.name}
+        availableWorkspaces={workspace.available}
+        topBarStats={topBarStats}
       />
-      <FilterBar
-        value={c.dfExpr}
-        onChange={c.setDfExpr}
-        onApply={c.handleDfApply}
-        onClear={c.handleDfClear}
-        matchCount={c.dfResult?.matchCount ?? null}
-        error={c.dfError}
-        isActive={!!c.dfApplied && !c.dfError}
-        osGuesses={c.osGuesses}
-        activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
-      />
+      {FilterBar && (
+        <FilterBar
+          value={c.dfExpr}
+          onChange={c.setDfExpr}
+          onApply={c.handleDfApply}
+          onClear={c.handleDfClear}
+          matchCount={c.dfResult?.matchCount ?? null}
+          error={c.dfError}
+          isActive={!!c.dfApplied && !c.dfError}
+          osGuesses={c.osGuesses}
+          activeOsFilter={c.dfApplied.startsWith('os ') ? c.dfApplied : ''}
+        />
+      )}
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* LEFT PANEL — always visible */}
@@ -255,6 +290,8 @@ export default function App() {
           osGuesses={c.osGuesses}
           queryActive={!!queryHighlight}
           alertSummary={c.alerts.summary}
+          leftPanelTop={leftPanelTop}
+          supportedTabs={workspace.supportedTabs ?? null}
         />
 
         {c.rPanel === 'research' ? (
@@ -527,14 +564,17 @@ export default function App() {
                       pColors={c.pColors}
                       savedPositionsRef={animSavedPositionsRef}
                       onSelectNode={id => id ? c.handleGSel('node', id, false) : c.clearSel()}
-                      onSelectSession={sid => {
-                        const sess = c.sessions.find(s => s.id === sid);
-                        if (sess) { c.selectSession(sess); return; }
-                        // Session not in local list (capped at 1000) — fetch from API
-                        fetchSessionDetail(sid, 0)
-                          .then(d => { if (d.session) c.selectSession(d.session); })
-                          .catch(() => {});
-                      }}
+                      selectEventLabel={workspace.animation?.selectEventLabel}
+                      onSelectSession={workspace.animation?.onSelectEvent
+                        ? (sid => workspace.animation.onSelectEvent(sid, c))
+                        : (sid => {
+                            const sess = c.sessions.find(s => s.id === sid);
+                            if (sess) { c.selectSession(sess); return; }
+                            fetchSessionDetail(sid, 0)
+                              .then(d => { if (d.session) c.selectSession(d.session); })
+                              .catch(() => {});
+                          })
+                      }
                     />
                   </Suspense>
                 ) : (
@@ -588,6 +628,10 @@ export default function App() {
                     edgeSizeMode={c.edgeSizeMode}
                     nodeColorMode={c.nodeColorMode}
                     edgeColorMode={c.edgeColorMode}
+                    nodeWeightField={c.nodeWeightField}
+                    nodeWeightScale={c.nodeWeightScale}
+                    edgeWeightField={c.edgeWeightField}
+                    edgeWeightScale={c.edgeWeightScale}
                     nodeColorRules={c.nodeColorRules}
                     edgeColorRules={c.edgeColorRules}
                     showEdgeDirection={c.showEdgeDirection}
@@ -642,7 +686,7 @@ export default function App() {
               </div>
 
               {/* Timeline strip */}
-              {c.timeline.length > 1 && (
+              {c.timeline.length > 1 && workspace.showTimeline !== false && (
                 <TimelineStrip
                   timeline={c.timeline}
                   timeRange={c.timeRange}

@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, "backend")
 
 import pytest
-from data.query.pyspark_translator import parse_pyspark
+from core.data.query.pyspark_translator import parse_pyspark
 
 
 class TestBasicComparisons:
@@ -197,7 +197,7 @@ class TestEngineEval:
 
     def setup_method(self):
         import networkx as nx
-        from data.query.query_engine import resolve_query
+        from core.data.query.query_engine import resolve_query
         self.resolve_query = resolve_query
         G = nx.MultiDiGraph()
         G.add_node("a", label="alpha-server", packets=100, protocols={"DNS", "TCP"})

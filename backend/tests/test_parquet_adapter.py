@@ -86,7 +86,7 @@ def _datetime_ts_table() -> pa.Table:
 
 @pytest.fixture
 def adapter():
-    from parser.adapters.parquet.adapter import ParquetAdapter
+    from workspaces.network.parser.adapters.parquet.adapter import ParquetAdapter
     return ParquetAdapter()
 
 

@@ -5,9 +5,9 @@ import tempfile
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 
-from store import store, _require_capture
-from data import filter_packets
-from data.edge_fields import meta_for_api as _edge_fields_meta
+from workspaces.network.store import store, _require_capture
+from workspaces.network.analysis import filter_packets
+from workspaces.network.analysis.edge_fields import meta_for_api as _edge_fields_meta
 
 from scapy.all import wrpcap, Ether, IP, IPv6, TCP, UDP, ICMP, Raw as ScapyRaw  # type: ignore
 

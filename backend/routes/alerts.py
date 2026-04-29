@@ -3,7 +3,7 @@ Alert endpoints — serves detector findings for the AlertsPanel.
 """
 
 from fastapi import APIRouter
-from store import store, _require_capture
+from workspaces.network.store import store, _require_capture
 
 router = APIRouter()
 

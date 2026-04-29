@@ -7,17 +7,21 @@ __pycache__/
 frontend/node_modules/
 
 # ── Local project state (not tracked) ──
-SESSION.md
 CLAUDE.md
-*.ai.md
 init_prompt.md
 
-# ── Private docs (local only) ──
-HANDOFF.md
-ROADMAP.md
-docs/plans/
-docs/mockups/
-docs/METHODOLOGY.md
+# ── Private docs (local only, under llm_docs/) ──
+llm_docs/SESSION.md
+llm_docs/HANDOFF.md
+llm_docs/ROADMAP.md
+llm_docs/CODEX_BOOTSTRAP.md
+llm_docs/*.ai.md
+llm_docs/METHODOLOGY.md
+llm_docs/swifteye_external_review.md
+llm_docs/llm-panel-explained.md
+llm_docs/plans/
+llm_docs/mockups/
+llm_docs/COMPLETED.md
 
 # ── Captures & test data ──
 captures/
@@ -31,6 +35,8 @@ audits/
 
 # ── Runtime / logs ──
 backend/swifteye.log
+backend/llm_keys.json
+backend/settings.json
 
 # ── Legacy / misc ──
 FOR_OPUS.md
@@ -38,7 +44,6 @@ architecture_diagram.html
 query_system_design.html
 toggle_mockup.html
 graph_options_mockup.html
-swifteye_external_review.md
 DB_PHASE1_PLAN.md
 ALERTS_PANEL_PLAN.md
 ALERTS_PHASE2_PLAN.md
@@ -47,5 +52,4 @@ alerts_panel_mockup.html
 animation_mode_mockup.html
 backend/routes/_demo_alerts.py
 backend/tests/fixtures/
-COMPLETED.md
-memory.zip
+sample_data/

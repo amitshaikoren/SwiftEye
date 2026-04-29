@@ -2,12 +2,12 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from store import store, _require_capture
-from data import filter_packets
-from plugins import AnalysisContext
-from research import get_charts, get_chart, run_chart
-from research.custom_chart import sources_info, source_has_data, build_figure
-from constants import SWIFTEYE_LAYOUT
+from workspaces.network.store import store, _require_capture
+from workspaces.network.analysis import filter_packets
+from workspaces.network.plugins import AnalysisContext
+from workspaces.network.research import get_charts, get_chart, run_chart
+from workspaces.network.research.custom_chart import sources_info, source_has_data, build_figure
+from workspaces.network.constants import SWIFTEYE_LAYOUT
 
 logger = logging.getLogger("swifteye.routes.research")
 router = APIRouter()

@@ -31,7 +31,7 @@ def graph():
 
 @pytest.fixture
 def run():
-    from data.query.pipeline import run_pipeline
+    from core.data.query.pipeline import run_pipeline
     return run_pipeline
 
 

@@ -24,5 +24,10 @@ sqlglot>=20.0.0
 # Without it the server starts normally but .parquet uploads are unavailable.
 pyarrow>=12.0.0
 
+# python-evtx reads Windows .evtx event logs (Sysmon, Security, etc.) for the
+# forensic workspace. Pure-Python; slow on large logs. Swap to a Rust binding
+# (pyevtx-rs / evtx) if perf hurts on realistic Sysmon sizes.
+python-evtx>=0.8.0
+
 # ── Development / testing ────────────────────────────────────────────────────
 pytest>=7.0.0

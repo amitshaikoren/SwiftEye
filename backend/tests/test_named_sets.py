@@ -11,8 +11,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from data.query.named_sets import NamedSetStore
-from data.query.query_parser import parse_cypher, parse_sql
+from core.data.query.named_sets import NamedSetStore
+from core.data.query.query_parser import parse_cypher, parse_sql
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -122,7 +122,7 @@ class TestSqlInSet:
 class TestEngineInSetOp:
     def setup_method(self):
         import networkx as nx
-        from data.query.query_engine import resolve_query
+        from core.data.query.query_engine import resolve_query
         self.resolve_query = resolve_query
         G = nx.MultiDiGraph()
         G.add_node("a", packets=100)

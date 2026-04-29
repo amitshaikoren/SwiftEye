@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from parser.pcap_reader import read_pcap
+from workspaces.network.parser.pcap_reader import read_pcap
 
 # Use the smallest available test pcap
 _TESTS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'captures')

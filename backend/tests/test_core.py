@@ -12,18 +12,18 @@ import pytest
 # Add backend to path so imports work
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from parser.packet import PacketRecord
-from parser.pcap_reader import read_pcap
-from data import build_graph, build_sessions, compute_global_stats, filter_packets, build_time_buckets
-from data.aggregator import get_edge_detail
-from plugins import register_plugin, run_global_analysis, get_global_results, AnalysisContext, _plugins, _global_results
-from plugins.analyses.node_centrality import NodeCentralityAnalysis
-from plugins.analyses.traffic_characterisation import TrafficCharacterisationAnalysis
-from plugins.alerts.arp_spoofing import ArpSpoofingDetector
-from plugins.alerts.suspicious_ua import SuspiciousUADetector
-from plugins.alerts.malicious_ja3 import MaliciousJA3Detector
-from plugins.alerts.port_scan import PortScanDetector
-from plugins.alerts import run_all_detectors, register_detector
+from workspaces.network.parser.packet import PacketRecord
+from workspaces.network.parser.pcap_reader import read_pcap
+from workspaces.network.analysis import build_graph, build_sessions, compute_global_stats, filter_packets, build_time_buckets
+from workspaces.network.analysis.aggregator import get_edge_detail
+from workspaces.network.plugins import register_plugin, run_global_analysis, get_global_results, AnalysisContext, _plugins, _global_results
+from workspaces.network.plugins.analyses.node_centrality import NodeCentralityAnalysis
+from workspaces.network.plugins.analyses.traffic_characterisation import TrafficCharacterisationAnalysis
+from workspaces.network.plugins.alerts.arp_spoofing import ArpSpoofingDetector
+from workspaces.network.plugins.alerts.suspicious_ua import SuspiciousUADetector
+from workspaces.network.plugins.alerts.malicious_ja3 import MaliciousJA3Detector
+from workspaces.network.plugins.alerts.port_scan import PortScanDetector
+from workspaces.network.plugins.alerts import run_all_detectors, register_detector
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
@@ -508,10 +508,10 @@ class TestPluginLoads:
 
         # Try loading each plugin
         plugin_specs = [
-            ("plugins.insights.os_fingerprint", "OSFingerprintPlugin"),
-            ("plugins.insights.tcp_flags", "TCPFlagsPlugin"),
-            ("plugins.insights.dns_resolver", "DNSResolverPlugin"),
-            ("plugins.insights.network_map", "NetworkMapPlugin"),
+            ("workspaces.network.plugins.insights.os_fingerprint", "OSFingerprintPlugin"),
+            ("workspaces.network.plugins.insights.tcp_flags", "TCPFlagsPlugin"),
+            ("workspaces.network.plugins.insights.dns_resolver", "DNSResolverPlugin"),
+            ("workspaces.network.plugins.insights.network_map", "NetworkMapPlugin"),
         ]
         loaded = 0
         for module_path, class_name in plugin_specs:

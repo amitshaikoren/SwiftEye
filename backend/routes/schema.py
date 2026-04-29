@@ -15,12 +15,12 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from store import store
-from plugins.analyses import clear_analysis_results
-from services.capture import run_plugins, build_analysis_graph_and_run
-from parser.adapters import ADAPTERS
-from parser.schema import get_staged, clear_staged
-from models import SchemaNegotiationRequest, UploadResponse
+from workspaces.network.store import store
+from workspaces.network.plugins.analyses import clear_analysis_results
+from core.services.capture import run_plugins, build_analysis_graph_and_run
+from workspaces.network.parser.adapters import ADAPTERS
+from workspaces.network.parser.schema import get_staged, clear_staged
+from core.models import SchemaNegotiationRequest, UploadResponse
 
 logger = logging.getLogger("swifteye.routes.schema")
 router = APIRouter()
