@@ -302,6 +302,9 @@ export default function GraphOptionsPanel({
     );
   }
   const gd = workspace.graphDisplay || {};
+  const gOpts = workspace.graphOptions ?? { showData: true, showClustering: true };
+  const showData = gOpts.showData ?? true;
+  const showClustering = gOpts.showClustering ?? true;
   const nodeWeightModes  = gd.nodeWeightModes  || [{ id: 'bytes',    label: 'Bytes' }, { id: 'packets', label: 'Packets' }];
   const edgeWeightModes  = gd.edgeWeightModes  || [{ id: 'bytes',    label: 'Bytes' }, { id: 'packets', label: 'Packets' }, { id: 'sessions', label: 'Sessions' }];
   const nodeColorModes   = gd.nodeColorModes   || [];
@@ -479,9 +482,10 @@ export default function GraphOptionsPanel({
             )}
           </Section>
 
-          <div style={{ height: 1, background: 'var(--bgH)', margin: '6px 14px 10px' }} />
+          {showData && <div style={{ height: 1, background: 'var(--bgH)', margin: '6px 14px 10px' }} />}
 
           {/* ── DATA ────────────────────────────────────────────── */}
+          {showData && (
           <Section title="Data">
             {/* Subnet grouping */}
             <Row label="Subnet grouping" hint="Group IPs by prefix">
@@ -512,10 +516,12 @@ export default function GraphOptionsPanel({
               </Row>
             ))}
           </Section>
+          )}
 
-          <div style={{ height: 1, background: 'var(--bgH)', margin: '6px 14px 10px' }} />
+          {showClustering && <div style={{ height: 1, background: 'var(--bgH)', margin: '6px 14px 10px' }} />}
 
           {/* ── CLUSTERING ──────────────────────────────────────── */}
+          {showClustering && (
           <Section title="Clustering">
             <div style={{ fontSize: 11, color: 'var(--tx)', marginBottom: 2 }}>Algorithm</div>
             <select
@@ -558,6 +564,7 @@ export default function GraphOptionsPanel({
               </div>
             )}
           </Section>
+          )}
 
         </div>
     </div>

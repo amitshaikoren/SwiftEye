@@ -217,6 +217,12 @@ const forensicWorkspace = {
 
   // Graph Options catalog (mode lists + defaults). See declaration above.
   graphDisplay,
+
+  // Hide network-specific Data (subnet/MAC/IPv6) and Clustering sections.
+  graphOptions: { showData: false, showClustering: false },
+
+  // Search bar placeholder text.
+  searchPlaceholder: 'Search — process names, paths, command lines…',
 };
 
 export default forensicWorkspace;

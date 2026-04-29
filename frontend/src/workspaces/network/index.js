@@ -225,6 +225,12 @@ const networkWorkspace = {
   matchSessionToEdge,
   // Graph Options catalog (mode lists + defaults). See declaration above.
   graphDisplay,
+
+  // Which sections to show in GraphOptionsPanel. Network shows all.
+  graphOptions: { showData: true, showClustering: true },
+
+  // Search bar placeholder text.
+  searchPlaceholder: 'Search — IPs, MACs, hostnames, JA3, TLS, DNS…',
 };
 
 export default networkWorkspace;

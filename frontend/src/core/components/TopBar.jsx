@@ -5,6 +5,7 @@ import logoIconData from '../../logoIconData.js';
 import logoWordmarkData from '../../logoWordmarkData.js';
 import { VERSION } from '../../version.js';
 import { selectWorkspace } from '../api';
+import { useWorkspace } from '@/WorkspaceProvider';
 
 export default function TopBar({
   fileName, sourceFiles = [], stats, search, setSearch,
@@ -16,6 +17,9 @@ export default function TopBar({
   // Array of { value, label } objects.
   topBarStats,
 }) {
+  const workspace = useWorkspace();
+  const searchPlaceholder = workspace.searchPlaceholder || 'Search…';
+
   const isMulti = sourceFiles.length > 1;
   const fileTitle = isMulti ? sourceFiles.join('\n') : fileName;
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -161,7 +165,7 @@ export default function TopBar({
           width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--txD)" strokeWidth="2">
           <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
         </svg>
-        <input ref={searchInputRef} className="inp" placeholder="Search — IPs, MACs, hostnames, JA3, TLS, DNS…"
+        <input ref={searchInputRef} className="inp" placeholder={searchPlaceholder}
           value={search}
           onChange={e => setSearch(e.target.value)}
           onFocus={() => { if (search && searchResult) setDropdownOpen(true); }}
