@@ -221,8 +221,14 @@ export async function parseQueryText(text, dialect) {
   });
 }
 
+let _qsInFlight = null;
 export async function fetchQuerySchema() {
-  return api('/api/query/schema').catch(() => ({ node_fields: {}, edge_fields: {} }));
+  if (!_qsInFlight) {
+    _qsInFlight = api('/api/query/schema')
+      .catch(() => ({ node_fields: {}, edge_fields: {} }))
+      .finally(() => { _qsInFlight = null; });
+  }
+  return _qsInFlight;
 }
 
 export async function runQueryPipeline(steps) {

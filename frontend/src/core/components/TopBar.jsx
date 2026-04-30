@@ -4,7 +4,6 @@ import { fN } from '../utils';
 import logoIconData from '../../logoIconData.js';
 import logoWordmarkData from '../../logoWordmarkData.js';
 import { VERSION } from '../../version.js';
-import { selectWorkspace } from '../api';
 import { useWorkspace } from '@/WorkspaceProvider';
 
 export default function TopBar({
@@ -60,8 +59,7 @@ export default function TopBar({
     if (name === workspaceName || wsSwitching) return;
     setWsSwitching(true);
     try {
-      await selectWorkspace(name);
-      window.location.reload();
+      await workspace.switchWorkspace(name);
     } catch {
       setWsSwitching(false);
     }

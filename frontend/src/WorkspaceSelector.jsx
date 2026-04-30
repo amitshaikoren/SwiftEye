@@ -18,9 +18,8 @@
  */
 
 import React, { useState } from 'react';
-import { selectWorkspace } from '@core/api';
 
-export default function WorkspaceSelector({ available }) {
+export default function WorkspaceSelector({ available, onSwitch }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
 
@@ -28,8 +27,7 @@ export default function WorkspaceSelector({ available }) {
     setBusy(name);
     setError(null);
     try {
-      await selectWorkspace(name);
-      window.location.reload();
+      await onSwitch(name);
     } catch (e) {
       setError(e.message || String(e));
       setBusy(null);

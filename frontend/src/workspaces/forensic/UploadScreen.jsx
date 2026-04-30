@@ -10,7 +10,6 @@
 
 import React, { useState } from 'react';
 import logoFullData from '@/logoFullData';
-import { selectWorkspace } from '@core/api';
 import { useWorkspace } from '@/WorkspaceProvider';
 
 export default function ForensicUploadScreen({
@@ -26,8 +25,7 @@ export default function ForensicUploadScreen({
   async function switchTo(name) {
     setSwitching(true);
     try {
-      await selectWorkspace(name);
-      window.location.reload();
+      await workspace.switchWorkspace(name);
     } catch {
       setSwitching(false);
     }

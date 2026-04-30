@@ -26,6 +26,9 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   const graphWeightModeRef = useRef(graphWeightMode);
   const colorRef = useRef(null);
   const nodeMapRef = useRef(new Map());
+  const adjNodesRef = useRef(new Set());
+  const lastSelRef = useRef(null);
+  const lastEdgesRef = useRef(null);
 
   // Single authoritative node-radius function — reads
   // nodeWeightFieldRef / nodeWeightScaleRef dynamically. The workspace
@@ -416,6 +419,20 @@ resize();draw();
       const t = tRef.current;
       const ss = selNRef.current;
       const hs = ss.size > 0;
+      if (ss !== lastSelRef.current || eRef.current !== lastEdgesRef.current) {
+        lastSelRef.current = ss;
+        lastEdgesRef.current = eRef.current;
+        const adj = new Set();
+        if (hs) {
+          for (const e of eRef.current) {
+            const s = typeof e.source === 'object' ? e.source.id : e.source;
+            const t2 = typeof e.target === 'object' ? e.target.id : e.target;
+            if (ss.has(s)) adj.add(t2);
+            if (ss.has(t2)) adj.add(s);
+          }
+        }
+        adjNodesRef.current = adj;
+      }
       const se = selERef.current;
       const pc = pcRef.current;
       const inv = invNodesRef.current;
@@ -552,11 +569,7 @@ resize();draw();
         const isH = hRef.current === node.id;
         const inInv = !inv || inv.has(node.id);
         const inDf  = !dfN || dfN.has(node.id);
-        const isC = hs && eRef.current.some(e => {
-          const s = typeof e.source === 'object' ? e.source.id : e.source;
-          const t2 = typeof e.target === 'object' ? e.target.id : e.target;
-          return (ss.has(s) && t2 === node.id) || (ss.has(t2) && s === node.id);
-        });
+        const isC = hs && adjNodesRef.current.has(node.id);
 
         if (!inInv || !inDf) { ctx.globalAlpha = 0.05; }
         else ctx.globalAlpha = hs ? (isSel || isC ? 1 : 0.3) : 1;

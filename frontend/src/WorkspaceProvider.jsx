@@ -17,10 +17,10 @@
  * that file; the selector only appears when no selection exists.
  */
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react';
 import networkWorkspace from '@workspaces/network';
 import forensicWorkspace from '@workspaces/forensic';
-import { getCurrentWorkspace, getWorkspaceSchema } from '@core/api';
+import { getCurrentWorkspace, getWorkspaceSchema, selectWorkspace } from '@core/api';
 import WorkspaceSelector from './WorkspaceSelector';
 
 const DESCRIPTORS = {
@@ -54,12 +54,18 @@ export function WorkspaceProvider({ children }) {
     return () => { cancelled = true; };
   }, [current?.active]);
 
+  const switchWorkspace = useCallback(async (name) => {
+    await selectWorkspace(name);
+    setSchema(null);
+    setCurrent(c => ({ ...c, active: name }));
+  }, []);
+
   const value = useMemo(() => {
     if (!current?.active || !schema) return null;
     const desc = DESCRIPTORS[current.active];
     if (!desc) return null;
-    return { ...desc, schema, available: current.available || [] };
-  }, [current?.active, current?.available, schema]);
+    return { ...desc, schema, available: current.available || [], switchWorkspace };
+  }, [current?.active, current?.available, schema, switchWorkspace]);
 
   if (error) {
     return (
@@ -71,13 +77,15 @@ export function WorkspaceProvider({ children }) {
 
   if (!current) return null;                                // still fetching /current
   if (!current.active) {                                    // user hasn't picked
-    return <WorkspaceSelector available={current.available} />;
+    return <WorkspaceSelector available={current.available} onSwitch={switchWorkspace} />;
   }
   if (!value) return null;                                  // schema in flight
 
   return (
     <WorkspaceContext.Provider value={value}>
-      {children}
+      <React.Fragment key={current.active}>
+        {children}
+      </React.Fragment>
     </WorkspaceContext.Provider>
   );
 }
