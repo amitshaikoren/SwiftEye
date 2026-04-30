@@ -77,6 +77,15 @@ def _prescan_pcap(filepath: str) -> Optional[Tuple[int, bool, List[int]]]:
         return None
 
 
+def _worker_init():
+    """Suppress auto-discovery INFO logging in spawned worker processes."""
+    import logging
+    for name in ("swifteye.plugins", "swifteye.plugins.analyses",
+                 "swifteye.research", "swifteye.forensic.research",
+                 "swifteye.alerts", "swifteye.adapters", "swifteye.forensic.adapters"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
 def _worker_read_chunk(args: tuple) -> List[PacketRecord]:
     """
     Worker function. Runs in a spawned child process.
@@ -141,7 +150,7 @@ def read_pcap_parallel(
 
     ctx = multiprocessing.get_context("spawn")
     try:
-        with ctx.Pool(len(worker_args)) as pool:
+        with ctx.Pool(len(worker_args), initializer=_worker_init) as pool:
             results: List[List[PacketRecord]] = pool.map(_worker_read_chunk, worker_args)
     except Exception as e:
         logger.warning("Parallel read failed (%s), falling back to single-threaded", e)

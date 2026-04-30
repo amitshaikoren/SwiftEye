@@ -92,9 +92,9 @@ def _make_request(
 
 class TestContextPacketShape:
     def test_required_sections_always_present(self):
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
@@ -106,9 +106,9 @@ class TestContextPacketShape:
         assert "limitations" in packet
 
     def test_no_capture_loaded(self):
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store(loaded=False)
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
@@ -119,9 +119,9 @@ class TestContextPacketShape:
 
 class TestScopeSection:
     def test_scope_mode_preserved(self):
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request(scope_mode="current_view")
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
@@ -130,9 +130,9 @@ class TestScopeSection:
 
     def test_tags_included_in_scope(self):
         tags = [TAG_ENTITY_NODE, "dns"]
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, tags)
@@ -147,9 +147,9 @@ class TestSelectionContext:
                   "ttls_out": [], "ttls_in": [], "is_private": True, "hostnames": [],
                   "top_dst_ports": [], "top_src_ports": [], "top_neighbors": [],
                   "top_protocols": [], "edge_ids": []}]
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store(nodes=nodes)
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request(sel_nodes=["10.0.0.5"])
                 packet = build_context_packet(req, [TAG_ENTITY_NODE])
@@ -163,9 +163,9 @@ class TestSelectionContext:
                    "source": "detector", "source_name": "port_scan",
                    "timestamp": 1000.0, "src_ip": "10.0.0.5", "dst_ip": None,
                    "evidence": [], "node_ids": [], "edge_ids": [], "session_ids": []}]
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store(alerts=alerts)
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request(sel_alert="alert_001")
                 packet = build_context_packet(req, [TAG_ALERT_EVIDENCE])
@@ -174,9 +174,9 @@ class TestSelectionContext:
         assert packet["selection_context"]["type"] == "alert"
 
     def test_no_selection_no_selection_context(self):
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
@@ -186,9 +186,9 @@ class TestSelectionContext:
 
 class TestLimitationsSection:
     def test_attribution_risk_adds_disclaimer(self):
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request(question="Where is the attacker?")
                 packet = build_context_packet(req, [TAG_ATTRIBUTION_RISK])
@@ -197,9 +197,9 @@ class TestLimitationsSection:
         assert any("attacker" in item.lower() or "attribution" in item.lower() for item in items)
 
     def test_payload_bytes_limitation_always_present(self):
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
@@ -210,9 +210,9 @@ class TestLimitationsSection:
 
 class TestRetrievalManifest:
     def test_manifest_shape(self):
-        with patch('llm.context_builder._store') as mock_store_mod:
+        with patch('core.llm.context_builder._store') as mock_store_mod:
             mock_store_mod.store = _make_store()
-            with patch('llm.context_builder.get_analysis_results', return_value={}):
+            with patch('core.llm.context_builder.get_analysis_results', return_value={}):
                 from core.llm.context_builder import build_context_packet
                 req = _make_request()
                 packet = build_context_packet(req, [TAG_BROAD_OVERVIEW])
