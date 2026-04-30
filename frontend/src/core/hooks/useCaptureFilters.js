@@ -186,9 +186,9 @@ export function useCaptureFilters({ selCallbacksRef }) {
   // ── Reset time range (called by data slice on bucket refetch) ────
 
   const resetTimeRange = useCallback((timelineLength) => {
-    const full = [0, timelineLength - 1];
-    setTimeRange(full);
-    setDebouncedTR(full);
+    const n1 = timelineLength - 1;
+    setTimeRange(prev => (prev[0] === 0 && prev[1] === n1) ? prev : [0, n1]);
+    setDebouncedTR(prev => (prev[0] === 0 && prev[1] === n1) ? prev : [0, n1]);
   }, []);
 
   return {

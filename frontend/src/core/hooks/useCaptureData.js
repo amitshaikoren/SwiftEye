@@ -78,6 +78,8 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
 
   const [stats, setStats]               = useState(null);
   const [timeline, setTimeline]         = useState([]);
+  const timelineRef = useRef([]);
+  timelineRef.current = timeline;
   const [rawGraph, setRawGraph]         = useState({ nodes: [], edges: [], clusters: null });
   const [sessions, setSessions]         = useState([]);
   const [fullSessions, setFullSessions] = useState([]);
@@ -202,17 +204,17 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
   // E4+E5: workspace-owned time-range-change hook (network re-fetches sessions
   // + stats; forensic skips entirely).
   useEffect(() => {
-    if (!loaded || !timeline.length) return;
+    if (!loaded || !timelineRef.current.length) return;
     if (!workspace.dataHooks?.onTimeRangeChange) return;
-    const ts = timeline[debouncedTR[0]]?.start_time;
-    const te = timeline[debouncedTR[1]]?.end_time;
+    const ts = timelineRef.current[debouncedTR[0]]?.start_time;
+    const te = timelineRef.current[debouncedTR[1]]?.end_time;
     workspace.dataHooks.onTimeRangeChange(ts, te).then(patch => {
       if (!patch) return;
       if (patch.sessions !== undefined) setSessions(patch.sessions);
       if (patch.sessionTotal !== undefined) setSessionTotal(patch.sessionTotal);
       if (patch.stats !== undefined) setStats(patch.stats);
     }).catch(() => {});
-  }, [loaded, debouncedTR, timeline]);
+  }, [loaded, debouncedTR]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // E6: recompute allProtocolKeysCountRef when stats/protocols change
   useEffect(() => {
@@ -239,9 +241,9 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
   // E7: re-fetch graph when any filter changes (debounced)
   useEffect(() => {
     // Workspace-owned graph fetchers have no timeline dependency.
-    if (!loaded || (!workspace.fetchGraph && !timeline.length)) return;
-    const ts = timeline[debouncedTR[0]]?.start_time;
-    const te = timeline[debouncedTR[1]]?.end_time;
+    if (!loaded || (!workspace.fetchGraph && !timelineRef.current.length)) return;
+    const ts = timelineRef.current[debouncedTR[0]]?.start_time;
+    const te = timelineRef.current[debouncedTR[1]]?.end_time;
     const params = {};
     if (ts != null) params.timeStart = ts;
     if (te != null) params.timeEnd = te;
@@ -282,7 +284,7 @@ export function useCaptureData({ loaded, filters, setAlerts, selCallbacksRef }) 
       if (e.name !== 'AbortError') console.error(e);
     });
     return () => ctrl.abort();
-  }, [loaded, debouncedTR, enabledP, subnetG, debouncedSubnetPrefix, mergeByMac, includeIPv6, showHostnames, excludeBroadcasts, subnetExclusions, clusterAlgo, clusterResolution, timeline, protocols, setAlerts]);
+  }, [loaded, debouncedTR, enabledP, subnetG, debouncedSubnetPrefix, mergeByMac, includeIPv6, showHostnames, excludeBroadcasts, subnetExclusions, clusterAlgo, clusterResolution, protocols, setAlerts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // E8: re-evaluate display filter when graph data changes
   useEffect(() => {
