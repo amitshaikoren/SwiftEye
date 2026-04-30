@@ -3,11 +3,13 @@
 </p>
 
 <h1 align="center">SwiftEye</h1>
-<p align="center">Network traffic visualization for security researchers.</p>
+<p align="center">Network traffic and endpoint forensics visualization for security researchers.</p>
 
 ---
 
-Drop a `.pcap`, `.pcapng`, or Zeek log set and get an interactive force-directed graph of who talked to whom, over what protocols — with full session reconstruction, protocol dissection, and a Wireshark-style display filter. Everything runs locally.
+Drop a `.pcap`, `.pcapng`, Zeek log set, Parquet capture, Windows EVTX, or Velociraptor collection and get an interactive force-directed graph of what happened — full session reconstruction and protocol dissection on the network side, process / file / registry / network-connection graphs on the endpoint side. Everything runs locally.
+
+SwiftEye hosts multiple **workspaces** under a single shell: pick **Network** for pcap / Zeek / parquet captures, or **Forensic** for Windows endpoint artifacts. Each workspace declares its own schema, accepted file types, detail panels, research charts, and graph display modes via a descriptor — the shell stays workspace-agnostic.
 
 ---
 
