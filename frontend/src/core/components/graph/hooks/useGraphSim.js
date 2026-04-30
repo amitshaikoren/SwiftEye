@@ -24,6 +24,8 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
   const nRef = useRef([]);
   const eRef = useRef([]);
   const graphWeightModeRef = useRef(graphWeightMode);
+  const colorRef = useRef(null);
+  const nodeMapRef = useRef(new Map());
 
   // Single authoritative node-radius function — reads
   // nodeWeightFieldRef / nodeWeightScaleRef dynamically. The workspace
@@ -85,6 +87,35 @@ export default function useGraphSim({ nodes, edges, cRef, containerRef, graphWei
       .distanceMax(chargeDistMax);
     simRef.current.alpha(0.9).alphaTarget(0).restart();
   }
+
+  // ── CSS color cache ──────────────────────────────────────────────────────────
+  // Read theme CSS vars once at mount (and on theme class changes) rather than
+  // inside every render() call. getComputedStyle forces a style flush — doing it
+  // per D3 tick was the main source of GC pressure during simulation.
+  useEffect(() => {
+    function readColors() {
+      const cs = getComputedStyle(document.body);
+      const cv = k => cs.getPropertyValue(k).trim();
+      colorRef.current = {
+        bgColor:       cv('--bg')             || '#08090d',
+        nodePrivate:   cv('--node-private')   || '#264060',
+        nodePrivateS:  cv('--node-private-s') || '#5a9ad5',
+        nodeExternal:  cv('--node-external')  || '#3d2855',
+        nodeExternalS: cv('--node-external-s')|| '#9060cc',
+        nodeSubnet:    cv('--node-subnet')    || '#253545',
+        nodeSubnetS:   cv('--node-subnet-s')  || '#557080',
+        nodeGateway:   cv('--node-gateway')   || '#3d3018',
+        nodeGatewayS:  cv('--node-gateway-s') || '#e0b020',
+        nodeLabel:     cv('--node-label')     || '#a0aab5',
+        acColor:       cv('--ac')             || '#58a6ff',
+        acGColor:      cv('--acG')            || '#3fb950',
+      };
+    }
+    readColors();
+    const mo = new MutationObserver(readColors);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    return () => mo.disconnect();
+  }, []);
 
   function doExportHTML() {
     const gR = gRRef.current;
@@ -278,13 +309,14 @@ resize();draw();
       const c = cRef.current;
       if (c) {
         const dpr = window.devicePixelRatio || 1;
-        c.width = width * dpr;
-        c.height = height * dpr;
-        c.style.width = width + 'px';
-        c.style.height = height + 'px';
+        const pw = Math.round(width * dpr), ph = Math.round(height * dpr);
+        if (c.width !== pw || c.height !== ph) {
+          c.width = pw; c.height = ph;
+          c.style.width = width + 'px'; c.style.height = height + 'px';
+        }
         const x = c.getContext('2d');
-        x.scale(dpr, dpr);
-        x.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#08090d';
+        x.setTransform(dpr, 0, 0, dpr, 0, 0);
+        x.fillStyle = (colorRef.current?.bgColor) || getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#08090d';
         x.fillRect(0, 0, width, height);
       }
       if (simRef.current) simRef.current.stop();
@@ -317,6 +349,7 @@ resize();draw();
 
     nRef.current = nn;
     eRef.current = ne;
+    nodeMapRef.current = new Map(nn.map(n => [n.id, n]));
     if (simRef.current) simRef.current.stop();
 
     let sim;
@@ -359,27 +392,26 @@ resize();draw();
       const { width, height } = getSize();
       const ctx = c.getContext('2d');
       const dpr = window.devicePixelRatio || 1;
+      const pw = Math.round(width * dpr), ph = Math.round(height * dpr);
+      if (c.width !== pw || c.height !== ph) {
+        c.width = pw; c.height = ph;
+        c.style.width = width + 'px'; c.style.height = height + 'px';
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      c.width = width * dpr;
-      c.height = height * dpr;
-      c.style.width = width + 'px';
-      c.style.height = height + 'px';
-      ctx.scale(dpr, dpr);
-
-      const cs = getComputedStyle(document.body);
-      const cv = k => cs.getPropertyValue(k).trim();
-      const bgColor       = cv('--bg')           || '#08090d';
-      const nodePrivate   = cv('--node-private')  || '#264060';
-      const nodePrivateS  = cv('--node-private-s')|| '#5a9ad5';
-      const nodeExternal  = cv('--node-external') || '#3d2855';
-      const nodeExternalS = cv('--node-external-s')|| '#9060cc';
-      const nodeSubnet    = cv('--node-subnet')   || '#253545';
-      const nodeSubnetS   = cv('--node-subnet-s') || '#557080';
-      const nodeGateway   = cv('--node-gateway')  || '#3d3018';
-      const nodeGatewayS  = cv('--node-gateway-s')|| '#e0b020';
-      const nodeLabel     = cv('--node-label')    || '#a0aab5';
-      const acColor       = cv('--ac')            || '#58a6ff';
-      const acGColor      = cv('--acG')           || '#3fb950';
+      const _col = colorRef.current || {};
+      const bgColor       = _col.bgColor       || '#08090d';
+      const nodePrivate   = _col.nodePrivate   || '#264060';
+      const nodePrivateS  = _col.nodePrivateS  || '#5a9ad5';
+      const nodeExternal  = _col.nodeExternal  || '#3d2855';
+      const nodeExternalS = _col.nodeExternalS || '#9060cc';
+      const nodeSubnet    = _col.nodeSubnet    || '#253545';
+      const nodeSubnetS   = _col.nodeSubnetS   || '#557080';
+      const nodeGateway   = _col.nodeGateway   || '#3d3018';
+      const nodeGatewayS  = _col.nodeGatewayS  || '#e0b020';
+      const nodeLabel     = _col.nodeLabel     || '#a0aab5';
+      const acColor       = _col.acColor       || '#58a6ff';
+      const acGColor      = _col.acGColor      || '#3fb950';
 
       const t = tRef.current;
       const ss = selNRef.current;
@@ -418,7 +450,7 @@ resize();draw();
 
       // Pre-bake annotation snapshot and node lookup for this frame
       const snap = annotationsRef?.current ?? null;
-      const nodeMap = new Map(nRef.current.map(n => [n.id, n]));
+      const nodeMap = nodeMapRef.current;
 
       // Hulls (z-order 1: behind edges + nodes)
       if (snap?.hulls?.length) drawHulls(ctx, t, snap.hulls, nodeMap);
@@ -431,7 +463,8 @@ resize();draw();
       const ewField = edgeWeightFieldRef?.current || 'total_bytes';
       const ewScale = edgeWeightScaleRef?.current || 'log';
       const edgeMetric = e => e[ewField] || 0;
-      const meb = Math.max(...eRef.current.map(edgeMetric), 1);
+      let meb = 1;
+      for (const _em of eRef.current) { const _v = edgeMetric(_em); if (_v > meb) meb = _v; }
       for (const edge of eRef.current) {
         const src = typeof edge.source === 'object' ? edge.source : nRef.current.find(n => n.id === edge.source);
         const tgt = typeof edge.target === 'object' ? edge.target : nRef.current.find(n => n.id === edge.target);

@@ -3,7 +3,7 @@ import { fetchLogs } from '../api';
 
 export default function LogsPanel() {
   const [logs, setLogs] = useState([]);
-  const [auto, setAuto] = useState(true);
+  const [auto, setAuto] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {

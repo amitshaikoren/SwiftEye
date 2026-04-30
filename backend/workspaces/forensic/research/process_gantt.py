@@ -173,4 +173,3 @@ class ProcessGantt(ForensicResearchChart):
         return fig
 
 
-register_chart(ProcessGantt())

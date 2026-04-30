@@ -160,4 +160,3 @@ class RegistryTimeline(ForensicResearchChart):
         return fig
 
 
-register_chart(RegistryTimeline())

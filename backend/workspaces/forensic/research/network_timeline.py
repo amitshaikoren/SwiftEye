@@ -158,4 +158,3 @@ class NetworkTimeline(ForensicResearchChart):
         return fig
 
 
-register_chart(NetworkTimeline())
