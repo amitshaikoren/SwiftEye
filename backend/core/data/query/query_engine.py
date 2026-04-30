@@ -20,17 +20,9 @@ Condition modifiers (optional, on any condition dict):
 
 import re
 import logging
-from typing import Any, Optional
+from typing import Any, List, Optional
 
-# NOTE: layer violation — core importing from workspaces.network.
-# get_graph_schema() should consume the active WorkspaceSchema, not hardcoded
-# network catalogs. Tracked as `query-schema-workspace-aware`. Until then we
-# import the network catalogs directly so the existing `/api/query/schema`
-# endpoint keeps working.
-from workspaces.network.analysis.aggregator import NODE_FIELD_CATALOG, EDGE_CORE_FIELD_CATALOG
-from workspaces.network.analysis.edge_fields import EDGE_FIELD_CATALOG
-from workspaces.network.analysis.protocol_fields import all_protocol_catalogs
-from workspaces.network.analysis.sessions import SESSION_CORE_CATALOG
+from core.schema import WorkspaceSchema
 
 logger = logging.getLogger("swifteye.query_engine")
 
@@ -369,27 +361,65 @@ def resolve_query(G, query: dict, named_sets: Optional[dict] = None) -> dict:
     return _envelope(matched_nodes, matched_edges, total, total_matched, summary)
 
 
-def get_graph_schema(G) -> dict:
+# Maps WorkspaceSchema FieldType to the query-engine type vocabulary.
+_FIELD_TYPE_MAP = {
+    "ip":           "string",
+    "mac":          "string",
+    "port":         "numeric",
+    "protocol":     "string",
+    "string":       "string",
+    "string-array": "set",
+    "int":          "numeric",
+    "bool":         "boolean",
+    "enum":         "string",
+    "timestamp":    "numeric",
+}
+
+
+def _schema_to_groups(types: list) -> list:
+    """Convert a list of NodeType/EdgeType into [{group, fields}] catalog entries."""
+    return [
+        {
+            "group": t.label,
+            "fields": [
+                {
+                    "name": f.name,
+                    "type": _FIELD_TYPE_MAP.get(f.type, "string"),
+                    "description": f.description,
+                }
+                for f in t.fields
+            ],
+        }
+        for t in types
+    ]
+
+
+def get_graph_schema(
+    G,
+    workspace_schema: WorkspaceSchema,
+    session_groups: Optional[List[dict]] = None,
+) -> dict:
     """
     Return available fields with their types for all three query primitives.
 
-    Always returns the declarative catalog (no capture needed).
-    When G is provided, also merges in any plugin-emitted fields not in the catalog.
+    Always returns the declarative catalog derived from workspace_schema (no
+    capture needed). When G is provided, also merges in any plugin-emitted
+    fields not already in the declared schema.
     """
-    all_edge_groups = EDGE_CORE_FIELD_CATALOG + EDGE_FIELD_CATALOG
+    node_groups = _schema_to_groups(workspace_schema.node_types)
+    edge_groups = _schema_to_groups(workspace_schema.edge_types)
 
-    # Flat maps from catalogs (backward compat: QueryBuilder dropdown uses these)
-    node_fields = {f["name"]: f["type"] for g in NODE_FIELD_CATALOG for f in g["fields"]}
-    edge_fields = {f["name"]: f["type"] for g in all_edge_groups  for f in g["fields"]}
+    node_fields = {f["name"]: f["type"] for g in node_groups for f in g["fields"]}
+    edge_fields = {f["name"]: f["type"] for g in edge_groups for f in g["fields"]}
 
-    # Runtime: merge in plugin-emitted fields not covered by the catalog
+    # Runtime: merge in plugin-emitted fields not covered by the declared schema
     plugin_node: dict = {}
     plugin_edge: dict = {}
     if G is not None:
         def _t(v):
-            if isinstance(v, set):            return "set"
-            if isinstance(v, bool):           return "boolean"
-            if isinstance(v, (int, float)):   return "numeric"
+            if isinstance(v, set):           return "set"
+            if isinstance(v, bool):          return "boolean"
+            if isinstance(v, (int, float)):  return "numeric"
             return "string"
         for _, attrs in G.nodes(data=True):
             for k, v in attrs.items():
@@ -400,8 +430,8 @@ def get_graph_schema(G) -> dict:
                 if k not in edge_fields and k not in plugin_edge and k != "session_ids":
                     plugin_edge[k] = _t(v)
 
-    all_session_groups = [{"group": "core", "fields": SESSION_CORE_CATALOG}] + all_protocol_catalogs()
-    session_fields = {f["name"]: f["type"] for g in all_session_groups for f in g["fields"]}
+    sg = session_groups or []
+    session_fields = {f["name"]: f["type"] for g in sg for f in g["fields"]}
 
     return {
         # Flat maps — backward compat for QueryBuilder dropdown
@@ -409,9 +439,9 @@ def get_graph_schema(G) -> dict:
         "edge_fields":        {**edge_fields, **plugin_edge},
         "session_fields":     session_fields,
         # Structured groups — for Guide panel
-        "node_groups":        NODE_FIELD_CATALOG,
-        "edge_groups":        all_edge_groups,
-        "session_groups":     all_session_groups,
+        "node_groups":        node_groups,
+        "edge_groups":        edge_groups,
+        "session_groups":     sg,
         # Plugin enrichment (non-empty only when capture loaded + plugins ran)
         "plugin_node_fields": plugin_node,
         "plugin_edge_fields": plugin_edge,

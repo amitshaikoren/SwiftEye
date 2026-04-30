@@ -9,6 +9,8 @@ introduces the workspace selector that toggles between network and forensic.
 from core.schema import WorkspaceSchema
 from core.workspace import Workspace, register
 from workspaces.network.schema import NETWORK_SCHEMA
+from workspaces.network.analysis.sessions import SESSION_CORE_CATALOG
+from workspaces.network.analysis.protocol_fields import all_protocol_catalogs
 
 
 class NetworkWorkspace(Workspace):
@@ -25,6 +27,9 @@ class NetworkWorkspace(Workspace):
     @property
     def schema(self) -> WorkspaceSchema:
         return NETWORK_SCHEMA
+
+    def query_session_groups(self) -> list:
+        return [{"group": "core", "fields": SESSION_CORE_CATALOG}] + all_protocol_catalogs()
 
 
 register(NetworkWorkspace())

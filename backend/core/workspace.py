@@ -46,6 +46,10 @@ class Workspace(ABC):
         """Typed declaration of this workspace's node- and edge-field catalog."""
         raise NotImplementedError
 
+    def query_session_groups(self) -> list:
+        """Session field groups for /api/query/schema. Override in workspaces that have sessions."""
+        return []
+
 
 _WORKSPACES: Dict[str, Workspace] = {}
 _ACTIVE_NAME: Optional[str] = None
