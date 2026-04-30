@@ -4,6 +4,7 @@ from core.data.query import (
     resolve_query, resolve_session_query, parse_query_text, get_graph_schema,
     run_pipeline, KINDS,
 )
+from core.workspace import get_active_workspace
 
 router = APIRouter()
 
@@ -39,7 +40,12 @@ async def get_query_schema():
     Works without a loaded capture — the declarative catalog is always returned.
     Plugin-emitted fields are merged in when a capture is loaded.
     """
-    return get_graph_schema(store.analysis_graph)
+    ws = get_active_workspace()
+    return get_graph_schema(
+        store.analysis_graph,
+        workspace_schema=ws.schema,
+        session_groups=ws.query_session_groups(),
+    )
 
 
 @router.post("/api/query/pipeline")
