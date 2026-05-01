@@ -204,6 +204,24 @@ def _eval_in_set(item_id: Any, value: Any, named_sets: Optional[dict]) -> bool:
     return item_id in set(members)
 
 
+def _get_attr(attrs: dict, field: str):
+    """Resolve a (possibly dotted) field path from an attribute dict.
+
+    Dotted paths traverse nested dicts up to 3 levels deep, enabling
+    queries on plugin_data.{slot}.{field} without requiring flat promotion.
+    Plain (non-dotted) fields fall through to a direct dict lookup.
+    """
+    if '.' not in field:
+        return attrs.get(field)
+    parts = field.split('.')
+    val = attrs
+    for p in parts:
+        if not isinstance(val, dict):
+            return None
+        val = val.get(p)
+    return val
+
+
 def _eval_condition(attrs: dict, condition: dict,
                     item_id: Any = None,
                     named_sets: Optional[dict] = None) -> bool:
@@ -218,7 +236,7 @@ def _eval_condition(attrs: dict, condition: dict,
     negate = condition.get("negate", False)
     case_insensitive = condition.get("case_insensitive")
 
-    attr_val = attrs.get(field)
+    attr_val = _get_attr(attrs, field)
 
     if op in NUMERIC_OPS:
         result = _eval_numeric(attr_val, op, value)
@@ -331,7 +349,7 @@ def resolve_query(G, query: dict, named_sets: Optional[dict] = None) -> dict:
                 details = {}
                 for c, passed in zip(conditions, results):
                     if passed:
-                        val = attrs.get(c["field"])
+                        val = _get_attr(attrs, c["field"])
                         if isinstance(val, set):
                             val = sorted(str(v) for v in val)
                         details[c["field"]] = val
@@ -347,7 +365,7 @@ def resolve_query(G, query: dict, named_sets: Optional[dict] = None) -> dict:
                 details = {}
                 for c, passed in zip(conditions, results):
                     if passed:
-                        val = attrs.get(c["field"])
+                        val = _get_attr(attrs, c["field"])
                         if isinstance(val, set):
                             val = sorted(str(v) for v in val)
                         details[c["field"]] = val
@@ -423,7 +441,20 @@ def get_graph_schema(
             return "string"
         for _, attrs in G.nodes(data=True):
             for k, v in attrs.items():
-                if k not in node_fields and k not in plugin_node:
+                if k == "plugin_data" and isinstance(v, dict):
+                    # Flatten plugin_data.{slot}.{field} so plugin-emitted attrs
+                    # are individually queryable via dotted-path conditions.
+                    for slot_id, slot_val in v.items():
+                        if isinstance(slot_val, dict):
+                            for fk, fv in slot_val.items():
+                                dp = f"plugin_data.{slot_id}.{fk}"
+                                if dp not in node_fields and dp not in plugin_node:
+                                    plugin_node[dp] = _t(fv)
+                        else:
+                            dp = f"plugin_data.{slot_id}"
+                            if dp not in node_fields and dp not in plugin_node:
+                                plugin_node[dp] = _t(slot_val)
+                elif k not in node_fields and k not in plugin_node:
                     plugin_node[k] = _t(v)
         for _, _, attrs in G.edges(data=True):
             for k, v in attrs.items():

@@ -97,11 +97,21 @@ function buildNodeMatch(node, graph) {
   };
 }
 
+// D3 force simulation replaces string source/target with node objects on the
+// same edge reference that c.selEdge holds. Resolve to a plain string ID.
+function resolveRef(ref) {
+  if (!ref) return null;
+  if (typeof ref === 'string') return ref;
+  return ref.id ?? null;
+}
+
 function buildEdgeMatch(edge) {
+  const src = resolveRef(edge.source);
+  const tgt = resolveRef(edge.target);
   return {
     capture_time: edge.first_seen ?? null,
-    match_node_ids: uniq([edge.source, edge.target]),
-    match_subnets: uniq([subnetOf(edge.source), subnetOf(edge.target)]),
+    match_node_ids: uniq([src, tgt]),
+    match_subnets: uniq([subnetOf(src), subnetOf(tgt)]),
     match_protocols: edge.protocol ? [edge.protocol] : [],
   };
 }
