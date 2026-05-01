@@ -172,7 +172,7 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
 
   function _isPcapFile(file) {
     const n = file.name.toLowerCase();
-    return n.endsWith('.pcap') || n.endsWith('.cap');
+    return n.endsWith('.pcap') || n.endsWith('.cap') || n.endsWith('.pcapng');
   }
 
   async function _handlePrescan(file) {

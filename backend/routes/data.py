@@ -20,7 +20,7 @@ from workspaces.network.plugins.analyses import get_analysis_results, clear_anal
 from workspaces.network.parser import read_pcap, PacketRecord, MAX_FILE_SIZE
 from workspaces.network.parser.adapters import detect_adapter, find_adapter_by_name, ADAPTERS
 from workspaces.network.parser.schema import inspect_schema, stage_file
-from workspaces.network.parser.parallel_reader import prescan_pcap_parallel
+from workspaces.network.parser.parallel_reader import prescan_capture
 from workspaces.network.load_filter import LoadFilter, apply_post_parse_filter
 from workspaces.network.constants import PROTOCOL_COLORS
 from core.models import (
@@ -238,14 +238,14 @@ async def prescan_upload(file: UploadFile = File(...)):
     tmp_path.write_bytes(content)
 
     try:
-        stats = prescan_pcap_parallel(str(tmp_path))
+        stats = prescan_capture(str(tmp_path))
     except Exception as exc:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(500, f"Prescan failed: {exc}")
 
     if stats is None:
         shutil.rmtree(tmp_dir, ignore_errors=True)
-        raise HTTPException(422, "Not a valid legacy pcap file — use /api/upload for pcapng")
+        raise HTTPException(422, "Not a valid pcap or pcapng file")
 
     token = str(uuid.uuid4())
     _PRESCAN_CACHE[token] = {
