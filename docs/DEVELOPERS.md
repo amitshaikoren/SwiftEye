@@ -1080,7 +1080,9 @@ Base URL: `http://localhost:8642`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/upload` | Upload pcap/pcapng (multipart form, max 500MB) |
+| `POST` | `/api/upload` | Upload pcap/pcapng (multipart form, max 500MB) — single-shot, no pre-filter |
+| `POST` | `/api/upload/prescan` | Phase 1 of two-phase load: save file, run parallel L3-only prescan, return `{token, packet_count, ts_first, ts_last, duration_seconds, node_count, edge_count, protocols, top_ips, components}`. Token valid 30 min. |
+| `POST` | `/api/upload/load` | Phase 2: `{token, filter: {ts_start?, ts_end?, protocols?, ip_whitelist?, ip_blacklist?, port_whitelist?, port_blacklist?, top_k_flows?, max_packets?, component_ids?}}`. `component_ids` resolves to IP whitelist from prescan component data. |
 | `POST` | `/api/upload/confirm-schema` | Resume a staged Zeek/tshark upload after column mapping. Body: `{token, mapping: {detected_col: expected_col}}`. Calls `parse_with_mapping()`. |
 | `GET` | `/api/status` | `{capture_loaded, file_name, packet_count}` |
 
