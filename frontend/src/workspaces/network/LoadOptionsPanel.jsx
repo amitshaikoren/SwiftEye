@@ -85,10 +85,12 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
   }
 
   // ── IP filter ────────────────────────────────────────────────────
-  const [ipText, setIpText] = useState('');
+  const [ipText,    setIpText]    = useState('');
+  const [ipExcText, setIpExcText] = useState('');
 
   // ── Port filter ──────────────────────────────────────────────────
-  const [portText, setPortText] = useState('');
+  const [portText,    setPortText]    = useState('');
+  const [portExcText, setPortExcText] = useState('');
 
   // ── Top-K ────────────────────────────────────────────────────────
   const [topKEnabled, setTopKEnabled] = useState(false);
@@ -115,8 +117,14 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
     const ips = ipText.split(',').map(s => s.trim()).filter(Boolean);
     if (ips.length) filter.ip_whitelist = ips;
 
+    const ipExc = ipExcText.split(',').map(s => s.trim()).filter(Boolean);
+    if (ipExc.length) filter.ip_blacklist = ipExc;
+
     const ports = portText.split(',').map(s => s.trim()).filter(Boolean);
     if (ports.length) filter.port_whitelist = ports;
+
+    const portExc = portExcText.split(',').map(s => s.trim()).filter(Boolean);
+    if (portExc.length) filter.port_blacklist = portExc;
 
     if (topKEnabled && topKValue > 0) filter.top_k_flows = topKValue;
 
@@ -232,7 +240,7 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
 
       {/* IP filter */}
       <div style={section}>
-        <div style={label}>IP / Subnet Filter <span style={{ textTransform: 'none', letterSpacing: 0 }}>(comma-separated)</span></div>
+        <div style={label}>IP / Subnet — Keep <span style={{ textTransform: 'none', letterSpacing: 0 }}>(comma-separated; empty = all)</span></div>
         <input
           style={inputStyle}
           placeholder="e.g. 192.168.1.0/24, 10.0.0.1, 172.16.0.0/12"
@@ -258,14 +266,53 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
         )}
       </div>
 
+      {/* IP exclusion */}
+      <div style={section}>
+        <div style={label}>IP / Subnet — Exclude <span style={{ textTransform: 'none', letterSpacing: 0 }}>(comma-separated)</span></div>
+        <input
+          style={{ ...inputStyle, borderColor: 'rgba(248,81,73,.3)' }}
+          placeholder="e.g. 10.0.0.254, 239.0.0.0/8"
+          value={ipExcText}
+          onChange={e => setIpExcText(e.target.value)}
+        />
+        {top_ips.length > 0 && ipExcText === '' && (
+          <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {top_ips.slice(0, 8).map(({ ip }) => (
+              <span
+                key={ip}
+                onClick={() => setIpExcText(t => t ? `${t}, ${ip}` : ip)}
+                style={{
+                  fontSize: 11, padding: '2px 8px', borderRadius: 4,
+                  background: 'rgba(248,81,73,.08)', border: '1px solid rgba(248,81,73,.25)',
+                  cursor: 'pointer', color: '#f85149',
+                }}
+              >
+                {ip}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Port filter */}
       <div style={section}>
-        <div style={label}>Port Filter <span style={{ textTransform: 'none', letterSpacing: 0 }}>(comma-separated ports or ranges)</span></div>
+        <div style={label}>Port — Keep <span style={{ textTransform: 'none', letterSpacing: 0 }}>(comma-separated ports or ranges)</span></div>
         <input
           style={inputStyle}
           placeholder="e.g. 80, 443, 8000-9000, 53"
           value={portText}
           onChange={e => setPortText(e.target.value)}
+        />
+      </div>
+
+      {/* Port exclusion */}
+      <div style={section}>
+        <div style={label}>Port — Exclude <span style={{ textTransform: 'none', letterSpacing: 0 }}>(comma-separated ports or ranges)</span></div>
+        <input
+          style={{ ...inputStyle, borderColor: 'rgba(248,81,73,.3)' }}
+          placeholder="e.g. 6881-6889, 4444, 9001"
+          value={portExcText}
+          onChange={e => setPortExcText(e.target.value)}
         />
       </div>
 

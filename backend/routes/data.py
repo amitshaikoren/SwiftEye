@@ -53,7 +53,9 @@ class _FilterSpec(BaseModel):
     ts_end:         Optional[float] = None
     protocols:      Optional[List[str]] = None
     ip_whitelist:   Optional[List[str]] = None
+    ip_blacklist:   Optional[List[str]] = None
     port_whitelist: Optional[List[str]] = None
+    port_blacklist: Optional[List[str]] = None
     top_k_flows:    Optional[int] = None
     max_packets:    int = 2_000_000
 
@@ -307,7 +309,9 @@ async def load_with_filter(req: _PrescanLoadRequest):
         lf = LoadFilter(
             protocols=f.protocols,
             ip_whitelist=f.ip_whitelist,
+            ip_blacklist=f.ip_blacklist,
             port_whitelist=f.port_whitelist,
+            port_blacklist=f.port_blacklist,
             top_k_flows=f.top_k_flows,
             max_packets=f.max_packets,
         )
