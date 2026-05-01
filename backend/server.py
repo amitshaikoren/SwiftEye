@@ -16,6 +16,7 @@ import signal
 import atexit
 import logging
 import importlib
+import multiprocessing as _mp
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -102,45 +103,48 @@ def _dynamic_register(specs, register_fn, label="component"):
 
 
 # ── Register plugins, analyses, charts ───────────────────────────────────────
+# Guard: spawn workers on Windows re-execute server.py as __main__, so
+# __name__ == '__main__' does NOT distinguish workers. Only process name does.
 
-_dynamic_register([
-    ("workspaces.network.plugins.insights.os_fingerprint", "OSFingerprintPlugin"),
-    ("workspaces.network.plugins.insights.network_map",    "NetworkMapPlugin"),
-    ("workspaces.network.plugins.insights.tcp_flags",      "TCPFlagsPlugin"),
-    ("workspaces.network.plugins.insights.dns_resolver",   "DNSResolverPlugin"),
-], register_plugin, "insight plugin")
+if _mp.current_process().name == 'MainProcess':
+    _dynamic_register([
+        ("workspaces.network.plugins.insights.os_fingerprint", "OSFingerprintPlugin"),
+        ("workspaces.network.plugins.insights.network_map",    "NetworkMapPlugin"),
+        ("workspaces.network.plugins.insights.tcp_flags",      "TCPFlagsPlugin"),
+        ("workspaces.network.plugins.insights.dns_resolver",   "DNSResolverPlugin"),
+    ], register_plugin, "insight plugin")
 
-_dynamic_register([
-    ("workspaces.network.plugins.analyses.node_centrality",           "NodeCentralityAnalysis"),
-    ("workspaces.network.plugins.analyses.traffic_characterisation",   "TrafficCharacterisationAnalysis"),
-], register_analysis, "analysis plugin")
+    _dynamic_register([
+        ("workspaces.network.plugins.analyses.node_centrality",           "NodeCentralityAnalysis"),
+        ("workspaces.network.plugins.analyses.traffic_characterisation",   "TrafficCharacterisationAnalysis"),
+    ], register_analysis, "analysis plugin")
 
-_dynamic_register([
-    ("workspaces.network.research.conversation_timeline", "ConversationTimeline"),
-    ("workspaces.network.research.ttl_over_time",         "TTLOverTime"),
-    ("workspaces.network.research.session_gantt",         "SessionGantt"),
-    ("workspaces.network.research.seq_ack_timeline",      "SeqAckTimelineChart"),
-    ("workspaces.network.research.dns_timeline",          "DNSTimeline"),
-    ("workspaces.network.research.ja3_timeline",          "JA3Timeline"),
-    ("workspaces.network.research.ja4_timeline",          "JA4Timeline"),
-    ("workspaces.network.research.http_ua_timeline",       "HTTPUserAgentTimeline"),
-], register_chart, "research chart")
+    _dynamic_register([
+        ("workspaces.network.research.conversation_timeline", "ConversationTimeline"),
+        ("workspaces.network.research.ttl_over_time",         "TTLOverTime"),
+        ("workspaces.network.research.session_gantt",         "SessionGantt"),
+        ("workspaces.network.research.seq_ack_timeline",      "SeqAckTimelineChart"),
+        ("workspaces.network.research.dns_timeline",          "DNSTimeline"),
+        ("workspaces.network.research.ja3_timeline",          "JA3Timeline"),
+        ("workspaces.network.research.ja4_timeline",          "JA4Timeline"),
+        ("workspaces.network.research.http_ua_timeline",       "HTTPUserAgentTimeline"),
+    ], register_chart, "research chart")
 
-from workspaces.forensic.research import register_chart as _fx_register_chart
-_dynamic_register([
-    ("workspaces.forensic.research.process_gantt",      "ProcessGantt"),
-    ("workspaces.forensic.research.registry_timeline",  "RegistryTimeline"),
-    ("workspaces.forensic.research.network_timeline",   "NetworkTimeline"),
-], _fx_register_chart, "forensic research chart")
+    from workspaces.forensic.research import register_chart as _fx_register_chart
+    _dynamic_register([
+        ("workspaces.forensic.research.process_gantt",      "ProcessGantt"),
+        ("workspaces.forensic.research.registry_timeline",  "RegistryTimeline"),
+        ("workspaces.forensic.research.network_timeline",   "NetworkTimeline"),
+    ], _fx_register_chart, "forensic research chart")
 
-import workspaces.forensic.plugins  # noqa: F401, E402 — triggers classifier self-registration
+    import workspaces.forensic.plugins  # noqa: F401 — triggers classifier self-registration
 
-_dynamic_register([
-    ("workspaces.network.plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
-    ("workspaces.network.plugins.alerts.suspicious_ua", "SuspiciousUADetector"),
-    ("workspaces.network.plugins.alerts.malicious_ja3", "MaliciousJA3Detector"),
-    ("workspaces.network.plugins.alerts.port_scan",     "PortScanDetector"),
-], register_detector, "alert detector")
+    _dynamic_register([
+        ("workspaces.network.plugins.alerts.arp_spoofing",  "ArpSpoofingDetector"),
+        ("workspaces.network.plugins.alerts.suspicious_ua", "SuspiciousUADetector"),
+        ("workspaces.network.plugins.alerts.malicious_ja3", "MaliciousJA3Detector"),
+        ("workspaces.network.plugins.alerts.port_scan",     "PortScanDetector"),
+    ], register_detector, "alert detector")
 
 
 # ── Mount routers ─────────────────────────────────────────────────────────────

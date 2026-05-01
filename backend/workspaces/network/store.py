@@ -5,6 +5,7 @@ Holds viewer-layer data (sessions, stats, time buckets, subnets, graph cache).
 Does NOT run plugins — that's the server's orchestration concern.
 """
 
+import gc
 import time
 import uuid
 import logging
@@ -104,6 +105,8 @@ class CaptureStore:
         t0 = time.time()
         self.backend.load(self.packets, self.sessions)
         logger.info(f"  Indexes in {time.time()-t0:.2f}s")
+
+        gc.collect()
 
         logger.info(f"Capture '{file_name}' loaded: {len(packets)} packets, "
                      f"{len(self.sessions)} sessions, {len(self.protocols)} protocols")
