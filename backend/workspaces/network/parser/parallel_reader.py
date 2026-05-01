@@ -276,14 +276,20 @@ def prescan_pcap_parallel(filepath: str) -> Optional[Dict]:
         for ip, cnt in sorted(ip_traffic.items(), key=lambda x: x[1], reverse=True)[:50]
     ]
 
+    comp_summary, comp_ip_sets = _summarise_components(
+        _build_ip_components(all_pairs), all_pairs, ip_traffic
+    )
+
     return {
-        "packet_count": total_packets,
-        "ts_first":     ts_first,
-        "ts_last":      ts_last,
-        "node_count":   len(all_ips),
-        "edge_count":   len(all_pairs),
-        "protocols":    all_protocols,
-        "top_ips":      top_ips,
+        "packet_count":   total_packets,
+        "ts_first":       ts_first,
+        "ts_last":        ts_last,
+        "node_count":     len(all_ips),
+        "edge_count":     len(all_pairs),
+        "protocols":      all_protocols,
+        "top_ips":        top_ips,
+        "components":     comp_summary,   # summary for frontend
+        "_component_ips": comp_ip_sets,   # full IP sets — stripped before API response
     }
 
 
@@ -597,15 +603,102 @@ def prescan_pcapng_parallel(filepath: str) -> Optional[Dict]:
         for ip, cnt in sorted(ip_traffic.items(), key=lambda x: x[1], reverse=True)[:50]
     ]
 
+    comp_summary, comp_ip_sets = _summarise_components(
+        _build_ip_components(all_pairs), all_pairs, ip_traffic
+    )
+
     return {
-        "packet_count": total_packets,
-        "ts_first":     ts_first,
-        "ts_last":      ts_last,
-        "node_count":   len(all_ips),
-        "edge_count":   len(all_pairs),
-        "protocols":    all_protocols,
-        "top_ips":      top_ips,
+        "packet_count":   total_packets,
+        "ts_first":       ts_first,
+        "ts_last":        ts_last,
+        "node_count":     len(all_ips),
+        "edge_count":     len(all_pairs),
+        "protocols":      all_protocols,
+        "top_ips":        top_ips,
+        "components":     comp_summary,
+        "_component_ips": comp_ip_sets,
     }
+
+
+def _build_ip_components(all_pairs: dict) -> list:
+    """
+    Union-Find connected components over the IP-pair graph.
+    Returns a list of IP sets sorted largest-first.
+    """
+    parent: dict = {}
+
+    def find(x: str) -> str:
+        if x not in parent:
+            parent[x] = x
+        root = x
+        while parent[root] != root:
+            root = parent[root]
+        # path compression
+        node = x
+        while node != root:
+            parent[node], node = root, parent[node]
+        return root
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    for pair in all_pairs:
+        ips = tuple(pair)
+        union(ips[0], ips[-1])  # len-1 (self-pair) and len-2 both handled
+
+    groups: dict = {}
+    for ip in list(parent):
+        root = find(ip)
+        if root not in groups:
+            groups[root] = set()
+        groups[root].add(ip)
+
+    return sorted(groups.values(), key=len, reverse=True)
+
+
+def _summarise_components(
+    comp_ip_sets: list,
+    all_pairs: dict,
+    ip_traffic: dict,
+    max_comps: int = 100,
+) -> Tuple[list, list]:
+    """
+    Build per-component edge/packet counts and top-IP summaries.
+
+    Returns:
+      summary   — [{id, node_count, edge_count, packet_count, top_ips}, ...]
+      trimmed   — comp_ip_sets[:max_comps]  (for prescan cache)
+    """
+    trimmed = comp_ip_sets[:max_comps]
+
+    ip_to_comp: dict = {}
+    for i, comp_set in enumerate(trimmed):
+        for ip in comp_set:
+            ip_to_comp[ip] = i
+
+    comp_edges: dict = {}
+    comp_pkts: dict = {}
+    for pair, cnt in all_pairs.items():
+        ci = ip_to_comp.get(next(iter(pair)), -1)
+        if ci >= 0:
+            comp_edges[ci] = comp_edges.get(ci, 0) + 1
+            comp_pkts[ci]  = comp_pkts.get(ci,  0) + cnt
+
+    summary = []
+    for i, comp_set in enumerate(trimmed):
+        comp_traffic = {ip: ip_traffic.get(ip, 0) for ip in comp_set}
+        top5 = sorted(comp_traffic, key=comp_traffic.get, reverse=True)[:5]
+        summary.append({
+            "id":           i,
+            "node_count":   len(comp_set),
+            "edge_count":   comp_edges.get(i, 0),
+            "packet_count": comp_pkts.get(i,  0),
+            "top_ips":      top5,
+        })
+
+    return summary, trimmed
 
 
 def prescan_capture(filepath: str) -> Optional[Dict]:

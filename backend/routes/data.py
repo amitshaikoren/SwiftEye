@@ -58,6 +58,7 @@ class _FilterSpec(BaseModel):
     port_blacklist: Optional[List[str]] = None
     top_k_flows:    Optional[int] = None
     max_packets:    int = 2_000_000
+    component_ids:  Optional[List[int]] = None  # prescan component indices → resolved to ip_whitelist
 
 
 class _PrescanLoadRequest(BaseModel):
@@ -247,11 +248,15 @@ async def prescan_upload(file: UploadFile = File(...)):
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise HTTPException(422, "Not a valid pcap or pcapng file")
 
+    # Strip backend-only field before sending to client
+    comp_ip_sets = stats.pop("_component_ips", [])
+
     token = str(uuid.uuid4())
     _PRESCAN_CACHE[token] = {
-        "tmp_dir":  tmp_dir,
-        "tmp_path": str(tmp_path),
-        "expires":  time.time() + _PRESCAN_TTL,
+        "tmp_dir":       tmp_dir,
+        "tmp_path":      str(tmp_path),
+        "expires":       time.time() + _PRESCAN_TTL,
+        "component_ips": comp_ip_sets,  # full IP sets indexed by component id
     }
 
     duration = (stats["ts_last"] - stats["ts_first"]) if stats["ts_first"] and stats["ts_last"] else 0.0
@@ -268,6 +273,7 @@ async def prescan_upload(file: UploadFile = File(...)):
         "edge_count":       stats["edge_count"],
         "protocols":        stats["protocols"],
         "top_ips":          stats["top_ips"],
+        "components":       stats.get("components", []),
     }
 
 
@@ -298,6 +304,19 @@ async def load_with_filter(req: _PrescanLoadRequest):
 
     t0 = time.time()
     f = req.filter
+
+    # Resolve component selection → ip_whitelist before building LoadFilter
+    if f.component_ids:
+        comp_ip_sets = entry.get("component_ips", [])
+        selected: set = set()
+        for cid in f.component_ids:
+            if 0 <= cid < len(comp_ip_sets):
+                selected.update(comp_ip_sets[cid])
+        if selected:
+            if f.ip_whitelist:
+                # Intersection: user wants specific IPs within selected components
+                selected &= set(f.ip_whitelist)
+            f.ip_whitelist = list(selected)
 
     try:
         packets = read_pcap(

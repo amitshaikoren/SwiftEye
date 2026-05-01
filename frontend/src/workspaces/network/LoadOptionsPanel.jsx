@@ -62,6 +62,7 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
     edge_count = 0,
     protocols: prescanProtos = {},
     top_ips = [],
+    components = [],
   } = data || {};
 
   // ── time range ───────────────────────────────────────────────────
@@ -96,6 +97,17 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
   const [topKEnabled, setTopKEnabled] = useState(false);
   const [topKValue,   setTopKValue]   = useState(100);
 
+  // ── Connected components ─────────────────────────────────────────
+  // Empty set = no filter (load all). Any selection = isolate those components.
+  const [selectedCompIds, setSelectedCompIds] = useState(() => new Set());
+  function toggleComp(id) {
+    setSelectedCompIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   // ── Estimated counts (packets, edges, nodes) ─────────────────────
   const timeFrac = duration_seconds > 0 ? (endFrac - startFrac) : 1;
   const allProtosEnabled = protoList.length === 0 || enabledProtos.size === protoList.length;
@@ -103,18 +115,21 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
     ? 1
     : [...enabledProtos].reduce((acc, name) => acc + (prescanProtos[name] || 0), 0) / (packet_count || 1);
 
-  const basePkts  = Math.round(packet_count * timeFrac * protoFrac);
-  const baseEdges = Math.round(edge_count   * timeFrac * protoFrac);
-  // nodes shrink slower than edges (hub nodes appear in many flows)
-  const baseNodes = Math.round(node_count   * Math.sqrt(timeFrac * protoFrac));
+  // If components are selected use their totals as the base, otherwise use full prescan counts
+  const compFiltered = selectedCompIds.size > 0 && selectedCompIds.size < components.length;
+  const selComps     = compFiltered ? components.filter(c => selectedCompIds.has(c.id)) : null;
+  const basePkts  = Math.round((selComps ? selComps.reduce((s, c) => s + c.packet_count, 0) : packet_count) * timeFrac * protoFrac);
+  const baseEdges = Math.round((selComps ? selComps.reduce((s, c) => s + c.edge_count,   0) : edge_count)   * timeFrac * protoFrac);
+  const baseNodes = Math.round((selComps ? selComps.reduce((s, c) => s + c.node_count,   0) : node_count)   * Math.sqrt(timeFrac * protoFrac));
 
   let estimated  = basePkts;
   let estEdges   = baseEdges;
   let estNodes   = baseNodes;
 
   if (topKEnabled && topKValue > 0) {
-    // top-K caps flows exactly; packets estimated from avg flow size
-    const avgPktsPerFlow = edge_count > 0 ? packet_count / edge_count : packet_count;
+    const baseE = selComps ? selComps.reduce((s, c) => s + c.edge_count,   0) : edge_count;
+    const baseP = selComps ? selComps.reduce((s, c) => s + c.packet_count, 0) : packet_count;
+    const avgPktsPerFlow = baseE > 0 ? baseP / baseE : baseP;
     estimated = Math.min(basePkts,  Math.round(topKValue * avgPktsPerFlow));
     estEdges  = Math.min(baseEdges, topKValue);
     estNodes  = Math.min(baseNodes, topKValue * 2);
@@ -146,6 +161,10 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
     if (portExc.length) filter.port_blacklist = portExc;
 
     if (topKEnabled && topKValue > 0) filter.top_k_flows = topKValue;
+
+    if (selectedCompIds.size > 0 && selectedCompIds.size < components.length) {
+      filter.component_ids = [...selectedCompIds];
+    }
 
     onLoad(filter);
   }
@@ -334,6 +353,55 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
           onChange={e => setPortExcText(e.target.value)}
         />
       </div>
+
+      {/* Connected components */}
+      {components.length > 1 && (
+        <div style={section}>
+          <div style={{ ...label, display: 'flex', justifyContent: 'space-between' }}>
+            <span>
+              Connected Components
+              <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--txD)' }}>
+                {' '}({components.length} found — empty = load all)
+              </span>
+            </span>
+            {selectedCompIds.size > 0 && (
+              <span
+                style={{ cursor: 'pointer', color: 'var(--ac)', textTransform: 'none', letterSpacing: 0 }}
+                onClick={() => setSelectedCompIds(new Set())}
+              >
+                Clear
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+            {components.slice(0, 50).map(c => (
+              <label key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '3px 0' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedCompIds.has(c.id)}
+                  onChange={() => toggleComp(c.id)}
+                  style={{ marginTop: 2, flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 12, lineHeight: 1.4 }}>
+                  <span style={{ color: selectedCompIds.has(c.id) ? 'var(--txH)' : 'var(--txM)', fontWeight: selectedCompIds.has(c.id) ? 600 : 400 }}>
+                    {fmtNum(c.node_count)} IPs · {fmtNum(c.edge_count)} flows · {fmtNum(c.packet_count)} pkts
+                  </span>
+                  {c.top_ips.length > 0 && (
+                    <span style={{ marginLeft: 8, color: 'var(--txD)', fontSize: 11 }}>
+                      {c.top_ips.slice(0, 3).join(', ')}{c.top_ips.length > 3 ? ` +${c.top_ips.length - 3}` : ''}
+                    </span>
+                  )}
+                </span>
+              </label>
+            ))}
+            {components.length > 50 && (
+              <div style={{ fontSize: 11, color: 'var(--txD)', paddingTop: 2 }}>
+                +{components.length - 50} more — use IP filter to target them
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Top-K flows */}
       <div style={{ ...section, display: 'flex', alignItems: 'center', gap: 10 }}>
