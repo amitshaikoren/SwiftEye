@@ -8,7 +8,8 @@
  *
  * Props: visualize, loading, loadMsg, handleDrop, handleFileInput, error,
  *        switchPanel, schemaNegotiation, handleSchemaConfirm, handleSchemaCancel,
- *        schemaConfirming, typePicker, handleTypePickerConfirm, handleTypePickerCancel
+ *        schemaConfirming, typePicker, handleTypePickerConfirm, handleTypePickerCancel,
+ *        prescanData, handlePrescanLoad, handlePrescanCancel
  */
 
 import React from 'react';
@@ -16,12 +17,14 @@ import logoFullData from '@/logoFullData';
 import VisualizePage from '@core/components/VisualizePage';
 import SchemaDialog from '@core/components/SchemaDialog';
 import TypePickerDialog from '@core/components/TypePickerDialog';
+import LoadOptionsPanel from './LoadOptionsPanel';
 
 export default function NetworkUploadScreen({
   visualize,
   loading, loadMsg,
   handleDrop, handleFileInput, error,
   switchPanel,
+  prescanData, handlePrescanLoad, handlePrescanCancel,
   schemaNegotiation, handleSchemaConfirm, handleSchemaCancel, schemaConfirming,
   typePicker, handleTypePickerConfirm, handleTypePickerCancel,
 }) {
@@ -40,7 +43,14 @@ export default function NetworkUploadScreen({
 
   return (
     <div style={{ width: '100%', height: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {loading ? (
+      {/* LoadOptionsPanel: shown after prescan, replaces the spinner */}
+      {prescanData ? (
+        <LoadOptionsPanel
+          data={prescanData}
+          onLoad={handlePrescanLoad}
+          onCancel={handlePrescanCancel}
+        />
+      ) : loading ? (
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: 40, height: 40, border: '3px solid var(--bd)', borderTopColor: 'var(--ac)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
           <div style={{ color: 'var(--txM)', fontSize: 13 }}>{loadMsg}</div>

@@ -219,6 +219,8 @@ const networkWorkspace = {
   dataHooks,
   // Drop-zone accept list (see useCaptureLoad.handleDrop)
   acceptedExtensions: ['.pcap', '.pcapng', '.cap', '.log', '.csv'],
+  // Enable two-phase prescan → filter → load for single .pcap/.cap files
+  supportsPrescan: true,
   // Search-effect helper for matching sessions onto edges (used when
   // a session row matches the search query). Forensic has no sessions
   // and omits this — useCaptureData skips the matcher when undefined.

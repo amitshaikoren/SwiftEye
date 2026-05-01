@@ -222,6 +222,9 @@ export default function App() {
           handleFileInput={c.handleFileInput}
           error={c.error}
           switchPanel={c.switchPanel}
+          prescanData={c.prescanData}
+          handlePrescanLoad={c.handlePrescanLoad}
+          handlePrescanCancel={c.handlePrescanCancel}
           schemaNegotiation={c.schemaNegotiation}
           handleSchemaConfirm={c.handleSchemaConfirm}
           handleSchemaCancel={c.handleSchemaCancel}

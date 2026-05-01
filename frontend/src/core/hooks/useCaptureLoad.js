@@ -15,6 +15,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   fetchStatus, uploadPcap, uploadMetadata, confirmSchemaMapping,
+  prescanFile, loadWithFilter,
 } from '../api';
 import { STORAGE_KEYS } from '../storageKeys';
 import { useWorkspace } from '@/WorkspaceProvider';
@@ -29,6 +30,11 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
   const [error, setError]     = useState('');
   const [fileName, setFileName] = useState('');
   const [sourceFiles, setSourceFiles] = useState([]);
+
+  // ── Prescan (two-phase pcap load) ────────────────────────────────
+  // null = not scanning; object = prescan result waiting for user filter choice.
+
+  const [prescanData, setPrescanData] = useState(null);
 
   // ── Schema negotiation ───────────────────────────────────────────
 
@@ -164,6 +170,48 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
     setSchemaNegotiation(null);
   }
 
+  function _isPcapFile(file) {
+    const n = file.name.toLowerCase();
+    return n.endsWith('.pcap') || n.endsWith('.cap');
+  }
+
+  async function _handlePrescan(file) {
+    setLoading(true); setLoadMsg('Scanning…'); setError('');
+    try {
+      const data = await prescanFile(file);
+      setLoading(false);
+      setPrescanData(data);
+    } catch (err) {
+      // Prescan failure (e.g. pcapng misidentified as pcap) — fall back to
+      // the regular single-call upload so the user still gets their file loaded.
+      setLoading(false);
+      await handleUpload([file]);
+    }
+  }
+
+  async function handlePrescanLoad(filter) {
+    if (!prescanData) return;
+    const { token } = prescanData;
+    setPrescanData(null);
+    setLoading(true); setLoadMsg('Loading filtered capture…'); setError('');
+    try {
+      const res = await loadWithFilter(token, filter);
+      setFileName(res.file_name);
+      setSourceFiles(res.source_files || [res.file_name]);
+      setLoadMsg('Building graph…');
+      await loadAll();
+      setLoading(false);
+    } catch (err) {
+      setError(err.message || 'Load failed');
+      setLoading(false);
+    }
+  }
+
+  function handlePrescanCancel() {
+    setPrescanData(null);
+    setError('');
+  }
+
   function handleDrop(e) {
     e.preventDefault();
     // Workspace declares which extensions its drop-zone accepts. Falls back to
@@ -172,12 +220,25 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
     const files = Array.from(e.dataTransfer.files).filter(f =>
       exts.some(ext => f.name.toLowerCase().endsWith(ext))
     );
-    if (files.length) handleUpload(files);
+    if (!files.length) return;
+
+    if (workspace.supportsPrescan && files.length === 1 && _isPcapFile(files[0])) {
+      _handlePrescan(files[0]);
+      return;
+    }
+    handleUpload(files);
   }
 
   function handleFileInput(e) {
     const files = Array.from(e.target.files || []);
-    if (files.length) handleUpload(files);
+    if (!files.length) { e.target.value = ''; return; }
+
+    if (workspace.supportsPrescan && files.length === 1 && _isPcapFile(files[0])) {
+      _handlePrescan(files[0]);
+      e.target.value = '';
+      return;
+    }
+    handleUpload(files);
     e.target.value = '';
   }
 
@@ -196,6 +257,7 @@ export function useCaptureLoad({ loaded, setLoaded, onCaptureLoaded, setGraph })
   return {
     loaded, loading, loadMsg, error, fileName, sourceFiles,
     handleUpload, handleDrop, handleFileInput, handleMetadataInput,
+    prescanData, handlePrescanLoad, handlePrescanCancel,
     schemaNegotiation, schemaConfirming, handleSchemaConfirm, handleSchemaCancel,
     typePicker, handleTypePickerConfirm, handleTypePickerCancel,
     flaggingTarget, openFlagModal, closeFlagModal,

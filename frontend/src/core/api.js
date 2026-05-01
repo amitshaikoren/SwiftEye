@@ -22,6 +22,20 @@ export async function uploadPcap(files, forceAdapter = null) {
   return api('/api/upload', { method: 'POST', body: form });
 }
 
+export async function prescanFile(file) {
+  const form = new FormData();
+  form.append('file', file);
+  return api('/api/upload/prescan', { method: 'POST', body: form });
+}
+
+export async function loadWithFilter(token, filter = {}) {
+  return api('/api/upload/load', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, filter }),
+  });
+}
+
 export async function confirmSchemaMapping(stagingToken, mapping) {
   return api('/api/upload/confirm-schema', {
     method: 'POST',

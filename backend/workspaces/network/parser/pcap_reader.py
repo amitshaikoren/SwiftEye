@@ -27,6 +27,8 @@ def read_pcap(
     max_packets: int = MAX_PACKETS,
     progress_callback: Optional[Callable[[int, float], None]] = None,
     use_parallel: bool = True,
+    ts_start: Optional[float] = None,
+    ts_end: Optional[float] = None,
 ) -> List[PacketRecord]:
     """
     Read a pcap or pcapng file and return normalized PacketRecords.
@@ -37,10 +39,12 @@ def read_pcap(
     pcapng files use single-threaded dpkt.
 
     Args:
-        filepath: Path to the pcap/pcapng file
-        max_packets: Maximum packets to return
+        filepath:          Path to the pcap/pcapng file
+        max_packets:       Maximum packets to return
         progress_callback: Accepted for API compat, no-op when multiprocessing active
-        use_parallel: Set False to disable multiprocessing (debugging/fallback)
+        use_parallel:      Set False to disable multiprocessing (debugging/fallback)
+        ts_start:          If set, skip packets before this Unix timestamp (applied in workers)
+        ts_end:            If set, skip packets after this Unix timestamp (applied in workers)
     """
     path = Path(filepath)
     if not path.exists():
@@ -53,4 +57,10 @@ def read_pcap(
     if path.stat().st_size == 0:
         raise ValueError("File is empty")
 
-    return read_pcap_parallel(filepath, max_packets=max_packets, use_parallel=use_parallel)
+    return read_pcap_parallel(
+        filepath,
+        max_packets=max_packets,
+        use_parallel=use_parallel,
+        ts_start=ts_start,
+        ts_end=ts_end,
+    )

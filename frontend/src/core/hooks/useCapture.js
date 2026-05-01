@@ -149,6 +149,8 @@ export function useCapture() {
     error: load.error, fileName: load.fileName, sourceFiles: load.sourceFiles,
     handleUpload: load.handleUpload, handleDrop: load.handleDrop,
     handleFileInput: load.handleFileInput, handleMetadataInput: load.handleMetadataInput,
+    prescanData: load.prescanData,
+    handlePrescanLoad: load.handlePrescanLoad, handlePrescanCancel: load.handlePrescanCancel,
     schemaNegotiation: load.schemaNegotiation, schemaConfirming: load.schemaConfirming,
     handleSchemaConfirm: load.handleSchemaConfirm, handleSchemaCancel: load.handleSchemaCancel,
     typePicker: load.typePicker,

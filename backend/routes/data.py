@@ -1,11 +1,14 @@
+import os
 import shutil
 import tempfile
 import time
+import uuid
 import logging
 from pathlib import Path
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
+from pydantic import BaseModel
 
 from workspaces.network.store import store, _require_capture
 from workspaces.network.analysis import build_time_buckets, build_graph, filter_packets, compute_global_stats, get_subnets
@@ -17,6 +20,8 @@ from workspaces.network.plugins.analyses import get_analysis_results, clear_anal
 from workspaces.network.parser import read_pcap, PacketRecord, MAX_FILE_SIZE
 from workspaces.network.parser.adapters import detect_adapter, find_adapter_by_name, ADAPTERS
 from workspaces.network.parser.schema import inspect_schema, stage_file
+from workspaces.network.parser.parallel_reader import prescan_pcap_parallel
+from workspaces.network.load_filter import LoadFilter, apply_post_parse_filter
 from workspaces.network.constants import PROTOCOL_COLORS
 from core.models import (
     UploadResponse, StatsResponse, TimelineResponse, GraphResponse,
@@ -26,6 +31,36 @@ from core.services.capture import run_plugins, build_analysis_graph_and_run, enr
 
 logger = logging.getLogger("swifteye.routes.data")
 router = APIRouter()
+
+# ── Prescan cache ─────────────────────────────────────────────────────────────
+# Maps token → {"tmp_dir": str, "tmp_path": str, "expires": float}
+_PRESCAN_CACHE: dict = {}
+_PRESCAN_TTL = 30 * 60  # 30 minutes
+
+
+def _cleanup_prescan_cache() -> None:
+    now = time.time()
+    expired = [k for k, v in _PRESCAN_CACHE.items() if v["expires"] < now]
+    for k in expired:
+        entry = _PRESCAN_CACHE.pop(k)
+        shutil.rmtree(entry["tmp_dir"], ignore_errors=True)
+
+
+# ── Pydantic models for two-phase load ───────────────────────────────────────
+
+class _FilterSpec(BaseModel):
+    ts_start:       Optional[float] = None
+    ts_end:         Optional[float] = None
+    protocols:      Optional[List[str]] = None
+    ip_whitelist:   Optional[List[str]] = None
+    port_whitelist: Optional[List[str]] = None
+    top_k_flows:    Optional[int] = None
+    max_packets:    int = 2_000_000
+
+
+class _PrescanLoadRequest(BaseModel):
+    token:  str
+    filter: _FilterSpec = _FilterSpec()
 
 
 @router.post("/api/upload", response_model=UploadResponse)
@@ -175,6 +210,132 @@ async def upload_pcap(files: List[UploadFile] = File(...), force_adapter: Option
         packet_count=len(all_packets),
         parse_time_ms=parse_ms,
         file_size_bytes=total_size,
+    )
+
+
+# ── Two-phase prescan + filtered load ────────────────────────────────────────
+
+@router.post("/api/upload/prescan")
+async def prescan_upload(file: UploadFile = File(...)):
+    """
+    Phase 1 of two-phase load: save the file and return a rich summary
+    (IP inventory, protocol breakdown, time range, graph complexity estimate).
+    Returns a token the client passes back to /api/upload/load.
+
+    Only valid pcap files are supported; pcapng falls back to /api/upload.
+    """
+    _cleanup_prescan_cache()
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, "File is empty")
+
+    tmp_dir = tempfile.mkdtemp(prefix="swifteye_prescan_")
+    safe_name = Path(file.filename or "capture.pcap").name
+    tmp_path = Path(tmp_dir) / safe_name
+    tmp_path.write_bytes(content)
+
+    try:
+        stats = prescan_pcap_parallel(str(tmp_path))
+    except Exception as exc:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise HTTPException(500, f"Prescan failed: {exc}")
+
+    if stats is None:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise HTTPException(422, "Not a valid legacy pcap file — use /api/upload for pcapng")
+
+    token = str(uuid.uuid4())
+    _PRESCAN_CACHE[token] = {
+        "tmp_dir":  tmp_dir,
+        "tmp_path": str(tmp_path),
+        "expires":  time.time() + _PRESCAN_TTL,
+    }
+
+    duration = (stats["ts_last"] - stats["ts_first"]) if stats["ts_first"] and stats["ts_last"] else 0.0
+
+    return {
+        "token":            token,
+        "filename":         safe_name,
+        "file_size_mb":     round(len(content) / 1024 / 1024, 2),
+        "packet_count":     stats["packet_count"],
+        "ts_first":         stats["ts_first"],
+        "ts_last":          stats["ts_last"],
+        "duration_seconds": round(duration, 3),
+        "node_count":       stats["node_count"],
+        "edge_count":       stats["edge_count"],
+        "protocols":        stats["protocols"],
+        "top_ips":          stats["top_ips"],
+    }
+
+
+@router.post("/api/upload/load", response_model=UploadResponse)
+async def load_with_filter(req: _PrescanLoadRequest):
+    """
+    Phase 2 of two-phase load: parse the pre-uploaded file with the given
+    filter and load it into the active capture store.
+
+    Filter dimensions:
+      ts_start / ts_end  — applied inside parse workers (fast path)
+      protocols          — L4 (TCP/UDP/ICMP) or L7 (DNS/TLS/HTTP) names
+      ip_whitelist       — bare IPs or CIDR subnets
+      port_whitelist     — port numbers or ranges ("80", "8000-9000")
+      top_k_flows        — keep only K busiest session flows
+      max_packets        — hard cap
+    """
+    _cleanup_prescan_cache()
+
+    entry = _PRESCAN_CACHE.get(req.token)
+    if not entry:
+        raise HTTPException(404, "Prescan token not found or expired — re-upload the file")
+
+    tmp_path = entry["tmp_path"]
+    if not os.path.exists(tmp_path):
+        _PRESCAN_CACHE.pop(req.token, None)
+        raise HTTPException(404, "Prescan file no longer available — re-upload the file")
+
+    t0 = time.time()
+    f = req.filter
+
+    try:
+        packets = read_pcap(
+            tmp_path,
+            max_packets=f.max_packets,
+            ts_start=f.ts_start,
+            ts_end=f.ts_end,
+        )
+        lf = LoadFilter(
+            protocols=f.protocols,
+            ip_whitelist=f.ip_whitelist,
+            port_whitelist=f.port_whitelist,
+            top_k_flows=f.top_k_flows,
+            max_packets=f.max_packets,
+        )
+        packets = apply_post_parse_filter(packets, lf)
+    except Exception as exc:
+        raise HTTPException(500, f"Parse error: {exc}")
+    finally:
+        _PRESCAN_CACHE.pop(req.token, None)
+        shutil.rmtree(entry["tmp_dir"], ignore_errors=True)
+
+    if not packets:
+        raise HTTPException(400, "No packets matched the filter — broaden the criteria and try again")
+
+    file_name = Path(tmp_path).name
+    parse_ms = int((time.time() - t0) * 1000)
+
+    store.load(packets, file_name, source_files=[file_name])
+    clear_analysis_results()
+    run_plugins()
+
+    return UploadResponse(
+        success=True,
+        capture_id=store.capture_id,
+        file_name=file_name,
+        source_files=[file_name],
+        packet_count=len(packets),
+        parse_time_ms=parse_ms,
+        file_size_bytes=0,
     )
 
 
