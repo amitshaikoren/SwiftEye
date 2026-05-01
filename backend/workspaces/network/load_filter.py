@@ -11,7 +11,7 @@ Filter evaluation order (each step is applied to the survivors of the previous):
   3. IP blacklist   — drop packets where src OR dst matches (bare IP or CIDR)
   4. Port whitelist — keep only packets where src OR dst port matches (port or range)
   5. Port blacklist — drop packets where src OR dst port matches (port or range)
-  6. Top-K          — keep only packets belonging to the K busiest flows
+  6. Top-K nodes    — keep only packets where src or dst IP is in the K busiest IPs
   7. Max            — hard cap on total packet count (safety backstop)
 
 Whitelist and blacklist can be combined: whitelist first narrows to relevant hosts,
@@ -36,7 +36,7 @@ class LoadFilter:
     ip_blacklist:   Optional[List[str]] = None  # exclude — e.g. ["10.0.0.100", "172.16.0.0/12"]
     port_whitelist: Optional[List[str]] = None  # keep only — e.g. ["80", "443", "8000-9000"]
     port_blacklist: Optional[List[str]] = None  # exclude — e.g. ["6881-6889", "4444"]
-    top_k_flows:    Optional[int] = None        # keep only top-K busiest session flows
+    top_k_nodes:    Optional[int] = None        # keep only packets involving the K busiest IPs
     max_packets:    int = 2_000_000
 
 
@@ -149,11 +149,16 @@ def apply_post_parse_filter(packets: list, f: LoadFilter) -> list:
         port_bl = _build_port_matcher(f.port_blacklist)
         packets = [p for p in packets if not (port_bl(p.src_port) or port_bl(p.dst_port))]
 
-    # ── Top-K flows ───────────────────────────────────────────────────
-    # session_key is a property on PacketRecord; no need to call build_sessions first.
-    if f.top_k_flows and f.top_k_flows > 0:
-        flow_counts: Counter = Counter(p.session_key for p in packets)
-        top_keys = {key for key, _ in flow_counts.most_common(f.top_k_flows)}
-        packets = [p for p in packets if p.session_key in top_keys]
+    # ── Top-K nodes ───────────────────────────────────────────────────
+    # Count each IP's total involvement (src + dst appearances), keep the K busiest.
+    if f.top_k_nodes and f.top_k_nodes > 0:
+        ip_counts: Counter = Counter()
+        for p in packets:
+            if p.src_ip:
+                ip_counts[p.src_ip] += 1
+            if p.dst_ip:
+                ip_counts[p.dst_ip] += 1
+        top_ip_set = {ip for ip, _ in ip_counts.most_common(f.top_k_nodes)}
+        packets = [p for p in packets if p.src_ip in top_ip_set or p.dst_ip in top_ip_set]
 
     return packets[: f.max_packets]

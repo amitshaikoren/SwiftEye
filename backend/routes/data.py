@@ -56,7 +56,7 @@ class _FilterSpec(BaseModel):
     ip_blacklist:   Optional[List[str]] = None
     port_whitelist: Optional[List[str]] = None
     port_blacklist: Optional[List[str]] = None
-    top_k_flows:    Optional[int] = None
+    top_k_nodes:    Optional[int] = None
     max_packets:    int = 2_000_000
     component_ids:  Optional[List[int]] = None  # prescan component indices → resolved to ip_whitelist
 
@@ -288,7 +288,7 @@ async def load_with_filter(req: _PrescanLoadRequest):
       protocols          — L4 (TCP/UDP/ICMP) or L7 (DNS/TLS/HTTP) names
       ip_whitelist       — bare IPs or CIDR subnets
       port_whitelist     — port numbers or ranges ("80", "8000-9000")
-      top_k_flows        — keep only K busiest session flows
+      top_k_nodes        — keep only packets involving the K busiest IPs
       max_packets        — hard cap
     """
     _cleanup_prescan_cache()
@@ -331,7 +331,7 @@ async def load_with_filter(req: _PrescanLoadRequest):
             ip_blacklist=f.ip_blacklist,
             port_whitelist=f.port_whitelist,
             port_blacklist=f.port_blacklist,
-            top_k_flows=f.top_k_flows,
+            top_k_nodes=f.top_k_nodes,
             max_packets=f.max_packets,
         )
         packets = apply_post_parse_filter(packets, lf)

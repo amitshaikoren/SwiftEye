@@ -7,7 +7,7 @@
  *   • Protocols       — checkboxes for L4 protocols found in the prescan
  *   • IP / subnet     — free-text, comma-separated IPs or CIDR notation
  *   • Port / range    — free-text, comma-separated ports or ranges
- *   • Top-K flows     — optional; keep only K busiest session pairs
+ *   • Top-K nodes     — optional; keep only packets involving K busiest IPs
  *
  * Props:
  *   data             — prescan response from POST /api/upload/prescan
@@ -19,6 +19,47 @@
 import React, { useState, useMemo } from 'react';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+function ipToInt(ip) {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return null;
+  let n = 0;
+  for (const p of parts) {
+    const b = parseInt(p, 10);
+    if (isNaN(b) || b < 0 || b > 255) return null;
+    n = (n * 256 + b) >>> 0;
+  }
+  return n;
+}
+
+function ipMatchesCidr(ip, entry) {
+  if (!entry.includes('/')) return ip === entry;
+  const [base, bitsStr] = entry.split('/');
+  const prefixLen = parseInt(bitsStr, 10);
+  if (isNaN(prefixLen) || prefixLen < 0 || prefixLen > 32) return false;
+  const mask = prefixLen === 0 ? 0 : (~0 << (32 - prefixLen)) >>> 0;
+  const ipInt = ipToInt(ip);
+  const baseInt = ipToInt(base);
+  if (ipInt === null || baseInt === null) return false;
+  return (ipInt & mask) === (baseInt & mask);
+}
+
+function calcIpFrac(wlText, blText, top_ips) {
+  const wl = wlText.split(',').map(s => s.trim()).filter(Boolean);
+  const bl = blText.split(',').map(s => s.trim()).filter(Boolean);
+  if (wl.length === 0 && bl.length === 0) return 1;
+  const total = top_ips.reduce((s, x) => s + x.packets, 0);
+  if (total === 0) return 1;
+  let passing = 0;
+  for (const { ip, packets } of top_ips) {
+    const inWl = wl.length === 0 || wl.some(e => ipMatchesCidr(ip, e));
+    const inBl = bl.some(e => ipMatchesCidr(ip, e));
+    if (inWl && !inBl) passing += packets;
+  }
+  // Whitelist entries don't overlap top_ips — return small non-zero estimate
+  if (wl.length > 0 && passing === 0) return 0.05;
+  return passing / total;
+}
 
 function fmtDuration(seconds) {
   if (!seconds || seconds <= 0) return '0s';
@@ -109,30 +150,34 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
   }
 
   // ── Estimated counts (packets, edges, nodes) ─────────────────────
-  const timeFrac = duration_seconds > 0 ? (endFrac - startFrac) : 1;
+  const timeFrac  = duration_seconds > 0 ? (endFrac - startFrac) : 1;
   const allProtosEnabled = protoList.length === 0 || enabledProtos.size === protoList.length;
   const protoFrac = allProtosEnabled
     ? 1
     : [...enabledProtos].reduce((acc, name) => acc + (prescanProtos[name] || 0), 0) / (packet_count || 1);
+  const ipFrac = calcIpFrac(ipText, ipExcText, top_ips);
 
   // If components are selected use their totals as the base, otherwise use full prescan counts
   const compFiltered = selectedCompIds.size > 0 && selectedCompIds.size < components.length;
   const selComps     = compFiltered ? components.filter(c => selectedCompIds.has(c.id)) : null;
-  const basePkts  = Math.round((selComps ? selComps.reduce((s, c) => s + c.packet_count, 0) : packet_count) * timeFrac * protoFrac);
-  const baseEdges = Math.round((selComps ? selComps.reduce((s, c) => s + c.edge_count,   0) : edge_count)   * timeFrac * protoFrac);
-  const baseNodes = Math.round((selComps ? selComps.reduce((s, c) => s + c.node_count,   0) : node_count)   * Math.sqrt(timeFrac * protoFrac));
+  const combinedFrac = timeFrac * protoFrac * ipFrac;
+  const basePkts  = Math.round((selComps ? selComps.reduce((s, c) => s + c.packet_count, 0) : packet_count) * combinedFrac);
+  const baseEdges = Math.round((selComps ? selComps.reduce((s, c) => s + c.edge_count,   0) : edge_count)   * combinedFrac);
+  const baseNodes = Math.round((selComps ? selComps.reduce((s, c) => s + c.node_count,   0) : node_count)   * Math.sqrt(combinedFrac));
 
   let estimated  = basePkts;
   let estEdges   = baseEdges;
   let estNodes   = baseNodes;
 
   if (topKEnabled && topKValue > 0) {
-    const baseE = selComps ? selComps.reduce((s, c) => s + c.edge_count,   0) : edge_count;
-    const baseP = selComps ? selComps.reduce((s, c) => s + c.packet_count, 0) : packet_count;
-    const avgPktsPerFlow = baseE > 0 ? baseP / baseE : baseP;
-    estimated = Math.min(basePkts,  Math.round(topKValue * avgPktsPerFlow));
-    estEdges  = Math.min(baseEdges, topKValue);
-    estNodes  = Math.min(baseNodes, topKValue * 2);
+    const rawN = selComps ? selComps.reduce((s, c) => s + c.node_count,   0) : node_count;
+    const rawE = selComps ? selComps.reduce((s, c) => s + c.edge_count,   0) : edge_count;
+    const rawP = selComps ? selComps.reduce((s, c) => s + c.packet_count, 0) : packet_count;
+    const edgePerNode  = rawN > 0 ? rawE / rawN : 1;
+    const pktsPerNode  = rawN > 0 ? rawP / rawN : rawP;
+    estNodes  = Math.min(baseNodes, topKValue);
+    estEdges  = Math.min(baseEdges, Math.round(topKValue * edgePerNode));
+    estimated = Math.min(basePkts,  Math.round(topKValue * pktsPerNode));
   }
 
   const hasIpFilter   = ipText.trim()   || ipExcText.trim();
@@ -160,7 +205,7 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
     const portExc = portExcText.split(',').map(s => s.trim()).filter(Boolean);
     if (portExc.length) filter.port_blacklist = portExc;
 
-    if (topKEnabled && topKValue > 0) filter.top_k_flows = topKValue;
+    if (topKEnabled && topKValue > 0) filter.top_k_nodes = topKValue;
 
     if (selectedCompIds.size > 0 && selectedCompIds.size < components.length) {
       filter.component_ids = [...selectedCompIds];
@@ -207,8 +252,8 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
       <div style={{ ...section, display: 'flex', gap: 20, flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(88,166,255,.05)', borderRadius: 8 }}>
         <Stat label="Packets"  value={fmtNum(packet_count)} />
         <Stat label="Duration" value={fmtDuration(duration_seconds)} />
-        <Stat label="Unique IPs"    value={fmtNum(node_count)} />
-        <Stat label="IP pairs" value={fmtNum(edge_count)} />
+        <Stat label="Nodes"    value={fmtNum(node_count)} />
+        <Stat label="Edges" value={fmtNum(edge_count)} />
       </div>
 
       {/* Time range */}
@@ -384,7 +429,7 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
                 />
                 <span style={{ fontSize: 12, lineHeight: 1.4 }}>
                   <span style={{ color: selectedCompIds.has(c.id) ? 'var(--txH)' : 'var(--txM)', fontWeight: selectedCompIds.has(c.id) ? 600 : 400 }}>
-                    {fmtNum(c.node_count)} IPs · {fmtNum(c.edge_count)} flows · {fmtNum(c.packet_count)} pkts
+                    {fmtNum(c.node_count)} nodes · {fmtNum(c.edge_count)} edges · {fmtNum(c.packet_count)} pkts
                   </span>
                   {c.top_ips.length > 0 && (
                     <span style={{ marginLeft: 8, color: 'var(--txD)', fontSize: 11 }}>
@@ -407,7 +452,7 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
       <div style={{ ...section, display: 'flex', alignItems: 'center', gap: 10 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
           <input type="checkbox" checked={topKEnabled} onChange={e => setTopKEnabled(e.target.checked)} />
-          <span>Top-K flows only</span>
+          <span>Top-K nodes only</span>
         </label>
         {topKEnabled && (
           <input
@@ -429,11 +474,11 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
             <span style={{ fontWeight: 600, fontSize: 14, color: estColor(estimated) }}>~{fmtNum(estimated)}</span>
           </span>
           <span>
-            <span style={{ color: 'var(--txD)', fontSize: 11 }}>Flows </span>
+            <span style={{ color: 'var(--txD)', fontSize: 11 }}>Edges </span>
             <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--txH)' }}>~{fmtNum(estEdges)}</span>
           </span>
           <span>
-            <span style={{ color: 'var(--txD)', fontSize: 11 }}>IPs </span>
+            <span style={{ color: 'var(--txD)', fontSize: 11 }}>Nodes </span>
             <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--txH)' }}>~{fmtNum(estNodes)}</span>
           </span>
         </div>
