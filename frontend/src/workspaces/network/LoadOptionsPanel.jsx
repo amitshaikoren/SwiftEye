@@ -96,13 +96,32 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
   const [topKEnabled, setTopKEnabled] = useState(false);
   const [topKValue,   setTopKValue]   = useState(100);
 
-  // ── Estimated packet count ───────────────────────────────────────
+  // ── Estimated counts (packets, edges, nodes) ─────────────────────
   const timeFrac = duration_seconds > 0 ? (endFrac - startFrac) : 1;
   const allProtosEnabled = protoList.length === 0 || enabledProtos.size === protoList.length;
   const protoFrac = allProtosEnabled
     ? 1
     : [...enabledProtos].reduce((acc, name) => acc + (prescanProtos[name] || 0), 0) / (packet_count || 1);
-  const estimated = Math.round(packet_count * timeFrac * protoFrac);
+
+  const basePkts  = Math.round(packet_count * timeFrac * protoFrac);
+  const baseEdges = Math.round(edge_count   * timeFrac * protoFrac);
+  // nodes shrink slower than edges (hub nodes appear in many flows)
+  const baseNodes = Math.round(node_count   * Math.sqrt(timeFrac * protoFrac));
+
+  let estimated  = basePkts;
+  let estEdges   = baseEdges;
+  let estNodes   = baseNodes;
+
+  if (topKEnabled && topKValue > 0) {
+    // top-K caps flows exactly; packets estimated from avg flow size
+    const avgPktsPerFlow = edge_count > 0 ? packet_count / edge_count : packet_count;
+    estimated = Math.min(basePkts,  Math.round(topKValue * avgPktsPerFlow));
+    estEdges  = Math.min(baseEdges, topKValue);
+    estNodes  = Math.min(baseNodes, topKValue * 2);
+  }
+
+  const hasIpFilter   = ipText.trim()   || ipExcText.trim();
+  const hasPortFilter = portText.trim() || portExcText.trim();
 
   // ── submit ───────────────────────────────────────────────────────
   function handleLoad() {
@@ -332,13 +351,31 @@ export default function LoadOptionsPanel({ data, onLoad, onCancel }) {
       </div>
 
       {/* Estimate */}
-      <div style={{ ...section, padding: '10px 14px', borderRadius: 8, background: 'rgba(0,0,0,.15)', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ color: 'var(--txD)' }}>Estimated packets:</span>
-        <span style={{ fontWeight: 600, fontSize: 14, color: estColor(estimated) }}>
-          ~{fmtNum(estimated)}
-        </span>
+      <div style={{ ...section, padding: '10px 14px', borderRadius: 8, background: 'rgba(0,0,0,.15)' }}>
+        <div style={{ fontSize: 10, color: 'var(--txD)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+          After filters (estimated)
+        </div>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          <span>
+            <span style={{ color: 'var(--txD)', fontSize: 11 }}>Packets </span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: estColor(estimated) }}>~{fmtNum(estimated)}</span>
+          </span>
+          <span>
+            <span style={{ color: 'var(--txD)', fontSize: 11 }}>Flows </span>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--txH)' }}>~{fmtNum(estEdges)}</span>
+          </span>
+          <span>
+            <span style={{ color: 'var(--txD)', fontSize: 11 }}>IPs </span>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--txH)' }}>~{fmtNum(estNodes)}</span>
+          </span>
+        </div>
         {estimated > 500_000 && (
-          <span style={{ fontSize: 11, color: '#d29922' }}>Large — consider narrowing the time range</span>
+          <div style={{ marginTop: 6, fontSize: 11, color: '#d29922' }}>Large — consider narrowing the time range</div>
+        )}
+        {(hasIpFilter || hasPortFilter) && (
+          <div style={{ marginTop: 4, fontSize: 11, color: 'var(--txD)' }}>
+            IP/port filter active — counts are approximate
+          </div>
         )}
       </div>
 
